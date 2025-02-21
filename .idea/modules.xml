@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.nstut.simplyscreens.test.iml" filepath="$PROJECT_DIR$/.idea/modules/com.nstut.simplyscreens.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/simply-speakers.simplyscreens.test.iml" filepath="$PROJECT_DIR$/.idea/modules/simply-speakers.simplyscreens.test.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/simplyscreens.main.iml" filepath="$PROJECT_DIR$/.idea/modules/simplyscreens.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/simplyscreens.test.iml" filepath="$PROJECT_DIR$/.idea/modules/simplyscreens.test.iml" />
+    </modules>
+  </component>
+</project>

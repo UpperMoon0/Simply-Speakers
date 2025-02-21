@@ -1,0 +1,10 @@
+{
+  "custom.music": {
+    "sounds": [
+      {
+        "name": "simplyspeakers:custom/music",
+        "stream": true
+      }
+    ]
+  }
+}
