@@ -1,6 +1,5 @@
 package com.nstut.simplyspeakers.network;
 
-import net.minecraft.core.BlockPos;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
@@ -18,10 +17,10 @@ public class PacketRegistries {
     public static void register() {
         CHANNEL.registerMessage(
                 0,
-                MusicPathPacketC2S.class,
-                MusicPathPacketC2S::encode,
-                MusicPathPacketC2S::decode,
-                MusicPathPacketC2S::handle
+                AudioPathPacketC2S.class,
+                AudioPathPacketC2S::encode,
+                AudioPathPacketC2S::decode,
+                AudioPathPacketC2S::handle
         );
         CHANNEL.registerMessage(
                 1,
@@ -44,13 +43,27 @@ public class PacketRegistries {
                 SpeakerBlockEntityPacketS2C::decode,
                 SpeakerBlockEntityPacketS2C::handle
         );
-    }
-
-    public static void sendMusicPathToServer(BlockPos pos, String musicPath) {
-        CHANNEL.sendToServer(new MusicPathPacketC2S(pos, musicPath));
+        CHANNEL.registerMessage(
+                4,
+                StopAudioCallPacketC2S.class,
+                StopAudioCallPacketC2S::encode,
+                StopAudioCallPacketC2S::decode,
+                StopAudioCallPacketC2S::handle
+        );
+        CHANNEL.registerMessage(
+                5,
+                PlayAudioCallPacketC2S.class,
+                PlayAudioCallPacketC2S::encode,
+                PlayAudioCallPacketC2S::decode,
+                PlayAudioCallPacketC2S::handle
+        );
     }
 
     public static void sendToClients(Object packet) {
         CHANNEL.send(PacketDistributor.ALL.noArg(), packet);
+    }
+
+    public static void sendToServer(Object packet) {
+        CHANNEL.sendToServer(packet);
     }
 }

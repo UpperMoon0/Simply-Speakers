@@ -1,10 +1,13 @@
-// Java
+// Language: java
 package com.nstut.simplyspeakers.client.screens;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import com.nstut.simplyspeakers.network.AudioPathPacketC2S;
 import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.network.PlayAudioCallPacketC2S;
+import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -39,52 +42,73 @@ public class SpeakerScreen extends Screen {
     protected void init() {
         super.init();
 
+        // Load audio path from the block entity.
         fetchDataFromBlockEntity();
 
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        // Initialize the EditBox for audio path input
+        // Initialize the EditBox for audio path display.
         this.audioPathField = new EditBox(this.font, guiLeft + 10, guiTop + 48, 140, 20, Component.literal(""));
         this.audioPathField.setMaxLength(255);
-
         if (initialAudioPath != null && !initialAudioPath.isBlank()) {
             this.audioPathField.setValue(initialAudioPath);
         }
-
-        // Ensure the EditBox gets focus for text input
         this.audioPathField.setFocused(true);
-
-        // Register the EditBox as an interactive widget
         this.addRenderableWidget(this.audioPathField);
 
-        // Create the "Load Audio" button
-        Button uploadButton = Button.builder(Component.literal("Load Audio"), button -> {
-                    String filePath = audioPathField.getValue();
-                    if (!filePath.isBlank()) {
-                        sendScreenInputsToServer(filePath);
-                    }
-                })
-                .pos(guiLeft + 21, guiTop + 90)
-                .size(120, 20)
+        // Create the "Play" button to send the play audio packet.
+        Button playButton = Button.builder(Component.literal("Play"), button -> sendPlayAudioToServer())
+                .pos(guiLeft + 10, guiTop + 80)
+                .size(60, 20)
                 .build();
+        this.addRenderableWidget(playButton);
 
-        this.addRenderableWidget(uploadButton);
+        // Create the "Stop" button to stop audio playback.
+        Button stopButton = Button.builder(Component.literal("Stop"), button -> sendStopAudioToServer())
+                .pos(guiLeft + 80, guiTop + 80)
+                .size(60, 20)
+                .build();
+        this.addRenderableWidget(stopButton);
+
+        // Create the "Load" button that calls AudioPathPacketC2S to update the audio path.
+        Button loadButton = Button.builder(Component.literal("Load"), button -> sendLoadAudioToServer())
+                .pos(guiLeft + 10, guiTop + 105)
+                .size(130, 20)
+                .build();
+        this.addRenderableWidget(loadButton);
     }
 
     private void fetchDataFromBlockEntity() {
         if (Minecraft.getInstance().level == null) {
             return;
         }
-
         BlockEntity blockEntity = Minecraft.getInstance().level.getBlockEntity(blockEntityPos);
         if (blockEntity instanceof SpeakerBlockEntity) {
             this.initialAudioPath = ((SpeakerBlockEntity) blockEntity).getAudioPath();
         }
     }
 
-    private void sendScreenInputsToServer(String filePath) {
-        PacketRegistries.sendMusicPathToServer(blockEntityPos, filePath);
+    // Sends a packet to the server to play audio.
+    private void sendPlayAudioToServer() {
+        PlayAudioCallPacketC2S packet = new PlayAudioCallPacketC2S(blockEntityPos);
+        PacketRegistries.sendToServer(packet);
+    }
+
+    // Sends a packet to the server to stop the audio playback.
+    private void sendStopAudioToServer() {
+        StopAudioPacketS2C packet = new StopAudioPacketS2C(blockEntityPos);
+        PacketRegistries.sendToServer(packet);
+    }
+
+    // Sends a packet to the server to update the audio path.
+    private void sendLoadAudioToServer() {
+        String filePath = audioPathField.getValue();
+        if (!filePath.isBlank()) {
+            // Call AudioPathPacketC2S to update the audio path in the block entity.
+            AudioPathPacketC2S packet = new AudioPathPacketC2S(blockEntityPos, filePath);
+            PacketRegistries.sendToServer(packet);
+        }
     }
 
     @Override
@@ -95,7 +119,7 @@ public class SpeakerScreen extends Screen {
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
         guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-        // Draw label above the input field
+        // Draw label above the input field.
         guiGraphics.drawString(this.font, Component.literal("Audio Path:"), guiLeft + 10, guiTop + 35, 4210752, false);
 
         this.audioPathField.render(guiGraphics, mouseX, mouseY, partialTicks);

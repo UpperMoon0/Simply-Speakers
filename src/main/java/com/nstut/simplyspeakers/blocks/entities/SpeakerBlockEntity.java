@@ -1,3 +1,4 @@
+// Language: java
 package com.nstut.simplyspeakers.blocks.entities;
 
 import com.nstut.simplyspeakers.blocks.BlockRegistries;
@@ -21,7 +22,6 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @Getter
     private String audioPath = "";
-    private boolean isPlaying = false;
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityRegistries.SPEAKER.get(), pos, state);
@@ -45,39 +45,44 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     public void playAudio() {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+
         if (audioPath == null || audioPath.isEmpty()) {
             LOGGER.warning("Audio path is empty.");
             return;
         }
+
         File file = new File(audioPath);
         if (!file.exists()) {
             LOGGER.warning("Audio file not found: " + audioPath);
             return;
         }
+
         // Send a packet to trigger the client to play the external audio file.
         PlayAudioPacketS2C packet = new PlayAudioPacketS2C(getBlockPos(), audioPath);
         PacketRegistries.sendToClients(packet);
-        LOGGER.info("Sent play packet for file: " + audioPath);
     }
 
-    public void tick() {
-        if (level == null || level.isClientSide) return;
-
-        boolean isPowered = level.hasNeighborSignal(worldPosition);
-
-        if (isPowered && !isPlaying) {
-            playAudio();
-            isPlaying = true;
-        } else if (!isPowered && isPlaying) {
-            StopAudioPacketS2C packet = new StopAudioPacketS2C(getBlockPos());
-            PacketRegistries.sendToClients(packet);
-            isPlaying = false;
+    public void stopAudio() {
+        if (level == null || level.isClientSide) {
+            return;
         }
 
+        StopAudioPacketS2C packet = new StopAudioPacketS2C(getBlockPos());
+        PacketRegistries.sendToClients(packet);
+    }
+
+    // Removed redstone activation logic; UI buttons will now call playAudio or stop
+    public void tick() {
+        if (level == null || level.isClientSide) {
+            return;
+        }
+
+        // Validate block state: if the block at this position is not a speaker, reset playback state.
         if (!level.getBlockState(worldPosition).is(BlockRegistries.SPEAKER.get())) {
-            StopAudioPacketS2C packet = new StopAudioPacketS2C(getBlockPos());
-            PacketRegistries.sendToClients(packet);
-            isPlaying = false;
+            stopAudio();
         }
     }
 

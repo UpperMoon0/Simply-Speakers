@@ -1,11 +1,9 @@
+// Language: java
 package com.nstut.simplyspeakers.client;
 
 import net.minecraft.core.BlockPos;
 import org.lwjgl.openal.AL10;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.sound.sampled.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -58,7 +56,7 @@ public class ClientAudioPlayer {
                     AL10.alSourcei(sourceID, AL10.AL_BUFFER, bufferID);
                     AL10.alSourcePlay(sourceID);
                 }
-            } catch (IOException | UnsupportedAudioFileException e) {
+            } catch (UnsupportedAudioFileException | IOException e) {
                 e.printStackTrace();
             }
         });
@@ -73,6 +71,14 @@ public class ClientAudioPlayer {
             AL10.alDeleteSources(sourceID);
             speakerSources.remove(pos);
         }
+    }
+
+    public static void stopAll() {
+        for (Integer sourceID : speakerSources.values()) {
+            AL10.alSourceStop(sourceID);
+            AL10.alDeleteSources(sourceID);
+        }
+        speakerSources.clear();
     }
 
     private static int getOpenALFormat(AudioFormat format) {
