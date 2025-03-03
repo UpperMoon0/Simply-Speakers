@@ -1,4 +1,3 @@
-// Language: java
 package com.nstut.simplyspeakers.client;
 
 import net.minecraft.core.BlockPos;
@@ -13,9 +12,22 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class ClientAudioPlayer {
 
-    private static final Map<BlockPos, Integer> speakerSources = new ConcurrentHashMap<>();
+    private static final Map<BlockPos, AudioResource> speakerResources = new ConcurrentHashMap<>();
+
+    private static class AudioResource {
+        int sourceID;
+        int bufferID;
+
+        AudioResource(int sourceID, int bufferID) {
+            this.sourceID = sourceID;
+            this.bufferID = bufferID;
+        }
+    }
 
     public static void play(BlockPos pos, String filePath) {
+        // Stop any existing playback at this position first
+        stop(pos);
+
         if (filePath == null || filePath.trim().isEmpty()) {
             System.err.println("Audio path is empty for speaker at " + pos + ". Skipping playback.");
             return;
@@ -52,7 +64,11 @@ public class ClientAudioPlayer {
                     AL10.alBufferData(bufferID, alFormat, buffer, (int) decodedFormat.getSampleRate());
 
                     int sourceID = AL10.alGenSources();
-                    speakerSources.put(pos, sourceID);
+
+                    synchronized (ClientAudioPlayer.class) {
+                        speakerResources.put(pos, new AudioResource(sourceID, bufferID));
+                    }
+
                     AL10.alSourcei(sourceID, AL10.AL_BUFFER, bufferID);
                     AL10.alSourcePlay(sourceID);
                 }
@@ -65,20 +81,21 @@ public class ClientAudioPlayer {
     }
 
     public static void stop(BlockPos pos) {
-        Integer sourceID = speakerSources.get(pos);
-        if (sourceID != null) {
-            AL10.alSourceStop(sourceID);
-            AL10.alDeleteSources(sourceID);
-            speakerSources.remove(pos);
+        AudioResource resource = speakerResources.remove(pos);
+        if (resource != null) {
+            AL10.alSourceStop(resource.sourceID);
+            AL10.alDeleteSources(resource.sourceID);
+            AL10.alDeleteBuffers(resource.bufferID);
         }
     }
 
     public static void stopAll() {
-        for (Integer sourceID : speakerSources.values()) {
-            AL10.alSourceStop(sourceID);
-            AL10.alDeleteSources(sourceID);
+        for (AudioResource resource : speakerResources.values()) {
+            AL10.alSourceStop(resource.sourceID);
+            AL10.alDeleteSources(resource.sourceID);
+            AL10.alDeleteBuffers(resource.bufferID);
         }
-        speakerSources.clear();
+        speakerResources.clear();
     }
 
     private static int getOpenALFormat(AudioFormat format) {
