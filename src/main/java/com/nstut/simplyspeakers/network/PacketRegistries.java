@@ -17,10 +17,10 @@ public class PacketRegistries {
     public static void register() {
         CHANNEL.registerMessage(
                 0,
-                AudioPathPacketC2S.class,
-                AudioPathPacketC2S::encode,
-                AudioPathPacketC2S::decode,
-                AudioPathPacketC2S::handle
+                LoadAudioCallPacketC2S.class,
+                LoadAudioCallPacketC2S::encode,
+                LoadAudioCallPacketC2S::decode,
+                LoadAudioCallPacketC2S::handle
         );
         CHANNEL.registerMessage(
                 1,
