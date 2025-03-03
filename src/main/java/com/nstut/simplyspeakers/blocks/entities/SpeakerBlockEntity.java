@@ -16,11 +16,11 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.util.logging.Logger;
 
+@Getter
 public class SpeakerBlockEntity extends BlockEntity {
 
     private static final Logger LOGGER = Logger.getLogger(SpeakerBlockEntity.class.getName());
 
-    @Getter
     private String audioPath = "";
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
@@ -51,12 +51,6 @@ public class SpeakerBlockEntity extends BlockEntity {
 
         if (audioPath == null || audioPath.isEmpty()) {
             LOGGER.warning("Audio path is empty.");
-            return;
-        }
-
-        File file = new File(audioPath);
-        if (!file.exists()) {
-            LOGGER.warning("Audio file not found: " + audioPath);
             return;
         }
 

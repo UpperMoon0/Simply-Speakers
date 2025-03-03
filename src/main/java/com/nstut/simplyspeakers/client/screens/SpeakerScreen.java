@@ -4,7 +4,7 @@ package com.nstut.simplyspeakers.client.screens;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
-import com.nstut.simplyspeakers.network.AudioPathPacketC2S;
+import com.nstut.simplyspeakers.network.LoadAudioCallPacketC2S;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.PlayAudioCallPacketC2S;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
@@ -48,8 +48,8 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        // Initialize the EditBox for audio path display.
-        this.audioPathField = new EditBox(this.font, guiLeft + 10, guiTop + 48, 140, 20, Component.literal(""));
+        // Initialize the EditBox for audio path display (moved up 5px)
+        this.audioPathField = new EditBox(this.font, guiLeft + 10, guiTop + 43, 140, 20, Component.literal(""));
         this.audioPathField.setMaxLength(255);
         if (initialAudioPath != null && !initialAudioPath.isBlank()) {
             this.audioPathField.setValue(initialAudioPath);
@@ -57,26 +57,41 @@ public class SpeakerScreen extends Screen {
         this.audioPathField.setFocused(true);
         this.addRenderableWidget(this.audioPathField);
 
-        // Create the "Play" button to send the play audio packet.
+        // Create the "Play" button (moved up 5px)
         Button playButton = Button.builder(Component.literal("Play"), button -> sendPlayAudioToServer())
-                .pos(guiLeft + 10, guiTop + 80)
+                .pos(guiLeft + 10, guiTop + 75)
                 .size(60, 20)
                 .build();
         this.addRenderableWidget(playButton);
 
-        // Create the "Stop" button to stop audio playback.
+        // Create the "Stop" button (moved up 5px)
         Button stopButton = Button.builder(Component.literal("Stop"), button -> sendStopAudioToServer())
-                .pos(guiLeft + 80, guiTop + 80)
+                .pos(guiLeft + 80, guiTop + 75)
                 .size(60, 20)
                 .build();
         this.addRenderableWidget(stopButton);
 
-        // Create the "Load" button that calls AudioPathPacketC2S to update the audio path.
+        // Create the "Load" button (moved up 5px)
         Button loadButton = Button.builder(Component.literal("Load"), button -> sendLoadAudioToServer())
-                .pos(guiLeft + 10, guiTop + 105)
+                .pos(guiLeft + 10, guiTop + 100)
                 .size(130, 20)
                 .build();
         this.addRenderableWidget(loadButton);
+    }
+
+    @Override
+    public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
+        this.renderBackground(guiGraphics);
+        RenderSystem.setShaderTexture(0, BACKGROUND_TEXTURE);
+        int guiLeft = (this.width - SCREEN_WIDTH) / 2;
+        int guiTop = (this.height - SCREEN_HEIGHT) / 2;
+        guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        // Draw label above the input field (moved up 5px)
+        guiGraphics.drawString(this.font, Component.literal("Audio Path:"), guiLeft + 10, guiTop + 30, 4210752, false);
+
+        this.audioPathField.render(guiGraphics, mouseX, mouseY, partialTicks);
+        super.render(guiGraphics, mouseX, mouseY, partialTicks);
     }
 
     private void fetchDataFromBlockEntity() {
@@ -106,23 +121,8 @@ public class SpeakerScreen extends Screen {
         String filePath = audioPathField.getValue();
         if (!filePath.isBlank()) {
             // Call AudioPathPacketC2S to update the audio path in the block entity.
-            AudioPathPacketC2S packet = new AudioPathPacketC2S(blockEntityPos, filePath);
+            LoadAudioCallPacketC2S packet = new LoadAudioCallPacketC2S(blockEntityPos, filePath);
             PacketRegistries.sendToServer(packet);
         }
-    }
-
-    @Override
-    public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        this.renderBackground(guiGraphics);
-        RenderSystem.setShaderTexture(0, BACKGROUND_TEXTURE);
-        int guiLeft = (this.width - SCREEN_WIDTH) / 2;
-        int guiTop = (this.height - SCREEN_HEIGHT) / 2;
-        guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-        // Draw label above the input field.
-        guiGraphics.drawString(this.font, Component.literal("Audio Path:"), guiLeft + 10, guiTop + 35, 4210752, false);
-
-        this.audioPathField.render(guiGraphics, mouseX, mouseY, partialTicks);
-        super.render(guiGraphics, mouseX, mouseY, partialTicks);
     }
 }
