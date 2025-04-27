@@ -36,13 +36,18 @@ public class LoadAudioCallPacketC2S {
         context.enqueueWork(() -> {
             ServerPlayer player = context.getSender();
             if (player != null) {
-                try (var level = player.level()) { // only if player.level() returns an AutoCloseable resource
+                net.minecraft.server.level.ServerLevel level = player.serverLevel(); // Use serverLevel()
+                if (level != null) { // Check level validity
                     BlockEntity blockEntity = level.getBlockEntity(packet.pos);
-                    if (blockEntity instanceof SpeakerBlockEntity) {
-                        ((SpeakerBlockEntity) blockEntity).setAudioPath(packet.musicPath);
+                    if (blockEntity instanceof SpeakerBlockEntity speakerEntity) { // Use pattern matching
+                        try {
+                            speakerEntity.setAudioPath(packet.musicPath);
+                        } catch (Exception e) {
+                            // Log the exception properly
+                            LOGGER.severe("Error setting audio path for speaker at " + packet.pos + ": " + e.getMessage());
+                            e.printStackTrace();
+                        }
                     }
-                } catch (Exception e) {
-                    e.printStackTrace();
                 }
             }
         });

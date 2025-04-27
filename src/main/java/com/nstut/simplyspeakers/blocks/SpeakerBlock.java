@@ -13,6 +13,7 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BooleanProperty; // Import BooleanProperty
 import net.minecraft.world.level.block.state.properties.DirectionProperty;
 import org.jetbrains.annotations.NotNull;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
@@ -25,21 +26,29 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.BlockHitResult;
 
-public class SpeakerBlock extends Block implements EntityBlock {
+public class SpeakerBlock extends BaseEntityBlock { // Extend BaseEntityBlock for convenience
 
     public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
+    public static final BooleanProperty POWERED = BooleanProperty.create("powered"); // Add POWERED state
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public SpeakerBlock() {
-        super(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK).noOcclusion());
+    public SpeakerBlock(Properties properties) {
+        super(properties);
         this.registerDefaultState(this.stateDefinition.any()
-                .setValue(FACING, Direction.NORTH)); // Default to facing NORTH
+                .setValue(FACING, Direction.NORTH)
+                .setValue(POWERED, Boolean.FALSE)); // Default POWERED to false
     }
+
+    // Convenience constructor using default properties
+    public SpeakerBlock() {
+        this(BlockBehaviour.Properties.copy(Blocks.IRON_BLOCK).noOcclusion());
+    }
+
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> blockStateBuilder) {
-        blockStateBuilder.add(FACING); // Only add FACING property
+        blockStateBuilder.add(FACING, POWERED); // Add both properties
     }
 
     @Override
@@ -68,13 +77,36 @@ public class SpeakerBlock extends Block implements EntityBlock {
         return InteractionResult.SUCCESS;
     }
 
-    // This method adds the BlockEntityTicker to the block entity
+    // Remove the ticker, as logic will move to neighborChanged
     @Override
-    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, @NotNull BlockState state, @NotNull BlockEntityType<T> blockEntityType) {
-        return level.isClientSide ? null : (lvl, pos, blockState, blockEntity) -> {
-            if (blockEntity instanceof SpeakerBlockEntity speakerBlockEntity) {
-                speakerBlockEntity.tick();
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(@NotNull Level level, @NotNull BlockState state, @NotNull BlockEntityType<T> blockEntityType) {
+        // No ticking needed from the block entity itself anymore
+        return null;
+    }
+
+    @SuppressWarnings("deprecation")
+    @Override
+    public void neighborChanged(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, @NotNull Block block, @NotNull BlockPos fromPos, boolean isMoving) {
+        super.neighborChanged(state, level, pos, block, fromPos, isMoving);
+
+        if (!level.isClientSide) {
+            boolean currentPower = state.getValue(POWERED);
+            boolean hasSignal = level.hasNeighborSignal(pos);
+
+            if (currentPower != hasSignal) {
+                // Update the block state first
+                level.setBlock(pos, state.setValue(POWERED, hasSignal), 3);
+
+                // Then trigger audio based on the new state
+                BlockEntity blockEntity = level.getBlockEntity(pos);
+                if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
+                    if (hasSignal) {
+                        speakerEntity.playAudio();
+                    } else {
+                        speakerEntity.stopAudio();
+                    }
+                }
             }
-        };
+        }
     }
 }

@@ -6,8 +6,7 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.network.LoadAudioCallPacketC2S;
 import com.nstut.simplyspeakers.network.PacketRegistries;
-import com.nstut.simplyspeakers.network.PlayAudioCallPacketC2S;
-import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
+// Removed PlayAudioCallPacketC2S and StopAudioPacketS2C imports as they are no longer used here
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -57,23 +56,11 @@ public class SpeakerScreen extends Screen {
         this.audioPathField.setFocused(true);
         this.addRenderableWidget(this.audioPathField);
 
-        // Create the "Play" button (moved up 5px)
-        Button playButton = Button.builder(Component.literal("Play"), button -> sendPlayAudioToServer())
-                .pos(guiLeft + 10, guiTop + 75)
-                .size(60, 20)
-                .build();
-        this.addRenderableWidget(playButton);
+        // Removed Play and Stop buttons
 
-        // Create the "Stop" button (moved up 5px)
-        Button stopButton = Button.builder(Component.literal("Stop"), button -> sendStopAudioToServer())
-                .pos(guiLeft + 80, guiTop + 75)
-                .size(60, 20)
-                .build();
-        this.addRenderableWidget(stopButton);
-
-        // Create the "Load" button (moved up 5px)
+        // Create the "Load" button, centered horizontally and moved up slightly
         Button loadButton = Button.builder(Component.literal("Load"), button -> sendLoadAudioToServer())
-                .pos(guiLeft + 10, guiTop + 100)
+                .pos(guiLeft + (SCREEN_WIDTH - 130) / 2, guiTop + 75) // Centered and moved up
                 .size(130, 20)
                 .build();
         this.addRenderableWidget(loadButton);
@@ -104,17 +91,7 @@ public class SpeakerScreen extends Screen {
         }
     }
 
-    // Sends a packet to the server to play audio.
-    private void sendPlayAudioToServer() {
-        PlayAudioCallPacketC2S packet = new PlayAudioCallPacketC2S(blockEntityPos);
-        PacketRegistries.sendToServer(packet);
-    }
-
-    // Sends a packet to the server to stop the audio playback.
-    private void sendStopAudioToServer() {
-        StopAudioPacketS2C packet = new StopAudioPacketS2C(blockEntityPos);
-        PacketRegistries.sendToServer(packet);
-    }
+    // Removed sendPlayAudioToServer and sendStopAudioToServer methods
 
     // Sends a packet to the server to update the audio path.
     private void sendLoadAudioToServer() {

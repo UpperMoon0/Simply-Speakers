@@ -11,9 +11,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
 import java.util.logging.Logger;
 
 @Getter
@@ -28,18 +28,26 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     public void setAudioPath(String audioPath) {
+        // Server side only
         if (level != null && !level.isClientSide) {
             this.audioPath = audioPath;
+            setChanged(); // Mark the block entity as changed for saving
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3); // Notify clients of standard update
+
+            // Also send explicit packet to all clients for immediate sync (reverting to simpler method)
             SpeakerBlockEntityPacketS2C packet = new SpeakerBlockEntityPacketS2C(getBlockPos(), audioPath);
-            PacketRegistries.sendToClients(packet);
+            PacketRegistries.sendToClients(packet); // Use helper method again
         }
     }
 
+    // Called when the block is broken or removed
     @Override
     public void setRemoved() {
+        // Ensure stop packet is sent before removing
+        // Ensure stop packet is sent before removing
         if (level != null && !level.isClientSide) {
             StopAudioPacketS2C packet = new StopAudioPacketS2C(getBlockPos());
-            PacketRegistries.sendToClients(packet);
+            PacketRegistries.sendToClients(packet); // Use helper method again
         }
         super.setRemoved();
     }
@@ -54,18 +62,19 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        // Send a packet to trigger the client to play the external audio file.
+        // Send a packet to trigger all clients to play the external audio file (reverting to simpler method)
         PlayAudioPacketS2C packet = new PlayAudioPacketS2C(getBlockPos(), audioPath);
-        PacketRegistries.sendToClients(packet);
+        PacketRegistries.sendToClients(packet); // Restore packet sending
     }
 
     public void stopAudio() {
         if (level == null || level.isClientSide) {
-            return;
+            return; // Should not execute on client
         }
 
+        // Send packet to all clients to stop audio (reverting to simpler method)
         StopAudioPacketS2C packet = new StopAudioPacketS2C(getBlockPos());
-        PacketRegistries.sendToClients(packet);
+        PacketRegistries.sendToClients(packet); // Use helper method again
     }
 
     // Removed redstone activation logic; UI buttons will now call playAudio or stop

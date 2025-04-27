@@ -43,20 +43,8 @@ public class PacketRegistries {
                 SpeakerBlockEntityPacketS2C::decode,
                 SpeakerBlockEntityPacketS2C::handle
         );
-        CHANNEL.registerMessage(
-                4,
-                StopAudioCallPacketC2S.class,
-                StopAudioCallPacketC2S::encode,
-                StopAudioCallPacketC2S::decode,
-                StopAudioCallPacketC2S::handle
-        );
-        CHANNEL.registerMessage(
-                5,
-                PlayAudioCallPacketC2S.class,
-                PlayAudioCallPacketC2S::encode,
-                PlayAudioCallPacketC2S::decode,
-                PlayAudioCallPacketC2S::handle
-        );
+        // Removed registration for StopAudioCallPacketC2S (ID 4)
+        // Removed registration for PlayAudioCallPacketC2S (ID 5)
     }
 
     public static void sendToClients(Object packet) {
