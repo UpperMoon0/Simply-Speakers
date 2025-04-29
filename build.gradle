@@ -211,6 +211,8 @@ tasks.shadowJar {
         exclude(dependency('mezz.jei:.*'))
         // Exclude Lombok runtime if not needed (usually isn't)
         exclude(dependency('org.projectlombok:lombok:.*'))
+        // Relocate shaded dependencies to avoid conflicts
+        relocate 'javazoom.jl', 'com.nstut.simplyspeakers.libs.javazoom.jl'
     }
 }
 
