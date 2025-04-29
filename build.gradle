@@ -162,7 +162,7 @@ dependencies {
 
     minecraftLibrary 'com.googlecode.soundlibs:jlayer:1.0.1.4'
     minecraftLibrary 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
-    minecraftLibrary '"com.googlecode.soundlibs:tritonus-share:0.3.7.4'
+    minecraftLibrary 'com.googlecode.soundlibs:tritonus-share:0.3.7.4' // Removed leading quote
 
     compileOnly 'org.projectlombok:lombok:1.18.34'
     annotationProcessor 'org.projectlombok:lombok:1.18.34'

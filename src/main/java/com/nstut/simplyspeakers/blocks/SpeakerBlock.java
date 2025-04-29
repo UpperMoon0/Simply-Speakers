@@ -25,6 +25,8 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.BlockHitResult;
+import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries; // Added import
+import org.jetbrains.annotations.Nullable; // Added import
 
 public class SpeakerBlock extends BaseEntityBlock { // Extend BaseEntityBlock for convenience
 
@@ -77,11 +79,15 @@ public class SpeakerBlock extends BaseEntityBlock { // Extend BaseEntityBlock fo
         return InteractionResult.SUCCESS;
     }
 
-    // Remove the ticker, as logic will move to neighborChanged
+    @Nullable // Ticker can be null
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(@NotNull Level level, @NotNull BlockState state, @NotNull BlockEntityType<T> blockEntityType) {
-        // No ticking needed from the block entity itself anymore
-        return null;
+        // Provide the server-side ticker
+        if (level.isClientSide()) {
+            return null; // No client ticker needed
+        }
+        // Check if the requested type matches our speaker BE type and return the serverTick method reference
+        return createTickerHelper(blockEntityType, BlockEntityRegistries.SPEAKER.get(), SpeakerBlockEntity::serverTick);
     }
 
     @SuppressWarnings("deprecation")

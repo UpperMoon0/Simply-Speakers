@@ -59,7 +59,7 @@ public class SimplySpeakers {
         BlockRegistries.BLOCKS.register(modEventBus);
 
         // Register block entities
-        BlockEntityRegistries.BLOCK_ENTITIES.register(modEventBus);
+        BlockEntityRegistries.register(modEventBus); // Call the register method
 
         // Register the Deferred Register to the mod event bus so items get registered
         ItemRegistries.ITEMS.register(modEventBus);

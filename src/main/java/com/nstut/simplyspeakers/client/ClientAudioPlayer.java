@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.nstut.simplyspeakers.Config; // Added import
 import net.minecraft.client.Minecraft; // Import Minecraft
 import java.util.List; // Import List
 import java.util.ArrayList; // Import ArrayList if not using Java 10+ List.copyOf
@@ -232,8 +233,14 @@ public class ClientAudioPlayer {
                         speakerResources.put(pos, new AudioResource(sourceID, bufferID));
                          System.out.println("[SimplySpeakers] Stored audio resource for pos: " + pos);
 
-                        // TODO: Set source position based on BlockPos for spatial audio
-                        // AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+                        // Set source position for spatial audio (center of the block)
+                        AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+                        // Set source properties for attenuation
+                        AL10.alSourcef(sourceID, AL10.AL_REFERENCE_DISTANCE, 4.0f); // Full volume within 4 blocks
+                        AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 1.0f); // Standard rolloff
+                        AL10.alSourcef(sourceID, AL10.AL_MAX_DISTANCE, Config.SPEAKER_RANGE.get()); // Max distance from config
+                        // Ensure the source is not relative to the listener
+                        AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
                         AL10.alSourcei(sourceID, AL10.AL_BUFFER, bufferID);
                         AL10.alSourcePlay(sourceID);
