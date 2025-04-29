@@ -14,7 +14,6 @@ plugins {
     id 'idea'
     id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
-    id 'com.github.johnrengelman.shadow' version '7.1.2' // Or a more recent compatible version
 }
 
 apply plugin: 'org.spongepowered.mixin'
@@ -146,13 +145,12 @@ repositories {
     }
 }
 
-configurations {
-    // Configuration for dependencies to be shaded
-    shadeOnly
-}
-
 dependencies {
     // Specify the version of Minecraft to use.
+    // Any artifact can be supplied so long as it has a "userdev" classifier artifact and is a compatible patcher artifact.
+    // The "userdev" classifier will be requested and setup by ForgeGradle.
+    // If the group id is "net.minecraft" and the artifact id is one of ["client", "server", "joined"],
+    // then special handling is done to allow a setup of a vanilla dependency without the use of an external repository.
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
     // compile against the JEI API but do not include it at runtime
@@ -162,19 +160,15 @@ dependencies {
     // at runtime, use the full JEI jar for Forge
     runtimeOnly(fg.deobf("mezz.jei:jei-${minecraft_version}-forge:${jei_version}"))
 
-    // Add soundlibs for compilation
-    implementation("com.googlecode.soundlibs:jlayer:1.0.1.4")
-    implementation("com.googlecode.soundlibs:mp3spi:1.9.5.4")
-    implementation("com.googlecode.soundlibs:tritonus-share:0.3.7.4")
-    // Also add soundlibs to shadeOnly configuration for bundling
-    shadeOnly("com.googlecode.soundlibs:jlayer:1.0.1.4")
-    shadeOnly("com.googlecode.soundlibs:mp3spi:1.9.5.4")
-    shadeOnly("com.googlecode.soundlibs:tritonus-share:0.3.7.4")
+    minecraftLibrary 'com.googlecode.soundlibs:jlayer:1.0.1.4'
+    minecraftLibrary 'com.googlecode.soundlibs:mp3spi:1.9.5.4'
+    minecraftLibrary '"com.googlecode.soundlibs:tritonus-share:0.3.7.4'
 
     compileOnly 'org.projectlombok:lombok:1.18.34'
     annotationProcessor 'org.projectlombok:lombok:1.18.34'
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
@@ -195,37 +189,21 @@ tasks.named('processResources', ProcessResources).configure {
     }
 }
 
-// Configure the shadowJar task
-tasks.shadowJar {
-    // Use the custom configuration
-    configurations = [project.configurations.shadeOnly]
-    archiveClassifier.set('') // Keep this to replace the default jar
-
-    dependencies {
-        // Exclude dependencies provided by Minecraft/Forge (add more as needed)
-        exclude(dependency('net.minecraftforge:.*'))
-        exclude(dependency('net.minecraft:.*'))
-        exclude(dependency('com.google.guava:.*'))
-        exclude(dependency('org.apache.logging.log4j:.*'))
-        // Exclude JEI if you expect it as a separate mod
-        exclude(dependency('mezz.jei:.*'))
-        // Exclude Lombok runtime if not needed (usually isn't)
-        exclude(dependency('org.projectlombok:lombok:.*'))
-        // Relocate shaded dependencies to avoid conflicts
-        relocate 'javazoom.jl', 'com.nstut.simplyspeakers.libs.javazoom.jl'
+// Example for how to get properties into the manifest for reading at runtime.
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes(["Specification-Title"     : mod_id,
+                    "Specification-Vendor"    : mod_authors,
+                    "Specification-Version"   : "1", // We are version 1 of ourselves
+                    "Implementation-Title"    : project.name,
+                    "Implementation-Version"  : project.jar.archiveVersion,
+                    "Implementation-Vendor"   : mod_authors,
+                    "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")])
     }
-}
 
-// Explicitly create reobfuscation task for shadowJar output
-reobf.create("jar") {
-    dependsOn tasks.named("shadowJar")
+    // This is the preferred method to reobfuscate your jar file
+    finalizedBy 'reobfJar'
 }
-
-// Keep jar disabled
-tasks.jar {
-    enabled = false
-}
-
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
