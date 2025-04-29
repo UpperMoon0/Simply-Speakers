@@ -13,11 +13,6 @@ import net.minecraft.client.Minecraft; // Import Minecraft
 import java.util.List; // Import List
 import java.util.ArrayList; // Import ArrayList if not using Java 10+ List.copyOf
 
-// Imports for JLayer MP3 decoding
-import javazoom.jl.player.JavaSoundAudioDevice;
-import javazoom.jl.player.advanced.AdvancedPlayer;
-import javazoom.jl.player.advanced.PlaybackEvent;
-import javazoom.jl.player.advanced.PlaybackListener;
 import javazoom.jl.decoder.Decoder;
 import javazoom.jl.decoder.Header;
 import javazoom.jl.decoder.SampleBuffer;
