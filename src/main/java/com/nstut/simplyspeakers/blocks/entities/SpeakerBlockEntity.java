@@ -100,18 +100,14 @@ public class SpeakerBlockEntity extends BlockEntity {
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3); // Update block state visually if needed
 
         StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(getBlockPos());
-        ServerLevel serverLevel = (ServerLevel) level;
 
-        // Send stop packet to all players who were listening
-        for (UUID playerId : listeningPlayers) {
-            ServerPlayer player = (ServerPlayer) serverLevel.getPlayerByUUID(playerId); // Explicit cast
-            if (player != null) {
-                // Send packet directly via player connection
-                Packet<?> vanillaPacket = PacketRegistries.CHANNEL.toVanillaPacket(stopPacket, NetworkDirection.PLAY_TO_CLIENT);
-                player.connection.send(vanillaPacket);
-            }
-        }
-        listeningPlayers.clear();
+        // --- Modification Start: Send stop packet more broadly ---
+        // Send to all players tracking the chunk the speaker is in.
+        // This ensures clients that might have moved just out of range still get the stop command.
+        PacketRegistries.CHANNEL.send(PacketDistributor.TRACKING_CHUNK.with(() -> level.getChunkAt(getBlockPos())), stopPacket);
+        // --- Modification End ---
+
+        listeningPlayers.clear(); // Clear the server-side tracking list
     }
 
     private void tick() {
@@ -142,39 +138,47 @@ public class SpeakerBlockEntity extends BlockEntity {
         );
         Set<UUID> nearbyPlayerIds = nearbyPlayers.stream().map(Player::getUUID).collect(Collectors.toSet());
 
-        // Players who moved out of range
-        Set<UUID> playersToStop = new HashSet<>(listeningPlayers);
-        playersToStop.removeAll(nearbyPlayerIds); // Keep only those who were listening but are no longer nearby
+        // --- Logic for stopping players who moved out of range ---
+        Set<UUID> playersToStop = new HashSet<>(listeningPlayers); // Start with all currently listening players
+        playersToStop.removeAll(nearbyPlayerIds); // Remove those who are still nearby
 
         if (!playersToStop.isEmpty()) {
             StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(getBlockPos());
             for (UUID playerId : playersToStop) {
-                ServerPlayer player = (ServerPlayer) serverLevel.getPlayerByUUID(playerId); // Explicit cast
-                if (player != null) {
-                    // Send packet directly via player connection
+                Player player = serverLevel.getPlayerByUUID(playerId); // Get Player object
+                if (player instanceof ServerPlayer serverPlayer) { // Check if it's a ServerPlayer
+                    // Send packet directly via player connection using the correctly typed variable
                     Packet<?> vanillaPacket = PacketRegistries.CHANNEL.toVanillaPacket(stopPacket, NetworkDirection.PLAY_TO_CLIENT);
-                    player.connection.send(vanillaPacket);
-                    LOGGER.fine("Sent stop packet to player " + player.getName().getString() + " who moved out of range.");
+                    serverPlayer.connection.send(vanillaPacket); // Use serverPlayer here
+                    LOGGER.fine("Sent stop packet to player " + serverPlayer.getName().getString() + " who moved out of range.");
+                } else if (player != null) {
+                    // Log if we found a player but it wasn't a ServerPlayer (shouldn't happen on server)
+                    LOGGER.warning("Found player with UUID " + playerId + " for stopping, but it was not a ServerPlayer instance.");
                 }
-                listeningPlayers.remove(playerId); // Remove from active listeners
+                // Always remove from listeningPlayers if they were in the playersToStop set
+                listeningPlayers.remove(playerId);
             }
         }
+        // --- End stop logic ---
 
-        // Players who moved into range
+        // Players who moved into range (or are already in range and need initial sync)
         Set<UUID> playersToStart = new HashSet<>(nearbyPlayerIds);
         playersToStart.removeAll(listeningPlayers); // Keep only those who are nearby but weren't listening
 
         if (!playersToStart.isEmpty()) {
             PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(getBlockPos(), audioPath);
             for (UUID playerId : playersToStart) {
-                ServerPlayer player = (ServerPlayer) serverLevel.getPlayerByUUID(playerId); // Explicit cast
-                if (player != null) {
-                    // Send packet directly via player connection
+                Player player = serverLevel.getPlayerByUUID(playerId); // Get Player object
+                if (player instanceof ServerPlayer serverPlayer) { // Check if it's a ServerPlayer
+                    // Send packet directly via player connection using the correctly typed variable
                     Packet<?> vanillaPacket = PacketRegistries.CHANNEL.toVanillaPacket(playPacket, NetworkDirection.PLAY_TO_CLIENT);
-                    player.connection.send(vanillaPacket);
-                    LOGGER.fine("Sent play packet to player " + player.getName().getString() + " who moved into range.");
+                    serverPlayer.connection.send(vanillaPacket); // Use serverPlayer here
+                    LOGGER.fine("Sent play packet to player " + serverPlayer.getName().getString() + " who moved into range.");
+                    listeningPlayers.add(playerId); // Add to active listeners only if packet sent successfully
+                } else if (player != null) {
+                     // Log if we found a player but it wasn't a ServerPlayer (shouldn't happen on server)
+                     LOGGER.warning("Found player with UUID " + playerId + " but it was not a ServerPlayer instance.");
                 }
-                listeningPlayers.add(playerId); // Add to active listeners
             }
         }
     }

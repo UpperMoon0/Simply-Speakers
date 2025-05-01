@@ -43,8 +43,20 @@ public class ClientAudioPlayer {
     }
 
     public static void play(BlockPos pos, String filePath) {
-        // Stop any existing playback at this position first
-        stop(pos);
+        // --- Modification Start ---
+        // Check if audio is already playing/managed for this position
+        if (speakerResources.containsKey(pos)) {
+            // Audio resource already exists. OpenAL is handling playback/attenuation.
+            // We don't need to do anything here, especially not restart it.
+            // System.out.println("[SimplySpeakers] Audio resource already exists for " + pos + ". Letting OpenAL manage.");
+            return; // Exit early, playback is already handled
+        }
+        // --- Modification End ---
+
+        // If we reach here, no existing resource was found, so proceed to load and play.
+
+        // Stop any potentially orphaned playback at this position first (Safety check, might be redundant now)
+        // stop(pos); // Removed the unconditional stop
 
         if (filePath == null || filePath.trim().isEmpty()) {
             System.err.println("Audio path is empty for speaker at " + pos + ". Skipping playback.");
