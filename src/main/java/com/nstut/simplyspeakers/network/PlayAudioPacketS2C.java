@@ -11,28 +11,37 @@ import java.util.function.Supplier;
 public class PlayAudioPacketS2C {
     private final BlockPos pos;
     private final String audioPath;
+    private final float playbackPositionSeconds; // Added field
 
-    public PlayAudioPacketS2C(BlockPos pos, String audioPath) {
+    // Updated constructor
+    public PlayAudioPacketS2C(BlockPos pos, String audioPath, float playbackPositionSeconds) {
         this.pos = pos;
         this.audioPath = audioPath;
+        this.playbackPositionSeconds = playbackPositionSeconds;
     }
 
+    // Updated encode method
     public static void encode(PlayAudioPacketS2C pkt, FriendlyByteBuf buf) {
         buf.writeBlockPos(pkt.pos);
         buf.writeUtf(pkt.audioPath);
+        buf.writeFloat(pkt.playbackPositionSeconds); // Write the float
     }
 
+    // Updated decode method
     public static PlayAudioPacketS2C decode(FriendlyByteBuf buf) {
         BlockPos pos = buf.readBlockPos();
         String audioPath = buf.readUtf();
-        return new PlayAudioPacketS2C(pos, audioPath);
+        float playbackPositionSeconds = buf.readFloat(); // Read the float
+        return new PlayAudioPacketS2C(pos, audioPath, playbackPositionSeconds); // Pass to constructor
     }
 
+    // Updated handle method
     public static void handle(PlayAudioPacketS2C pkt, Supplier<NetworkEvent.Context> ctx) {
         ctx.get().enqueueWork(() -> {
             DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
-                // Play the audio for the specific speaker block.
-                ClientAudioPlayer.play(pkt.pos, pkt.audioPath);
+                // Play the audio for the specific speaker block, passing the start position.
+                // Note: ClientAudioPlayer.play will need to be updated in Phase 2 to accept this third argument.
+                ClientAudioPlayer.play(pkt.pos, pkt.audioPath, pkt.playbackPositionSeconds);
             });
         });
         ctx.get().setPacketHandled(true);

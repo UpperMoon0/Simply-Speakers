@@ -38,8 +38,13 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     private static final Logger LOGGER = Logger.getLogger(SpeakerBlockEntity.class.getName());
 
+    private static final String NBT_AUDIO_PATH = "AudioPath";
+    private static final String NBT_IS_PLAYING = "IsPlaying";
+    private static final String NBT_START_TICK = "PlaybackStartTick";
+
     private String audioPath = "";
     private boolean isPlaying = false;
+    private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
     private final Set<UUID> listeningPlayers = new HashSet<>(); // Track players currently hearing the sound
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
@@ -82,12 +87,13 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         isPlaying = true;
+        playbackStartTick = level.getGameTime(); // Record start tick
         listeningPlayers.clear(); // Reset listeners when starting fresh
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3); // Update block state visually if needed
 
         // Initial play command to nearby players
-        updateNearbyPlayers();
+        updateNearbyPlayers(); // This will now send the initial position (0.0f)
     }
 
     public void stopAudio() {
@@ -96,6 +102,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         isPlaying = false;
+        playbackStartTick = -1; // Reset start tick
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3); // Update block state visually if needed
 
@@ -166,7 +173,15 @@ public class SpeakerBlockEntity extends BlockEntity {
         playersToStart.removeAll(listeningPlayers); // Keep only those who are nearby but weren't listening
 
         if (!playersToStart.isEmpty()) {
-            PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(getBlockPos(), audioPath);
+            // Calculate current position if playing, otherwise default to 0
+            float currentPositionSeconds = 0.0f;
+            if (isPlaying && playbackStartTick != -1) {
+                long elapsedTicks = level.getGameTime() - playbackStartTick;
+                currentPositionSeconds = elapsedTicks / 20.0f; // Assuming 20 ticks/sec
+                if (currentPositionSeconds < 0) currentPositionSeconds = 0; // Sanity check
+            }
+
+            PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(getBlockPos(), audioPath, currentPositionSeconds); // Include position
             for (UUID playerId : playersToStart) {
                 Player player = serverLevel.getPlayerByUUID(playerId); // Get Player object
                 if (player instanceof ServerPlayer serverPlayer) { // Check if it's a ServerPlayer
@@ -189,16 +204,31 @@ public class SpeakerBlockEntity extends BlockEntity {
     @Override
     public void load(@NotNull CompoundTag tag) {
         super.load(tag);
-        audioPath = tag.getString("AudioPath");
-        isPlaying = tag.getBoolean("IsPlaying");
+        audioPath = tag.getString(NBT_AUDIO_PATH);
+        isPlaying = tag.getBoolean(NBT_IS_PLAYING);
+        playbackStartTick = tag.getLong(NBT_START_TICK);
         // listeningPlayers is runtime only, not saved/loaded
+
+        // Ensure consistency: if not playing, start tick should be -1
+        if (!isPlaying) {
+            playbackStartTick = -1;
+        }
     }
 
     @Override
     protected void saveAdditional(@NotNull CompoundTag tag) {
         super.saveAdditional(tag);
-        tag.putString("AudioPath", audioPath);
-        tag.putBoolean("IsPlaying", isPlaying);
+        tag.putString(NBT_AUDIO_PATH, audioPath);
+        tag.putBoolean(NBT_IS_PLAYING, isPlaying);
+        // Only save start tick if actually playing
+        if (isPlaying && playbackStartTick != -1) {
+            tag.putLong(NBT_START_TICK, playbackStartTick);
+        } else {
+            // Ensure the tag is removed or set to -1 if not playing,
+            // to handle cases where it stops between saves.
+            // Putting -1 is simpler than removing.
+             tag.putLong(NBT_START_TICK, -1L);
+        }
     }
 
     // For initial chunk data sync
