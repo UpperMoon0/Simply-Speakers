@@ -11,9 +11,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.nstut.simplyspeakers.Config; // Added import
-import net.minecraft.client.Minecraft; // Import Minecraft
-import java.util.List; // Import List
-import java.util.ArrayList; // Import ArrayList if not using Java 10+ List.copyOf
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.Vec3;
+import java.util.List;
+import java.util.ArrayList;
 
 import javazoom.jl.decoder.Decoder;
 import javazoom.jl.decoder.Header;
@@ -26,7 +28,7 @@ import java.io.ByteArrayOutputStream;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.BitstreamException;
 import javazoom.jl.decoder.DecoderException;
-import javazoom.jl.decoder.Obuffer; // Base class for SampleBuffer
+import javazoom.jl.decoder.Obuffer;
 
 public class ClientAudioPlayer {
 
@@ -173,10 +175,11 @@ public class ClientAudioPlayer {
 
                     // Configure source properties (position, attenuation, etc.)
                     AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
-                    AL10.alSourcef(sourceID, AL10.AL_REFERENCE_DISTANCE, 4.0f);
-                    AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 1.0f);
-                    AL10.alSourcef(sourceID, AL10.AL_MAX_DISTANCE, Config.SPEAKER_RANGE.get());
-                    AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
+                    // Disable OpenAL's distance attenuation - we'll handle gain manually
+                    AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
+                    // Set initial gain to full volume
+                    AL10.alSourcef(sourceID, AL10.AL_GAIN, 1.0f);
+                    AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE); // Position is absolute
 
                     // --- Create and Start Streaming Thread ---
                     // Placeholder for the thread object
@@ -386,6 +389,68 @@ public class ClientAudioPlayer {
          // No need to schedule on main thread here, as stop() already does.
     }
 
+    // --- Client Tick Update for Volume ---
+    public static void updateSpeakerVolumes() {
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
+        if (player == null || mc.level == null || speakerResources.isEmpty()) {
+            return;
+        }
+
+        Vec3 playerPos = player.position();
+        double maxRange = Config.SPEAKER_RANGE.get();
+        double maxRangeSq = maxRange * maxRange;
+
+        // Iterate safely over a copy of the entry set in case of concurrent modification
+        List<Map.Entry<BlockPos, StreamingAudioResource>> entries = new ArrayList<>(speakerResources.entrySet());
+
+        for (Map.Entry<BlockPos, StreamingAudioResource> entry : entries) {
+            BlockPos speakerPos = entry.getKey();
+            StreamingAudioResource resource = entry.getValue();
+
+            // Check if resource is still valid (might have been stopped concurrently)
+            if (resource == null || resource.stopFlag.get()) {
+                continue;
+            }
+
+            Vec3 speakerCenterPos = new Vec3(speakerPos.getX() + 0.5, speakerPos.getY() + 0.5, speakerPos.getZ() + 0.5);
+            double distSq = playerPos.distanceToSqr(speakerCenterPos);
+
+            float gain = 1.0f; // Default to full volume
+
+            if (distSq >= maxRangeSq) {
+                gain = 0.0f; // Beyond max range, should be silent (server should stop it anyway)
+            } else if (distSq > 0) { // Avoid division by zero and calculate fade
+                double distance = Math.sqrt(distSq);
+                // Linear fade: gain = 1.0 - (distance / maxRange)
+                // Squared fade (faster drop-off): gain = (1.0 - (distance / maxRange))^2
+                // Let's use squared fade for a more noticeable effect
+                gain = (float) Math.pow(1.0 - (distance / maxRange), 2.0);
+                gain = Math.max(0.0f, Math.min(1.0f, gain)); // Clamp between 0.0 and 1.0
+            }
+            // Else: distSq is 0 or less (player inside speaker?), gain remains 1.0f
+
+            // Schedule the OpenAL call on the main thread
+            final float finalGain = gain; // Need effectively final variable for lambda
+            mc.tell(() -> {
+                // Double-check resource validity before executing AL call
+                 StreamingAudioResource currentResource = speakerResources.get(speakerPos);
+                 if (currentResource != null && currentResource.sourceID == resource.sourceID && !currentResource.stopFlag.get()) {
+                    try {
+                        AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
+                        // Check for AL errors after setting gain
+                        int error = AL10.alGetError();
+                        if (error != AL10.AL_NO_ERROR) {
+                            System.err.println("[SimplySpeakers] OpenAL error setting gain for source " + resource.sourceID + ": " + error);
+                        }
+                    } catch (Exception e) {
+                        // Catch potential errors if the source was deleted unexpectedly
+                        System.err.println("[SimplySpeakers] Error setting gain for source " + resource.sourceID + ": " + e.getMessage());
+                    }
+                 }
+            });
+        }
+    }
 
     // --- Audio Decoding Logic (Moved to helper method) ---
     private static AudioInputStream getPcmAudioStream(File audioFile) throws UnsupportedAudioFileException, IOException {
