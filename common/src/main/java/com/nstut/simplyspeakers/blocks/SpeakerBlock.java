@@ -71,15 +71,12 @@ public class SpeakerBlock extends BaseEntityBlock {
     @Override
     public @NotNull BlockEntity newBlockEntity(@NotNull BlockPos pos, @NotNull BlockState state) {
         return new SpeakerBlockEntity(pos, state);
-    }
-
-    @Override
+    }    @Override
     public @NotNull InteractionResult use(@NotNull BlockState state, Level level, @NotNull BlockPos pos, 
                                           @NotNull Player player, @NotNull InteractionHand hand, @NotNull BlockHitResult hit) {
         if (level.isClientSide) {
-            // We'll implement the screen opening in Step 2
             LOGGER.info("Opening speaker screen at {}", pos);
-            // Minecraft.getInstance().setScreen(new SpeakerScreen(pos));
+            net.minecraft.client.Minecraft.getInstance().setScreen(new com.nstut.simplyspeakers.client.screens.SpeakerScreen(pos));
         }
         return InteractionResult.SUCCESS;
     }
