@@ -78,9 +78,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             stopAudio(); // Ensure stop logic runs
         }
         super.setRemoved();
-    }
-
-    /**
+    }    /**
      * Starts playing the audio.
      */
     public void playAudio() {
@@ -98,11 +96,19 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
-        // We'll implement network packet sending in Step 2
+        // Send packet to all clients to play the audio
+        float playbackPosition = 0.0f; // Start from the beginning
+        com.nstut.simplyspeakers.network.PlayAudioPacketS2C packet = 
+            new com.nstut.simplyspeakers.network.PlayAudioPacketS2C(worldPosition, audioPath, playbackPosition);
+        
+        // Send to all clients in the same dimension
+        dev.architectury.networking.NetworkManager.sendToClients(
+            (net.minecraft.server.level.ServerLevel)level, 
+            com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL, 
+            packet);
+            
         LOGGER.info("Playing audio: " + audioPath);
-    }
-
-    /**
+    }    /**
      * Stops playing the audio.
      */
     public void stopAudio() {
@@ -117,8 +123,16 @@ public class SpeakerBlockEntity extends BlockEntity {
 
         listeningPlayers.clear(); // Clear the server-side tracking list
         
-        // We'll implement network packet sending in Step 2
-        LOGGER.info("Stopping audio");
+        // Send packet to all clients to stop the audio
+        com.nstut.simplyspeakers.network.StopAudioPacketS2C packet = 
+            new com.nstut.simplyspeakers.network.StopAudioPacketS2C(worldPosition);
+        
+        // Send to all clients in the same dimension
+        if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            dev.architectury.networking.NetworkManager.sendToClients(serverLevel, 
+                com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL, packet);
+            LOGGER.info("Stopping audio and sending stop packet");
+        }
     }
 
     /**
