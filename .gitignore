@@ -1,5 +1,82 @@
-/build
-/run
-/.gradle
-/gradle
-/.idea
+# Gradle
+.gradle/
+build/
+out/
+classes/
+
+# Eclipse
+*.launch
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+*.iws.xml
+.shelf/
+.ideaDataSources/
+dataSources/
+modules/
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+bin/
+
+# Eclipse JDT LS
+workspace/
+
+# macOS
+*.DS_Store
+
+# Minecraft run directories
+run/
+*/run/
+common/run/
+fabric/run/
+forge/run/
+runs/
+
+# Compiled output
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Logs
+logs/
+*.log
+
+# Architectury
+.architectury-transformer/
+
+# Fabric/Forge dev environment files
+**/remappedSrc/
+**/generated/
+**/bin/
+**/libs/
+.fabric
+.forge
+.mixin.out/
+
+# Cache files
+**/loom-cache/
+**/.cache/
+.mcreator/
+
+# Local Minecraft instance data
+*usernamecache.json
+*usercache.json
+options.txt
+crash-reports/
+screenshots/
+saves/
+
+# Avoid ignoring Gradle wrapper jar file
+!gradle-wrapper.jar
+
+# Avoid platform-specific build artifacts
+*.dll
+*.so
+*.dylib

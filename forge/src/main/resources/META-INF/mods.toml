@@ -1,0 +1,38 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+#issueTrackerURL = ""
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "simplyspeakers"
+version = "${version}"
+displayName = "Simply Speakers"
+authors = "NsTut"
+description = '''
+A simple mod that adds speaker blocks to Minecraft that can play music files.
+'''
+#logoFile = "icon.png"
+
+
+[[dependencies.simplyspeakers]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+
+[[dependencies.simplyspeakers]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,)"
+ordering = "NONE"
+side = "BOTH"
+
+
+[[dependencies.simplyspeakers]]
+modId = "architectury"
+mandatory = true
+versionRange = "[9.2.14,)"
+ordering = "AFTER"
+side = "BOTH"

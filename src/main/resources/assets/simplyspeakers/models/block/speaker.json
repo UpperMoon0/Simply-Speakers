@@ -1,8 +1,0 @@
-{
-  "textures": {
-    "front": "simplyspeakers:block/speaker_front",
-    "top": "simplyspeakers:block/speaker_top",
-    "side": "simplyspeakers:block/speaker_side"
-  },
-  "parent": "minecraft:block/orientable"
-}
