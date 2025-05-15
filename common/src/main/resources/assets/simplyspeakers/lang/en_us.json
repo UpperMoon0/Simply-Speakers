@@ -1,7 +1,6 @@
 {
   "block.simplyspeakers.speaker": "Speaker",
-
   "item.simplyspeakers.speaker": "Speaker",
 
-  "itemGroup.simplyspeakers": "Simply Speakers"
+  "itemGroup.simplyspeakers.tab": "Simply Speakers"
 }
