@@ -9,6 +9,13 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.server.level.ServerPlayer; // Added for player iteration
+import net.minecraft.world.phys.Vec3; // Added for distance calculation
+import com.nstut.simplyspeakers.Config; // Added for speakerRange
+import com.nstut.simplyspeakers.network.PlayAudioPacketS2C; // Added for sending play packet
+import com.nstut.simplyspeakers.network.StopAudioPacketS2C; // Added for sending stop packet
+import com.nstut.simplyspeakers.network.PacketRegistries; // Added for network channel
+import dev.architectury.networking.NetworkManager; // Added for sending packets
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -69,7 +76,7 @@ public class SpeakerBlockEntity extends BlockEntity {
      * @param blockEntity The block entity
      */
     public static void serverTick(Level level, BlockPos pos, BlockState state, SpeakerBlockEntity blockEntity) {
-        blockEntity.tick();
+        blockEntity.tick(level, pos, state); // Pass parameters to tick method
     }
 
     @Override
@@ -95,20 +102,19 @@ public class SpeakerBlockEntity extends BlockEntity {
         listeningPlayers.clear(); // Reset listeners when starting fresh
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-
-        // Send packet to all clients to play the audio
-        float playbackPosition = 0.0f; // Start from the beginning
-        com.nstut.simplyspeakers.network.PlayAudioPacketS2C packet = 
-            new com.nstut.simplyspeakers.network.PlayAudioPacketS2C(worldPosition, audioPath, playbackPosition);
         
-        // Send to all clients in the same dimension
-        dev.architectury.networking.NetworkManager.sendToClients(
-            (net.minecraft.server.level.ServerLevel)level, 
-            com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL, 
-            packet);
+        // Initial play sends to all nearby players, tick will handle new players entering range
+        // This initial broadcast is now handled by the first tick's player check.
+        // We can remove the broad sendToClients here as the tick method will cover it.
+        // However, for immediate effect on existing nearby players when play is *first* called,
+        // it might be good to keep a targeted send or rely on the very next tick.
+        // For simplicity and to avoid double-sends, let's rely on the tick.
+        // The tick() method will now handle sending PlayAudioPacketS2C to relevant players.
             
-        LOGGER.info("Playing audio: " + audioPath);
-    }    /**
+        LOGGER.info("Starting audio: " + audioPath + " at tick " + playbackStartTick);
+    }
+
+    /**
      * Stops playing the audio.
      */
     public void stopAudio() {
@@ -121,33 +127,88 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
-        listeningPlayers.clear(); // Clear the server-side tracking list
-        
-        // Send packet to all clients to stop the audio
-        com.nstut.simplyspeakers.network.StopAudioPacketS2C packet = 
-            new com.nstut.simplyspeakers.network.StopAudioPacketS2C(worldPosition);
-        
-        // Send to all clients in the same dimension
+        // Send stop packet to all players who were listening
         if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-            dev.architectury.networking.NetworkManager.sendToClients(serverLevel, 
-                com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL, packet);
-            LOGGER.info("Stopping audio and sending stop packet");
+            StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(worldPosition);
+            Set<UUID> playersToNotify = new HashSet<>(listeningPlayers); // Iterate over a copy
+            int notifiedCount = 0;
+            for (UUID playerId : playersToNotify) {
+                net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
+                if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
+                    PacketRegistries.CHANNEL.sendToPlayer(serverPlayerInstance, stopPacket);
+                    notifiedCount++;
+                }
+            }
+            LOGGER.info("Stopping audio and sent stop packets to " + notifiedCount + " former listeners.");
         }
+        listeningPlayers.clear(); // Clear the server-side tracking list
     }
 
     /**
      * Ticks the block entity.
      */
-    private void tick() {
-        if (level == null || level.isClientSide || !isPlaying) {
+    private void tick(Level currentLevel, BlockPos currentPos, BlockState currentState) {
+        if (currentLevel == null || currentLevel.isClientSide) {
             return;
         }
 
-        // We'll implement player tracking and packet sending in Step 2
         // Validate block state is still correct
-        // Use the block instance from the registry for comparison
-        if (!getBlockState().is(com.nstut.simplyspeakers.blocks.BlockRegistries.SPEAKER.get())) {
-            stopAudio();
+        if (!currentState.is(com.nstut.simplyspeakers.blocks.BlockRegistries.SPEAKER.get())) {
+            if (isPlaying) stopAudio(); // Stop audio if the block is no longer a speaker
+            return;
+        }
+
+        if (!isPlaying) {
+            // If not playing, ensure no players are marked as listening (e.g., after a stop command)
+            if (!listeningPlayers.isEmpty()) {
+                LOGGER.fine("Audio stopped, but " + listeningPlayers.size() + " players were still in listeningPlayers set. Clearing.");
+                listeningPlayers.clear();
+            }
+            return;
+        }
+
+        // If playing, manage listeners
+        if (!(currentLevel instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
+            return;
+        }
+
+        double maxRangeSq = Config.speakerRange * Config.speakerRange;
+        Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
+        Set<UUID> playersInRange = new HashSet<>();
+
+        for (ServerPlayer player : serverLevel.getPlayers(p -> true)) { // Iterate all players in the dimension
+            if (player.position().distanceToSqr(speakerCenterPos) <= maxRangeSq) {
+                playersInRange.add(player.getUUID());
+
+                if (!listeningPlayers.contains(player.getUUID())) {
+                    // Player entered range or was not previously listening
+                    float playbackPositionSeconds = 0.0f;
+                    if (playbackStartTick >= 0) {
+                        long ticksElapsed = currentLevel.getGameTime() - playbackStartTick;
+                        playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
+                        if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
+                    }
+                    
+                    PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioPath, playbackPositionSeconds);
+                    PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
+                    listeningPlayers.add(player.getUUID());
+                    LOGGER.fine("Player " + player.getName().getString() + " entered range. Sending play packet with offset " + playbackPositionSeconds + "s.");
+                }
+            }
+        }
+
+        // Check for players who left the range
+        Set<UUID> playersToStop = new HashSet<>(listeningPlayers);
+        playersToStop.removeAll(playersInRange); // Players who were listening but are no longer in range
+
+        for (UUID playerId : playersToStop) {
+            net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
+            if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
+                StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
+                PacketRegistries.CHANNEL.sendToPlayer(serverPlayerInstance, stopPacket);
+                LOGGER.fine("Player " + serverPlayerInstance.getName().getString() + " left range. Sending stop packet.");
+            }
+            listeningPlayers.remove(playerId);
         }
     }
 
