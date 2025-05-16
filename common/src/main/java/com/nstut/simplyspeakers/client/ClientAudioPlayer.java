@@ -28,7 +28,6 @@ import java.io.ByteArrayOutputStream;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.BitstreamException;
 import javazoom.jl.decoder.DecoderException;
-import javazoom.jl.decoder.Obuffer;
 
 public class ClientAudioPlayer {
 
@@ -38,63 +37,61 @@ public class ClientAudioPlayer {
     private static final int NUM_BUFFERS = 3; // Number of buffers to queue for streaming
     private static final int BUFFER_SIZE_SECONDS = 1; // Target buffer size in seconds (adjust as needed)
 
-    // Cache for decoded PCM data and their formats
-    private static final Map<String, byte[]> pcmCache = new ConcurrentHashMap<>();
-    private static final Map<String, AudioFormat> formatCache = new ConcurrentHashMap<>();
-
     // Updated resource class for streaming
     private static class StreamingAudioResource {
         final int sourceID;
         final int[] bufferIDs; // Array of buffer IDs
-        final AudioInputStream audioStream; // The stream being read from
+        // REMOVED: final AudioInputStream audioStream;
         final Thread streamingThread; // The thread handling buffer refills
         final AtomicBoolean stopFlag = new AtomicBoolean(false); // Flag to signal thread termination
-        StreamingAudioResource(int sourceID, int[] bufferIDs, AudioInputStream audioStream, Thread streamingThread, AudioFormat format) {
+        final BlockPos position;
+
+        StreamingAudioResource(int sourceID, int[] bufferIDs, Thread streamingThread, BlockPos pos) { // AudioInputStream and AudioFormat removed
             this.sourceID = sourceID;
             this.bufferIDs = bufferIDs;
-            this.audioStream = audioStream;
             this.streamingThread = streamingThread;
+            this.position = pos; // Store position
         }
 
         // Method to signal the streaming thread to stop and clean up resources
         void stopAndCleanup() {
             stopFlag.set(true); // Signal the thread to stop
             if (streamingThread != null && streamingThread.isAlive()) {
-                try {
-                    streamingThread.interrupt(); // Interrupt if sleeping/waiting
-                    streamingThread.join(1000); // Wait briefly for thread to finish
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    System.err.println("[SimplySpeakers] Interrupted while waiting for streaming thread to stop for source " + sourceID);
-                }
+                streamingThread.interrupt(); // Interrupt if sleeping/waiting
+                // REMOVED: streamingThread.join(1000); This was causing the lag.
             }
-            // Close the audio stream
-            try {
-                if (audioStream != null) {
-                    audioStream.close();
-                }
-            } catch (IOException e) {
-                System.err.println("[SimplySpeakers] Error closing audio stream for source " + sourceID + ": " + e.getMessage());
-            }
-
-            // Schedule OpenAL cleanup on the main thread
+            // The streaming thread is now responsible for closing its AudioInputStream.
+            // Schedule OpenAL cleanup on the main thread.
             Minecraft.getInstance().tell(() -> {
                 try {
-                    AL10.alSourceStop(sourceID);
-                    // Detach any buffers still attached to the source
-                    int buffersQueued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED); // Corrected: alGetSourcei
-                    if (buffersQueued > 0) {
-                        int[] detachedBuffers = new int[buffersQueued];
-                        AL10.alSourceUnqueueBuffers(sourceID, detachedBuffers);
-                    }
-                    AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Ensure no buffer is attached
+                    if (AL10.alIsSource(sourceID)) { // Check if source exists
+                        AL10.alSourceStop(sourceID);
+                        // Unqueue all buffers
+                        int buffersProcessed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
+                        if (buffersProcessed > 0) {
+                            int[] tempBuffers = new int[buffersProcessed];
+                            AL10.alSourceUnqueueBuffers(sourceID, tempBuffers);
+                        }
+                        int buffersQueued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                        if (buffersQueued > 0) {
+                            int[] tempBuffers = new int[buffersQueued];
+                            AL10.alSourceUnqueueBuffers(sourceID, tempBuffers);
+                        }
+                        AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Detach buffer pointer
 
-                    // Delete source and buffers
-                    AL10.alDeleteSources(sourceID);
-                    AL10.alDeleteBuffers(bufferIDs); // Delete all buffers in the array
-                    System.out.println("[SimplySpeakers] Cleaned up OpenAL source " + sourceID + " and buffers.");
+                        // Delete OpenAL resources
+                        AL10.alDeleteSources(sourceID);
+                        AL10.alDeleteBuffers(bufferIDs);
+                        System.out.println("[SimplySpeakers] Async Cleaned up OpenAL source " + sourceID + " and buffers for speaker at " + position);
+                    } else {
+                        System.out.println("[SimplySpeakers] Async Cleanup: Source " + sourceID + " for speaker at " + position + " already deleted or invalid.");
+                        // If source is gone, associated buffers might be too.
+                        // Attempting to delete bufferIDs here could error if they are tied to a non-existent source
+                        // or if the buffer IDs themselves are no longer valid.
+                        // It's generally safer to let OpenAL handle buffer cleanup when a source is deleted.
+                    }
                 } catch (Exception e) {
-                     System.err.println("[SimplySpeakers] Error during OpenAL cleanup for source " + sourceID + ": " + e.getMessage());
+                     System.err.println("[SimplySpeakers] Error during async OpenAL cleanup for source " + sourceID + " at " + position + ": " + e.getMessage());
                 }
             });
         }
@@ -103,7 +100,7 @@ public class ClientAudioPlayer {
     // Updated play method signature
     public static void play(BlockPos pos, String filePath, float startPositionSeconds) {
         // Check if audio is already playing/managed for this position
-        stop(pos); 
+        stop(pos);
 
         if (filePath == null || filePath.trim().isEmpty()) {
             System.err.println("[SimplySpeakers] Audio path is empty for speaker at " + pos + ". Skipping playback.");
@@ -112,266 +109,240 @@ public class ClientAudioPlayer {
 
         System.out.println("[SimplySpeakers] Attempting to play audio at " + pos + " from " + startPositionSeconds + "s, path: " + filePath);
 
-        // --- Start of New Streaming Logic ---
-        // This part runs initially to set up the stream and start the process.
-        // The actual reading and buffer queuing will happen in a separate thread.
+        Minecraft.getInstance().tell(() -> {
+            try {
+                int sourceID = AL10.alGenSources();
+                int[] bufferIDs = new int[NUM_BUFFERS];
+                AL10.alGenBuffers(bufferIDs); // Generate multiple buffers
 
-        try {
-            File audioFile = new File(filePath);
-            if (!audioFile.exists()) {
-                System.err.println("[SimplySpeakers] ERROR: Audio file not found: " + filePath);
-                return;
+                AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+                AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
+                AL10.alSourcef(sourceID, AL10.AL_GAIN, 1.0f);
+                AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
+
+                Thread streamingThread = new Thread(() -> streamAudioData(pos, sourceID, bufferIDs, filePath, startPositionSeconds),
+                                                    "SimplySpeakers Streaming Thread - " + pos);
+                streamingThread.setDaemon(true);
+
+                StreamingAudioResource resource = new StreamingAudioResource(sourceID, bufferIDs, streamingThread, pos);
+                speakerResources.put(pos, resource);
+                System.out.println("[SimplySpeakers] Stored streaming resource for pos: " + pos + ". Thread will open/decode audio.");
+
+                streamingThread.start();
+
+            } catch (Exception e) {
+                System.err.println("[SimplySpeakers] ERROR: Exception during OpenAL setup on main thread for: " + filePath + " at " + pos);
+                e.printStackTrace();
             }
-
-            // --- Get AudioInputStream (Handles decoding WAV/OGG/MP3 to PCM) ---
-            AudioInputStream pcmAudioStream = getPcmAudioStream(audioFile);
-            if (pcmAudioStream == null) {
-                System.err.println("[SimplySpeakers] ERROR: Could not get PCM audio stream for: " + filePath);
-                return;
-            }
-
-            // --- Calculate Seek Position ---
-            AudioFormat format = pcmAudioStream.getFormat();
-            long bytesToSkip = 0;
-            if (startPositionSeconds > 0) {
-                float frameRate = format.getFrameRate();
-                int frameSize = format.getFrameSize();
-                if (frameRate > 0 && frameSize > 0) {
-                    long framesToSkip = (long) (startPositionSeconds * frameRate);
-                    bytesToSkip = framesToSkip * frameSize;
-                    System.out.println("[SimplySpeakers] Calculated skip: " + bytesToSkip + " bytes for " + startPositionSeconds + "s");
-                } else {
-                    System.err.println("[SimplySpeakers] WARNING: Invalid format for seeking: " + format);
-                }
-            }
-
-            // --- Perform Seek ---
-            if (bytesToSkip > 0) {
-                try {
-                    long skipped = skipFully(pcmAudioStream, bytesToSkip);
-                    if (skipped < bytesToSkip) {
-                        System.err.println("[SimplySpeakers] WARNING: Could only skip " + skipped + "/" + bytesToSkip + " bytes. Reached EOF?");
-                        // If we couldn't skip enough, likely near or past EOF, so don't play.
-                        pcmAudioStream.close(); // Close the stream
-                        return;
-                    }
-                    System.out.println("[SimplySpeakers] Successfully skipped " + skipped + " bytes.");
-                } catch (IOException e) {
-                    System.err.println("[SimplySpeakers] ERROR: IOException during skipBytes for: " + filePath + ". " + e.getMessage());
-                    try { pcmAudioStream.close(); } catch (IOException ignored) {}
-                    return;
-                }
-            }
-
-            // --- Setup OpenAL Source and Buffers (on main thread) ---
-            final AudioInputStream finalStream = pcmAudioStream; // Effectively final for lambda
-            final AudioFormat finalFormat = format; // Effectively final for lambda
-            Minecraft.getInstance().tell(() -> {
-                try {
-                    int sourceID = AL10.alGenSources();
-                    int[] bufferIDs = new int[NUM_BUFFERS];
-                    AL10.alGenBuffers(bufferIDs); // Generate multiple buffers
-
-                    // Configure source properties (position, attenuation, etc.)
-                    AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
-                    // Disable OpenAL's distance attenuation - we'll handle gain manually
-                    AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
-                    // Set initial gain to full volume
-                    AL10.alSourcef(sourceID, AL10.AL_GAIN, 1.0f);
-                    AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE); // Position is absolute
-
-                    // --- Create and Start Streaming Thread ---
-                    // Placeholder for the thread object
-                    Thread streamingThread = new Thread(() -> streamAudioData(pos, sourceID, bufferIDs, finalStream, finalFormat),
-                                                        "SimplySpeakers Streaming Thread - " + pos);
-                    streamingThread.setDaemon(true);
-
-                    // Store the resource (including the stream and thread)
-                    StreamingAudioResource resource = new StreamingAudioResource(sourceID, bufferIDs, finalStream, streamingThread, finalFormat);
-                    speakerResources.put(pos, resource);
-                    System.out.println("[SimplySpeakers] Stored streaming resource for pos: " + pos);
-
-                    // Start the streaming thread AFTER storing the resource
-                    streamingThread.start();
-
-                    // Initial buffer fill and playback start will be handled by the streaming thread itself.
-                    // We don't call alSourcePlay here directly anymore.
-
-                } catch (Exception e) {
-                    System.err.println("[SimplySpeakers] ERROR: Exception during OpenAL setup on main thread for: " + filePath);
-                    e.printStackTrace();
-                    // Clean up the stream if OpenAL setup failed
-                    try { finalStream.close(); } catch (IOException ignored) {}
-                }
-            });
-
-        } catch (UnsupportedAudioFileException e) {
-            System.err.println("[SimplySpeakers] ERROR: Unsupported audio file format for: " + filePath + ". " + e.getMessage());
-        } catch (IOException e) {
-            System.err.println("[SimplySpeakers] ERROR: IOException getting/processing audio file: " + filePath + ". " + e.getMessage());
-        } catch (Exception e) {
-            System.err.println("[SimplySpeakers] ERROR: Unexpected error setting up playback for: " + filePath + ". " + e.getMessage());
-            e.printStackTrace();
-        }
-        // --- End of New Streaming Logic ---
+        });
     }
 
-     // Helper method to ensure all requested bytes are skipped
+    // Helper method to ensure all requested bytes are skipped (remains unchanged)
     private static long skipFully(InputStream in, long n) throws IOException {
         long remaining = n;
         while (remaining > 0) {
             long skipped = in.skip(remaining);
-            if (skipped <= 0) { // skip returns 0 on EOF or if n is non-positive
-                break; // Reached EOF or cannot skip further
+            if (skipped <= 0) {
+                break;
             }
             remaining -= skipped;
         }
-        return n - remaining; // Return total bytes actually skipped
+        return n - remaining;
     }
 
-
     // Core streaming logic executed in a separate thread
-    private static void streamAudioData(BlockPos pos, int sourceID, int[] bufferIDs, AudioInputStream stream, AudioFormat format) {
-        System.out.println("[Streaming Thread " + sourceID + "] Started for " + pos);
-        StreamingAudioResource resource = speakerResources.get(pos); // Get resource again to access stopFlag
+    private static void streamAudioData(BlockPos pos, int sourceID, int[] bufferIDs, String filePath, float startPositionSeconds) {
+        StreamingAudioResource resource = speakerResources.get(pos);
 
-        // Check resource validity immediately after starting
-        if (resource == null || resource.stopFlag.get()) {
-            System.out.println("[Streaming Thread " + sourceID + "] Resource invalid or stop requested immediately. Exiting.");
-            try { if (stream != null) stream.close(); } catch (IOException ignored) {}
+        if (resource == null || resource.sourceID != sourceID) {
+            System.err.println("[SimplySpeakers] Streaming thread for " + pos + " (source " + sourceID + ") found resource mismatch or missing. Aborting.");
             return;
         }
 
-        boolean streamEnded = false;
-        try {
-            // Calculate buffer size in bytes
-            int bytesPerSecond = (int) (format.getSampleRate() * format.getFrameSize());
-            int bufferSizeBytes = bytesPerSecond * BUFFER_SIZE_SECONDS;
-            byte[] readBuffer = new byte[bufferSizeBytes];
-            ByteBuffer byteBuffer = ByteBuffer.allocateDirect(bufferSizeBytes).order(ByteOrder.nativeOrder());
-            int alFormat = getOpenALFormat(format);
+        AudioInputStream pcmAudioStream = null;
+        boolean initialDataLoaded = false; // Declare here for visibility in finally
 
-            // --- Initial Buffer Fill ---
-            int initialBuffersFilled = 0;
-            for (int bufferID : bufferIDs) {
-                if (resource.stopFlag.get()) break; // Check stop flag during initial fill
-                int bytesRead = stream.read(readBuffer);
-                if (bytesRead > 0) {
-                    byteBuffer.clear();
-                    byteBuffer.put(readBuffer, 0, bytesRead);
-                    byteBuffer.flip();
-                    // Upload data on the streaming thread (OpenAL context might not be current, schedule?)
-                    // For now, assume context is okay or handle potential issues.
-                    // Scheduling every buffer upload might be too slow.
-                    AL10.alBufferData(bufferID, alFormat, byteBuffer, (int) format.getSampleRate());
-                    AL10.alSourceQueueBuffers(sourceID, bufferID);
-                    initialBuffersFilled++;
+        try {
+            File audioFile = new File(filePath);
+            if (!audioFile.exists()) {
+                System.err.println("[SimplySpeakers] Streaming thread ERROR: Audio file not found: " + filePath + " for " + pos);
+                resource.stopFlag.set(true);
+                return;
+            }
+
+            System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Attempting to get PCM stream for " + filePath);
+            // Ensure getPcmAudioStream is accessible (it should be if it's a static method in this class)
+            pcmAudioStream = getPcmAudioStream(audioFile);
+            
+            if (pcmAudioStream == null) {
+                System.err.println("[SimplySpeakers] Streaming thread ERROR: Could not get PCM audio stream for: " + filePath + " for " + pos);
+                resource.stopFlag.set(true);
+                return;
+            }
+            System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Successfully got PCM stream.");
+
+            AudioFormat format = pcmAudioStream.getFormat();
+            if (startPositionSeconds > 0) {
+                long bytesToSkip = 0;
+                float frameRate = format.getFrameRate();
+                int frameSize = format.getFrameSize();
+
+                if (frameRate > 0 && frameSize > 0) {
+                    long framesToSkip = (long) (startPositionSeconds * frameRate);
+                    bytesToSkip = framesToSkip * frameSize;
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Calculated skip: " + bytesToSkip + " bytes for " + startPositionSeconds + "s");
                 } else {
-                    streamEnded = true; // Reached end of stream during initial fill
+                    System.err.println("[SimplySpeakers] Streaming thread WARNING for " + pos + ": Invalid format for seeking: " + format);
+                }
+
+                if (bytesToSkip > 0) {
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Attempting to skip " + bytesToSkip + " bytes.");
+                    long skipped = skipFully(pcmAudioStream, bytesToSkip);
+                    if (skipped < bytesToSkip) {
+                        System.err.println("[SimplySpeakers] Streaming thread WARNING for " + pos + ": Could only skip " + skipped + "/" + bytesToSkip + " bytes. Reached EOF or error.");
+                        resource.stopFlag.set(true);
+                        return;
+                    }
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Successfully skipped " + skipped + " bytes.");
+                }
+            }
+
+            boolean playbackAttempted = false;
+            // initialDataLoaded is already declared above
+
+            // Ensure getOpenALFormat is accessible
+            int alFormat = getOpenALFormat(format);
+            if (alFormat == -1) {
+                System.err.println("[SimplySpeakers] Streaming thread ERROR for " + pos + ": Unsupported audio format for OpenAL: " + format);
+                resource.stopFlag.set(true);
+                return;
+            }
+            int bufferSizeBytes = (int) (format.getFrameRate() * format.getFrameSize() * BUFFER_SIZE_SECONDS);
+            byte[] bufferData = new byte[bufferSizeBytes];
+
+            for (int i = 0; i < NUM_BUFFERS; i++) {
+                if (resource.stopFlag.get() || Thread.currentThread().isInterrupted()) {
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Stop signal or interrupt during initial buffering.");
                     break;
                 }
-            }
-            System.out.println("[Streaming Thread " + sourceID + "] Initial buffers filled: " + initialBuffersFilled);
 
-            if (initialBuffersFilled == 0 || resource.stopFlag.get()) {
-                 System.out.println("[Streaming Thread " + sourceID + "] No initial buffers filled or stop requested. Exiting.");
-                 throw new IOException("Failed to fill initial buffers or stop requested."); // Trigger cleanup in finally
-            }
-
-            // --- Start Playback ---
-            AL10.alSourcePlay(sourceID);
-            System.out.println("[Streaming Thread " + sourceID + "] Playback started.");
-
-            // --- Streaming Loop ---
-            while (!streamEnded && !resource.stopFlag.get()) {
-                int processed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
-
-                while (processed-- > 0 && !resource.stopFlag.get()) {
-                    int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
-                    // Check for OpenAL errors after unqueueing
-                    int alError = AL10.alGetError();
-                    if (alError != AL10.AL_NO_ERROR) {
-                         System.err.println("[Streaming Thread " + sourceID + "] OpenAL error after unqueue: " + alError);
-                         // Potentially break or handle error
-                    }
-
-
-                    int bytesRead = stream.read(readBuffer);
-                    if (bytesRead > 0) {
-                        byteBuffer.clear();
-                        byteBuffer.put(readBuffer, 0, bytesRead);
-                        byteBuffer.flip();
-                        AL10.alBufferData(bufferID, alFormat, byteBuffer, (int) format.getSampleRate());
-                        AL10.alSourceQueueBuffers(sourceID, bufferID);
-                    } else {
-                        streamEnded = true; // Reached end of stream
-                        System.out.println("[Streaming Thread " + sourceID + "] End of audio stream reached.");
-                        break; // Exit inner loop if stream ended
-                    }
+                int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
+                if (bytesRead <= 0) {
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": EOF or read error during initial buffering. Bytes read: " + bytesRead);
+                    resource.stopFlag.set(true);
+                    break; 
                 }
 
-                // Check source state and restart if necessary (handles buffer underrun)
-                if (!resource.stopFlag.get() && AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
-                     // Check if there are still buffers queued or if we expect more data
+                ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
+                alBuffer.put(bufferData, 0, bytesRead).flip();
+
+                AL10.alBufferData(bufferIDs[i], alFormat, alBuffer, (int) format.getSampleRate());
+                AL10.alSourceQueueBuffers(sourceID, bufferIDs[i]);
+                initialDataLoaded = true;
+
+                if (!playbackAttempted) {
+                    AL10.alSourcePlay(sourceID);
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Started playback after queuing first/initial buffer (ID: " + bufferIDs[i] + ").");
+                    playbackAttempted = true;
+                }
+            }
+
+            if (!playbackAttempted && initialDataLoaded) {
+                if (!resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+                    int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                    if (queued > 0 && AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
+                        AL10.alSourcePlay(sourceID);
+                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Started playback (post-initial loop check).");
+                        playbackAttempted = true;
+                    }
+                }
+            }
+
+            if (!playbackAttempted) {
+                System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Playback not attempted. Not entering main streaming loop.");
+                if (!resource.stopFlag.get() && !initialDataLoaded) { 
+                    resource.stopFlag.set(true);
+                }
+            }
+
+            while (playbackAttempted && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+                int buffersProcessed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
+
+                for (int i = 0; i < buffersProcessed; i++) {
+                    int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
+                    int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
+
+                    if (bytesRead > 0) {
+                        ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
+                        alBuffer.put(bufferData, 0, bytesRead).flip();
+                        AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                        AL10.alSourceQueueBuffers(sourceID, bufferID);
+                    } else {
+                        System.out.println("[SimplySpeakers] EOF or read error in streaming thread for " + pos + ". Buffer " + bufferID + " not re-queued. Bytes read: " + bytesRead);
+                        resource.stopFlag.set(true);
+                        break; 
+                    }
+                }
+                 if (resource.stopFlag.get()) break;
+
+                if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
                      int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
-                     if (queuedBuffers > 0 || !streamEnded) {
-                          System.out.println("[Streaming Thread " + sourceID + "] Source stopped unexpectedly, restarting playback.");
-                          AL10.alSourcePlay(sourceID);
-                     } else {
-                          // Source stopped and no more buffers/data, let the loop terminate naturally
-                          System.out.println("[Streaming Thread " + sourceID + "] Source stopped, no more buffers or data.");
-                          break; // Exit outer loop
+                     if (queuedBuffers > 0) {
+                        System.out.println("[SimplySpeakers] Source " + sourceID + " at " + pos + " stopped but has queued buffers. Restarting playback.");
+                        AL10.alSourcePlay(sourceID);
+                     } else if (!resource.stopFlag.get()) { 
+                        System.out.println("[SimplySpeakers] Buffer underrun for source " + sourceID + " at " + pos + ". Waiting for more data.");
                      }
                 }
 
-
-                // Avoid busy-waiting if no buffers were processed
-                if (!streamEnded && !resource.stopFlag.get()) {
-                    try {
-                        Thread.sleep(50); // Sleep briefly (e.g., 50ms)
-                    } catch (InterruptedException e) {
-                        System.out.println("[Streaming Thread " + sourceID + "] Interrupted, likely stopping.");
-                        resource.stopFlag.set(true); // Ensure stop flag is set if interrupted
-                        Thread.currentThread().interrupt(); // Re-interrupt thread
-                    }
+                try {
+                    Thread.sleep(50); 
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); 
+                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + " interrupted during sleep.");
+                    resource.stopFlag.set(true);
+                    break; 
                 }
-            } // End while loop
-
+            }
+        } catch (UnsupportedAudioFileException e) {
+            System.err.println("[SimplySpeakers] Streaming thread ERROR for " + pos + ": Unsupported audio file format for " + filePath + ". " + e.getMessage());
+            if (resource != null) resource.stopFlag.set(true);
         } catch (IOException e) {
-            System.err.println("[Streaming Thread " + sourceID + "] IOException during streaming: " + e.getMessage());
-            // e.printStackTrace(); // Uncomment for debugging
+            System.err.println("[SimplySpeakers] Streaming thread IO ERROR for " + pos + " with file " + filePath + ": " + e.getMessage());
+            if (resource != null) resource.stopFlag.set(true);
         } catch (Exception e) {
-             System.err.println("[Streaming Thread " + sourceID + "] Unexpected exception during streaming: " + e.getMessage());
-             e.printStackTrace();
+            System.err.println("[SimplySpeakers] Critical error in streaming thread for " + pos + " (source " + sourceID + "): " + e.getMessage());
+            e.printStackTrace();
+            if (resource != null) resource.stopFlag.set(true);
         } finally {
-            System.out.println("[Streaming Thread " + sourceID + "] Exiting loop/try block.");
-            // Ensure cleanup happens if the thread exits, even on error
-            // Check if the resource still exists and hasn't been cleaned up by stop() already
-            StreamingAudioResource currentResource = speakerResources.get(pos);
-            if (currentResource != null && currentResource.sourceID == sourceID && !currentResource.stopFlag.get()) {
-                 System.out.println("[Streaming Thread " + sourceID + "] Initiating cleanup from finally block.");
-                 // Use remove here to prevent stop() from trying to clean up again
-                 StreamingAudioResource res = speakerResources.remove(pos);
-                 if (res != null) {
-                     res.stopAndCleanup(); // Call cleanup if we removed it successfully
-                 }
-            } else {
-                 System.out.println("[Streaming Thread " + sourceID + "] Cleanup likely handled by stop() or resource removed.");
+            System.out.println("[SimplySpeakers] Streaming thread for " + pos + " (source " + sourceID + ") is exiting. Performing final cleanup.");
+            if (pcmAudioStream != null) {
+                try {
+                    pcmAudioStream.close();
+                    System.out.println("[SimplySpeakers] AudioInputStream closed by streaming thread for " + pos);
+                } catch (IOException e) {
+                    System.err.println("[SimplySpeakers] Error closing audioStream in streaming thread's finally block for " + pos + ": " + e.getMessage());
+                }
+            }
+            // Ensure resource is marked as stopped if thread exits due to an early error before playback could properly start.
+            if (resource != null && !resource.stopFlag.get() && !initialDataLoaded) { 
+                System.out.println("[SimplySpeakers] Streaming thread for " + pos + " setting stopFlag in finally due to no data loaded.");
+                resource.stopFlag.set(true);
             }
         }
+        System.out.println("[SimplySpeakers] Streaming thread finished for " + pos + " (source " + sourceID + ").");
     }
-
 
     // Updated stop method
     public static void stop(BlockPos pos) {
         StreamingAudioResource resource = speakerResources.remove(pos);
         if (resource != null) {
-            System.out.println("[SimplySpeakers] Stopping playback for pos: " + pos + " (Source ID: " + resource.sourceID + ")");
-            resource.stopAndCleanup(); // Use the resource's cleanup method
+            resource.stopAndCleanup();
+            System.out.println("[SimplySpeakers] Stopped audio for speaker at " + pos);
         }
     }
 
-    // Updated stopAll method
+    // Added back stopAll method
     public static void stopAll() {
          System.out.println("[SimplySpeakers] Stopping all playback...");
          // Create a copy of keys to avoid ConcurrentModificationException
@@ -381,10 +352,9 @@ public class ClientAudioPlayer {
              stop(pos); // Call the updated stop method for each
          }
          System.out.println("[SimplySpeakers] Finished stopping all playback.");
-         // No need to schedule on main thread here, as stop() already does.
     }
 
-    // --- Client Tick Update for Volume ---
+    // Added back updateSpeakerVolumes method
     public static void updateSpeakerVolumes() {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
@@ -393,17 +363,15 @@ public class ClientAudioPlayer {
         }
 
         Vec3 playerPos = player.position();
-        double maxRange = Config.speakerRange;
+        double maxRange = Config.speakerRange; // Make sure Config.speakerRange is accessible
         double maxRangeSq = maxRange * maxRange;
 
-        // Iterate safely over a copy of the entry set in case of concurrent modification
         List<Map.Entry<BlockPos, StreamingAudioResource>> entries = new ArrayList<>(speakerResources.entrySet());
 
         for (Map.Entry<BlockPos, StreamingAudioResource> entry : entries) {
             BlockPos speakerPos = entry.getKey();
             StreamingAudioResource resource = entry.getValue();
 
-            // Check if resource is still valid (might have been stopped concurrently)
             if (resource == null || resource.stopFlag.get()) {
                 continue;
             }
@@ -411,33 +379,31 @@ public class ClientAudioPlayer {
             Vec3 speakerCenterPos = new Vec3(speakerPos.getX() + 0.5, speakerPos.getY() + 0.5, speakerPos.getZ() + 0.5);
             double distSq = playerPos.distanceToSqr(speakerCenterPos);
 
-            float gain = 1.0f; // Default to full volume
+            float gain = 1.0f;
 
             if (distSq >= maxRangeSq) {
-                gain = 0.0f; // Beyond max range, should be silent (server should stop it anyway)
-            } else if (distSq > 0) { // Avoid division by zero and calculate fade
+                gain = 0.0f;
+            } else if (distSq > 0) {
                 double distance = Math.sqrt(distSq);
-                // Linear fade: gain = 1.0 - (distance / maxRange)
-                // Squared fade (faster drop-off): gain = (1.0 - (distance / maxRange))^2
                 gain = (float) Math.pow(1.0 - (distance / maxRange), 2.0);
-                gain = Math.max(0.0f, Math.min(1.0f, gain)); // Clamp between 0.0 and 1.0
+                gain = Math.max(0.0f, Math.min(1.0f, gain));
             }
 
-            // Schedule the OpenAL call on the main thread
-            final float finalGain = gain; // Need effectively final variable for lambda
+            final float finalGain = gain;
             mc.tell(() -> {
-                // Double-check resource validity before executing AL call
                  StreamingAudioResource currentResource = speakerResources.get(speakerPos);
                  if (currentResource != null && currentResource.sourceID == resource.sourceID && !currentResource.stopFlag.get()) {
                     try {
-                        AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
-                        // Check for AL errors after setting gain
-                        int error = AL10.alGetError();
-                        if (error != AL10.AL_NO_ERROR) {
-                            System.err.println("[SimplySpeakers] OpenAL error setting gain for source " + resource.sourceID + ": " + error);
+                        if (AL10.alIsSource(resource.sourceID)) { // Check if source is still valid
+                            AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
+                            int error = AL10.alGetError();
+                            if (error != AL10.AL_NO_ERROR) {
+                                System.err.println("[SimplySpeakers] OpenAL error setting gain for source " + resource.sourceID + ": " + AL10.alGetString(error));
+                            }
+                        } else {
+                             // System.out.println("[SimplySpeakers] Source " + resource.sourceID + " no longer valid when trying to set gain.");
                         }
                     } catch (Exception e) {
-                        // Catch potential errors if the source was deleted unexpectedly
                         System.err.println("[SimplySpeakers] Error setting gain for source " + resource.sourceID + ": " + e.getMessage());
                     }
                  }
@@ -445,11 +411,10 @@ public class ClientAudioPlayer {
         }
     }
 
-    // --- Audio Decoding Logic (Moved to helper method) ---
+// --- Audio Decoding Logic (Moved to helper method) ---
     private static AudioInputStream getPcmAudioStream(File audioFile) throws UnsupportedAudioFileException, IOException {
         String filePath = audioFile.getPath();
-        AudioInputStream pcmInputStream;
-        AudioFormat pcmFormat;
+        // pcmInputStream and pcmFormat are declared later, specific to each branch
 
         if (filePath.toLowerCase().endsWith(".mp3")) {
             System.out.println("[SimplySpeakers] Decoding MP3: " + filePath);
@@ -458,47 +423,48 @@ public class ClientAudioPlayer {
 
                 Bitstream bitstream = new Bitstream(fileStream);
                 Decoder decoder = new Decoder();
+                // Obuffer obuffer = new javazoom.jl.decoder.Obuffer(); // Correct instantiation if needed, but Decoder typically manages its own output buffer
+                // decoder.setObuffer(obuffer); // Usually not needed as Decoder creates its own SampleBuffer
+
                 Header frame;
                 int frameCount = 0;
-                float sampleRate = -1;
-                int channels = -1;
-                SampleBuffer outputBuffer = null;
+                float effectiveSampleRate = -1;
+                int effectiveChannels = -1;
 
-                while (true) {
-                    try {
-                        frame = bitstream.readFrame();
-                        if (frame == null) break;
-                        if (frameCount == 0) {
-                            sampleRate = frame.frequency();
-                            channels = (frame.mode() == Header.SINGLE_CHANNEL) ? 1 : 2;
-                            outputBuffer = new SampleBuffer((int)sampleRate, channels);
-                            decoder.setOutputBuffer(outputBuffer);
+                while ((frame = bitstream.readFrame()) != null) {
+                    if (frameCount == 0) { // First frame, capture format details
+                        effectiveSampleRate = frame.frequency();
+                        effectiveChannels = (frame.mode() == Header.SINGLE_CHANNEL) ? 1 : 2;
+                        if (effectiveSampleRate <= 0 || effectiveChannels <= 0) {
+                            throw new IOException("Failed to get valid sample rate or channels from first MP3 frame: " + filePath);
                         }
-                        Obuffer decodedBuffer = decoder.decodeFrame(frame, bitstream);
-                        if (decodedBuffer != outputBuffer) { /* Handle error or unexpected buffer */ }
-                        short[] pcmShorts = outputBuffer.getBuffer();
-                        int sampleCount = outputBuffer.getBufferLength();
-                        byte[] pcmBytes = shortsToBytesLE(pcmShorts, sampleCount);
-                        pcmOutputStream.write(pcmBytes);
-                        bitstream.closeFrame();
-                        frameCount++;
-                    } catch (BitstreamException | DecoderException e) {
-                        System.err.println("[SimplySpeakers] JLayer decoding error: " + e.getMessage());
-                        break; // Stop on error
                     }
+                    // The decoder.decodeFrame method takes the header and the bitstream.
+                    // It returns a SampleBuffer.
+                    SampleBuffer outputBuffer = (SampleBuffer) decoder.decodeFrame(frame, bitstream);
+                    short[] pcmShorts = outputBuffer.getBuffer();
+                    int samplesRead = outputBuffer.getBufferLength();
+
+                    // Convert short[] to byte[] (Little Endian for PCM)
+                    byte[] pcmBytes = shortsToBytesLE(pcmShorts, samplesRead);
+                    pcmOutputStream.write(pcmBytes);
+                    
+                    bitstream.closeFrame(); // Important to advance the stream
+                    frameCount++;
                 }
 
-                if (sampleRate <= 0 || channels <= 0 || frameCount == 0) {
-                    throw new UnsupportedAudioFileException("Could not determine MP3 format for: " + filePath);
+                if (frameCount == 0 || effectiveSampleRate <= 0 || effectiveChannels <= 0) {
+                    throw new IOException("No MP3 frames decoded or invalid format for: " + filePath);
                 }
-                pcmFormat = new AudioFormat(sampleRate, 16, channels, true, false); // LE
+
+                AudioFormat pcmFormat = new AudioFormat(effectiveSampleRate, 16, effectiveChannels, true, false); // true for signed, false for big-endian (PCM is usually LE)
                 byte[] pcmData = pcmOutputStream.toByteArray();
                 ByteArrayInputStream pcmByteStream = new ByteArrayInputStream(pcmData);
-                pcmInputStream = new AudioInputStream(pcmByteStream, pcmFormat, pcmData.length / pcmFormat.getFrameSize());
+                AudioInputStream pcmInputStream = new AudioInputStream(pcmByteStream, pcmFormat, pcmData.length / pcmFormat.getFrameSize());
                 System.out.println("[SimplySpeakers] MP3 decoded to PCM format: " + pcmFormat);
                 return pcmInputStream;
 
-            } catch (Exception e) { // Catch broader exceptions during MP3 decoding
+            } catch (BitstreamException | DecoderException e) {
                 throw new IOException("Failed to decode MP3 using JLayer for: " + filePath, e);
             }
         } else {
@@ -512,28 +478,27 @@ public class ClientAudioPlayer {
             AudioFormat targetPcmFormat = new AudioFormat(
                 AudioFormat.Encoding.PCM_SIGNED,
                 initialFormat.getSampleRate(),
-                16,
+                16, // 16-bit
                 initialFormat.getChannels(),
-                initialFormat.getChannels() * 2,
-                initialFormat.getSampleRate(),
+                initialFormat.getChannels() * 2, // Frame size: channels * bytes_per_sample (16-bit = 2 bytes)
+                initialFormat.getSampleRate(), // Frame rate
                 false // Little-endian
             );
 
             // Check if conversion is needed
             if (!initialFormat.matches(targetPcmFormat)) {
-                 System.out.println("[SimplySpeakers] Converting to target PCM format: " + targetPcmFormat);
-                 if (AudioSystem.isConversionSupported(targetPcmFormat, initialFormat)) {
-                     pcmInputStream = AudioSystem.getAudioInputStream(targetPcmFormat, initialStream);
-                     System.out.println("[SimplySpeakers] Conversion successful.");
-                     // Important: Don't close initialStream here, AudioSystem handles it
-                     return pcmInputStream;
-                 } else {
-                     initialStream.close(); // Close the initial stream if conversion fails
-                     throw new UnsupportedAudioFileException("PCM conversion not supported from " + initialFormat + " to " + targetPcmFormat);
-                 }
+                System.out.println("[SimplySpeakers] Converting to target PCM format: " + targetPcmFormat);
+                if (AudioSystem.isConversionSupported(targetPcmFormat, initialFormat)) {
+                    AudioInputStream convertedStream = AudioSystem.getAudioInputStream(targetPcmFormat, initialStream);
+                    System.out.println("[SimplySpeakers] Converted to PCM format: " + convertedStream.getFormat());
+                    return convertedStream;
+                } else {
+                    initialStream.close();
+                    throw new UnsupportedAudioFileException("Conversion to PCM_SIGNED 16-bit Little Endian not supported for: " + filePath + " from format " + initialFormat);
+                }
             } else {
-                 System.out.println("[SimplySpeakers] Initial format is already the target PCM format.");
-                 return initialStream; // Return the original stream as it's already correct
+                System.out.println("[SimplySpeakers] Audio is already in target PCM format.");
+                return initialStream; // Already in a suitable PCM format
             }
         }
     }
@@ -541,37 +506,24 @@ public class ClientAudioPlayer {
 
     // Helper method to convert short array (PCM) to byte array (Little Endian)
     private static byte[] shortsToBytesLE(short[] shorts, int count) {
-        byte[] bytes = new byte[count * 2];
+        byte[] bytes = new byte[count * 2]; // Each short is 2 bytes
         ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shorts, 0, count);
         return bytes;
     }
 
 
     private static int getOpenALFormat(AudioFormat format) {
-        int channels = format.getChannels();
-        int bitDepth = format.getSampleSizeInBits(); // Get bit depth
+        // Determine OpenAL format based on audio format details
+        int openALFormat = -1;
 
-        // Check encoding first
-        if (format.getEncoding() != AudioFormat.Encoding.PCM_SIGNED) {
-             throw new IllegalArgumentException("Unsupported encoding for OpenAL: " + format.getEncoding() + " (expected PCM_SIGNED)");
+        if (format.getChannels() == 1) {
+            openALFormat = AL10.AL_FORMAT_MONO16;
+        } else if (format.getChannels() == 2) {
+            openALFormat = AL10.AL_FORMAT_STEREO16;
+        } else {
+            System.err.println("[SimplySpeakers] Unsupported number of channels for OpenAL: " + format.getChannels());
         }
 
-        // Determine format based on channels and bit depth
-        if (channels == 1) {
-            if (bitDepth == 8) {
-                return AL10.AL_FORMAT_MONO8;
-            } else if (bitDepth == 16) {
-                return AL10.AL_FORMAT_MONO16;
-            }
-        } else if (channels == 2) {
-            if (bitDepth == 8) {
-                return AL10.AL_FORMAT_STEREO8;
-            } else if (bitDepth == 16) {
-                return AL10.AL_FORMAT_STEREO16;
-            }
-        }
-
-        // If we reach here, the format is unsupported
-        throw new IllegalArgumentException("Unsupported OpenAL format: Channels=" + channels + ", BitDepth=" + bitDepth);
+        return openALFormat;
     }
 }
