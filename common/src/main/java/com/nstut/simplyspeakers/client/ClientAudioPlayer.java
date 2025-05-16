@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.util.concurrent.ConcurrentHashMap; // Added for cache
 // JLayer specific imports needed
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.BitstreamException;
@@ -37,6 +38,10 @@ public class ClientAudioPlayer {
     private static final Map<BlockPos, StreamingAudioResource> speakerResources = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3; // Number of buffers to queue for streaming
     private static final int BUFFER_SIZE_SECONDS = 1; // Target buffer size in seconds (adjust as needed)
+
+    // Cache for decoded PCM data and their formats
+    private static final Map<String, byte[]> pcmCache = new ConcurrentHashMap<>();
+    private static final Map<String, AudioFormat> formatCache = new ConcurrentHashMap<>();
 
     // Updated resource class for streaming
     private static class StreamingAudioResource {
