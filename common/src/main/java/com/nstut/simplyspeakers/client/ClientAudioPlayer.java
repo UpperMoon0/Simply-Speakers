@@ -24,7 +24,6 @@ import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.util.concurrent.ConcurrentHashMap; // Added for cache
 // JLayer specific imports needed
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.BitstreamException;
@@ -420,11 +419,9 @@ public class ClientAudioPlayer {
                 double distance = Math.sqrt(distSq);
                 // Linear fade: gain = 1.0 - (distance / maxRange)
                 // Squared fade (faster drop-off): gain = (1.0 - (distance / maxRange))^2
-                // Let's use squared fade for a more noticeable effect
                 gain = (float) Math.pow(1.0 - (distance / maxRange), 2.0);
                 gain = Math.max(0.0f, Math.min(1.0f, gain)); // Clamp between 0.0 and 1.0
             }
-            // Else: distSq is 0 or less (player inside speaker?), gain remains 1.0f
 
             // Schedule the OpenAL call on the main thread
             final float finalGain = gain; // Need effectively final variable for lambda

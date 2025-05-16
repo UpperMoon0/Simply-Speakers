@@ -9,13 +9,12 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.server.level.ServerPlayer; // Added for player iteration
-import net.minecraft.world.phys.Vec3; // Added for distance calculation
-import com.nstut.simplyspeakers.Config; // Added for speakerRange
-import com.nstut.simplyspeakers.network.PlayAudioPacketS2C; // Added for sending play packet
-import com.nstut.simplyspeakers.network.StopAudioPacketS2C; // Added for sending stop packet
-import com.nstut.simplyspeakers.network.PacketRegistries; // Added for network channel
-import dev.architectury.networking.NetworkManager; // Added for sending packets
+import net.minecraft.server.level.ServerPlayer; 
+import net.minecraft.world.phys.Vec3;
+import com.nstut.simplyspeakers.Config; 
+import com.nstut.simplyspeakers.network.PlayAudioPacketS2C; 
+import com.nstut.simplyspeakers.network.StopAudioPacketS2C; 
+import com.nstut.simplyspeakers.network.PacketRegistries; 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -102,14 +101,6 @@ public class SpeakerBlockEntity extends BlockEntity {
         listeningPlayers.clear(); // Reset listeners when starting fresh
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-        
-        // Initial play sends to all nearby players, tick will handle new players entering range
-        // This initial broadcast is now handled by the first tick's player check.
-        // We can remove the broad sendToClients here as the tick method will cover it.
-        // However, for immediate effect on existing nearby players when play is *first* called,
-        // it might be good to keep a targeted send or rely on the very next tick.
-        // For simplicity and to avoid double-sends, let's rely on the tick.
-        // The tick() method will now handle sending PlayAudioPacketS2C to relevant players.
             
         LOGGER.info("Starting audio: " + audioPath + " at tick " + playbackStartTick);
     }
