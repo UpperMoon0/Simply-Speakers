@@ -63,7 +63,6 @@ logs/
 # Cache files
 **/loom-cache/
 **/.cache/
-.mcreator/
 
 # Local Minecraft instance data
 *usernamecache.json
@@ -80,3 +79,6 @@ saves/
 *.dll
 *.so
 *.dylib
+
+# VS Code settings
+.vscode/
