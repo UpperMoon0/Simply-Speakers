@@ -28,9 +28,13 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew build
 
+      - name: Get Mod Version
+        id: get_version
+        run: echo "mod_version=$(grep -Po \'(?<=mod_version = ).*\' gradle.properties)" >> $GITHUB_OUTPUT
+
       - name: Generate Release Tag
         id: tag_generator
-        run: echo "tag_name=release-$(date +%Y-%m-%d-%H-%M-%S)" >> $GITHUB_OUTPUT
+        run: echo "tag_name=${{ steps.get_version.outputs.mod_version }}-$(date +%Y-%m-%d-%H-%M-%S)" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
