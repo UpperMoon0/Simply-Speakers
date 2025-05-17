@@ -12,7 +12,7 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio from
 
 1.Clone the repository.
 2.Run `./gradlew build` (or `gradlew.bat build` on Windows) to build the mod.
-    * The compiled JAR files will be located in the `build/libs` directory of the common subproject.
+    * The compiled JAR files will be located in the `build/libs` directory of the forge and fabric subprojects.
 
 ## Mod Structure
 
