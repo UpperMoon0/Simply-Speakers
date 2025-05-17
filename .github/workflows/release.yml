@@ -31,8 +31,8 @@ jobs:
       - name: Get Mod Version
         id: get_version
         run: |
-          mod_version_line=$(grep \'mod_version = \' gradle.properties)
-          mod_version=$(echo "$mod_version_line" | cut -d \'=\' -f 2 | xargs)
+          mod_version_line=$(grep 'mod_version = ' gradle.properties)
+          mod_version=$(echo "$mod_version_line" | cut -d '=' -f 2 | xargs)
           echo "mod_version=$mod_version" >> $GITHUB_OUTPUT
 
       - name: Generate Release Tag
