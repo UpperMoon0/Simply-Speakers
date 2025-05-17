@@ -51,8 +51,7 @@ public class SpeakerScreen extends Screen {
         }
         this.audioPathField.setFocused(true);
         this.addRenderableWidget(this.audioPathField);
-
-        // Removed Play and Stop buttons
+        this.setFocused(this.audioPathField); // Explicitly set focus for the screen
 
         // Create the "Load" button, centered horizontally and moved up slightly
         Button loadButton = Button.builder(Component.literal("Load"), button -> sendLoadAudioToServer())
