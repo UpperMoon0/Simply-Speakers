@@ -37,13 +37,13 @@ jobs:
 
       - name: Generate Release Tag
         id: tag_generator
-        run: echo "tag_name=${{ steps.get_version.outputs.mod_version }}-$(date +%Y-%m-%d-%H-%M-%S)" >> $GITHUB_OUTPUT
+        run: echo "tag_name=v${{ steps.get_version.outputs.mod_version }}.$(date +%Y%m%d%H%M%S)" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag_generator.outputs.tag_name }}
-          name: "Release ${{ steps.tag_generator.outputs.tag_name }}"
+          name: "Simply Speakers ${{ steps.tag_generator.outputs.tag_name }}"
           body: |
             Automatic release triggered by commit ${{ github.sha }} to the main branch.
 
