@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "simplyspeakers",
+  "id": "${archives_name}",
   "version": "${version}",
-  "name": "Simply Speakers",
-  "description": "A simple mod that adds speaker blocks to Minecraft that can play music files.",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
   "authors": [
-    "NsTut"
+    "${mod_authors}"
   ],
   "contact": {
     "homepage": "https://www.youtube.com/channel/UCsNCpkYlcZ5ahUwU4Hp8mDQ"
@@ -22,10 +22,10 @@
     "simplyspeakers.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.16.14",
-    "minecraft": "~1.20.1",
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "~${minecraft_version}",
     "java": ">=17",
-    "architectury": ">=9.2.14",
+    "architectury": ">=${architectury_api_version}",
     "fabric-api": "*"
   },
   "suggests": {
