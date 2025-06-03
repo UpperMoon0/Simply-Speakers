@@ -37,7 +37,7 @@ jobs:
 
       - name: Generate Release Tag
         id: tag_generator
-        run: echo "tag_name=v${{ steps.get_version.outputs.mod_version }}-$(date +%s)" >> $GITHUB_OUTPUT
+        run: echo "tag_name=v${{ steps.get_version.outputs.mod_version }}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
