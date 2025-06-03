@@ -22,6 +22,11 @@ public class PacketRegistries {
                 AudioPathPacketC2S::new, // Assuming a constructor that takes a FriendlyByteBuf
                 AudioPathPacketC2S::handle
         );
+        CHANNEL.register(ToggleLoopPacketC2S.class,
+                ToggleLoopPacketC2S::write,
+                ToggleLoopPacketC2S::new,
+                ToggleLoopPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {

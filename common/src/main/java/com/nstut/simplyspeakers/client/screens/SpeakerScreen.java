@@ -6,6 +6,7 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.network.LoadAudioCallPacketC2S;
 import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.network.ToggleLoopPacketC2S;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -27,6 +28,8 @@ public class SpeakerScreen extends Screen {
     private EditBox audioPathField;
     private final BlockPos blockEntityPos;
     private String initialAudioPath;
+    private SpeakerBlockEntity speaker;
+    private Button loopToggleButton;
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.literal("Speaker Screen"));
@@ -59,6 +62,32 @@ public class SpeakerScreen extends Screen {
                 .size(130, 20)
                 .build();
         this.addRenderableWidget(loadButton);
+
+        // Create the "Loop" toggle button
+        this.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
+                    if (this.speaker == null) return;
+                    boolean currentLoopState = this.speaker.isLooping();
+                    boolean newLoopState = !currentLoopState;
+                    PacketRegistries.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
+                    // Update client-side state for immediate UI feedback
+                    this.speaker.setLoopingClient(newLoopState);
+                    // Update button text based on the new client-side state
+                    button.setMessage(getLoopButtonTextComponent());
+                })
+                .pos(guiLeft + (SCREEN_WIDTH - 130) / 2, guiTop + 100) // Position below load button
+                .size(130, 20)
+                .build();
+        this.loopToggleButton.active = (this.speaker != null);
+        this.addRenderableWidget(this.loopToggleButton);
+    }
+
+    private Component getLoopButtonTextComponent() {
+        boolean looping = (this.speaker != null) ? this.speaker.isLooping() : false;
+        String text = looping ? "Loop: ON" : "Loop: OFF";
+        if (this.speaker == null) {
+            text = "Loop: N/A";
+        }
+        return Component.literal(text);
     }
 
     @Override
@@ -73,16 +102,41 @@ public class SpeakerScreen extends Screen {
         guiGraphics.drawString(this.font, Component.literal("Audio Path:"), guiLeft + 10, guiTop + 30, 4210752, false);
 
         this.audioPathField.render(guiGraphics, mouseX, mouseY, partialTicks);
+
+        // Update loop toggle button text and active state
+        if (this.loopToggleButton != null) {
+            if (this.speaker != null) {
+                this.loopToggleButton.setMessage(getLoopButtonTextComponent());
+                this.loopToggleButton.active = true;
+            } else {
+                // Attempt to re-fetch speaker if it was null, in case it loaded after screen init
+                fetchDataFromBlockEntity();
+                if (this.speaker != null) {
+                    this.loopToggleButton.setMessage(getLoopButtonTextComponent());
+                    this.loopToggleButton.active = true;
+                } else {
+                    this.loopToggleButton.setMessage(Component.literal("Loop: N/A"));
+                    this.loopToggleButton.active = false;
+                }
+            }
+        }
+
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
     }
 
     private void fetchDataFromBlockEntity() {
         if (Minecraft.getInstance().level == null) {
+            this.speaker = null;
+            this.initialAudioPath = "";
             return;
         }
         BlockEntity blockEntity = Minecraft.getInstance().level.getBlockEntity(blockEntityPos);
         if (blockEntity instanceof SpeakerBlockEntity) {
-            this.initialAudioPath = ((SpeakerBlockEntity) blockEntity).getAudioPath();
+            this.speaker = (SpeakerBlockEntity) blockEntity;
+            this.initialAudioPath = this.speaker.getAudioPath();
+        } else {
+            this.speaker = null;
+            this.initialAudioPath = "";
         }
     }
 

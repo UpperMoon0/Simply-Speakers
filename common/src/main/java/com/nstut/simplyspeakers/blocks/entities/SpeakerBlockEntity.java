@@ -33,9 +33,11 @@ public class SpeakerBlockEntity extends BlockEntity {
     private static final String NBT_AUDIO_PATH = "AudioPath";
     private static final String NBT_IS_PLAYING = "IsPlaying";
     private static final String NBT_START_TICK = "PlaybackStartTick";
+    private static final String NBT_IS_LOOPING = "is_looping";
 
     private String audioPath = "";
     private boolean isPlaying = false;
+    private boolean isLooping = false;
     private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
     private final Set<UUID> listeningPlayers = new HashSet<>(); // Track players currently hearing the sound
 
@@ -88,6 +90,7 @@ public class SpeakerBlockEntity extends BlockEntity {
      * Starts playing the audio.
      */
     public void playAudio() {
+        // TODO: Check isLooping state here to determine if audio should loop upon completion.
         if (level == null || level.isClientSide || isPlaying) {
             return;
         }
@@ -180,7 +183,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                         if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                     }
                     
-                    PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioPath, playbackPositionSeconds);
+                    PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioPath, playbackPositionSeconds, this.isLooping());
                     PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                     listeningPlayers.add(player.getUUID());
                     LOGGER.fine("Player " + player.getName().getString() + " entered range. Sending play packet with offset " + playbackPositionSeconds + "s.");
@@ -208,6 +211,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         super.load(tag);
         audioPath = tag.getString(NBT_AUDIO_PATH);
         isPlaying = tag.getBoolean(NBT_IS_PLAYING);
+        isLooping = tag.getBoolean(NBT_IS_LOOPING);
         playbackStartTick = tag.getLong(NBT_START_TICK);
 
         // Ensure consistency: if not playing, start tick should be -1
@@ -221,12 +225,37 @@ public class SpeakerBlockEntity extends BlockEntity {
         super.saveAdditional(tag);
         tag.putString(NBT_AUDIO_PATH, audioPath);
         tag.putBoolean(NBT_IS_PLAYING, isPlaying);
+        tag.putBoolean(NBT_IS_LOOPING, isLooping);
         
         // Only save start tick if actually playing
         if (isPlaying && playbackStartTick != -1) {
             tag.putLong(NBT_START_TICK, playbackStartTick);
         } else {
             tag.putLong(NBT_START_TICK, -1L);
+        }
+    }
+
+    public boolean isLooping() {
+        return isLooping;
+    }
+
+    public void setLooping(boolean looping) {
+        if (level != null && !level.isClientSide) {
+            this.isLooping = looping;
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    /**
+     * Updates the looping state on the client side for optimistic UI updates.
+     * This method should only be called on the client.
+     *
+     * @param looping The new looping state.
+     */
+    public void setLoopingClient(boolean looping) {
+        if (this.level != null && this.level.isClientSide) {
+            this.isLooping = looping;
         }
     }
 
