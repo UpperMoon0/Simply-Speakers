@@ -97,6 +97,8 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
         guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+// Draw screen title
+        guiGraphics.drawString(this.font, Component.literal("Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Speaker")) / 2, guiTop + 10, 4210752, false);
 
         // Draw label above the input field (moved up 5px)
         guiGraphics.drawString(this.font, Component.literal("Audio Path:"), guiLeft + 10, guiTop + 30, 4210752, false);

@@ -6,19 +6,29 @@ import net.minecraft.client.Minecraft;
 
 public class ClientEvents {
 
+    private static int volumeUpdateTicks = 0;
+    private static final int VOLUME_UPDATE_INTERVAL = 5; // Update every 5 ticks instead of every tick
+
     public static void register() {
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
     }
 
     private static void onClientTick(Minecraft client) {
-        // Ensure player and level are loaded before updating volumes
+        // PERFORMANCE FIX: Reduce volume update frequency to prevent excessive OpenAL calls during world operations
         if (client.player != null && client.level != null) {
-            ClientAudioPlayer.updateSpeakerVolumes();
+            volumeUpdateTicks++;
+            if (volumeUpdateTicks >= VOLUME_UPDATE_INTERVAL) {
+                ClientAudioPlayer.updateSpeakerVolumes();
+                volumeUpdateTicks = 0;
+            }
         }
     }
 
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
+        // PERFORMANCE FIX: Fast shutdown using optimized stopAll method
+        // This will prevent blocking during world save/logout
+        System.out.println("[SimplySpeakers] Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
     }
 }

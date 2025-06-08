@@ -56,42 +56,43 @@ public class ClientAudioPlayer {
             stopFlag.set(true); // Signal the thread to stop
             if (streamingThread != null && streamingThread.isAlive()) {
                 streamingThread.interrupt(); // Interrupt if sleeping/waiting
-                // REMOVED: streamingThread.join(1000); This was causing the lag.
-            }
-            // The streaming thread is now responsible for closing its AudioInputStream.
-            // Schedule OpenAL cleanup on the main thread.
-            Minecraft.getInstance().tell(() -> {
-                try {
-                    if (AL10.alIsSource(sourceID)) { // Check if source exists
-                        AL10.alSourceStop(sourceID);
-                        // Unqueue all buffers
-                        int buffersProcessed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
-                        if (buffersProcessed > 0) {
-                            int[] tempBuffers = new int[buffersProcessed];
-                            AL10.alSourceUnqueueBuffers(sourceID, tempBuffers);
-                        }
-                        int buffersQueued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
-                        if (buffersQueued > 0) {
-                            int[] tempBuffers = new int[buffersQueued];
-                            AL10.alSourceUnqueueBuffers(sourceID, tempBuffers);
-                        }
-                        AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Detach buffer pointer
-
-                        // Delete OpenAL resources
-                        AL10.alDeleteSources(sourceID);
-                        AL10.alDeleteBuffers(bufferIDs);
-                        System.out.println("[SimplySpeakers] Async Cleaned up OpenAL source " + sourceID + " and buffers for speaker at " + position);
-                    } else {
-                        System.out.println("[SimplySpeakers] Async Cleanup: Source " + sourceID + " for speaker at " + position + " already deleted or invalid.");
-                        // If source is gone, associated buffers might be too.
-                        // Attempting to delete bufferIDs here could error if they are tied to a non-existent source
-                        // or if the buffer IDs themselves are no longer valid.
-                        // It's generally safer to let OpenAL handle buffer cleanup when a source is deleted.
+                // PERFORMANCE FIX: Use a separate cleanup thread to avoid blocking main thread during world save
+                Thread cleanupThread = new Thread(() -> {
+                    try {
+                        // Wait for streaming thread to finish, but with timeout to prevent hanging
+                        streamingThread.join(500); // Reduced timeout to prevent save delays
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
                     }
-                } catch (Exception e) {
-                     System.err.println("[SimplySpeakers] Error during async OpenAL cleanup for source " + sourceID + " at " + position + ": " + e.getMessage());
+                    
+                    // Schedule OpenAL cleanup on main thread with minimal operations
+                    Minecraft.getInstance().tell(() -> cleanupOpenALResources());
+                }, "SimplySpeakers-Cleanup-" + position.toString());
+                cleanupThread.setDaemon(true);
+                cleanupThread.start();
+            } else {
+                // If no streaming thread, cleanup immediately but asynchronously
+                Minecraft.getInstance().tell(() -> cleanupOpenALResources());
+            }
+        }
+        
+        // Separate method for OpenAL cleanup with error handling and timeout protection
+        private void cleanupOpenALResources() {
+            try {
+                if (AL10.alIsSource(sourceID)) {
+                    // Quick cleanup without extensive buffer operations that could hang
+                    AL10.alSourceStop(sourceID);
+                    AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Detach buffer pointer
+                    AL10.alDeleteSources(sourceID);
+                    AL10.alDeleteBuffers(bufferIDs);
+                    System.out.println("[SimplySpeakers] Fast cleanup completed for source " + sourceID + " at " + position);
+                } else {
+                    System.out.println("[SimplySpeakers] Source " + sourceID + " at " + position + " already invalid, skipping cleanup.");
                 }
-            });
+            } catch (Exception e) {
+                System.err.println("[SimplySpeakers] Error during OpenAL cleanup for source " + sourceID + " at " + position + ": " + e.getMessage());
+                // Continue cleanup despite errors to prevent resource leaks
+            }
         }
     }
 
@@ -379,10 +380,12 @@ public class ClientAudioPlayer {
                 System.out.println("[SimplySpeakers] End of one streaming cycle for " + pos + " (source " + sourceID + "). Looping: " + isLooping + ", ContinueStreaming: " + continueStreaming + ", StopFlag: " + (resource != null ? resource.stopFlag.get() : "null_resource"));
                 if (pcmAudioStream != null) {
                     try {
+                        // PERFORMANCE FIX: Close stream quickly without blocking operations
                         pcmAudioStream.close();
                         System.out.println("[SimplySpeakers] AudioInputStream closed by streaming thread for " + pos + " after a cycle.");
                     } catch (IOException e) {
-                        System.err.println("[SimplySpeakers] Error closing audioStream in streaming thread's finally block for " + pos + ": " + e.getMessage());
+                        // Don't log full stack trace to avoid console spam during batch cleanup
+                        System.err.println("[SimplySpeakers] Error closing audioStream for " + pos + ": " + e.getMessage());
                     }
                 }
                 // If not looping and this cycle ended (or error), ensure stopFlag is set.
@@ -426,16 +429,36 @@ public class ClientAudioPlayer {
         }
     }
 
-    // Added back stopAll method
+    // Optimized stopAll method for fast world save performance
     public static void stopAll() {
          System.out.println("[SimplySpeakers] Stopping all playback...");
-         // Create a copy of keys to avoid ConcurrentModificationException
-         List<BlockPos> positionsToStop = new ArrayList<>(speakerResources.keySet());
-         System.out.println("[SimplySpeakers] Found " + positionsToStop.size() + " active speakers to stop.");
-         for (BlockPos pos : positionsToStop) {
-             stop(pos); // Call the updated stop method for each
+         // Create a copy of resources to avoid ConcurrentModificationException
+         List<Map.Entry<BlockPos, StreamingAudioResource>> resourcesToStop = new ArrayList<>(speakerResources.entrySet());
+         System.out.println("[SimplySpeakers] Found " + resourcesToStop.size() + " active speakers to stop.");
+         
+         // PERFORMANCE FIX: Clear the map immediately to prevent new operations during cleanup
+         speakerResources.clear();
+         
+         // Batch cleanup using a single background thread to prevent blocking world save
+         if (!resourcesToStop.isEmpty()) {
+             Thread batchCleanupThread = new Thread(() -> {
+                 for (Map.Entry<BlockPos, StreamingAudioResource> entry : resourcesToStop) {
+                     try {
+                         StreamingAudioResource resource = entry.getValue();
+                         if (resource != null) {
+                             resource.stopAndCleanup();
+                         }
+                     } catch (Exception e) {
+                         System.err.println("[SimplySpeakers] Error stopping speaker at " + entry.getKey() + ": " + e.getMessage());
+                     }
+                 }
+                 System.out.println("[SimplySpeakers] Batch cleanup completed for " + resourcesToStop.size() + " speakers.");
+             }, "SimplySpeakers-BatchCleanup");
+             batchCleanupThread.setDaemon(true);
+             batchCleanupThread.start();
          }
-         System.out.println("[SimplySpeakers] Finished stopping all playback.");
+         
+         System.out.println("[SimplySpeakers] Initiated fast shutdown for all playback.");
     }
 
     // Added back updateSpeakerVolumes method

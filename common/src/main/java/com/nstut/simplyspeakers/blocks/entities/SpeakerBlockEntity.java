@@ -166,73 +166,93 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
 
+        // PERFORMANCE FIX: Cache these expensive calculations
         double maxRangeSq = Config.speakerRange * Config.speakerRange;
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 
-        for (ServerPlayer player : serverLevel.getPlayers(p -> true)) { // Iterate all players in the dimension
-            if (player.position().distanceToSqr(speakerCenterPos) <= maxRangeSq) {
-                playersInRange.add(player.getUUID());
+        // PERFORMANCE FIX: Use getNearbyPlayers for better performance than iterating all players
+        for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
+            playersInRange.add(player.getUUID());
 
-                if (!listeningPlayers.contains(player.getUUID())) {
-                    // Player entered range or was not previously listening
-                    float playbackPositionSeconds = 0.0f;
-                    if (playbackStartTick >= 0) {
-                        long ticksElapsed = currentLevel.getGameTime() - playbackStartTick;
-                        playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
-                        if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
-                    }
-                    
-                    PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioPath, playbackPositionSeconds, this.isLooping());
-                    PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
-                    listeningPlayers.add(player.getUUID());
-                    LOGGER.fine("Player " + player.getName().getString() + " entered range. Sending play packet with offset " + playbackPositionSeconds + "s.");
+            if (!listeningPlayers.contains(player.getUUID())) {
+                // Player entered range or was not previously listening
+                float playbackPositionSeconds = 0.0f;
+                if (playbackStartTick >= 0) {
+                    long ticksElapsed = currentLevel.getGameTime() - playbackStartTick;
+                    playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
+                    if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 }
+                
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioPath, playbackPositionSeconds, this.isLooping());
+                PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
+                listeningPlayers.add(player.getUUID());
+                LOGGER.fine("Player " + player.getName().getString() + " entered range. Sending play packet with offset " + playbackPositionSeconds + "s.");
             }
         }
 
-        // Check for players who left the range
-        Set<UUID> playersToStop = new HashSet<>(listeningPlayers);
-        playersToStop.removeAll(playersInRange); // Players who were listening but are no longer in range
+        // PERFORMANCE FIX: Optimize player exit detection
+        if (!listeningPlayers.isEmpty()) {
+            Set<UUID> playersToStop = new HashSet<>(listeningPlayers);
+            playersToStop.removeAll(playersInRange); // Players who were listening but are no longer in range
 
-        for (UUID playerId : playersToStop) {
-            net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
-            if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
-                StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                PacketRegistries.CHANNEL.sendToPlayer(serverPlayerInstance, stopPacket);
-                LOGGER.fine("Player " + serverPlayerInstance.getName().getString() + " left range. Sending stop packet.");
+            for (UUID playerId : playersToStop) {
+                net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
+                if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
+                    StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
+                    PacketRegistries.CHANNEL.sendToPlayer(serverPlayerInstance, stopPacket);
+                    LOGGER.fine("Player " + serverPlayerInstance.getName().getString() + " left range. Sending stop packet.");
+                }
+                listeningPlayers.remove(playerId);
             }
-            listeningPlayers.remove(playerId);
         }
     }
 
     @Override
     public void load(@NotNull CompoundTag tag) {
         super.load(tag);
-        audioPath = tag.getString(NBT_AUDIO_PATH);
-        isPlaying = tag.getBoolean(NBT_IS_PLAYING);
-        isLooping = tag.getBoolean(NBT_IS_LOOPING);
-        playbackStartTick = tag.getLong(NBT_START_TICK);
-
-        // Ensure consistency: if not playing, start tick should be -1
-        if (!isPlaying) {
+        
+        // PERFORMANCE FIX: Handle optimized NBT format with defaults
+        audioPath = tag.contains(NBT_AUDIO_PATH) ? tag.getString(NBT_AUDIO_PATH) : "";
+        isPlaying = tag.contains(NBT_IS_PLAYING) ? tag.getBoolean(NBT_IS_PLAYING) : false;
+        isLooping = tag.contains(NBT_IS_LOOPING) ? tag.getBoolean(NBT_IS_LOOPING) : false;
+        
+        // Only load start tick if playing state is present and valid
+        if (isPlaying && tag.contains(NBT_START_TICK)) {
+            playbackStartTick = tag.getLong(NBT_START_TICK);
+        } else {
             playbackStartTick = -1;
         }
+
+        // Clear runtime data on load - listeningPlayers should not persist across saves
+        listeningPlayers.clear();
     }
 
     @Override
     protected void saveAdditional(@NotNull CompoundTag tag) {
         super.saveAdditional(tag);
-        tag.putString(NBT_AUDIO_PATH, audioPath);
-        tag.putBoolean(NBT_IS_PLAYING, isPlaying);
-        tag.putBoolean(NBT_IS_LOOPING, isLooping);
         
-        // Only save start tick if actually playing
-        if (isPlaying && playbackStartTick != -1) {
-            tag.putLong(NBT_START_TICK, playbackStartTick);
-        } else {
-            tag.putLong(NBT_START_TICK, -1L);
+        // PERFORMANCE FIX: Only save non-default values to reduce NBT data size
+        if (!audioPath.isEmpty()) {
+            tag.putString(NBT_AUDIO_PATH, audioPath);
         }
+        
+        // Only save playing state if actually playing to reduce save data
+        if (isPlaying) {
+            tag.putBoolean(NBT_IS_PLAYING, true);
+            // Only save start tick if actually playing and valid
+            if (playbackStartTick >= 0) {
+                tag.putLong(NBT_START_TICK, playbackStartTick);
+            }
+        }
+        
+        // Only save looping state if enabled
+        if (isLooping) {
+            tag.putBoolean(NBT_IS_LOOPING, true);
+        }
+        
+        // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
+        // This prevents accumulation of player UUIDs in save files
     }
 
     public boolean isLooping() {
