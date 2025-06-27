@@ -3,6 +3,7 @@ package com.nstut.simplyspeakers.blocks;
 import com.mojang.logging.LogUtils;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import com.nstut.simplyspeakers.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
@@ -76,7 +77,7 @@ public class SpeakerBlock extends BaseEntityBlock {
                                           @NotNull Player player, @NotNull InteractionHand hand, @NotNull BlockHitResult hit) {
         if (level.isClientSide) {
             LOGGER.info("Opening speaker screen at {}", pos);
-            net.minecraft.client.Minecraft.getInstance().setScreen(new com.nstut.simplyspeakers.client.screens.SpeakerScreen(pos));
+            Services.CLIENT.openSpeakerScreen(pos);
         }
         return InteractionResult.SUCCESS;
     }

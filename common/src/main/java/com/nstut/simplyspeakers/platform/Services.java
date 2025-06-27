@@ -2,6 +2,7 @@ package com.nstut.simplyspeakers.platform;
 
 import com.nstut.simplyspeakers.platform.services.IPlatformHelper;
 import com.nstut.simplyspeakers.platform.services.IItemHelper;
+import com.nstut.simplyspeakers.platform.services.IClientHelper;
 
 import java.util.ServiceLoader;
 
@@ -18,6 +19,11 @@ public class Services {
      * Item helper implementation.
      */
     public static final IItemHelper ITEMS = load(IItemHelper.class);
+
+    /**
+     * Client helper implementation.
+     */
+    public static final IClientHelper CLIENT = load(IClientHelper.class);
     
     /**
      * Helper method to load a service for the appropriate platform.
