@@ -3,6 +3,8 @@ package com.nstut.simplyspeakers.client;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 
 public class ClientEvents {
 
@@ -26,9 +28,11 @@ public class ClientEvents {
     }
 
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
-        // PERFORMANCE FIX: Fast shutdown using optimized stopAll method
-        // This will prevent blocking during world save/logout
         System.out.println("[SimplySpeakers] Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
+    }
+
+    public static void openSpeakerScreen(BlockPos pos) {
+        Minecraft.getInstance().setScreen(new SpeakerScreen(pos));
     }
 }
