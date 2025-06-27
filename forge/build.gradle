@@ -56,7 +56,7 @@ processResources {
 
     filesMatching('META-INF/mods.toml') {
         expand(
-            version: project.version, // This should be equivalent to rootProject.mod_version
+            version: project.version, 
             archives_name: rootProject.archives_name,
             mod_name: rootProject.mod_name,
             mod_description: rootProject.mod_description,
