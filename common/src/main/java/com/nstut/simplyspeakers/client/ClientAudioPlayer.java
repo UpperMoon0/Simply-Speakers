@@ -95,12 +95,12 @@ public class ClientAudioPlayer {
                     AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Detach buffer pointer
                     AL10.alDeleteSources(sourceID);
                     AL10.alDeleteBuffers(bufferIDs);
-                    System.out.println("[SimplySpeakers] Fast cleanup completed for source " + sourceID + " at " + position);
+                    SimplySpeakers.LOGGER.info("Fast cleanup completed for source {} at {}", sourceID, position);
                 } else {
-                    System.out.println("[SimplySpeakers] Source " + sourceID + " at " + position + " already invalid, skipping cleanup.");
+                    SimplySpeakers.LOGGER.warn("Source {} at {} already invalid, skipping cleanup.", sourceID, position);
                 }
             } catch (Exception e) {
-                System.err.println("[SimplySpeakers] Error during OpenAL cleanup for source " + sourceID + " at " + position + ": " + e.getMessage());
+                SimplySpeakers.LOGGER.error("Error during OpenAL cleanup for source {} at {}", sourceID, position, e);
                 // Continue cleanup despite errors to prevent resource leaks
             }
         }
@@ -141,7 +141,7 @@ public class ClientAudioPlayer {
                 speakerResources.put(pos, resource);
                 streamingThread.start();
             } catch (Exception e) {
-                e.printStackTrace();
+                SimplySpeakers.LOGGER.error("Failed to start audio playback at {}", pos, e);
             }
         });
     }
@@ -168,7 +168,7 @@ public class ClientAudioPlayer {
 
         while (continueStreaming) { // Outer loop for restarting playback if isLooping is true
             if (resource == null || resource.sourceID != sourceID) {
-                System.err.println("[SimplySpeakers] Streaming thread for " + pos + " (source " + sourceID + ") found resource mismatch or missing. Aborting outer loop.");
+                SimplySpeakers.LOGGER.error("Streaming thread for {} (source {}) found resource mismatch or missing. Aborting.", pos, sourceID);
                 continueStreaming = false; // Exit outer loop
                 break; // Exit while(continueStreaming)
             }
@@ -180,22 +180,22 @@ public class ClientAudioPlayer {
             try {
                 File audioFile = new File(filePath);
                 if (!audioFile.exists()) {
-                    System.err.println("[SimplySpeakers] Streaming thread ERROR: Audio file not found: " + filePath + " for " + pos);
+                    SimplySpeakers.LOGGER.error("Streaming thread ERROR: Audio file not found: {} for {}", filePath, pos);
                     resource.stopFlag.set(true); // Signal stop for this attempt
                     continueStreaming = false; // Do not loop if file not found
                     break; // Exit while(continueStreaming)
                 }
 
-                System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Attempting to get PCM stream for " + filePath + (isLooping ? " (Looping)" : ""));
+                SimplySpeakers.LOGGER.debug("Streaming thread for {}: Attempting to get PCM stream for {} {}", pos, filePath, (isLooping ? "(Looping)" : ""));
                 pcmAudioStream = getPcmAudioStream(audioFile);
                 
                 if (pcmAudioStream == null) {
-                    System.err.println("[SimplySpeakers] Streaming thread ERROR: Could not get PCM audio stream for: " + filePath + " for " + pos);
+                    SimplySpeakers.LOGGER.error("Streaming thread ERROR: Could not get PCM audio stream for: {} for {}", filePath, pos);
                     resource.stopFlag.set(true);
                     continueStreaming = false;
                     break;
                 }
-                System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Successfully got PCM stream.");
+                SimplySpeakers.LOGGER.debug("Streaming thread for {}: Successfully got PCM stream.", pos);
 
                 AudioFormat format = pcmAudioStream.getFormat();
                 // Only apply startPositionSeconds on the very first playback, not on loops
@@ -207,21 +207,21 @@ public class ClientAudioPlayer {
                     if (frameRate > 0 && frameSize > 0) {
                         long framesToSkip = (long) (startPositionSeconds * frameRate);
                         bytesToSkip = framesToSkip * frameSize;
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Calculated skip: " + bytesToSkip + " bytes for " + startPositionSeconds + "s");
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {}: Calculated skip: {} bytes for {}s", pos, bytesToSkip, startPositionSeconds);
                     } else {
-                        System.err.println("[SimplySpeakers] Streaming thread WARNING for " + pos + ": Invalid format for seeking: " + format);
+                        SimplySpeakers.LOGGER.warn("Streaming thread WARNING for {}: Invalid format for seeking: {}", pos, format);
                     }
 
                     if (bytesToSkip > 0) {
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Attempting to skip " + bytesToSkip + " bytes.");
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {}: Attempting to skip {} bytes.", pos, bytesToSkip);
                         long skipped = skipFully(pcmAudioStream, bytesToSkip);
                         if (skipped < bytesToSkip) {
-                            System.err.println("[SimplySpeakers] Streaming thread WARNING for " + pos + ": Could only skip " + skipped + "/" + bytesToSkip + " bytes. Reached EOF or error.");
+                            SimplySpeakers.LOGGER.warn("Streaming thread WARNING for {}: Could only skip {}/{} bytes. Reached EOF or error.", pos, skipped, bytesToSkip);
                             resource.stopFlag.set(true);
                             continueStreaming = false;
                             break;
                         }
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Successfully skipped " + skipped + " bytes.");
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {}: Successfully skipped {} bytes.", pos, skipped);
                     }
                     startPositionSeconds = 0; // Reset for subsequent loops
                 }
@@ -232,7 +232,7 @@ public class ClientAudioPlayer {
 
                 int alFormat = getOpenALFormat(format);
                 if (alFormat == -1) {
-                    System.err.println("[SimplySpeakers] Streaming thread ERROR for " + pos + ": Unsupported audio format for OpenAL: " + format);
+                    SimplySpeakers.LOGGER.error("Streaming thread ERROR for {}: Unsupported audio format for OpenAL: {}", pos, format);
                     resource.stopFlag.set(true);
                     continueStreaming = false;
                     break;
@@ -243,14 +243,14 @@ public class ClientAudioPlayer {
                 // Initial buffer filling
                 for (int i = 0; i < NUM_BUFFERS; i++) {
                     if (resource.stopFlag.get() || Thread.currentThread().isInterrupted()) {
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Stop signal or interrupt during initial buffering.");
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {}: Stop signal or interrupt during initial buffering.", pos);
                         continueStreaming = false; // Stop looping if interrupted
                         break; // Break from initial buffer filling
                     }
 
                     int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
                     if (bytesRead <= 0) {
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": EOF or read error during initial buffering. Bytes read: " + bytesRead);
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {}: EOF or read error during initial buffering. Bytes read: {}", pos, bytesRead);
                         // Don't set stopFlag.set(true) here if looping, let the outer loop decide
                         break; // Break from initial buffer filling, will check isLooping later
                     }
@@ -264,7 +264,7 @@ public class ClientAudioPlayer {
 
                     if (!playbackAttempted) {
                         AL10.alSourcePlay(sourceID);
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Started playback after queuing first/initial buffer (ID: " + bufferIDs[i] + ").");
+                        SimplySpeakers.LOGGER.info("Streaming thread for {}: Started playback after queuing first/initial buffer (ID: {}).", pos, bufferIDs[i]);
                         playbackAttempted = true;
                     }
                 }
@@ -275,16 +275,16 @@ public class ClientAudioPlayer {
                         int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
                         if (queued > 0 && AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
                             AL10.alSourcePlay(sourceID);
-                            System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Started playback (post-initial loop check).");
+                            SimplySpeakers.LOGGER.info("Streaming thread for {}: Started playback (post-initial loop check).", pos);
                             playbackAttempted = true;
                         }
                     }
                 }
 
                 if (!playbackAttempted && initialDataLoaded) { // If still not playing but data was loaded (e.g. very short file)
-                     System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Playback not started but initial data loaded. EOF likely reached.");
+                     SimplySpeakers.LOGGER.debug("Streaming thread for {}: Playback not started but initial data loaded. EOF likely reached.", pos);
                 } else if (!playbackAttempted) {
-                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + ": Playback not attempted (no initial data or error). Not entering main streaming loop for this iteration.");
+                    SimplySpeakers.LOGGER.debug("Streaming thread for {}: Playback not attempted (no initial data or error). Not entering main streaming loop for this iteration.", pos);
                     // If no data loaded at all, and not looping, then stop. If looping, the outer loop will handle.
                     if (!isLooping) resource.stopFlag.set(true);
                     continueStreaming = isLooping; // Continue to next iteration only if looping
@@ -306,7 +306,7 @@ public class ClientAudioPlayer {
                             AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
                             AL10.alSourceQueueBuffers(sourceID, bufferID);
                         } else { // EOF reached during streaming
-                            System.out.println("[SimplySpeakers] EOF in streaming loop for " + pos + ". Buffer " + bufferID + " not re-queued. Bytes read: " + bytesRead);
+                            SimplySpeakers.LOGGER.debug("EOF in streaming loop for {}. Buffer {} not re-queued. Bytes read: {}", pos, bufferID, bytesRead);
                             // Don't set resource.stopFlag.set(true) here if looping. Let the outer logic handle it.
                             playbackCompletedSuccessfully = true; // Mark that this cycle finished normally (EOF)
                             break; // Exit inner streaming loop
@@ -319,10 +319,10 @@ public class ClientAudioPlayer {
                     if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
                          int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
                          if (queuedBuffers > 0) {
-                            System.out.println("[SimplySpeakers] Source " + sourceID + " at " + pos + " stopped but has queued buffers. Restarting playback.");
+                            SimplySpeakers.LOGGER.info("Source {} at {} stopped but has queued buffers. Restarting playback.", sourceID, pos);
                             AL10.alSourcePlay(sourceID);
                          } else if (!resource.stopFlag.get()) {
-                            System.out.println("[SimplySpeakers] Buffer underrun for source " + sourceID + " at " + pos + ". Waiting for more data.");
+                            SimplySpeakers.LOGGER.warn("Buffer underrun for source {} at {}. Waiting for more data.", sourceID, pos);
                             // If underrun and no more data is coming (EOF was hit in read), this might lead to stop.
                          }
                     }
@@ -331,7 +331,7 @@ public class ClientAudioPlayer {
                         Thread.sleep(50);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
-                        System.out.println("[SimplySpeakers] Streaming thread for " + pos + " interrupted during sleep.");
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {} interrupted during sleep.", pos);
                         resource.stopFlag.set(true); // Ensure stop on interrupt
                         break; // Exit inner streaming loop
                     }
@@ -342,7 +342,7 @@ public class ClientAudioPlayer {
                     continueStreaming = false; // Do not loop if explicitly stopped or interrupted
                 } else if (playbackCompletedSuccessfully) { // EOF reached for this cycle
                     if (isLooping) {
-                        System.out.println("[SimplySpeakers] Audio track finished for " + pos + ". Looping enabled, restarting.");
+                        SimplySpeakers.LOGGER.info("Audio track finished for {}. Looping enabled, restarting.", pos);
                         // Clean up OpenAL source state for restart, but keep buffers
                         Minecraft.getInstance().tell(() -> {
                             if (AL10.alIsSource(sourceID)) {
@@ -360,12 +360,12 @@ public class ClientAudioPlayer {
                         initialDataLoaded = false; // Reset for next loop iteration
                         // continueStreaming remains true
                     } else {
-                        System.out.println("[SimplySpeakers] Audio track finished for " + pos + ". Looping disabled.");
+                        SimplySpeakers.LOGGER.info("Audio track finished for {}. Looping disabled.", pos);
                         resource.stopFlag.set(true); // Set stop flag as playback is complete and not looping
                         continueStreaming = false;
                     }
                 } else { // Inner loop exited for other reasons (e.g. no initial data, error before main loop)
-                    System.out.println("[SimplySpeakers] Streaming for " + pos + " ended without reaching EOF (e.g. no data, early stop). Looping: " + isLooping);
+                    SimplySpeakers.LOGGER.debug("Streaming for {} ended without reaching EOF (e.g. no data, early stop). Looping: {}", pos, isLooping);
                     if (!isLooping) {
                         resource.stopFlag.set(true);
                     }
@@ -373,56 +373,55 @@ public class ClientAudioPlayer {
                 }
 
             } catch (UnsupportedAudioFileException e) {
-                System.err.println("[SimplySpeakers] Streaming thread ERROR for " + pos + ": Unsupported audio file format for " + filePath + ". " + e.getMessage());
+                SimplySpeakers.LOGGER.error("Streaming thread ERROR for {}: Unsupported audio file format for {}.", pos, filePath, e);
                 if (resource != null) resource.stopFlag.set(true);
                 continueStreaming = false; // Do not loop on this error
             } catch (IOException e) {
-                System.err.println("[SimplySpeakers] Streaming thread IO ERROR for " + pos + " with file " + filePath + ": " + e.getMessage());
+                SimplySpeakers.LOGGER.error("Streaming thread IO ERROR for {} with file {}", pos, filePath, e);
                 if (resource != null) resource.stopFlag.set(true);
                 continueStreaming = false; // Do not loop on IO error
             } catch (Exception e) {
-                System.err.println("[SimplySpeakers] Critical error in streaming thread for " + pos + " (source " + sourceID + "): " + e.getMessage());
-                e.printStackTrace();
+                SimplySpeakers.LOGGER.error("Critical error in streaming thread for {} (source {})", pos, sourceID, e);
                 if (resource != null) resource.stopFlag.set(true);
                 continueStreaming = false; // Do not loop on critical error
             } finally {
-                System.out.println("[SimplySpeakers] End of one streaming cycle for " + pos + " (source " + sourceID + "). Looping: " + isLooping + ", ContinueStreaming: " + continueStreaming + ", StopFlag: " + (resource != null ? resource.stopFlag.get() : "null_resource"));
+                SimplySpeakers.LOGGER.trace("End of one streaming cycle for {} (source {}). Looping: {}, ContinueStreaming: {}, StopFlag: {}", pos, sourceID, isLooping, continueStreaming, (resource != null ? resource.stopFlag.get() : "null_resource"));
                 if (pcmAudioStream != null) {
                     try {
                         // PERFORMANCE FIX: Close stream quickly without blocking operations
                         pcmAudioStream.close();
-                        System.out.println("[SimplySpeakers] AudioInputStream closed by streaming thread for " + pos + " after a cycle.");
+                        SimplySpeakers.LOGGER.debug("AudioInputStream closed by streaming thread for {} after a cycle.", pos);
                     } catch (IOException e) {
                         // Don't log full stack trace to avoid console spam during batch cleanup
-                        System.err.println("[SimplySpeakers] Error closing audioStream for " + pos + ": " + e.getMessage());
+                        SimplySpeakers.LOGGER.warn("Error closing audioStream for {}: {}", pos, e.getMessage());
                     }
                 }
                 // If not looping and this cycle ended (or error), ensure stopFlag is set.
                 // If looping, the outer loop will decide.
                 if (!continueStreaming && resource != null && !resource.stopFlag.get()) {
                     // This case handles when continueStreaming becomes false due to non-looping EOF or an error that prevents looping.
-                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + " setting stopFlag in finally as looping is not continuing.");
+                    SimplySpeakers.LOGGER.trace("Streaming thread for {} setting stopFlag in finally as looping is not continuing.", pos);
                     resource.stopFlag.set(true);
                 } else if (resource != null && !resource.stopFlag.get() && !initialDataLoaded && !isLooping) {
                     // Original condition: if no data loaded and not looping, set stop.
-                    System.out.println("[SimplySpeakers] Streaming thread for " + pos + " setting stopFlag in finally due to no data loaded and not looping.");
+                    SimplySpeakers.LOGGER.trace("Streaming thread for {} setting stopFlag in finally due to no data loaded and not looping.", pos);
                     resource.stopFlag.set(true);
                 }
             } // End of try-catch-finally for one playback cycle
 
             if (resource != null && resource.stopFlag.get()) {
-                 System.out.println("[SimplySpeakers] Resource stopFlag is true for " + pos + ". Breaking outer streaming loop.");
+                 SimplySpeakers.LOGGER.debug("Resource stopFlag is true for {}. Breaking outer streaming loop.", pos);
                  continueStreaming = false; // Ensure outer loop terminates if stopFlag was set
             }
              if (Thread.currentThread().isInterrupted()){
-                System.out.println("[SimplySpeakers] Thread for " + pos + " is interrupted. Breaking outer streaming loop.");
+                SimplySpeakers.LOGGER.debug("Thread for {} is interrupted. Breaking outer streaming loop.", pos);
                 continueStreaming = false;
                 if(resource != null) resource.stopFlag.set(true);
             }
 
         } // End of while(continueStreaming) loop
 
-        System.out.println("[SimplySpeakers] Streaming thread fully finished for " + pos + " (source " + sourceID + ").");
+        SimplySpeakers.LOGGER.info("Streaming thread fully finished for {} (source {}).", pos, sourceID);
         // Final cleanup is handled by stopAndCleanup when resource is removed or stopAll is called.
         // If the loop finishes because stopFlag was set (e.g. by stop(pos) externally),
         // the resource.stopAndCleanup() will eventually be called.
@@ -434,16 +433,16 @@ public class ClientAudioPlayer {
         StreamingAudioResource resource = speakerResources.remove(pos);
         if (resource != null) {
             resource.stopAndCleanup();
-            System.out.println("[SimplySpeakers] Stopped audio for speaker at " + pos);
+            SimplySpeakers.LOGGER.info("Stopped audio for speaker at {}", pos);
         }
     }
 
     // Optimized stopAll method for fast world save performance
     public static void stopAll() {
-         System.out.println("[SimplySpeakers] Stopping all playback...");
+         SimplySpeakers.LOGGER.info("Stopping all playback...");
          // Create a copy of resources to avoid ConcurrentModificationException
          List<Map.Entry<BlockPos, StreamingAudioResource>> resourcesToStop = new ArrayList<>(speakerResources.entrySet());
-         System.out.println("[SimplySpeakers] Found " + resourcesToStop.size() + " active speakers to stop.");
+         SimplySpeakers.LOGGER.info("Found {} active speakers to stop.", resourcesToStop.size());
          
          // PERFORMANCE FIX: Clear the map immediately to prevent new operations during cleanup
          speakerResources.clear();
@@ -458,16 +457,16 @@ public class ClientAudioPlayer {
                              resource.stopAndCleanup();
                          }
                      } catch (Exception e) {
-                         System.err.println("[SimplySpeakers] Error stopping speaker at " + entry.getKey() + ": " + e.getMessage());
+                         SimplySpeakers.LOGGER.error("Error stopping speaker at {}", entry.getKey(), e);
                      }
                  }
-                 System.out.println("[SimplySpeakers] Batch cleanup completed for " + resourcesToStop.size() + " speakers.");
+                 SimplySpeakers.LOGGER.info("Batch cleanup completed for {} speakers.", resourcesToStop.size());
              }, "SimplySpeakers-BatchCleanup");
              batchCleanupThread.setDaemon(true);
              batchCleanupThread.start();
          }
          
-         System.out.println("[SimplySpeakers] Initiated fast shutdown for all playback.");
+         SimplySpeakers.LOGGER.info("Initiated fast shutdown for all playback.");
     }
 
     // Added back updateSpeakerVolumes method
@@ -514,13 +513,13 @@ public class ClientAudioPlayer {
                             AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
                             int error = AL10.alGetError();
                             if (error != AL10.AL_NO_ERROR) {
-                                System.err.println("[SimplySpeakers] OpenAL error setting gain for source " + resource.sourceID + ": " + AL10.alGetString(error));
+                                SimplySpeakers.LOGGER.error("OpenAL error setting gain for source {}: {}", resource.sourceID, AL10.alGetString(error));
                             }
                         } else {
-                             // System.out.println("[SimplySpeakers] Source " + resource.sourceID + " no longer valid when trying to set gain.");
+                             SimplySpeakers.LOGGER.trace("Source {} no longer valid when trying to set gain.", resource.sourceID);
                         }
                     } catch (Exception e) {
-                        System.err.println("[SimplySpeakers] Error setting gain for source " + resource.sourceID + ": " + e.getMessage());
+                        SimplySpeakers.LOGGER.error("Error setting gain for source {}", resource.sourceID, e);
                     }
                  }
             });
@@ -533,7 +532,7 @@ public class ClientAudioPlayer {
         // pcmInputStream and pcmFormat are declared later, specific to each branch
 
         if (filePath.toLowerCase().endsWith(".mp3")) {
-            System.out.println("[SimplySpeakers] Decoding MP3: " + filePath);
+            SimplySpeakers.LOGGER.debug("Decoding MP3: {}", filePath);
             try (InputStream fileStream = new FileInputStream(audioFile);
                  ByteArrayOutputStream pcmOutputStream = new ByteArrayOutputStream()) {
 
@@ -577,7 +576,7 @@ public class ClientAudioPlayer {
                 byte[] pcmData = pcmOutputStream.toByteArray();
                 ByteArrayInputStream pcmByteStream = new ByteArrayInputStream(pcmData);
                 AudioInputStream pcmInputStream = new AudioInputStream(pcmByteStream, pcmFormat, pcmData.length / pcmFormat.getFrameSize());
-                System.out.println("[SimplySpeakers] MP3 decoded to PCM format: " + pcmFormat);
+                SimplySpeakers.LOGGER.debug("MP3 decoded to PCM format: {}", pcmFormat);
                 return pcmInputStream;
 
             } catch (BitstreamException | DecoderException e) {
@@ -585,10 +584,10 @@ public class ClientAudioPlayer {
             }
         } else {
             // Standard WAV/OGG handling
-            System.out.println("[SimplySpeakers] Reading non-MP3: " + filePath);
+            SimplySpeakers.LOGGER.debug("Reading non-MP3: {}", filePath);
             AudioInputStream initialStream = AudioSystem.getAudioInputStream(audioFile);
             AudioFormat initialFormat = initialStream.getFormat();
-            System.out.println("[SimplySpeakers] Initial format: " + initialFormat);
+            SimplySpeakers.LOGGER.debug("Initial format: {}", initialFormat);
 
             // Define target PCM format (16-bit signed LE)
             AudioFormat targetPcmFormat = new AudioFormat(
@@ -603,17 +602,17 @@ public class ClientAudioPlayer {
 
             // Check if conversion is needed
             if (!initialFormat.matches(targetPcmFormat)) {
-                System.out.println("[SimplySpeakers] Converting to target PCM format: " + targetPcmFormat);
+                SimplySpeakers.LOGGER.debug("Converting to target PCM format: {}", targetPcmFormat);
                 if (AudioSystem.isConversionSupported(targetPcmFormat, initialFormat)) {
                     AudioInputStream convertedStream = AudioSystem.getAudioInputStream(targetPcmFormat, initialStream);
-                    System.out.println("[SimplySpeakers] Converted to PCM format: " + convertedStream.getFormat());
+                    SimplySpeakers.LOGGER.debug("Converted to PCM format: {}", convertedStream.getFormat());
                     return convertedStream;
                 } else {
                     initialStream.close();
                     throw new UnsupportedAudioFileException("Conversion to PCM_SIGNED 16-bit Little Endian not supported for: " + filePath + " from format " + initialFormat);
                 }
             } else {
-                System.out.println("[SimplySpeakers] Audio is already in target PCM format.");
+                SimplySpeakers.LOGGER.debug("Audio is already in target PCM format.");
                 return initialStream; // Already in a suitable PCM format
             }
         }
@@ -637,7 +636,7 @@ public class ClientAudioPlayer {
         } else if (format.getChannels() == 2) {
             openALFormat = AL10.AL_FORMAT_STEREO16;
         } else {
-            System.err.println("[SimplySpeakers] Unsupported number of channels for OpenAL: " + format.getChannels());
+            SimplySpeakers.LOGGER.error("Unsupported number of channels for OpenAL: {}", format.getChannels());
         }
 
         return openALFormat;
@@ -760,7 +759,7 @@ public class ClientAudioPlayer {
             try {
                 Files.write(path, dataStream.toByteArray());
             } catch (IOException e) {
-                e.printStackTrace();
+                SimplySpeakers.LOGGER.error("Failed to write cached audio file: {}", path, e);
             }
         }
     }

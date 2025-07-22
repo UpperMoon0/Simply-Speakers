@@ -11,24 +11,23 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.server.level.ServerPlayer; 
 import net.minecraft.world.phys.Vec3;
-import com.nstut.simplyspeakers.Config; 
-import com.nstut.simplyspeakers.network.PlayAudioPacketS2C; 
-import com.nstut.simplyspeakers.network.StopAudioPacketS2C; 
-import com.nstut.simplyspeakers.network.PacketRegistries; 
+import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
+import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
+import com.nstut.simplyspeakers.network.PacketRegistries;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.logging.Logger;
 
 /**
  * Block entity for the Speaker block.
  */
 @Getter
 public class SpeakerBlockEntity extends BlockEntity {
-    private static final Logger LOGGER = Logger.getLogger(SpeakerBlockEntity.class.getName());
 
     private static final String NBT_AUDIO_ID = "AudioID";
     private static final String NBT_IS_PLAYING = "IsPlaying";
@@ -64,7 +63,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
             // We'll implement network packet sending in Step 2
-            LOGGER.info("Setting audio ID to: " + audioId);
+            SimplySpeakers.LOGGER.info("Setting audio ID to: {} for speaker at {}", audioId, worldPosition);
         }
     }
 
@@ -102,7 +101,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
         if (audioId == null || audioId.isEmpty()) {
-            LOGGER.warning("Audio path is empty, cannot play.");
+            SimplySpeakers.LOGGER.warn("Audio ID is empty for speaker at {}, cannot play.", getBlockPos());
             return;
         }
 
@@ -112,7 +111,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
-        LOGGER.info("Starting audio: " + audioId + " at tick " + playbackStartTick);
+        SimplySpeakers.LOGGER.info("Starting audio: {} at tick {} at {}", audioId, playbackStartTick, worldPosition);
     }
 
     /**
@@ -140,7 +139,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     notifiedCount++;
                 }
             }
-            LOGGER.info("Stopping audio and sent stop packets to " + notifiedCount + " former listeners.");
+            SimplySpeakers.LOGGER.info("Stopping audio at {} and sent stop packets to {} former listeners.", worldPosition, notifiedCount);
         }
         listeningPlayers.clear(); // Clear the server-side tracking list
     }
@@ -162,7 +161,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (!isPlaying) {
             // If not playing, ensure no players are marked as listening (e.g., after a stop command)
             if (!listeningPlayers.isEmpty()) {
-                LOGGER.fine("Audio stopped, but " + listeningPlayers.size() + " players were still in listeningPlayers set. Clearing.");
+                SimplySpeakers.LOGGER.debug("Audio stopped at {}, but {} players were still in listeningPlayers set. Clearing.", worldPosition, listeningPlayers.size());
                 listeningPlayers.clear();
             }
             return;
@@ -194,7 +193,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioId, playbackPositionSeconds, this.isLooping());
                 PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
-                LOGGER.fine("Player " + player.getName().getString() + " entered range. Sending play packet with offset " + playbackPositionSeconds + "s.");
+                SimplySpeakers.LOGGER.debug("Player {} entered range of speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);
             }
         }
 
@@ -208,7 +207,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
                     PacketRegistries.CHANNEL.sendToPlayer(serverPlayerInstance, stopPacket);
-                    LOGGER.fine("Player " + serverPlayerInstance.getName().getString() + " left range. Sending stop packet.");
+                    SimplySpeakers.LOGGER.debug("Player {} left range of speaker at {}. Sending stop packet.", serverPlayerInstance.getName().getString(), currentPos);
                 }
                 listeningPlayers.remove(playerId);
             }
