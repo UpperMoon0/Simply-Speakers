@@ -286,6 +286,18 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * Updates the audio ID on the client side for optimistic UI updates.
+     * This method should only be called on the client.
+     *
+     * @param audioId The new audio ID.
+     */
+    public void setAudioIdClient(String audioId) {
+        if (this.level != null && this.level.isClientSide) {
+            this.audioId = audioId;
+        }
+    }
+
     @NotNull
     @Override
     public CompoundTag getUpdateTag() {

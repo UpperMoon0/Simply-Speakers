@@ -11,14 +11,13 @@ import com.nstut.simplyspeakers.platform.Services;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.NotNull;
-
-import java.io.File;
 
 public class SpeakerScreen extends Screen {
 
@@ -30,8 +29,9 @@ public class SpeakerScreen extends Screen {
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
     private SpeakerAudioList audioListWidget;
+    private EditBox searchBar;
     private Button loopToggleButton;
-    private Button playButton;
+    private Button stopButton;
     private Button uploadButton;
 
     public SpeakerScreen(BlockPos blockEntityPos) {
@@ -48,21 +48,28 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 20, SCREEN_WIDTH - 20, 100, Component.empty());
+        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 45, SCREEN_WIDTH - 20, 75, Component.empty(), (audio) -> {
+            if (this.speaker != null) {
+                this.speaker.setAudioIdClient(audio.getUuid());
+            }
+            PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid()));
+        });
+
+        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 20, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
+        this.searchBar.setResponder(this.audioListWidget::filter);
+
+        this.addRenderableWidget(this.searchBar);
         this.addRenderableWidget(this.audioListWidget);
 
         PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
 
-        this.playButton = Button.builder(Component.literal("Play"), button -> {
-                    var selected = audioListWidget.getSelected();
-                    if (selected != null) {
-                        PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, selected.getUuid()));
-                    }
+        this.stopButton = Button.builder(Component.literal("Stop"), button -> {
+                    PacketRegistries.CHANNEL.sendToServer(new StopPlaybackPacketC2S(this.blockEntityPos));
                 })
                 .pos(guiLeft + 10, guiTop + 130)
                 .size(50, 20)
                 .build();
-        this.addRenderableWidget(playButton);
+        this.addRenderableWidget(stopButton);
 
         this.uploadButton = Button.builder(Component.literal("Upload"), button -> {
                     SimplySpeakers.LOGGER.info("Upload button clicked");
@@ -111,6 +118,9 @@ public class SpeakerScreen extends Screen {
 
         if (this.speaker != null) {
             this.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
+            this.stopButton.active = this.speaker.isPlaying();
+        } else {
+            this.stopButton.active = false;
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTicks);

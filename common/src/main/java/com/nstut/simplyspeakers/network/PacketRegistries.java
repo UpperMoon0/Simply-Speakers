@@ -52,23 +52,28 @@ public class PacketRegistries {
                 RequestAudioFilePacketC2S::new,
                 RequestAudioFilePacketC2S::handle
         );
+        CHANNEL.register(StopPlaybackPacketC2S.class,
+                StopPlaybackPacketC2S::encode,
+                StopPlaybackPacketC2S::new,
+                StopPlaybackPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {
         // Server to Client packets
         CHANNEL.register(StopAudioPacketS2C.class,
                 StopAudioPacketS2C::encode,
-                StopAudioPacketS2C::new, // Assuming a constructor that takes a FriendlyByteBuf
+                StopAudioPacketS2C::new, 
                 StopAudioPacketS2C::handle
         );
         CHANNEL.register(PlayAudioPacketS2C.class,
                 PlayAudioPacketS2C::encode,
-                PlayAudioPacketS2C::new, // Assuming a constructor that takes a FriendlyByteBuf
+                PlayAudioPacketS2C::new,
                 PlayAudioPacketS2C::handle
         );
         CHANNEL.register(SpeakerBlockEntityPacketS2C.class,
                 SpeakerBlockEntityPacketS2C::encode,
-                SpeakerBlockEntityPacketS2C::new, // Assuming a constructor that takes a FriendlyByteBuf
+                SpeakerBlockEntityPacketS2C::new, 
                 SpeakerBlockEntityPacketS2C::handle
         );
         CHANNEL.register(RespondUploadAudioPacketS2C.class,
