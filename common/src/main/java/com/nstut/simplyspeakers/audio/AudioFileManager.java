@@ -89,7 +89,7 @@ public class AudioFileManager {
 
         String uuid = UUID.randomUUID().toString();
         String extension = FilenameUtils.getExtension(originalFilename);
-        Path filePath = audioDirPath.resolve(uuid + "." + extension);
+        Path filePath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
 
         Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 
@@ -106,7 +106,7 @@ public class AudioFileManager {
             return null;
         }
         String extension = FilenameUtils.getExtension(metadata.getOriginalFilename());
-        return audioDirPath.resolve(uuid + "." + extension);
+        return audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
     }
 
     public void handleUploadRequest(ServerPlayer player, BlockPos blockPos, UUID transactionId, String fileName, long fileSize) {

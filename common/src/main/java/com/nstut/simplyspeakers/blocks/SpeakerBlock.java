@@ -104,7 +104,10 @@ public class SpeakerBlock extends BaseEntityBlock {
             boolean currentPower = state.getValue(POWERED);
             boolean hasSignal = level.hasNeighborSignal(pos);
 
+            LOGGER.debug("NeighborChanged at {}: currentPower={}, hasSignal={}", pos, currentPower, hasSignal);
+
             if (currentPower != hasSignal) {
+                LOGGER.info("Power state changed at {}: {} -> {}", pos, currentPower, hasSignal);
                 // Update the block state first
                 level.setBlock(pos, state.setValue(POWERED, hasSignal), 3);
 
@@ -112,10 +115,14 @@ public class SpeakerBlock extends BaseEntityBlock {
                 BlockEntity blockEntity = level.getBlockEntity(pos);
                 if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                     if (hasSignal) {
+                        LOGGER.info("Triggering playAudio for speaker at {}", pos);
                         speakerEntity.playAudio();
                     } else {
+                        LOGGER.info("Triggering stopAudio for speaker at {}", pos);
                         speakerEntity.stopAudio();
                     }
+                } else {
+                    LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);
                 }
             }
         }

@@ -49,9 +49,9 @@ public class SpeakerScreen extends Screen {
 
         this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 45, SCREEN_WIDTH - 20, 75, Component.empty(), (audio) -> {
             if (this.speaker != null) {
-                this.speaker.setAudioIdClient(audio.getUuid());
+                this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
             }
-            PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid()));
+            PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
         });
 
         this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 20, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));

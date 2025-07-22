@@ -107,26 +107,32 @@ public class ClientAudioPlayer {
     }
 
     public static void play(BlockPos pos, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
+        SimplySpeakers.LOGGER.info("CLIENT: play called for pos: {}, audioId: {}, start: {}s, looping: {}", pos, metadata.getUuid(), startPositionSeconds, isLooping);
         stop(pos);
 
         if (!CACHE_DIR.exists()) {
             CACHE_DIR.mkdirs();
         }
 
-        File cachedFile = new File(CACHE_DIR, metadata.getUuid());
+        String extension = com.google.common.io.Files.getFileExtension(metadata.getOriginalFilename());
+        File cachedFile = new File(CACHE_DIR, metadata.getUuid() + (extension.isEmpty() ? "" : "." + extension));
         if (cachedFile.exists()) {
+            SimplySpeakers.LOGGER.debug("CLIENT: Cached file found for {}. Playing from file.", metadata.getUuid());
             playFromFile(pos, cachedFile.getAbsolutePath(), startPositionSeconds, isLooping);
         } else {
-            requestFileFromServer(metadata.getUuid());
+            SimplySpeakers.LOGGER.info("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
+            requestFileFromServer(metadata.getUuid(), metadata.getOriginalFilename());
         }
     }
 
     private static void playFromFile(BlockPos pos, String filePath, float startPositionSeconds, boolean isLooping) {
+        SimplySpeakers.LOGGER.debug("CLIENT: playFromFile: pos={}, filePath={}, start={}, isLooping={}", pos, filePath, startPositionSeconds, isLooping);
         Minecraft.getInstance().tell(() -> {
             try {
                 int sourceID = AL10.alGenSources();
                 int[] bufferIDs = new int[NUM_BUFFERS];
                 AL10.alGenBuffers(bufferIDs);
+                SimplySpeakers.LOGGER.debug("CLIENT: Generated OpenAL source {} and {} buffers for {}", sourceID, NUM_BUFFERS, pos);
 
                 AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
                 AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
@@ -140,8 +146,9 @@ public class ClientAudioPlayer {
                 StreamingAudioResource resource = new StreamingAudioResource(sourceID, bufferIDs, streamingThread, pos, isLooping);
                 speakerResources.put(pos, resource);
                 streamingThread.start();
+                SimplySpeakers.LOGGER.info("CLIENT: Started streaming thread for source {} at {}", sourceID, pos);
             } catch (Exception e) {
-                SimplySpeakers.LOGGER.error("Failed to start audio playback at {}", pos, e);
+                SimplySpeakers.LOGGER.error("CLIENT: Failed to start audio playback at {}", pos, e);
             }
         });
     }
@@ -161,6 +168,7 @@ public class ClientAudioPlayer {
 
     // Core streaming logic executed in a separate thread
     private static void streamAudioData(BlockPos pos, int sourceID, int[] bufferIDs, String filePath, float startPositionSeconds, boolean isLooping) {
+        SimplySpeakers.LOGGER.info("STREAMER [{}]: Thread started. File: {}, Start: {}s, Looping: {}", sourceID, filePath, startPositionSeconds, isLooping);
         StreamingAudioResource resource = speakerResources.get(pos);
 
         // Loop control
@@ -168,7 +176,7 @@ public class ClientAudioPlayer {
 
         while (continueStreaming) { // Outer loop for restarting playback if isLooping is true
             if (resource == null || resource.sourceID != sourceID) {
-                SimplySpeakers.LOGGER.error("Streaming thread for {} (source {}) found resource mismatch or missing. Aborting.", pos, sourceID);
+                SimplySpeakers.LOGGER.error("STREAMER [{}]: Aborting. Resource mismatch or missing for pos {}. Current resource sourceID: {}", sourceID, pos, resource == null ? "null" : resource.sourceID);
                 continueStreaming = false; // Exit outer loop
                 break; // Exit while(continueStreaming)
             }
@@ -677,11 +685,11 @@ public class ClientAudioPlayer {
         // TODO: Display message to user
     }
 
-    private static void requestFileFromServer(String audioId) {
+    private static void requestFileFromServer(String audioId, String filename) {
         if (activeDownloads.containsKey(audioId)) {
             return; // Already downloading
         }
-        activeDownloads.put(audioId, new DownloadProcess(audioId));
+        activeDownloads.put(audioId, new DownloadProcess(audioId, filename));
         PacketRegistries.CHANNEL.sendToServer(new RequestAudioFilePacketC2S(audioId));
     }
 
@@ -737,10 +745,12 @@ public class ClientAudioPlayer {
 
     private static class DownloadProcess {
         private final String audioId;
+        private final String filename;
         private final ByteArrayOutputStream dataStream = new ByteArrayOutputStream();
 
-        public DownloadProcess(String audioId) {
+        public DownloadProcess(String audioId, String filename) {
             this.audioId = audioId;
+            this.filename = filename;
         }
 
         public void addData(byte[] data) {
@@ -755,7 +765,8 @@ public class ClientAudioPlayer {
             if (!CACHE_DIR.exists()) {
                 CACHE_DIR.mkdirs();
             }
-            Path path = new File(CACHE_DIR, audioId).toPath();
+            String extension = com.google.common.io.Files.getFileExtension(filename);
+            Path path = new File(CACHE_DIR, audioId + (extension.isEmpty() ? "" : "." + extension)).toPath();
             try {
                 Files.write(path, dataStream.toByteArray());
             } catch (IOException e) {

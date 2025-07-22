@@ -30,11 +30,13 @@ import java.util.UUID;
 public class SpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_AUDIO_ID = "AudioID";
+    private static final String NBT_AUDIO_FILENAME = "AudioFilename";
     private static final String NBT_IS_PLAYING = "IsPlaying";
     private static final String NBT_START_TICK = "PlaybackStartTick";
     private static final String NBT_IS_LOOPING = "is_looping";
 
     private String audioId = "";
+    private String audioFilename = "";
     private boolean isPlaying = false;
     private boolean isLooping = false;
     private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
@@ -55,21 +57,33 @@ public class SpeakerBlockEntity extends BlockEntity {
      *
      * @param audioId The ID of the audio file
      */
-    public void setAudioId(String audioId) {
+    public void setAudio(String audioId, String filename) {
         // Server side only
         if (level != null && !level.isClientSide) {
             this.audioId = audioId;
+            this.audioFilename = filename;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
-            // We'll implement network packet sending in Step 2
-            SimplySpeakers.LOGGER.info("Setting audio ID to: {} for speaker at {}", audioId, worldPosition);
+            SimplySpeakers.LOGGER.info("Setting audio to: id={}, filename={} for speaker at {}", audioId, filename, worldPosition);
         }
     }
+    /**
+     * Sets the audio ID.
+     *
+     * @param audioId The ID of the audio file
+     */
+    public void setAudioId(String audioId) {
+        setAudio(audioId, ""); // Set with an empty filename
+    }
 
-    public void setSelectedAudio(String audioId) {
+    public void setSelectedAudio(String audioId, String filename) {
         if (level != null && !level.isClientSide) {
-            setAudioId(audioId);
+            setAudio(audioId, filename);
+            // Stop any currently playing audio before starting the new one.
+            if (isPlaying) {
+                stopAudio();
+            }
             playAudio();
         }
     }
@@ -96,12 +110,18 @@ public class SpeakerBlockEntity extends BlockEntity {
      * Starts playing the audio.
      */
     public void playAudio() {
+        SimplySpeakers.LOGGER.debug("playAudio called for speaker at {}", worldPosition);
         // TODO: Check isLooping state here to determine if audio should loop upon completion.
-        if (level == null || level.isClientSide || isPlaying) {
+        if (level == null || level.isClientSide) {
+            SimplySpeakers.LOGGER.debug("playAudio exit: Level is null or client side. isClientSide={}", level != null && level.isClientSide);
+            return;
+        }
+        if (isPlaying) {
+            SimplySpeakers.LOGGER.debug("playAudio exit: Already playing audio '{}' at {}", audioId, worldPosition);
             return;
         }
         if (audioId == null || audioId.isEmpty()) {
-            SimplySpeakers.LOGGER.warn("Audio ID is empty for speaker at {}, cannot play.", getBlockPos());
+            SimplySpeakers.LOGGER.warn("playAudio exit: Audio ID is empty for speaker at {}, cannot play.", getBlockPos());
             return;
         }
 
@@ -111,14 +131,20 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
-        SimplySpeakers.LOGGER.info("Starting audio: {} at tick {} at {}", audioId, playbackStartTick, worldPosition);
+        SimplySpeakers.LOGGER.info("SERVER: Started audio playback: '{}' at tick {} at {}. Looping: {}", audioId, playbackStartTick, worldPosition, isLooping);
     }
 
     /**
      * Stops playing the audio.
      */
     public void stopAudio() {
-        if (level == null || level.isClientSide || !isPlaying) {
+        SimplySpeakers.LOGGER.debug("stopAudio called for speaker at {}", worldPosition);
+        if (level == null || level.isClientSide) {
+            SimplySpeakers.LOGGER.debug("stopAudio exit: Level is null or client side.");
+            return;
+        }
+        if (!isPlaying) {
+            SimplySpeakers.LOGGER.debug("stopAudio exit: Not currently playing at {}.", worldPosition);
             return;
         }
 
@@ -139,7 +165,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     notifiedCount++;
                 }
             }
-            SimplySpeakers.LOGGER.info("Stopping audio at {} and sent stop packets to {} former listeners.", worldPosition, notifiedCount);
+            SimplySpeakers.LOGGER.info("SERVER: Stopped audio at {} and sent stop packets to {} former listeners.", worldPosition, notifiedCount);
         }
         listeningPlayers.clear(); // Clear the server-side tracking list
     }
@@ -190,7 +216,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 }
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioId, playbackPositionSeconds, this.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioId, audioFilename, playbackPositionSeconds, this.isLooping());
                 PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
                 SimplySpeakers.LOGGER.debug("Player {} entered range of speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);
@@ -220,6 +246,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         
         // PERFORMANCE FIX: Handle optimized NBT format with defaults
         audioId = tag.contains(NBT_AUDIO_ID) ? tag.getString(NBT_AUDIO_ID) : "";
+        audioFilename = tag.contains(NBT_AUDIO_FILENAME) ? tag.getString(NBT_AUDIO_FILENAME) : "";
         isPlaying = tag.contains(NBT_IS_PLAYING) ? tag.getBoolean(NBT_IS_PLAYING) : false;
         isLooping = tag.contains(NBT_IS_LOOPING) ? tag.getBoolean(NBT_IS_LOOPING) : false;
         
@@ -241,6 +268,9 @@ public class SpeakerBlockEntity extends BlockEntity {
         // PERFORMANCE FIX: Only save non-default values to reduce NBT data size
         if (!audioId.isEmpty()) {
             tag.putString(NBT_AUDIO_ID, audioId);
+        }
+        if (audioFilename != null && !audioFilename.isEmpty()) {
+            tag.putString(NBT_AUDIO_FILENAME, audioFilename);
         }
         
         // Only save playing state if actually playing to reduce save data
@@ -291,9 +321,10 @@ public class SpeakerBlockEntity extends BlockEntity {
      *
      * @param audioId The new audio ID.
      */
-    public void setAudioIdClient(String audioId) {
+    public void setAudioIdClient(String audioId, String filename) {
         if (this.level != null && this.level.isClientSide) {
             this.audioId = audioId;
+            this.audioFilename = filename;
         }
     }
 
