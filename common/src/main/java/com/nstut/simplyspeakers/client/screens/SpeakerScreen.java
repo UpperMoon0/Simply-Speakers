@@ -25,7 +25,7 @@ public class SpeakerScreen extends Screen {
     private static final ResourceLocation BACKGROUND_TEXTURE = new ResourceLocation(SimplySpeakers.MOD_ID, "textures/gui/speaker.png");
 
     private static final int SCREEN_WIDTH = 162;
-    private static final int SCREEN_HEIGHT = 168;
+    private static final int SCREEN_HEIGHT = 158;
 
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
@@ -115,7 +115,7 @@ public class SpeakerScreen extends Screen {
         }
 
         if (statusMessage != null) {
-            guiGraphics.drawString(this.font, statusMessage, guiLeft + 10, guiTop + 152, 4210752, false);
+            guiGraphics.drawString(this.font, statusMessage, guiLeft + (SCREEN_WIDTH - this.font.width(statusMessage)) / 2, guiTop + 165, 16777215, false);
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
