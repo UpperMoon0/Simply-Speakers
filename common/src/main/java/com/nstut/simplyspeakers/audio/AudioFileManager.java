@@ -149,7 +149,7 @@ public class AudioFileManager {
     }
 
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
-        List<String> audioList = new ArrayList<>(this.getManifest().keySet());
+        List<AudioFileMetadata> audioList = new ArrayList<>(this.getManifest().values());
         PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
     }
 
