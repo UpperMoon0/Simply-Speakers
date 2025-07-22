@@ -15,21 +15,21 @@ public class LoadAudioCallPacketC2S {
     private static final Logger LOGGER = Logger.getLogger(LoadAudioCallPacketC2S.class.getName());
 
     private final BlockPos pos;
-    private final String musicPath;
+    private final String audioId;
 
-    public LoadAudioCallPacketC2S(BlockPos pos, String musicPath) {
+    public LoadAudioCallPacketC2S(BlockPos pos, String audioId) {
         this.pos = pos;
-        this.musicPath = musicPath;
+        this.audioId = audioId;
     }
 
     public LoadAudioCallPacketC2S(FriendlyByteBuf buffer) {
         this.pos = buffer.readBlockPos();
-        this.musicPath = buffer.readUtf();
+        this.audioId = buffer.readUtf();
     }
 
     public static void encode(LoadAudioCallPacketC2S packet, FriendlyByteBuf buffer) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeUtf(packet.musicPath);
+        buffer.writeUtf(packet.audioId);
     }
 
     public static void handle(LoadAudioCallPacketC2S packet, Supplier<NetworkManager.PacketContext> contextSupplier) {
@@ -41,7 +41,7 @@ public class LoadAudioCallPacketC2S {
                     BlockEntity blockEntity = serverLevel.getBlockEntity(packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                         try {
-                            speakerEntity.setAudioPath(packet.musicPath);
+                            speakerEntity.setAudioId(packet.audioId);
                         } catch (Exception e) {
                             LOGGER.severe("Error processing LoadAudioCallPacketC2S for speaker at " + packet.pos + ": " + e.getMessage());
                             e.printStackTrace();

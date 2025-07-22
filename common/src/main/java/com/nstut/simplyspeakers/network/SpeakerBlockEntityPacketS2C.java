@@ -11,21 +11,21 @@ import java.util.function.Supplier;
 
 public class SpeakerBlockEntityPacketS2C {
     private final BlockPos pos;
-    private final String musicPath; // Assuming this is still needed, or a CompoundTag for more complex data
+    private final String audioId;
 
-    public SpeakerBlockEntityPacketS2C(BlockPos pos, String musicPath) {
+    public SpeakerBlockEntityPacketS2C(BlockPos pos, String audioId) {
         this.pos = pos;
-        this.musicPath = musicPath;
+        this.audioId = audioId;
     }
 
     public SpeakerBlockEntityPacketS2C(FriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
-        this.musicPath = buf.readUtf();
+        this.audioId = buf.readUtf();
     }
 
     public static void encode(SpeakerBlockEntityPacketS2C message, FriendlyByteBuf buf) {
         buf.writeBlockPos(message.pos);
-        buf.writeUtf(message.musicPath);
+        buf.writeUtf(message.audioId);
     }
 
     // Updated handle method for Architectury
@@ -37,14 +37,8 @@ public class SpeakerBlockEntityPacketS2C {
                 if (blockEntity instanceof SpeakerBlockEntity speaker) {
                     // Create a CompoundTag containing the updated music path
                     CompoundTag tag = new CompoundTag();
-                    tag.putString("AudioPath", message.musicPath);
-                    // Use the built-in update method to update the client block entity
-                    // or a custom method if SpeakerBlockEntity has one for this purpose.
-                    // speaker.handleUpdateTag(tag); // This is a common vanilla method
-                    // If you have a specific method like setAudioPathClient, use that:
-                    speaker.setAudioPath(message.musicPath); // Assuming direct update or a client-specific method
-                    // Or if it needs more complex data from the packet:
-                    // speaker.updateClientData(message.someOtherData);
+                    tag.putString("AudioID", message.audioId);
+                    speaker.load(tag); // Use load to update the client-side entity state from the NBT tag
                 }
             }
         });

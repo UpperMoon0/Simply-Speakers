@@ -10,8 +10,15 @@ import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.nstut.simplyspeakers.Config; 
+import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
+import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
+import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import java.util.List;
@@ -24,19 +31,22 @@ import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.UUID;
 import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.BitstreamException;
 import javazoom.jl.decoder.DecoderException;
 
 public class ClientAudioPlayer {
 
-    // Use ConcurrentHashMap for thread safety when accessing from different threads
-    // Value is now StreamingAudioResource which holds source, buffers, stream, thread etc.
+    private static final File CACHE_DIR = new File(Minecraft.getInstance().gameDirectory, "simply_speakers_cache");
     private static final Map<BlockPos, StreamingAudioResource> speakerResources = new ConcurrentHashMap<>();
-    private static final int NUM_BUFFERS = 3; // Number of buffers to queue for streaming
-    private static final int BUFFER_SIZE_SECONDS = 1; // Target buffer size in seconds (adjust as needed)
+    private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
+    private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
+    private static final int NUM_BUFFERS = 3;
+    private static final int BUFFER_SIZE_SECONDS = 1;
 
-    // Updated resource class for streaming
     private static class StreamingAudioResource {
         final int sourceID;
         final int[] bufferIDs; // Array of buffer IDs
@@ -96,42 +106,41 @@ public class ClientAudioPlayer {
         }
     }
 
-    // Updated play method signature
-    public static void play(BlockPos pos, String filePath, float startPositionSeconds, boolean isLooping) {
-        // Check if audio is already playing/managed for this position
+    public static void play(BlockPos pos, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
         stop(pos);
 
-        if (filePath == null || filePath.trim().isEmpty()) {
-            System.err.println("[SimplySpeakers] Audio path is empty for speaker at " + pos + ". Skipping playback.");
-            return;
+        if (!CACHE_DIR.exists()) {
+            CACHE_DIR.mkdirs();
         }
 
-        System.out.println("[SimplySpeakers] Attempting to play audio at " + pos + " from " + startPositionSeconds + "s, path: " + filePath);
+        File cachedFile = new File(CACHE_DIR, metadata.getUuid());
+        if (cachedFile.exists()) {
+            playFromFile(pos, cachedFile.getAbsolutePath(), startPositionSeconds, isLooping);
+        } else {
+            requestFileFromServer(metadata.getUuid());
+        }
+    }
 
+    private static void playFromFile(BlockPos pos, String filePath, float startPositionSeconds, boolean isLooping) {
         Minecraft.getInstance().tell(() -> {
             try {
                 int sourceID = AL10.alGenSources();
                 int[] bufferIDs = new int[NUM_BUFFERS];
-                AL10.alGenBuffers(bufferIDs); // Generate multiple buffers
+                AL10.alGenBuffers(bufferIDs);
 
                 AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
                 AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
                 AL10.alSourcef(sourceID, AL10.AL_GAIN, 1.0f);
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
-                // Pass isLooping to streamAudioData and StreamingAudioResource
                 Thread streamingThread = new Thread(() -> streamAudioData(pos, sourceID, bufferIDs, filePath, startPositionSeconds, isLooping),
-                                                    "SimplySpeakers Streaming Thread - " + pos);
+                        "SimplySpeakers Streaming Thread - " + pos);
                 streamingThread.setDaemon(true);
 
                 StreamingAudioResource resource = new StreamingAudioResource(sourceID, bufferIDs, streamingThread, pos, isLooping);
                 speakerResources.put(pos, resource);
-                System.out.println("[SimplySpeakers] Stored streaming resource for pos: " + pos + " (Looping: " + isLooping + "). Thread will open/decode audio.");
-
                 streamingThread.start();
-
             } catch (Exception e) {
-                System.err.println("[SimplySpeakers] ERROR: Exception during OpenAL setup on main thread for: " + filePath + " at " + pos);
                 e.printStackTrace();
             }
         });
@@ -632,5 +641,127 @@ public class ClientAudioPlayer {
         }
 
         return openALFormat;
+    }
+
+    public static UUID startUpload(File file) {
+        UUID transactionId = UUID.randomUUID();
+        SimplySpeakers.LOGGER.info("Starting upload process for file: " + file.getName() + " with transaction ID: " + transactionId);
+        activeUploads.put(transactionId, new UploadProcess(file));
+        return transactionId;
+    }
+
+    public static void handleUploadResponse(UUID transactionId, boolean allowed, int maxChunkSize, Component message) {
+        UploadProcess process = activeUploads.get(transactionId);
+        if (process == null) {
+            SimplySpeakers.LOGGER.warn("Received upload response for unknown transaction ID: " + transactionId);
+            return;
+        }
+
+        if (allowed) {
+            SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Starting data transfer.");
+            process.start(transactionId, maxChunkSize);
+        } else {
+            SimplySpeakers.LOGGER.error("Upload denied for transaction ID: " + transactionId + ". Reason: " + message.getString());
+            activeUploads.remove(transactionId);
+            // TODO: Display error message to user
+        }
+    }
+
+    public static void handleUploadAcknowledgement(UUID transactionId, boolean success, Component message, BlockPos blockPos) {
+        if (success) {
+            SimplySpeakers.LOGGER.info("Upload acknowledged for transaction ID: " + transactionId);
+            PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(blockPos));
+        } else {
+            SimplySpeakers.LOGGER.error("Upload failed for transaction ID: " + transactionId + ". Reason: " + message.getString());
+        }
+        activeUploads.remove(transactionId);
+        // TODO: Display message to user
+    }
+
+    private static void requestFileFromServer(String audioId) {
+        if (activeDownloads.containsKey(audioId)) {
+            return; // Already downloading
+        }
+        activeDownloads.put(audioId, new DownloadProcess(audioId));
+        PacketRegistries.CHANNEL.sendToServer(new RequestAudioFilePacketC2S(audioId));
+    }
+
+    public static void handleAudioFileChunk(String audioId, byte[] data, boolean isLast) {
+        DownloadProcess process = activeDownloads.get(audioId);
+        if (process == null) {
+            return;
+        }
+
+        process.addData(data);
+
+        if (isLast) {
+            process.complete();
+            activeDownloads.remove(audioId);
+        }
+    }
+
+    private static class UploadProcess {
+        private final File file;
+        private byte[] fileData;
+
+        public UploadProcess(File file) {
+            this.file = file;
+        }
+
+        public void start(UUID transactionId, int chunkSize) {
+            try {
+                this.fileData = Files.readAllBytes(file.toPath());
+                SimplySpeakers.LOGGER.info("Starting to send file data for transaction ID: " + transactionId + ". Total size: " + fileData.length);
+                new Thread(() -> {
+                    int offset = 0;
+                    while (offset < fileData.length) {
+                        int length = Math.min(chunkSize, fileData.length - offset);
+                        byte[] chunk = new byte[length];
+                        System.arraycopy(fileData, offset, chunk, 0, length);
+                        SimplySpeakers.LOGGER.info("Sending chunk for transaction ID: " + transactionId + ". Offset: " + offset + ", Length: " + length);
+                        PacketRegistries.CHANNEL.sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
+                        offset += length;
+                        try {
+                            Thread.sleep(10); // Small delay to avoid overwhelming the network
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                    SimplySpeakers.LOGGER.info("Finished sending file data for transaction ID: " + transactionId);
+                }).start();
+            } catch (IOException e) {
+                SimplySpeakers.LOGGER.error("Failed to read file for upload: " + file.getName(), e);
+            }
+        }
+    }
+
+    private static class DownloadProcess {
+        private final String audioId;
+        private final ByteArrayOutputStream dataStream = new ByteArrayOutputStream();
+
+        public DownloadProcess(String audioId) {
+            this.audioId = audioId;
+        }
+
+        public void addData(byte[] data) {
+            try {
+                dataStream.write(data);
+            } catch (IOException e) {
+                // Should not happen with ByteArrayOutputStream
+            }
+        }
+
+        public void complete() {
+            if (!CACHE_DIR.exists()) {
+                CACHE_DIR.mkdirs();
+            }
+            Path path = new File(CACHE_DIR, audioId).toPath();
+            try {
+                Files.write(path, dataStream.toByteArray());
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

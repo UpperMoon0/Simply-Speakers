@@ -6,8 +6,11 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import dev.architectury.networking.NetworkManager; // Changed import
-import dev.architectury.networking.NetworkManager.PacketContext; // Added import
+import dev.architectury.networking.NetworkManager;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.util.function.Supplier;
 
@@ -26,28 +29,24 @@ public class ToggleLoopPacketC2S {
         this.isLooping = buf.readBoolean();
     }
 
-    public void write(FriendlyByteBuf buf) {
+    public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
         buf.writeBoolean(this.isLooping);
     }
 
-    // Changed NetworkEvent.Context to PacketContext and adjusted method body
-    public boolean handle(Supplier<PacketContext> supplier) {
-        PacketContext context = supplier.get();
-        context.queue(() -> { // Changed enqueueWork to queue
-            ServerPlayer player = (ServerPlayer) context.getPlayer(); // Cast to ServerPlayer
+    public static void handle(ToggleLoopPacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
+        NetworkManager.PacketContext context = ctxSupplier.get();
+        ServerPlayer player = (ServerPlayer) context.getPlayer();
+        context.queue(() -> {
             if (player != null) {
                 ServerLevel level = player.serverLevel();
-                if (level.isLoaded(this.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(this.pos);
+                if (level.isLoaded(pkt.pos)) {
+                    BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        speakerEntity.setLooping(this.isLooping);
+                        speakerEntity.setLooping(pkt.isLooping);
                     }
                 }
             }
         });
-        // For Architectury, handling is implicit if the lambda executes without error.
-        // No explicit setPacketHandled is typically needed unless there's a specific reason.
-        return true; // Return true to indicate success
     }
 }

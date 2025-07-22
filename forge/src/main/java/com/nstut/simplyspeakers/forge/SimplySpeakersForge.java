@@ -7,6 +7,9 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import com.nstut.simplyspeakers.forge.config.ForgeConfig;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.common.MinecraftForge;
+import java.nio.file.Path;
 
 @Mod(SimplySpeakers.MOD_ID)
 public final class SimplySpeakersForge {
@@ -20,5 +23,13 @@ public final class SimplySpeakersForge {
 
         // Run our common setup.
         SimplySpeakers.init();
+
+        // Register the server starting event
+        MinecraftForge.EVENT_BUS.addListener(this::onServerStarting);
+    }
+
+    public void onServerStarting(ServerStartingEvent event) {
+        Path worldSavePath = event.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
+        SimplySpeakers.initializeAudio(worldSavePath);
     }
 }

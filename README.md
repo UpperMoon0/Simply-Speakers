@@ -1,5 +1,7 @@
 # Simply Speakers
 
+CurseForge: https://www.curseforge.com/minecraft/mc-mods/simply-speakers
+
 Simply Speakers is a Minecraft mod that allows players to play custom audio from a URL in-game using a speaker block.
 
 ## Features

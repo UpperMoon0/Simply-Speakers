@@ -30,12 +30,12 @@ import java.util.logging.Logger;
 public class SpeakerBlockEntity extends BlockEntity {
     private static final Logger LOGGER = Logger.getLogger(SpeakerBlockEntity.class.getName());
 
-    private static final String NBT_AUDIO_PATH = "AudioPath";
+    private static final String NBT_AUDIO_ID = "AudioID";
     private static final String NBT_IS_PLAYING = "IsPlaying";
     private static final String NBT_START_TICK = "PlaybackStartTick";
     private static final String NBT_IS_LOOPING = "is_looping";
 
-    private String audioPath = "";
+    private String audioId = "";
     private boolean isPlaying = false;
     private boolean isLooping = false;
     private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
@@ -52,19 +52,26 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     /**
-     * Sets the audio path.
-     * 
-     * @param audioPath The path to the audio file
+     * Sets the audio ID.
+     *
+     * @param audioId The ID of the audio file
      */
-    public void setAudioPath(String audioPath) {
+    public void setAudioId(String audioId) {
         // Server side only
         if (level != null && !level.isClientSide) {
-            this.audioPath = audioPath;
+            this.audioId = audioId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
             // We'll implement network packet sending in Step 2
-            LOGGER.info("Setting audio path to: " + audioPath);
+            LOGGER.info("Setting audio ID to: " + audioId);
+        }
+    }
+
+    public void setSelectedAudio(String audioId) {
+        if (level != null && !level.isClientSide) {
+            setAudioId(audioId);
+            playAudio();
         }
     }
 
@@ -94,7 +101,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level == null || level.isClientSide || isPlaying) {
             return;
         }
-        if (audioPath == null || audioPath.isEmpty()) {
+        if (audioId == null || audioId.isEmpty()) {
             LOGGER.warning("Audio path is empty, cannot play.");
             return;
         }
@@ -105,7 +112,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
-        LOGGER.info("Starting audio: " + audioPath + " at tick " + playbackStartTick);
+        LOGGER.info("Starting audio: " + audioId + " at tick " + playbackStartTick);
     }
 
     /**
@@ -184,7 +191,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 }
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioPath, playbackPositionSeconds, this.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioId, playbackPositionSeconds, this.isLooping());
                 PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
                 LOGGER.fine("Player " + player.getName().getString() + " entered range. Sending play packet with offset " + playbackPositionSeconds + "s.");
@@ -213,7 +220,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         super.load(tag);
         
         // PERFORMANCE FIX: Handle optimized NBT format with defaults
-        audioPath = tag.contains(NBT_AUDIO_PATH) ? tag.getString(NBT_AUDIO_PATH) : "";
+        audioId = tag.contains(NBT_AUDIO_ID) ? tag.getString(NBT_AUDIO_ID) : "";
         isPlaying = tag.contains(NBT_IS_PLAYING) ? tag.getBoolean(NBT_IS_PLAYING) : false;
         isLooping = tag.contains(NBT_IS_LOOPING) ? tag.getBoolean(NBT_IS_LOOPING) : false;
         
@@ -233,8 +240,8 @@ public class SpeakerBlockEntity extends BlockEntity {
         super.saveAdditional(tag);
         
         // PERFORMANCE FIX: Only save non-default values to reduce NBT data size
-        if (!audioPath.isEmpty()) {
-            tag.putString(NBT_AUDIO_PATH, audioPath);
+        if (!audioId.isEmpty()) {
+            tag.putString(NBT_AUDIO_ID, audioId);
         }
         
         // Only save playing state if actually playing to reduce save data

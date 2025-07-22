@@ -11,6 +11,10 @@ architectury {
 allprojects {
     group = rootProject.maven_group
     version = rootProject.mod_version
+
+    repositories {
+        maven { url 'https://jitpack.io' }
+    }
 }
 
 subprojects {
@@ -38,6 +42,7 @@ subprojects {
     dependencies {
         minecraft "net.minecraft:minecraft:$rootProject.minecraft_version"
         mappings loom.officialMojangMappings()
+        implementation group: 'org.lwjgl', name: 'lwjgl-tinyfd', version: '3.3.6'
     }
 
     java {

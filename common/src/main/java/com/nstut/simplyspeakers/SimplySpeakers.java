@@ -1,5 +1,6 @@
 package com.nstut.simplyspeakers;
 
+import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
@@ -17,6 +18,8 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.nio.file.Path;
+import java.nio.file.Path;
 
 /**
  * Main class for the Simply Speakers mod.
@@ -25,7 +28,8 @@ public class SimplySpeakers {
     // Define mod id in a common place for everything to reference
     public static final String MOD_ID = "simplyspeakers";
     // Directly reference a slf4j logger
-    public static final Logger LOGGER = LoggerFactory.getLogger("Simply Speakers");   
+    public static final Logger LOGGER = LoggerFactory.getLogger("Simply Speakers");
+    private static AudioFileManager audioFileManager;
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS = DeferredRegister.create(MOD_ID, Registries.SOUND_EVENT);
     public static final DeferredRegister<CreativeModeTab> CREATIVE_TABS = DeferredRegister.create(MOD_ID, Registries.CREATIVE_MODE_TAB);
 
@@ -49,7 +53,7 @@ public class SimplySpeakers {
 
     /**
      * Initializes the mod.
-     */    
+     */
     public static void init() {
         LOGGER.info("Initializing Simply Speakers");
           // Register all of our DeferredRegisters
@@ -67,5 +71,15 @@ public class SimplySpeakers {
         
         // Let each platform handle their own initialization
         Services.PLATFORM.init();
+    }
+
+    public static void initializeAudio(Path worldSavePath) {
+        if (audioFileManager == null) {
+            audioFileManager = new AudioFileManager(worldSavePath);
+        }
+    }
+
+    public static AudioFileManager getAudioFileManager() {
+        return audioFileManager;
     }
 }

@@ -12,21 +12,21 @@ import java.util.function.Supplier;
 public class AudioPathPacketC2S {
 
     private final BlockPos pos;
-    private final String musicPath;
+    private final String audioId;
 
-    public AudioPathPacketC2S(BlockPos pos, String musicPath) {
+    public AudioPathPacketC2S(BlockPos pos, String audioId) {
         this.pos = pos;
-        this.musicPath = musicPath;
+        this.audioId = audioId;
     }
 
     public AudioPathPacketC2S(FriendlyByteBuf buffer) {
         this.pos = buffer.readBlockPos();
-        this.musicPath = buffer.readUtf();
+        this.audioId = buffer.readUtf();
     }
 
     public static void encode(AudioPathPacketC2S packet, FriendlyByteBuf buffer) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeUtf(packet.musicPath);
+        buffer.writeUtf(packet.audioId);
     }
 
     public static void handle(AudioPathPacketC2S packet, Supplier<NetworkManager.PacketContext> contextSupplier) {
@@ -37,7 +37,7 @@ public class AudioPathPacketC2S {
                 if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
                     BlockEntity blockEntity = serverLevel.getBlockEntity(packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity) {
-                        ((SpeakerBlockEntity) blockEntity).setAudioPath(packet.musicPath);
+                        ((SpeakerBlockEntity) blockEntity).setAudioId(packet.audioId);
                     }
                 }
             }
