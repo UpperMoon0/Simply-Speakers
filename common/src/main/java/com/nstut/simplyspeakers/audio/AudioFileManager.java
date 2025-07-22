@@ -19,9 +19,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
@@ -35,7 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class AudioFileManager {
-    private static final String AUDIO_DIR_NAME = "simply_speakers_audio";
+    private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
     private static final int MAX_CHUNK_SIZE = 1024 * 32; // 32 KB
     private static final Map<UUID, UploadState> activeUploads = new ConcurrentHashMap<>();

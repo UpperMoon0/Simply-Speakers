@@ -31,7 +31,6 @@ public class SpeakerScreen extends Screen {
     private SpeakerAudioList audioListWidget;
     private EditBox searchBar;
     private Button loopToggleButton;
-    private Button stopButton;
     private Button uploadButton;
 
     public SpeakerScreen(BlockPos blockEntityPos) {
@@ -63,14 +62,6 @@ public class SpeakerScreen extends Screen {
 
         PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
 
-        this.stopButton = Button.builder(Component.literal("Stop"), button -> {
-                    PacketRegistries.CHANNEL.sendToServer(new StopPlaybackPacketC2S(this.blockEntityPos));
-                })
-                .pos(guiLeft + 10, guiTop + 130)
-                .size(50, 20)
-                .build();
-        this.addRenderableWidget(stopButton);
-
         this.uploadButton = Button.builder(Component.literal("Upload"), button -> {
                     SimplySpeakers.LOGGER.info("Upload button clicked");
                     Services.CLIENT.openFileDialog("mp3,wav", (file) -> {
@@ -83,7 +74,7 @@ public class SpeakerScreen extends Screen {
                         }
                     });
                 })
-                .pos(guiLeft + 70, guiTop + 130)
+                .pos(guiLeft + 33, guiTop + 130)
                 .size(50, 20)
                 .build();
         this.addRenderableWidget(uploadButton);
@@ -95,7 +86,7 @@ public class SpeakerScreen extends Screen {
                     this.speaker.setLoopingClient(newLoopState);
                     button.setMessage(getLoopButtonTextComponent());
                 })
-                .pos(guiLeft + 130, guiTop + 130)
+                .pos(guiLeft + 93, guiTop + 130)
                 .size(50, 20)
                 .build();
         this.loopToggleButton.active = (this.speaker != null);
@@ -118,9 +109,6 @@ public class SpeakerScreen extends Screen {
 
         if (this.speaker != null) {
             this.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
-            this.stopButton.active = this.speaker.isPlaying();
-        } else {
-            this.stopButton.active = false;
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
