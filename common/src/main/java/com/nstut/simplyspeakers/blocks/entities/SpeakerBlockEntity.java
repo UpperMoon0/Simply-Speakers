@@ -80,11 +80,10 @@ public class SpeakerBlockEntity extends BlockEntity {
     public void setSelectedAudio(String audioId, String filename) {
         if (level != null && !level.isClientSide) {
             setAudio(audioId, filename);
-            // Stop any currently playing audio before starting the new one.
+            // Stop any currently playing audio.
             if (isPlaying) {
                 stopAudio();
             }
-            playAudio();
         }
     }
 

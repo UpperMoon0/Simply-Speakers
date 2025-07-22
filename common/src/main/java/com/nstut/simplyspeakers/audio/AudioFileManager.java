@@ -35,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AudioFileManager {
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
-    private static final int MAX_CHUNK_SIZE = 1024 * 32; // 32 KB
+    private static final int MAX_CHUNK_SIZE = 32000;
     private static final Map<UUID, UploadState> activeUploads = new ConcurrentHashMap<>();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path audioDirPath;

@@ -2,7 +2,7 @@
 
 CurseForge: https://www.curseforge.com/minecraft/mc-mods/simply-speakers
 
-Simply Speakers is a Minecraft mod that allows players to play custom audio from a URL in-game using a speaker block.
+Simply Speakers is a Minecraft mod that allows players to play custom audio from a local URL in-game using a speaker block.
 
 ## Features
 
@@ -10,6 +10,22 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio from
 * **Custom Audio**: Play audio from any direct .mp3 or .wav URL. **Note: Only local file URLs are supported. Streaming from internet URLs is not supported.**
 * **Cross-Platform**: Supports both Fabric and Forge mod loaders.
 
+## Manually Adding Audio Files
+
+Audio files are stored in the `simply_speakers_audios` directory within your world's save folder. To manually add a new audio file, follow these steps:
+
+1.  **Generate a UUID**: Create a new UUID (e.g., using an online generator).
+2.  **Rename and Place the File**: Rename your `.mp3` or `.wav` file to `<your-uuid>.mp3` (or `.wav`) and place it in the `simply_speakers_audios` directory.
+3.  **Update the Manifest**: Open the `audio_manifest.json` file and add a new entry with the UUID as the key and the original filename as the value, like this:
+
+    ```json
+    {
+      "your-uuid": {
+        "uuid": "your-uuid",
+        "originalFilename": "your-song.mp3"
+      }
+    }
+    ```
 ## Building from Source
 
 1.Clone the repository.
