@@ -32,6 +32,15 @@ public class SpeakerAudioList extends AbstractWidget {
     protected void renderWidget(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
         guiGraphics.fill(this.getX(), this.getY(), this.getX() + this.width, this.getY() + this.height, 0xFF000000);
 
+        if (filteredAudioFiles.isEmpty()) {
+            Component message = Component.literal("No audio uploaded");
+            int textWidth = Minecraft.getInstance().font.width(message);
+            int textX = this.getX() + (this.width - textWidth) / 2;
+            int textY = this.getY() + (this.height - 8) / 2;
+            guiGraphics.drawString(Minecraft.getInstance().font, message, textX, textY, 0xFFFFFFFF);
+            return;
+        }
+
         int scrollbarX = this.getX() + this.width - 6;
         int listTop = this.getY();
         int listBottom = this.getY() + this.height;
