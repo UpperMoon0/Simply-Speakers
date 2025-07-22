@@ -12,12 +12,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -44,6 +46,7 @@ public class ClientAudioPlayer {
     private static final Map<BlockPos, StreamingAudioResource> speakerResources = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
+    private static final Map<String, PlayRequest> pendingPlays = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
 
@@ -121,6 +124,7 @@ public class ClientAudioPlayer {
             playFromFile(pos, cachedFile.getAbsolutePath(), startPositionSeconds, isLooping);
         } else {
             SimplySpeakers.LOGGER.info("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
+            pendingPlays.put(metadata.getUuid(), new PlayRequest(pos, startPositionSeconds, isLooping));
             requestFileFromServer(metadata.getUuid(), metadata.getOriginalFilename());
         }
     }
@@ -670,7 +674,10 @@ public class ClientAudioPlayer {
         } else {
             SimplySpeakers.LOGGER.error("Upload denied for transaction ID: " + transactionId + ". Reason: " + message.getString());
             activeUploads.remove(transactionId);
-            // TODO: Display error message to user
+            Screen currentScreen = Minecraft.getInstance().screen;
+            if (currentScreen instanceof SpeakerScreen) {
+                ((SpeakerScreen) currentScreen).setStatusMessage(message);
+            }
         }
     }
 
@@ -682,7 +689,11 @@ public class ClientAudioPlayer {
             SimplySpeakers.LOGGER.error("Upload failed for transaction ID: " + transactionId + ". Reason: " + message.getString());
         }
         activeUploads.remove(transactionId);
-        // TODO: Display message to user
+        Screen currentScreen = Minecraft.getInstance().screen;
+        if (currentScreen instanceof SpeakerScreen) {
+            SimplySpeakers.LOGGER.info("Setting status message: " + message.getString());
+            ((SpeakerScreen) currentScreen).setStatusMessage(message);
+        }
     }
 
     private static void requestFileFromServer(String audioId, String filename) {
@@ -766,12 +777,32 @@ public class ClientAudioPlayer {
                 CACHE_DIR.mkdirs();
             }
             String extension = com.google.common.io.Files.getFileExtension(filename);
-            Path path = new File(CACHE_DIR, audioId + (extension.isEmpty() ? "" : "." + extension)).toPath();
+            File cachedFile = new File(CACHE_DIR, audioId + (extension.isEmpty() ? "" : "." + extension));
             try {
-                Files.write(path, dataStream.toByteArray());
+                Files.write(cachedFile.toPath(), dataStream.toByteArray());
+                SimplySpeakers.LOGGER.info("CLIENT: Download complete for {}. File saved to cache.", audioId);
+
+                // Check for and handle pending play requests
+                PlayRequest pendingPlay = pendingPlays.remove(audioId);
+                if (pendingPlay != null) {
+                    SimplySpeakers.LOGGER.info("CLIENT: Pending play request found for {}. Initiating playback.", audioId);
+                    playFromFile(pendingPlay.pos, cachedFile.getAbsolutePath(), pendingPlay.startPositionSeconds, pendingPlay.isLooping);
+                }
             } catch (IOException e) {
-                SimplySpeakers.LOGGER.error("Failed to write cached audio file: {}", path, e);
+                SimplySpeakers.LOGGER.error("Failed to write cached audio file: {}", cachedFile.toPath(), e);
             }
+        }
+    }
+
+    private static class PlayRequest {
+        final BlockPos pos;
+        final float startPositionSeconds;
+        final boolean isLooping;
+
+        PlayRequest(BlockPos pos, float startPositionSeconds, boolean isLooping) {
+            this.pos = pos;
+            this.startPositionSeconds = startPositionSeconds;
+            this.isLooping = isLooping;
         }
     }
 }

@@ -1,5 +1,6 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
 import dev.architectury.networking.NetworkManager;
@@ -32,6 +33,11 @@ public class UploadAudioDataPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            // Check if uploads are disabled
+            if (Config.disableUpload) {
+                return;
+            }
+
             SimplySpeakers.getAudioFileManager().handleUploadData(player, pkt.transactionId, pkt.data);
         });
     }

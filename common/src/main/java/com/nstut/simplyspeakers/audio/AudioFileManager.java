@@ -3,6 +3,7 @@ package com.nstut.simplyspeakers.audio;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import org.apache.commons.io.FilenameUtils;
 
@@ -111,7 +112,13 @@ public class AudioFileManager {
 
     public void handleUploadRequest(ServerPlayer player, BlockPos blockPos, UUID transactionId, String fileName, long fileSize) {
         SimplySpeakers.LOGGER.info("Handling upload request for transaction ID: " + transactionId);
-        // TODO: Add validation logic, e.g., check file size, permissions, etc.
+
+        if (fileSize > Config.maxUploadSize) {
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File is too large.")));
+            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". File size " + fileSize + " exceeds limit of " + Config.maxUploadSize);
+            return;
+        }
+
         activeUploads.put(transactionId, new UploadState(fileName, fileSize, blockPos));
         PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
         SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Sent response to client.");

@@ -2,6 +2,7 @@
 package com.nstut.simplyspeakers.client.screens;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
@@ -23,8 +24,8 @@ public class SpeakerScreen extends Screen {
 
     private static final ResourceLocation BACKGROUND_TEXTURE = new ResourceLocation(SimplySpeakers.MOD_ID, "textures/gui/speaker.png");
 
-    private static final int SCREEN_WIDTH = 176;
-    private static final int SCREEN_HEIGHT = 166;
+    private static final int SCREEN_WIDTH = 162;
+    private static final int SCREEN_HEIGHT = 168;
 
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
@@ -32,6 +33,7 @@ public class SpeakerScreen extends Screen {
     private EditBox searchBar;
     private Button loopToggleButton;
     private Button uploadButton;
+    private Component statusMessage;
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.literal("Speaker Screen"));
@@ -47,14 +49,14 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 45, SCREEN_WIDTH - 20, 75, Component.empty(), (audio) -> {
+        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 46, SCREEN_WIDTH - 20, 80, Component.empty(), (audio) -> {
             if (this.speaker != null) {
                 this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
             }
             PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
         });
 
-        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 20, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
+        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 23, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
         this.searchBar.setResponder(this.audioListWidget::filter);
 
         this.addRenderableWidget(this.searchBar);
@@ -74,9 +76,10 @@ public class SpeakerScreen extends Screen {
                         }
                     });
                 })
-                .pos(guiLeft + 33, guiTop + 130)
+                .pos(guiLeft + 18, guiTop + 130)
                 .size(50, 20)
                 .build();
+        this.uploadButton.visible = !Config.disableUpload;
         this.addRenderableWidget(uploadButton);
 
         this.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
@@ -86,8 +89,8 @@ public class SpeakerScreen extends Screen {
                     this.speaker.setLoopingClient(newLoopState);
                     button.setMessage(getLoopButtonTextComponent());
                 })
-                .pos(guiLeft + 93, guiTop + 130)
-                .size(50, 20)
+                .pos(guiLeft + 78, guiTop + 130)
+                .size(60, 20)
                 .build();
         this.loopToggleButton.active = (this.speaker != null);
         this.addRenderableWidget(this.loopToggleButton);
@@ -111,6 +114,10 @@ public class SpeakerScreen extends Screen {
             this.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
         }
 
+        if (statusMessage != null) {
+            guiGraphics.drawString(this.font, statusMessage, guiLeft + 10, guiTop + 152, 4210752, false);
+        }
+
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
     }
 
@@ -129,5 +136,9 @@ public class SpeakerScreen extends Screen {
 
     public SpeakerAudioList getAudioListWidget() {
         return audioListWidget;
+    }
+
+    public void setStatusMessage(Component statusMessage) {
+        this.statusMessage = statusMessage;
     }
 }

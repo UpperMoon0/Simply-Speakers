@@ -17,6 +17,14 @@ public class ForgeConfig {
             .comment("The range of the speaker block")
             .defineInRange("speakerRange", Config.speakerRange, Config.MIN_RANGE, Config.MAX_RANGE);
 
+    public static final ForgeConfigSpec.BooleanValue DISABLE_UPLOAD = BUILDER
+            .comment("Whether to disable audio uploads")
+            .define("disableUpload", Config.disableUpload);
+
+    public static final ForgeConfigSpec.IntValue MAX_UPLOAD_SIZE = BUILDER
+            .comment("The maximum upload size in bytes")
+            .defineInRange("maxUploadSize", Config.maxUploadSize, Config.MIN_UPLOAD_SIZE, Config.MAX_UPLOAD_SIZE);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -27,6 +35,8 @@ public class ForgeConfig {
     public static void onLoad(final ModConfigEvent event) {
         if (event.getConfig().getSpec() == SPEC) {
             Config.speakerRange = SPEAKER_RANGE.get();
+            Config.disableUpload = DISABLE_UPLOAD.get();
+            Config.maxUploadSize = MAX_UPLOAD_SIZE.get();
         }
     }
 }
