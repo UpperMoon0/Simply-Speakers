@@ -14,9 +14,9 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio from
 
 Audio files are stored in the `simply_speakers_audios` directory within your world's save folder. To manually add a new audio file, follow these steps:
 
-1.  **Generate a UUID**: Create a new UUID (e.g., using an online generator).
-2.  **Rename and Place the File**: Rename your `.mp3` or `.wav` file to `<your-uuid>.mp3` (or `.wav`) and place it in the `simply_speakers_audios` directory.
-3.  **Update the Manifest**: Open the `audio_manifest.json` file and add a new entry with the UUID as the key and the original filename as the value, like this:
+1.  **Generate a UUID**: Create a new UUID (e.g., using an online generator: https://www.uuidgenerator.net/).
+2.  **Rename and Place the File**: Rename your .mp3 or .wav file to <your-uuid>.mp3 (or .wav) and place it in the simply_speakers_audios directory (located at "{your save directory}\simply_speakers_audios").
+3.  **Update the Manifest**: Open the audio_manifest.json file and add a new entry with the UUID as the key and the original filename as the value, like this:
 
     ```json
     {
