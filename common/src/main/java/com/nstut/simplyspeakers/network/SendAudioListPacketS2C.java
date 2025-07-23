@@ -28,7 +28,7 @@ public class SendAudioListPacketS2C {
         NetworkManager.PacketContext context = ctxSupplier.get();
         context.queue(() -> {
             if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
-                screen.getAudioListWidget().setAudioList(pkt.audioList);
+                screen.updateAudioList(pkt.audioList);
             }
         });
     }

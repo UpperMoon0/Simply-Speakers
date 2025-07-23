@@ -38,9 +38,20 @@ dependencies {
 
     common(project(path: ':common', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common', configuration: 'transformProductionFabric')
+}
 
-    constraints {
-        implementation(enforcedPlatform("org.lwjgl:lwjgl-bom:3.3.2"))
+configurations.all {
+    resolutionStrategy {
+        force(
+                "org.lwjgl:lwjgl:3.3.1",
+                "org.lwjgl:lwjgl-jemalloc:3.3.1",
+                "org.lwjgl:lwjgl-openal:3.3.1",
+                "org.lwjgl:lwjgl-opengl:3.3.1",
+                "org.lwjgl:lwjgl-glfw:3.3.1",
+                "org.lwjgl:lwjgl-stb:3.3.1",
+                "org.lwjgl:lwjgl-tinyfd:3.3.1",
+                "org.lwjgl:lwjgl-natives:3.3.1"
+        )
     }
 }
 

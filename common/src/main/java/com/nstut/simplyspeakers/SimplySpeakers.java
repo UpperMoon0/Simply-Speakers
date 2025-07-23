@@ -74,9 +74,7 @@ public class SimplySpeakers {
     }
 
     public static void initializeAudio(Path worldSavePath) {
-        if (audioFileManager == null) {
-            audioFileManager = new AudioFileManager(worldSavePath);
-        }
+        audioFileManager = new AudioFileManager(worldSavePath);
     }
 
     public static AudioFileManager getAudioFileManager() {

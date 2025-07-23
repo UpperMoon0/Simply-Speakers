@@ -47,6 +47,7 @@ public class ClientAudioPlayer {
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
     private static final Map<String, PlayRequest> pendingPlays = new ConcurrentHashMap<>();
+    private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
 
@@ -702,6 +703,17 @@ public class ClientAudioPlayer {
         }
         activeDownloads.put(audioId, new DownloadProcess(audioId, filename));
         PacketRegistries.CHANNEL.sendToServer(new RequestAudioFilePacketC2S(audioId));
+    }
+
+    public static void clearAudioList() {
+        audioList.clear();
+    }
+
+    public static void setAudioList(List<AudioFileMetadata> newAudioList) {
+        audioList.clear();
+        for (AudioFileMetadata audio : newAudioList) {
+            audioList.put(audio.getUuid(), audio);
+        }
     }
 
     public static void handleAudioFileChunk(String audioId, byte[] data, boolean isLast) {

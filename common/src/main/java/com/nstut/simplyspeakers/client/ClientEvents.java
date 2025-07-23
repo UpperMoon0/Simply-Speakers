@@ -30,6 +30,7 @@ public class ClientEvents {
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
         System.out.println("[SimplySpeakers] Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
+        ClientAudioPlayer.clearAudioList();
     }
 
     public static void openSpeakerScreen(BlockPos pos) {

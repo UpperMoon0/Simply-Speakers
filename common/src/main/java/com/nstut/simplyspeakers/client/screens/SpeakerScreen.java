@@ -17,8 +17,11 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.resources.ResourceLocation;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.List;
 
 public class SpeakerScreen extends Screen {
 
@@ -140,5 +143,10 @@ public class SpeakerScreen extends Screen {
 
     public void setStatusMessage(Component statusMessage) {
         this.statusMessage = statusMessage;
+    }
+
+    public void updateAudioList(List<AudioFileMetadata> audioList) {
+        ClientAudioPlayer.setAudioList(audioList);
+        this.audioListWidget.setAudioList(audioList);
     }
 }
