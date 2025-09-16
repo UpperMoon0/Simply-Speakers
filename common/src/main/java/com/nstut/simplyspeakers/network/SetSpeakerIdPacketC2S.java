@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
@@ -33,8 +34,11 @@ public class SetSpeakerIdPacketC2S {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             ServerLevel level = player.serverLevel();
+            // Handle both speaker block entity types
             if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.setSpeakerId(pkt.speakerId);
+            } else if (level.getBlockEntity(pkt.blockPos) instanceof ProxySpeakerBlockEntity proxySpeaker) {
+                proxySpeaker.setSpeakerId(pkt.speakerId);
             }
         });
     }

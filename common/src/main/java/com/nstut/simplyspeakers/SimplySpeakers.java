@@ -19,7 +19,6 @@ import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
-import java.nio.file.Path;
 
 /**
  * Main class for the Simply Speakers mod.
