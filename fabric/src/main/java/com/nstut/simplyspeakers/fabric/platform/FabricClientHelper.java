@@ -13,6 +13,11 @@ public class FabricClientHelper implements IClientHelper {
     public void openSpeakerScreen(BlockPos pos) {
         ClientEvents.openSpeakerScreen(pos);
     }
+    
+    @Override
+    public void openProxySpeakerScreen(BlockPos pos) {
+        ClientEvents.openProxySpeakerScreen(pos);
+    }
 
     @Override
     public void openFileDialog(String filter, Consumer<File> callback) {

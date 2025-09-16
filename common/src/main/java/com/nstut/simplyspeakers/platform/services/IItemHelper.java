@@ -15,4 +15,13 @@ public interface IItemHelper {
     default Item getSpeakerItem() {
         return ItemRegistries.SPEAKER.get();
     }
+    
+    /**
+     * Gets the proxy speaker item.
+     *
+     * @return The proxy speaker item.
+     */
+    default Item getProxySpeakerItem() {
+        return ItemRegistries.PROXY_SPEAKER.get();
+    }
 }

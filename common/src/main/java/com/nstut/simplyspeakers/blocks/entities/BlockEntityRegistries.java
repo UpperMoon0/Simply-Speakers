@@ -12,13 +12,19 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
  */
 public class BlockEntityRegistries {
     // Create a DeferredRegister for block entities
-    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES = 
+    public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
             DeferredRegister.create(SimplySpeakers.MOD_ID, Registries.BLOCK_ENTITY_TYPE);
 
     // Register the speaker block entity
-    public static final RegistrySupplier<BlockEntityType<SpeakerBlockEntity>> SPEAKER = 
+    public static final RegistrySupplier<BlockEntityType<SpeakerBlockEntity>> SPEAKER =
             BLOCK_ENTITIES.register("speaker", () ->
                     BlockEntityType.Builder.of(SpeakerBlockEntity::new, BlockRegistries.SPEAKER.get())
+                            .build(null));
+    
+    // Register the proxy speaker block entity
+    public static final RegistrySupplier<BlockEntityType<ProxySpeakerBlockEntity>> PROXY_SPEAKER =
+            BLOCK_ENTITIES.register("proxy_speaker", () ->
+                    BlockEntityType.Builder.of(ProxySpeakerBlockEntity::new, BlockRegistries.PROXY_SPEAKER.get())
                             .build(null));
 
     /**

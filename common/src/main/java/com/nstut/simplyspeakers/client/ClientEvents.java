@@ -5,6 +5,7 @@ import dev.architectury.event.events.client.ClientPlayerEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
+import com.nstut.simplyspeakers.client.screens.ProxySpeakerScreen;
 
 public class ClientEvents {
 
@@ -35,5 +36,9 @@ public class ClientEvents {
 
     public static void openSpeakerScreen(BlockPos pos) {
         Minecraft.getInstance().setScreen(new SpeakerScreen(pos));
+    }
+    
+    public static void openProxySpeakerScreen(BlockPos pos) {
+        Minecraft.getInstance().setScreen(new ProxySpeakerScreen(pos));
     }
 }

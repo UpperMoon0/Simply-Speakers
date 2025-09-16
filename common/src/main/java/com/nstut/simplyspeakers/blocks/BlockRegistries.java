@@ -15,6 +15,9 @@ public class BlockRegistries {
 
     // Register the speaker block
     public static final RegistrySupplier<Block> SPEAKER = BLOCKS.register("speaker", SpeakerBlock::new);
+    
+    // Register the proxy speaker block
+    public static final RegistrySupplier<Block> PROXY_SPEAKER = BLOCKS.register("proxy_speaker", ProxySpeakerBlock::new);
 
     /**
      * Initializes the block registry.

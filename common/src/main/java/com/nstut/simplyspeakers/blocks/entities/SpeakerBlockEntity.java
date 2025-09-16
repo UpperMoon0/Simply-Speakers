@@ -9,12 +9,13 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.server.level.ServerPlayer; 
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
+import com.nstut.simplyspeakers.network.SyncProxySpeakerPacketS2C;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +35,7 @@ public class SpeakerBlockEntity extends BlockEntity {
     private static final String NBT_IS_PLAYING = "IsPlaying";
     private static final String NBT_START_TICK = "PlaybackStartTick";
     private static final String NBT_IS_LOOPING = "is_looping";
+    private static final String NBT_SPEAKER_ID = "SpeakerID";
 
     private String audioId = "";
     private String audioFilename = "";
@@ -41,10 +43,11 @@ public class SpeakerBlockEntity extends BlockEntity {
     private boolean isLooping = false;
     private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
     private final Set<UUID> listeningPlayers = new HashSet<>(); // Track players currently hearing the sound
+    private String speakerId = "";
 
     /**
      * Constructs a SpeakerBlockEntity.
-     * 
+     *
      * @param pos The block position
      * @param state The block state
      */
@@ -77,6 +80,28 @@ public class SpeakerBlockEntity extends BlockEntity {
         setAudio(audioId, ""); // Set with an empty filename
     }
 
+    /**
+     * Gets the speaker ID.
+     *
+     * @return The speaker ID
+     */
+    public String getSpeakerId() {
+        return speakerId;
+    }
+
+    /**
+     * Sets the speaker ID.
+     *
+     * @param speakerId The speaker ID
+     */
+    public void setSpeakerId(String speakerId) {
+        if (level != null && !level.isClientSide) {
+            this.speakerId = speakerId;
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
     public void setSelectedAudio(String audioId, String filename) {
         if (level != null && !level.isClientSide) {
             setAudio(audioId, filename);
@@ -89,7 +114,7 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     /**
      * Server-side tick method.
-     * 
+     *
      * @param level The level
      * @param pos The block position
      * @param state The block state
@@ -131,6 +156,9 @@ public class SpeakerBlockEntity extends BlockEntity {
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
         SimplySpeakers.LOGGER.info("SERVER: Started audio playback: '{}' at tick {} at {}. Looping: {}", audioId, playbackStartTick, worldPosition, isLooping);
+        
+        // Sync with proxy speakers
+        syncProxySpeakers("play");
     }
 
     /**
@@ -167,6 +195,38 @@ public class SpeakerBlockEntity extends BlockEntity {
             SimplySpeakers.LOGGER.info("SERVER: Stopped audio at {} and sent stop packets to {} former listeners.", worldPosition, notifiedCount);
         }
         listeningPlayers.clear(); // Clear the server-side tracking list
+        
+        // Sync with proxy speakers
+        syncProxySpeakers("stop");
+    }
+
+    /**
+     * Synchronizes proxy speakers with the same speaker ID.
+     */
+    private void syncProxySpeakers(String action) {
+        // For now, we'll implement a simpler approach that doesn't require iterating all block entities
+        // This will be improved later with a more efficient solution
+        if (level instanceof net.minecraft.server.level.ServerLevel serverLevel && !speakerId.isEmpty()) {
+            // Send sync packet to all players - each client will handle whether to play based on speaker ID
+            float playbackPositionSeconds = 0.0f;
+            if (action.equals("play") && playbackStartTick >= 0) {
+                long ticksElapsed = level.getGameTime() - playbackStartTick;
+                playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
+                if (playbackPositionSeconds < 0) playbackPositionSeconds = 0;
+            }
+            
+            // Send sync packet
+            SyncProxySpeakerPacketS2C syncPacket = new SyncProxySpeakerPacketS2C(
+                worldPosition,
+                speakerId,
+                action,
+                audioId,
+                audioFilename,
+                playbackPositionSeconds,
+                isLooping
+            );
+            PacketRegistries.CHANNEL.sendToPlayers(serverLevel.players(), syncPacket);
+        }
     }
 
     /**
@@ -248,6 +308,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         audioFilename = tag.contains(NBT_AUDIO_FILENAME) ? tag.getString(NBT_AUDIO_FILENAME) : "";
         isPlaying = tag.contains(NBT_IS_PLAYING) ? tag.getBoolean(NBT_IS_PLAYING) : false;
         isLooping = tag.contains(NBT_IS_LOOPING) ? tag.getBoolean(NBT_IS_LOOPING) : false;
+        speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         
         // Only load start tick if playing state is present and valid
         if (isPlaying && tag.contains(NBT_START_TICK)) {
@@ -270,6 +331,9 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
         if (audioFilename != null && !audioFilename.isEmpty()) {
             tag.putString(NBT_AUDIO_FILENAME, audioFilename);
+        }
+        if (!speakerId.isEmpty()) {
+            tag.putString(NBT_SPEAKER_ID, speakerId);
         }
         
         // Only save playing state if actually playing to reduce save data

@@ -1,6 +1,8 @@
 {
   "block.simplyspeakers.speaker": "Speaker",
   "item.simplyspeakers.speaker": "Speaker",
+  "block.simplyspeakers.proxy_speaker": "Proxy Speaker",
+  "item.simplyspeakers.proxy_speaker": "Proxy Speaker",
 
   "itemGroup.simplyspeakers.tab": "Simply Speakers"
 }

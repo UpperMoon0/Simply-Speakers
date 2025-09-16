@@ -14,12 +14,12 @@ public class PacketRegistries {
         // Client to Server packets
         CHANNEL.register(LoadAudioCallPacketC2S.class,
                 LoadAudioCallPacketC2S::encode,
-                LoadAudioCallPacketC2S::new, 
+                LoadAudioCallPacketC2S::new,
                 LoadAudioCallPacketC2S::handle
         );
         CHANNEL.register(AudioPathPacketC2S.class,
                 AudioPathPacketC2S::encode,
-                AudioPathPacketC2S::new, 
+                AudioPathPacketC2S::new,
                 AudioPathPacketC2S::handle
         );
         CHANNEL.register(ToggleLoopPacketC2S.class,
@@ -57,13 +57,18 @@ public class PacketRegistries {
                 StopPlaybackPacketC2S::new,
                 StopPlaybackPacketC2S::handle
         );
+        CHANNEL.register(SetSpeakerIdPacketC2S.class,
+                SetSpeakerIdPacketC2S::encode,
+                SetSpeakerIdPacketC2S::new,
+                SetSpeakerIdPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {
         // Server to Client packets
         CHANNEL.register(StopAudioPacketS2C.class,
                 StopAudioPacketS2C::encode,
-                StopAudioPacketS2C::new, 
+                StopAudioPacketS2C::new,
                 StopAudioPacketS2C::handle
         );
         CHANNEL.register(PlayAudioPacketS2C.class,
@@ -73,7 +78,7 @@ public class PacketRegistries {
         );
         CHANNEL.register(SpeakerBlockEntityPacketS2C.class,
                 SpeakerBlockEntityPacketS2C::encode,
-                SpeakerBlockEntityPacketS2C::new, 
+                SpeakerBlockEntityPacketS2C::new,
                 SpeakerBlockEntityPacketS2C::handle
         );
         CHANNEL.register(RespondUploadAudioPacketS2C.class,
@@ -95,6 +100,11 @@ public class PacketRegistries {
                 SendAudioFilePacketS2C::encode,
                 SendAudioFilePacketS2C::new,
                 SendAudioFilePacketS2C::handle
+        );
+        CHANNEL.register(SyncProxySpeakerPacketS2C.class,
+                SyncProxySpeakerPacketS2C::encode,
+                SyncProxySpeakerPacketS2C::new,
+                SyncProxySpeakerPacketS2C::handle
         );
     }
     
