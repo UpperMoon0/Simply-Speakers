@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.forge;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.SpeakerRegistry;
 import dev.architectury.platform.forge.EventBuses;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -8,6 +9,7 @@ import com.nstut.simplyspeakers.forge.config.ForgeConfig;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.common.MinecraftForge;
 import java.nio.file.Path;
 
@@ -26,10 +28,18 @@ public final class SimplySpeakersForge {
 
         // Register the server starting event
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarting);
+        
+        // Register the server stopping event
+        MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
     }
 
     public void onServerStarting(ServerStartingEvent event) {
         Path worldSavePath = event.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
         SimplySpeakers.initializeAudio(worldSavePath);
+        SpeakerRegistry.init(worldSavePath);
+    }
+    
+    public void onServerStopping(ServerStoppingEvent event) {
+        SpeakerRegistry.saveRegistry();
     }
 }

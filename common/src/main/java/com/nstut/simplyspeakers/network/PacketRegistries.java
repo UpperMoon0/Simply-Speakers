@@ -1,4 +1,3 @@
-//
 package com.nstut.simplyspeakers.network;
 
 import dev.architectury.networking.NetworkChannel;
@@ -105,6 +104,11 @@ public class PacketRegistries {
                 SyncProxySpeakerPacketS2C::encode,
                 SyncProxySpeakerPacketS2C::new,
                 SyncProxySpeakerPacketS2C::handle
+        );
+        CHANNEL.register(SpeakerStateUpdatePacketS2C.class,
+                SpeakerStateUpdatePacketS2C::encode,
+                SpeakerStateUpdatePacketS2C::new,
+                SpeakerStateUpdatePacketS2C::handle
         );
     }
     

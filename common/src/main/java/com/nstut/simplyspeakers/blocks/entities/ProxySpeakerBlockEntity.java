@@ -9,13 +9,16 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.server.level.ServerPlayer; 
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.SpeakerRegistry;
+import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.blocks.ProxySpeakerBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,20 +32,11 @@ import java.util.UUID;
 @Getter
 public class ProxySpeakerBlockEntity extends BlockEntity {
 
-    private static final String NBT_AUDIO_ID = "AudioID";
-    private static final String NBT_AUDIO_FILENAME = "AudioFilename";
-    private static final String NBT_IS_PLAYING = "IsPlaying";
-    private static final String NBT_START_TICK = "PlaybackStartTick";
-    private static final String NBT_IS_LOOPING = "is_looping";
     private static final String NBT_SPEAKER_ID = "SpeakerID";
-
-    private String audioId = "";
-    private String audioFilename = "";
-    private boolean isPlaying = false;
-    private boolean isLooping = false;
-    private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
+    
     private final Set<UUID> listeningPlayers = new HashSet<>(); // Track players currently hearing the sound
     private String speakerId = "";
+    private String initialSpeakerId = ""; // Store the initial speakerId for comparison
 
     /**
      * Constructs a ProxySpeakerBlockEntity.
@@ -52,32 +46,17 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     public ProxySpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityRegistries.PROXY_SPEAKER.get(), pos, state);
-    }
-
-    /**
-     * Sets the audio ID.
-     *
-     * @param audioId The ID of the audio file
-     */
-    public void setAudio(String audioId, String filename) {
-        // Server side only
-        if (level != null && !level.isClientSide) {
-            this.audioId = audioId;
-            this.audioFilename = filename;
-            setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-
-            SimplySpeakers.LOGGER.info("Setting audio to: id={}, filename={} for proxy speaker at {}", audioId, filename, worldPosition);
+        SimplySpeakers.LOGGER.info("Creating ProxySpeakerBlockEntity at {} with speakerId: '{}'", pos, speakerId);
+        // Register with the registry for new instances
+        if (level != null) {
+            if (!level.isClientSide) {
+                SimplySpeakers.LOGGER.info("Registering proxy speaker at {} with server registry", pos);
+                SpeakerRegistry.registerProxySpeaker(level, pos, speakerId);
+                initialSpeakerId = speakerId; // Store the initial speakerId
+            }
+        } else {
+            SimplySpeakers.LOGGER.info("Level is null for proxy speaker at {}", pos);
         }
-    }
-    
-    /**
-     * Sets the audio ID.
-     *
-     * @param audioId The ID of the audio file
-     */
-    public void setAudioId(String audioId) {
-        setAudio(audioId, ""); // Set with an empty filename
     }
 
     /**
@@ -95,19 +74,55 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * @param speakerId The speaker ID
      */
     public void setSpeakerId(String speakerId) {
-        if (level != null && !level.isClientSide) {
+        if (level != null) {
+            String oldSpeakerId = this.speakerId;
             this.speakerId = speakerId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            
+            if (!level.isClientSide) {
+                // Update server registry
+                if (!oldSpeakerId.equals(speakerId)) {
+                    SpeakerRegistry.updateProxySpeakerId(level, worldPosition, oldSpeakerId, speakerId);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Gets the current speaker state from the registry.
+     *
+     * @return The speaker state
+     */
+    public SpeakerState getSpeakerState() {
+        if (level != null && !level.isClientSide) {
+            return SpeakerRegistry.getOrCreateSpeakerState(speakerId);
+        }
+        return null;
+    }
+    
+    /**
+     * Updates the speaker state in the registry.
+     *
+     * @param state The new speaker state
+     */
+    public void updateSpeakerState(SpeakerState state) {
+        if (level != null && !level.isClientSide) {
+            SpeakerRegistry.updateSpeakerState(speakerId, state);
         }
     }
 
     public void setSelectedAudio(String audioId, String filename) {
         if (level != null && !level.isClientSide) {
-            setAudio(audioId, filename);
-            // Stop any currently playing audio.
-            if (isPlaying) {
-                stopAudio();
+            SpeakerState state = getSpeakerState();
+            if (state != null) {
+                state.setAudioId(audioId);
+                state.setAudioFilename(filename);
+                updateSpeakerState(state);
+                // Stop any currently playing audio.
+                if (state.isPlaying()) {
+                    stopAudio();
+                }
             }
         }
     }
@@ -126,8 +141,15 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     @Override
     public void setRemoved() {
-        if (level != null && !level.isClientSide) {
-            stopAudio(); // Ensure stop logic runs
+        if (level != null) {
+            if (!level.isClientSide) {
+                stopAudio(); // Ensure stop logic runs
+                // Unregister from the server registry
+                SpeakerRegistry.unregisterProxySpeaker(level, worldPosition, speakerId);
+            } else {
+                // Stop client audio if playing
+                com.nstut.simplyspeakers.client.ClientAudioPlayer.stop(worldPosition);
+            }
         }
         super.setRemoved();
     }
@@ -137,27 +159,38 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     public void playAudio() {
         SimplySpeakers.LOGGER.debug("playAudio called for proxy speaker at {}", worldPosition);
-        // TODO: Check isLooping state here to determine if audio should loop upon completion.
         if (level == null || level.isClientSide) {
             SimplySpeakers.LOGGER.debug("playAudio exit: Level is null or client side. isClientSide={}", level != null && level.isClientSide);
             return;
         }
-        if (isPlaying) {
-            SimplySpeakers.LOGGER.debug("playAudio exit: Already playing audio '{}' at {}", audioId, worldPosition);
+        
+        SpeakerState state = getSpeakerState();
+        if (state == null) {
+            SimplySpeakers.LOGGER.warn("playAudio exit: Could not get speaker state for proxy speaker at {}", getBlockPos());
             return;
         }
-        if (audioId == null || audioId.isEmpty()) {
+        
+        if (state.isPlaying()) {
+            SimplySpeakers.LOGGER.debug("playAudio exit: Already playing audio '{}' at {}", state.getAudioId(), worldPosition);
+            return;
+        }
+        if (state.getAudioId() == null || state.getAudioId().isEmpty()) {
             SimplySpeakers.LOGGER.warn("playAudio exit: Audio ID is empty for proxy speaker at {}, cannot play.", getBlockPos());
             return;
         }
 
-        isPlaying = true;
-        playbackStartTick = level.getGameTime(); // Record start tick
+        state.setPlaying(true);
+        // Only set playbackStartTick if it hasn't been set already
+        if (state.getPlaybackStartTick() == -1) {
+            state.setPlaybackStartTick(level.getGameTime()); // Record start tick
+        }
+        updateSpeakerState(state);
         listeningPlayers.clear(); // Reset listeners when starting fresh
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
-        SimplySpeakers.LOGGER.info("SERVER: Started audio playback: '{}' at tick {} at {}. Looping: {}", audioId, playbackStartTick, worldPosition, isLooping);
+        SimplySpeakers.LOGGER.info("SERVER: Started audio playback: '{}' at tick {} at {}. Looping: {}", 
+            state.getAudioId(), state.getPlaybackStartTick(), worldPosition, state.isLooping());
     }
     
     /**
@@ -168,11 +201,36 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             return;
         }
         
-        this.audioId = audioId;
-        this.audioFilename = audioFilename;
-        this.isLooping = looping;
+        SpeakerState state = getSpeakerState();
+        if (state != null) {
+            state.setAudioId(audioId);
+            state.setAudioFilename(audioFilename);
+            state.setLooping(looping);
+            updateSpeakerState(state);
+            playAudio();
+        }
+    }
+    
+    /**
+     * Starts playing the audio at a specific position (used for synchronization).
+     */
+    public void playAudio(float playbackPositionSeconds) {
+        if (level == null || level.isClientSide) {
+            return;
+        }
         
-        playAudio();
+        SpeakerState state = getSpeakerState();
+        if (state != null) {
+            // Set the playback start tick based on the playback position
+            if (playbackPositionSeconds > 0) {
+                long ticksElapsed = (long) (playbackPositionSeconds * 20); // 20 ticks per second
+                state.setPlaybackStartTick(level.getGameTime() - ticksElapsed);
+            } else {
+                state.setPlaybackStartTick(level.getGameTime());
+            }
+            updateSpeakerState(state);
+            playAudio();
+        }
     }
 
     /**
@@ -184,13 +242,21 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             SimplySpeakers.LOGGER.debug("stopAudio exit: Level is null or client side.");
             return;
         }
-        if (!isPlaying) {
+        
+        SpeakerState state = getSpeakerState();
+        if (state == null) {
+            SimplySpeakers.LOGGER.warn("stopAudio exit: Could not get speaker state for proxy speaker at {}", getBlockPos());
+            return;
+        }
+        
+        if (!state.isPlaying()) {
             SimplySpeakers.LOGGER.debug("stopAudio exit: Not currently playing at {}.", worldPosition);
             return;
         }
 
-        isPlaying = false;
-        playbackStartTick = -1; // Reset start tick
+        state.setPlaying(false);
+        state.setPlaybackStartTick(-1); // Reset start tick
+        updateSpeakerState(state);
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
@@ -206,7 +272,20 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                     notifiedCount++;
                 }
             }
-            SimplySpeakers.LOGGER.info("SERVER: Stopped audio at {} and sent stop packets to {} former listeners.", worldPosition, notifiedCount);
+            
+            // Also send stop packets to all players in range to ensure audio stops completely
+            double maxRangeSq = Config.speakerRange * Config.speakerRange;
+            Vec3 speakerCenterPos = Vec3.atCenterOf(worldPosition);
+            
+            for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
+                // Only send to players not already in our listening list to avoid duplicate packets
+                if (!playersToNotify.contains(player.getUUID())) {
+                    PacketRegistries.CHANNEL.sendToPlayer(player, stopPacket);
+                    notifiedCount++;
+                }
+            }
+            
+            SimplySpeakers.LOGGER.info("SERVER: Stopped audio at {} and sent stop packets to {} players.", worldPosition, notifiedCount);
         }
         listeningPlayers.clear(); // Clear the server-side tracking list
     }
@@ -221,11 +300,47 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         // Validate block state is still correct
         if (!currentState.is(com.nstut.simplyspeakers.blocks.BlockRegistries.PROXY_SPEAKER.get())) {
-            if (isPlaying) stopAudio(); // Stop audio if the block is no longer a proxy speaker
+            if (getSpeakerState().isPlaying()) stopAudio(); // Stop audio if the block is no longer a proxy speaker
             return;
         }
 
-        if (!isPlaying) {
+        // Check if the block is powered by redstone
+        boolean isPowered = currentState.getValue(ProxySpeakerBlock.POWERED);
+        
+        // If not powered, ensure audio is stopped for all players
+        if (!isPowered) {
+            // Stop audio for all players who might be listening
+            if (currentLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                // Send stop packet to all players in range
+                double maxRangeSq = Config.speakerRange * Config.speakerRange;
+                Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
+                
+                for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
+                    StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
+                    PacketRegistries.CHANNEL.sendToPlayer(player, stopPacket);
+                }
+            }
+            
+            // Also ensure our internal state is consistent
+            SpeakerState state = getSpeakerState();
+            if (state != null && state.isPlaying()) {
+                state.setPlaying(false);
+                state.setPlaybackStartTick(-1);
+                updateSpeakerState(state);
+                listeningPlayers.clear();
+                setChanged();
+                currentLevel.sendBlockUpdated(currentPos, currentState, currentState, 3);
+                SimplySpeakers.LOGGER.info("Proxy speaker at {} stopped due to redstone signal off", currentPos);
+            } else if (!listeningPlayers.isEmpty()) {
+                listeningPlayers.clear();
+            }
+            return;
+        }
+
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        
+        if (!state.isPlaying()) {
             // If not playing, ensure no players are marked as listening (e.g., after a stop command)
             if (!listeningPlayers.isEmpty()) {
                 SimplySpeakers.LOGGER.debug("Audio stopped at {}, but {} players were still in listeningPlayers set. Clearing.", worldPosition, listeningPlayers.size());
@@ -234,7 +349,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        // If playing, manage listeners
+        // If playing and powered, manage listeners
         if (!(currentLevel instanceof net.minecraft.server.level.ServerLevel serverLevel)) {
             return;
         }
@@ -250,14 +365,10 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
             if (!listeningPlayers.contains(player.getUUID())) {
                 // Player entered range or was not previously listening
-                float playbackPositionSeconds = 0.0f;
-                if (playbackStartTick >= 0) {
-                    long ticksElapsed = currentLevel.getGameTime() - playbackStartTick;
-                    playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
-                    if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
-                }
+                float playbackPositionSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
+                if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, audioId, audioFilename, playbackPositionSeconds, this.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
                 PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
                 SimplySpeakers.LOGGER.debug("Player {} entered range of proxy speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);
@@ -285,51 +396,47 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     public void load(@NotNull CompoundTag tag) {
         super.load(tag);
         
-        // PERFORMANCE FIX: Handle optimized NBT format with defaults
-        audioId = tag.contains(NBT_AUDIO_ID) ? tag.getString(NBT_AUDIO_ID) : "";
-        audioFilename = tag.contains(NBT_AUDIO_FILENAME) ? tag.getString(NBT_AUDIO_FILENAME) : "";
-        isPlaying = tag.contains(NBT_IS_PLAYING) ? tag.getBoolean(NBT_IS_PLAYING) : false;
-        isLooping = tag.contains(NBT_IS_LOOPING) ? tag.getBoolean(NBT_IS_LOOPING) : false;
+        // Load speaker ID
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         
-        // Only load start tick if playing state is present and valid
-        if (isPlaying && tag.contains(NBT_START_TICK)) {
-            playbackStartTick = tag.getLong(NBT_START_TICK);
-        } else {
-            playbackStartTick = -1;
-        }
-
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
+        
+        // Register with the registry when loaded from NBT
+        if (level != null) {
+            if (!level.isClientSide) {
+                SimplySpeakers.LOGGER.info("Loading proxy speaker at {} with speakerId: '{}'", worldPosition, speakerId);
+                // Update registry if speakerId has changed from initial value
+                if (!initialSpeakerId.equals(speakerId)) {
+                    SpeakerRegistry.updateProxySpeakerId(level, worldPosition, initialSpeakerId, speakerId);
+                    initialSpeakerId = speakerId; // Update the initial speakerId
+                } else {
+                    SpeakerRegistry.registerProxySpeaker(level, worldPosition, speakerId);
+                }
+                
+                // If this proxy speaker was playing, continue playing based on own state
+                SpeakerState state = SpeakerRegistry.getSpeakerState(speakerId);
+                if (state != null && state.isPlaying()) {
+                    SimplySpeakers.LOGGER.info("Proxy speaker at {} was playing, continuing to play based on own state", worldPosition);
+                    // Calculate playback position based on our own start tick
+                    float playbackPositionSeconds = state.getPlaybackPositionSeconds(level.getGameTime());
+                    // Continue playing at the correct position
+                    playAudio(playbackPositionSeconds);
+                } else {
+                    SimplySpeakers.LOGGER.info("Proxy speaker at {} is not playing or has empty speakerId. isPlaying: {}, speakerId: '{}'", 
+                        worldPosition, state != null ? state.isPlaying() : false, speakerId);
+                }
+            }
+        }
     }
 
     @Override
     protected void saveAdditional(@NotNull CompoundTag tag) {
         super.saveAdditional(tag);
         
-        // PERFORMANCE FIX: Only save non-default values to reduce NBT data size
-        if (!audioId.isEmpty()) {
-            tag.putString(NBT_AUDIO_ID, audioId);
-        }
-        if (audioFilename != null && !audioFilename.isEmpty()) {
-            tag.putString(NBT_AUDIO_FILENAME, audioFilename);
-        }
+        // Save speaker ID
         if (!speakerId.isEmpty()) {
             tag.putString(NBT_SPEAKER_ID, speakerId);
-        }
-        
-        // Only save playing state if actually playing to reduce save data
-        if (isPlaying) {
-            tag.putBoolean(NBT_IS_PLAYING, true);
-            // Only save start tick if actually playing and valid
-            if (playbackStartTick >= 0) {
-                tag.putLong(NBT_START_TICK, playbackStartTick);
-            }
-        }
-        
-        // Only save looping state if enabled
-        if (isLooping) {
-            tag.putBoolean(NBT_IS_LOOPING, true);
         }
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
@@ -337,14 +444,39 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
 
     public boolean isLooping() {
-        return isLooping;
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.isLooping() : false;
+    }
+
+    public boolean isPlaying() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.isPlaying() : false;
+    }
+
+    public String getAudioId() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.getAudioId() : "";
+    }
+
+    public String getAudioFilename() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.getAudioFilename() : "";
+    }
+
+    public long getPlaybackStartTick() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.getPlaybackStartTick() : -1;
     }
 
     public void setLooping(boolean looping) {
         if (level != null && !level.isClientSide) {
-            this.isLooping = looping;
-            setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            SpeakerState state = getSpeakerState();
+            if (state != null) {
+                state.setLooping(looping);
+                updateSpeakerState(state);
+                setChanged();
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
         }
     }
 
@@ -356,7 +488,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     public void setLoopingClient(boolean looping) {
         if (this.level != null && this.level.isClientSide) {
-            this.isLooping = looping;
+            // Client-side update for UI responsiveness
         }
     }
 
@@ -368,8 +500,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     public void setAudioIdClient(String audioId, String filename) {
         if (this.level != null && this.level.isClientSide) {
-            this.audioId = audioId;
-            this.audioFilename = filename;
+            // Client-side update for UI responsiveness
         }
     }
 

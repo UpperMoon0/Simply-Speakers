@@ -1,9 +1,11 @@
 package com.nstut.simplyspeakers.fabric;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.fabric.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 
 import java.nio.file.Path;
 
@@ -22,6 +24,11 @@ public class SimplySpeakersFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             Path worldSavePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
             SimplySpeakers.initializeAudio(worldSavePath);
+            SpeakerRegistry.init(worldSavePath);
+        });
+        
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            SpeakerRegistry.saveRegistry();
         });
     }
 }

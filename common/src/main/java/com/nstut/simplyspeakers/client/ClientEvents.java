@@ -32,6 +32,7 @@ public class ClientEvents {
         System.out.println("[SimplySpeakers] Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
         ClientAudioPlayer.clearAudioList();
+        // ClientSpeakerRegistry.clear() removed as it's no longer needed
     }
 
     public static void openSpeakerScreen(BlockPos pos) {
