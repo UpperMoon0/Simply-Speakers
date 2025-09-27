@@ -100,11 +100,6 @@ public class PacketRegistries {
                 SendAudioFilePacketS2C::new,
                 SendAudioFilePacketS2C::handle
         );
-        CHANNEL.register(SyncProxySpeakerPacketS2C.class,
-                SyncProxySpeakerPacketS2C::encode,
-                SyncProxySpeakerPacketS2C::new,
-                SyncProxySpeakerPacketS2C::handle
-        );
         CHANNEL.register(SpeakerStateUpdatePacketS2C.class,
                 SpeakerStateUpdatePacketS2C::encode,
                 SpeakerStateUpdatePacketS2C::new,

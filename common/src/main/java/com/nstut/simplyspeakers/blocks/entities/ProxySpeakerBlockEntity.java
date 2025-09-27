@@ -15,6 +15,7 @@ import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import com.nstut.simplyspeakers.network.PacketRegistries;
@@ -53,6 +54,10 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 SimplySpeakers.LOGGER.info("Registering proxy speaker at {} with server registry", pos);
                 SpeakerRegistry.registerProxySpeaker(level, pos, speakerId);
                 initialSpeakerId = speakerId; // Store the initial speakerId
+            } else {
+                SimplySpeakers.LOGGER.info("Registering proxy speaker at {} with client registry", pos);
+                ClientSpeakerRegistry.registerProxySpeaker(pos, speakerId);
+                initialSpeakerId = speakerId; // Store the initial speakerId for client side as well
             }
         } else {
             SimplySpeakers.LOGGER.info("Level is null for proxy speaker at {}", pos);
@@ -84,6 +89,11 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 // Update server registry
                 if (!oldSpeakerId.equals(speakerId)) {
                     SpeakerRegistry.updateProxySpeakerId(level, worldPosition, oldSpeakerId, speakerId);
+                }
+            } else {
+                // Update client registry
+                if (!oldSpeakerId.equals(speakerId)) {
+                    ClientSpeakerRegistry.updateProxySpeakerId(worldPosition, oldSpeakerId, speakerId);
                 }
             }
         }
@@ -149,6 +159,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             } else {
                 // Stop client audio if playing
                 com.nstut.simplyspeakers.client.ClientAudioPlayer.stop(worldPosition);
+                // Unregister from the client registry
+                ClientSpeakerRegistry.unregisterProxySpeaker(worldPosition, speakerId);
             }
         }
         super.setRemoved();
@@ -425,6 +437,14 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 } else {
                     SimplySpeakers.LOGGER.info("Proxy speaker at {} is not playing or has empty speakerId. isPlaying: {}, speakerId: '{}'", 
                         worldPosition, state != null ? state.isPlaying() : false, speakerId);
+                }
+            } else {
+                // Update client registry if speakerId has changed from initial value
+                if (!initialSpeakerId.equals(speakerId)) {
+                    ClientSpeakerRegistry.updateProxySpeakerId(worldPosition, initialSpeakerId, speakerId);
+                    initialSpeakerId = speakerId; // Update the initial speakerId
+                } else {
+                    ClientSpeakerRegistry.registerProxySpeaker(worldPosition, speakerId);
                 }
             }
         }

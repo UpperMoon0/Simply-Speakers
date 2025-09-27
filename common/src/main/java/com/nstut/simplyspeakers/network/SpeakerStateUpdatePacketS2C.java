@@ -5,9 +5,13 @@ import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.chunk.ChunkStatus;
+
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import java.util.function.Supplier;
 
@@ -67,17 +71,58 @@ public class SpeakerStateUpdatePacketS2C {
         // This method will be called on the client thread
         SimplySpeakers.LOGGER.info("CLIENT: Handling speaker state update for speakerId: '{}', action: {}", pkt.speakerId, pkt.action);
         
-        // For now, we'll use a simpler approach that doesn't require iterating through all block entities
-        // In a more sophisticated implementation, we might want to maintain a client-side registry
-        // or use a more efficient method to track proxy speakers
-        
-        // Since we don't have an efficient way to find all proxy speakers with a specific speaker ID,
-        // we'll log a message and let the client handle this in a different way
-        SimplySpeakers.LOGGER.warn("CLIENT: SpeakerStateUpdatePacketS2C received but no efficient way to find proxy speakers. " +
-            "This implementation needs to be improved.");
-        
-        // TODO: Implement a more efficient way to find and update proxy speakers
-        // This might involve maintaining a client-side registry or using a different approach
+        // Find all proxy speakers with the matching speaker ID in the current level
+        if (Minecraft.getInstance().level != null && Minecraft.getInstance().player != null) {
+            // Get player position to limit search area
+            BlockPos playerPos = Minecraft.getInstance().player.blockPosition();
+            int playerChunkX = playerPos.getX() >> 4;
+            int playerChunkZ = playerPos.getZ() >> 4;
+            
+            // Define search radius (in chunks) - using simulation distance
+            int searchRadius = Minecraft.getInstance().level.getServerSimulationDistance();
+            if (searchRadius <= 0) {
+                searchRadius = 8; // Fallback radius
+            }
+            
+            ClientChunkCache chunkSource = Minecraft.getInstance().level.getChunkSource();
+            
+            // Iterate through chunks in the search area
+            for (int cx = playerChunkX - searchRadius; cx <= playerChunkX + searchRadius; cx++) {
+                for (int cz = playerChunkZ - searchRadius; cz <= playerChunkZ + searchRadius; cz++) {
+                    LevelChunk chunk = chunkSource.getChunk(cx, cz, ChunkStatus.FULL, false);
+                    if (chunk != null) {
+                        // Process each block entity in the chunk
+                        for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeaker) {
+                                if (pkt.speakerId.equals(proxySpeaker.getSpeakerId())) {
+                                    BlockPos pos = proxySpeaker.getBlockPos();
+                                    SimplySpeakers.LOGGER.info("CLIENT: Found proxy speaker at {} with matching speakerId: '{}'", pos, pkt.speakerId);
+                                    
+                                    if ("play".equals(pkt.action)) {
+                                        SimplySpeakers.LOGGER.info("CLIENT: Playing audio for proxy speaker at {}", pos);
+                                        AudioFileMetadata metadata = new AudioFileMetadata(pkt.audioId, pkt.audioFilename);
+                                        
+                                        // Calculate playback position based on playback start tick
+                                        float playbackPositionSeconds = 0.0f;
+                                        if (pkt.playbackStartTick > 0) {
+                                            long currentTick = Minecraft.getInstance().level.getGameTime();
+                                            long ticksElapsed = currentTick - pkt.playbackStartTick;
+                                            playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
+                                            if (playbackPositionSeconds < 0) playbackPositionSeconds = 0;
+                                        }
+                                        
+                                        ClientAudioPlayer.play(pos, metadata, playbackPositionSeconds, pkt.isLooping);
+                                    } else if ("stop".equals(pkt.action)) {
+                                        SimplySpeakers.LOGGER.info("CLIENT: Stopping audio for proxy speaker at {}", pos);
+                                        ClientAudioPlayer.stop(pos);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // Getters

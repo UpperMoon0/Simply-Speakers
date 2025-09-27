@@ -103,9 +103,13 @@ public class SpeakerAudioList extends AbstractWidget {
         int itemIndex = (int) (mouseY - this.getY() + scrollAmount) / ITEM_HEIGHT;
         if (itemIndex >= 0 && itemIndex < filteredAudioFiles.size()) {
             AudioFileMetadata metadata = filteredAudioFiles.get(itemIndex);
+            this.selected = metadata;
+
+            int itemTop = this.getY() - (int) scrollAmount + itemIndex * ITEM_HEIGHT;
+            boolean isHovered = mouseX >= this.getX() && mouseX < scrollbarX && mouseY >= itemTop && mouseY < itemTop + ITEM_HEIGHT;
             boolean isPlaying = this.playingAudioId != null && this.playingAudioId.equals(metadata.getUuid());
 
-            if (!isPlaying) {
+            if (isHovered && !isPlaying) {
                 int buttonWidth = 50;
                 int buttonX = scrollbarX - buttonWidth - 2;
                 if (mouseX >= buttonX && mouseX < scrollbarX) {
@@ -114,7 +118,6 @@ public class SpeakerAudioList extends AbstractWidget {
                 }
             }
 
-            selected = metadata;
             return true;
         }
 
