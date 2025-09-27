@@ -71,6 +71,14 @@ public class SpeakerStateUpdatePacketS2C {
         // This method will be called on the client thread
         SimplySpeakers.LOGGER.info("CLIENT: Handling speaker state update for speakerId: '{}', action: {}", pkt.speakerId, pkt.action);
         
+        // Handle proxy speakers
+        handleProxySpeakerStateUpdate(pkt);
+        
+        // Handle regular speakers
+        handleRegularSpeakerStateUpdate(pkt);
+    }
+    
+    private static void handleProxySpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
         // Find all proxy speakers with the matching speaker ID in the current level
         if (Minecraft.getInstance().level != null && Minecraft.getInstance().player != null) {
             // Get player position to limit search area
@@ -122,6 +130,38 @@ public class SpeakerStateUpdatePacketS2C {
                     }
                 }
             }
+        }
+    }
+    
+    private static void handleRegularSpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
+        // Update the client-side speaker registry with the new state
+        SimplySpeakers.LOGGER.info("CLIENT: Updating client-side speaker state for speakerId: '{}'", pkt.speakerId);
+        
+        // Get or create the speaker state in the client registry
+        com.nstut.simplyspeakers.SpeakerState state = com.nstut.simplyspeakers.SpeakerRegistry.getOrCreateSpeakerState(pkt.speakerId);
+        if (state != null) {
+            state.setAudioId(pkt.audioId);
+            state.setAudioFilename(pkt.audioFilename);
+            state.setPlaybackStartTick(pkt.playbackStartTick);
+            state.setLooping(pkt.isLooping);
+            SimplySpeakers.LOGGER.info("CLIENT: Updated speaker state - audioId: {}, isLooping: {}", pkt.audioId, pkt.isLooping);
+        }
+        
+        // Handle specific actions
+        if ("play".equals(pkt.action)) {
+            SimplySpeakers.LOGGER.info("CLIENT: Play action received for speakerId: '{}'", pkt.speakerId);
+            if (state != null) {
+                state.setPlaying(true);
+            }
+        } else if ("stop".equals(pkt.action)) {
+            SimplySpeakers.LOGGER.info("CLIENT: Stop action received for speakerId: '{}'", pkt.speakerId);
+            if (state != null) {
+                state.setPlaying(false);
+                state.setPlaybackStartTick(-1);
+            }
+        } else if ("update".equals(pkt.action)) {
+            SimplySpeakers.LOGGER.info("CLIENT: Update action received for speakerId: '{}'", pkt.speakerId);
+            // For update action, we've already updated the state above
         }
     }
     

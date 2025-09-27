@@ -108,10 +108,15 @@ public class SpeakerScreen extends Screen {
 
         this.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
                     if (this.speaker == null) return;
-                    boolean newLoopState = !this.speaker.isLooping();
-                    PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
+                    boolean oldLoopState = this.speaker.isLooping();
+                    boolean newLoopState = !oldLoopState;
+                    SimplySpeakers.LOGGER.info("Loop button clicked. Old state: {}, New state: {}", oldLoopState, newLoopState);
                     this.speaker.setLoopingClient(newLoopState);
-                    button.setMessage(getLoopButtonTextComponent());
+                    Component newText = getLoopButtonTextComponent();
+                    SimplySpeakers.LOGGER.info("Setting button text to: {}", newText.getString());
+                    button.setMessage(newText);
+                    PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
+                    SimplySpeakers.LOGGER.info("Sent ToggleLoopPacket to server with state: {}", newLoopState);
                 })
                 .pos(guiLeft + 78, guiTop + 145)
                 .size(60, 20)
@@ -122,7 +127,10 @@ public class SpeakerScreen extends Screen {
 
     private Component getLoopButtonTextComponent() {
         boolean looping = (this.speaker != null) && this.speaker.isLooping();
-        return Component.literal("Loop: " + (looping ? "ON" : "OFF"));
+        Component result = Component.literal("Loop: " + (looping ? "ON" : "OFF"));
+        SimplySpeakers.LOGGER.info("getLoopButtonTextComponent called. Speaker is null: {}, Looping state: {}, Returning: {}",
+                                   this.speaker == null, looping, result.getString());
+        return result;
     }
 
     @Override
