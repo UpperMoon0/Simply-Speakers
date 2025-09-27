@@ -69,6 +69,8 @@ public class SpeakerScreen extends Screen {
         this.saveIdButton = Button.builder(Component.literal("Save"), button -> {
                     if (this.speaker != null) {
                         String newId = this.speakerIdField.getValue();
+                        // Optimistically update the client-side speaker entity
+                        this.speaker.setSpeakerId(newId);
                         PacketRegistries.CHANNEL.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
                     }
                 })
@@ -140,6 +142,7 @@ public class SpeakerScreen extends Screen {
 
         if (this.speaker != null) {
             this.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
+            this.audioListWidget.setSelectedAudioId(this.speaker.getAudioId());
         }
 
         if (statusMessage != null) {
@@ -173,5 +176,10 @@ public class SpeakerScreen extends Screen {
     public void updateAudioList(List<AudioFileMetadata> audioList) {
         ClientAudioPlayer.setAudioList(audioList);
         this.audioListWidget.setAudioList(audioList);
+        
+        // Set the selected audio in the list based on the speaker's current audio
+        if (this.speaker != null) {
+            this.audioListWidget.setSelectedAudioId(this.speaker.getAudioId());
+        }
     }
 }

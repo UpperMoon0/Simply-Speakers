@@ -72,7 +72,7 @@ public class SpeakerAudioList extends AbstractWidget {
             int backgroundColor = isSelected ? 0xFF808080 : (isHovered ? 0xFF404040 : 0xFF202020);
             guiGraphics.fill(this.getX(), itemTop, scrollbarX, itemBottom, backgroundColor);
 
-            int textColor = isPlaying ? 0xFF55FF55 : 0xFFFFFFFF; // Green if playing, white otherwise.
+            int textColor = isSelected ? 0xFF55FF55 : 0xFFFFFFFF; // Green if selected, white otherwise.
             guiGraphics.drawString(Minecraft.getInstance().font, metadata.getOriginalFilename(), this.getX() + 5, itemTop + (ITEM_HEIGHT - 8) / 2, textColor);
 
             if (isHovered && !isPlaying) {
@@ -164,5 +164,36 @@ public class SpeakerAudioList extends AbstractWidget {
 
     public void setPlayingAudioId(String audioId) {
         this.playingAudioId = audioId;
+    }
+    
+    /**
+     * Sets the selected audio by its ID.
+     *
+     * @param audioId The ID of the audio to select
+     */
+    public void setSelectedAudioId(String audioId) {
+        if (audioId == null || audioId.isEmpty()) {
+            this.selected = null;
+            return;
+        }
+        
+        // Find the audio file with the matching ID
+        for (AudioFileMetadata metadata : this.audioFiles) {
+            if (audioId.equals(metadata.getUuid())) {
+                this.selected = metadata;
+                return;
+            }
+        }
+        
+        // If not found in the full list, check the filtered list
+        for (AudioFileMetadata metadata : this.filteredAudioFiles) {
+            if (audioId.equals(metadata.getUuid())) {
+                this.selected = metadata;
+                return;
+            }
+        }
+        
+        // If still not found, clear selection
+        this.selected = null;
     }
 }

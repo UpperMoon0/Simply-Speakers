@@ -73,11 +73,13 @@ public class SpeakerBlockEntity extends BlockEntity {
             this.speakerId = speakerId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-            
+
             // Update registry
             if (!oldSpeakerId.equals(speakerId)) {
                 SpeakerRegistry.updateSpeakerId(level, worldPosition, oldSpeakerId, speakerId);
             }
+        } else if (level != null) { // Client side
+            this.speakerId = speakerId;
         }
     }
     
