@@ -99,15 +99,15 @@ public class SpeakerScreen extends Screen {
                 .size(45, 20)
                 .build();
 
-        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 70, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
-        this.searchBar.setResponder(this.audioListWidget::filter);
-
         this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 60, Component.empty(), (audio) -> {
             if (this.speaker != null) {
                 this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
             }
             PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
         });
+
+        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 70, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
+        this.searchBar.setResponder(this.audioListWidget::filter);
 
         this.uploadButton = Button.builder(Component.literal("Upload"), button -> {
                     SimplySpeakers.LOGGER.info("Upload button clicked");
