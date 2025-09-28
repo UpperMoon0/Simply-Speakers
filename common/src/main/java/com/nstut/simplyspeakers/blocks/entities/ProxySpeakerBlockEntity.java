@@ -40,6 +40,9 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     private String speakerId = "";
     private String initialSpeakerId = ""; // Store the initial speakerId for comparison
     private boolean isProxyPlaying = false; // Track proxy speaker's individual playing state
+    private float maxVolume = 1.0f; // Volume from 0.0 (silent) to 1.0 (full)
+    private int maxRange = 16; // Range from 1 to Config.MAX_RANGE
+    private float audioDropoff = 1.0f; // Dropoff from 0.0 (no dropoff) to 1.0 (linear)
     
     /**
      * Gets the proxy playing state.
@@ -87,10 +90,82 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             }
         }
     }
-
+    
+    /**
+     * Updates the max volume setting.
+     *
+     * @param maxVolume The new max volume (0.0 to 1.0)
+     */
+    public void setMaxVolume(float maxVolume) {
+        if (level != null && !level.isClientSide) {
+            this.maxVolume = Math.max(0.0f, Math.min(1.0f, maxVolume)); // Clamp between 0.0 and 1.0
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        } else if (level != null) { // Client side
+            this.maxVolume = Math.max(0.0f, Math.min(1.0f, maxVolume)); // Clamp between 0.0 and 1.0
+        }
+    }
+    
+    /**
+     * Updates the max range setting.
+     *
+     * @param maxRange The new max range (1 to Config.MAX_RANGE)
+     */
+    public void setMaxRange(int maxRange) {
+        if (level != null && !level.isClientSide) {
+            this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        } else if (level != null) { // Client side
+            this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+        }
+    }
+    
+    /**
+     * Updates the audio dropoff setting.
+     *
+     * @param audioDropoff The new audio dropoff (0.0 to 1.0)
+     */
+    public void setAudioDropoff(float audioDropoff) {
+        if (level != null && !level.isClientSide) {
+            this.audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff)); // Clamp between 0.0 and 1.0
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        } else if (level != null) { // Client side
+            this.audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff)); // Clamp between 0.0 and 1.0
+        }
+    }
+    
+    /**
+     * Gets the max volume setting.
+     *
+     * @return The max volume (0.0 to 1.0)
+     */
+    public float getMaxVolume() {
+        return maxVolume;
+    }
+    
+    /**
+     * Gets the max range setting.
+     *
+     * @return The max range (1 to Config.MAX_RANGE)
+     */
+    public int getMaxRange() {
+        return maxRange;
+    }
+    
+    /**
+     * Gets the audio dropoff setting.
+     *
+     * @return The audio dropoff (0.0 to 1.0)
+     */
+    public float getAudioDropoff() {
+        return audioDropoff;
+    }
+    
     /**
      * Constructs a ProxySpeakerBlockEntity.
-     * 
+     *
      * @param pos The block position
      * @param state The block state
      */
@@ -426,12 +501,17 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         // Load speaker ID
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         
+        
         // Load proxy playing state
         isProxyPlaying = tag.contains(NBT_PROXY_PLAYING) ? tag.getBoolean(NBT_PROXY_PLAYING) : false;
         
+        // Load settings
+        maxVolume = tag.contains("MaxVolume") ? tag.getFloat("MaxVolume") : 1.0f;
+        maxRange = tag.contains("MaxRange") ? tag.getInt("MaxRange") : 16;
+        audioDropoff = tag.contains("AudioDropoff") ? tag.getFloat("AudioDropoff") : 1.0f;
+        
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
-        
         // Register with the registry when loaded from NBT
         if (level != null) {
             if (!level.isClientSide) {
@@ -484,6 +564,11 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         
         // Save proxy playing state
         tag.putBoolean(NBT_PROXY_PLAYING, isProxyPlaying);
+        
+        // Save settings
+        tag.putFloat("MaxVolume", maxVolume);
+        tag.putInt("MaxRange", maxRange);
+        tag.putFloat("AudioDropoff", audioDropoff);
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
         // This prevents accumulation of player UUIDs in save files

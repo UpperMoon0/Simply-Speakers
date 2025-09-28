@@ -540,4 +540,85 @@ public class SpeakerBlockEntity extends BlockEntity {
     public void handleUpdateTag(CompoundTag tag) {
         load(tag);
     }
+    
+    /**
+     * Updates the max volume setting.
+     *
+     * @param maxVolume The new max volume (0.0 to 1.0)
+     */
+    public void setMaxVolume(float maxVolume) {
+        if (level != null && !level.isClientSide) {
+            SpeakerState state = getSpeakerState();
+            if (state != null) {
+                state.setMaxVolume(maxVolume);
+                updateSpeakerState(state);
+                setChanged();
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+    }
+    
+    /**
+     * Updates the max range setting.
+     *
+     * @param maxRange The new max range (1 to Config.MAX_RANGE)
+     */
+    public void setMaxRange(int maxRange) {
+        if (level != null && !level.isClientSide) {
+            SpeakerState state = getSpeakerState();
+            if (state != null) {
+                state.setMaxRange(maxRange);
+                updateSpeakerState(state);
+                setChanged();
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+    }
+    
+    /**
+     * Updates the audio dropoff setting.
+     *
+     * @param audioDropoff The new audio dropoff (0.0 to 1.0)
+     */
+    public void setAudioDropoff(float audioDropoff) {
+        if (level != null && !level.isClientSide) {
+            SpeakerState state = getSpeakerState();
+            if (state != null) {
+                state.setAudioDropoff(audioDropoff);
+                updateSpeakerState(state);
+                setChanged();
+                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            }
+        }
+    }
+    
+    /**
+     * Gets the max volume setting.
+     *
+     * @return The max volume (0.0 to 1.0)
+     */
+    public float getMaxVolume() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.getMaxVolume() : 1.0f;
+    }
+    
+    /**
+     * Gets the max range setting.
+     *
+     * @return The max range (1 to Config.MAX_RANGE)
+     */
+    public int getMaxRange() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.getMaxRange() : 16;
+    }
+    
+    /**
+     * Gets the audio dropoff setting.
+     *
+     * @return The audio dropoff (0.0 to 1.0)
+     */
+    public float getAudioDropoff() {
+        SpeakerState state = getSpeakerState();
+        return state != null ? state.getAudioDropoff() : 1.0f;
+    }
 }

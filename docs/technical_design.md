@@ -23,6 +23,9 @@ The `SpeakerState` class represents the state of a speaker network and holds all
 - `isPlaying`: Current playback status
 - `isLooping`: Loop playback setting
 - `playbackStartTick`: Game tick when playback started
+- `maxVolume`: Maximum volume level (0.0 to 1.0)
+- `maxRange`: Maximum range for audio playback (1 to Config.MAX_RANGE)
+- `audioDropoff`: Audio dropoff factor (0.0 to 1.0)
 
 ### SpeakerRegistry
 The `SpeakerRegistry` implements a centralized registry system for tracking speakers by their IDs and managing their state:
@@ -63,6 +66,7 @@ A synchronized speaker that mirrors a main speaker's playback:
 - Maintains its own playing state (can be individually controlled)
 - Synchronizes playback position with the main speaker
 - Manages player listening states for range-based audio
+- Supports configurable audio settings (maxVolume, maxRange, audioDropoff)
 
 ## Network Communication
 
@@ -79,6 +83,12 @@ The mod uses a packet-based communication system with both client-to-server (C2S
 - `RequestAudioFilePacketC2S`: Requests an audio file download
 - `StopPlaybackPacketC2S`: Requests playback stop
 - `SetSpeakerIdPacketC2S`: Sets speaker ID
+- `UpdateMaxVolumePacketC2S`: Updates maximum volume setting
+- `UpdateMaxRangePacketC2S`: Updates maximum range setting
+- `UpdateAudioDropoffPacketC2S`: Updates audio dropoff setting
+- `UpdateProxyMaxVolumePacketC2S`: Updates proxy speaker maximum volume setting
+- `UpdateProxyMaxRangePacketC2S`: Updates proxy speaker maximum range setting
+- `UpdateProxyAudioDropoffPacketC2S`: Updates proxy speaker audio dropoff setting
 
 ### Server-to-Client Packets
 - `StopAudioPacketS2C`: Stops audio playback
@@ -105,6 +115,7 @@ The mod uses a packet-based communication system with both client-to-server (C2S
 4. WAV files are processed through Java's AudioSystem
 5. Audio is converted to PCM format for OpenAL compatibility
 6. Volume is adjusted based on player distance from speakers
+7. Volume is further adjusted based on speaker settings (maxVolume, maxRange, audioDropoff)
 
 ### Synchronization System
 1. Speakers and proxy speakers are linked via shared speaker IDs
@@ -198,6 +209,18 @@ The system supports several configurable parameters:
 - `speakerRange`: Distance at which audio can be heard
 - `maxUploadSize`: Maximum file size for uploads
 - `disableUpload`: Disables the upload feature entirely
+
+### Speaker Settings
+Each speaker now supports additional configurable parameters:
+- `maxVolume`: Controls the maximum volume level (0% to 100%)
+- `maxRange`: Controls the maximum range at which audio can be heard (1 to 512 blocks)
+- `audioDropoff`: Controls how audio volume decreases with distance (0% = no dropoff, 100% = linear dropoff)
+
+### Proxy Speaker Settings
+Proxy speakers now support the same configurable parameters as main speakers:
+- `maxVolume`: Controls the maximum volume level (0% to 100%)
+- `maxRange`: Controls the maximum range at which audio can be heard (1 to 512 blocks)
+- `audioDropoff`: Controls how audio volume decreases with distance (0% = no dropoff, 100% = linear dropoff)
 
 ## Security Considerations
 

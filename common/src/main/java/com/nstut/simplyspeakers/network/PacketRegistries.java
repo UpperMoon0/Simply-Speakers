@@ -61,6 +61,36 @@ public class PacketRegistries {
                 SetSpeakerIdPacketC2S::new,
                 SetSpeakerIdPacketC2S::handle
         );
+        CHANNEL.register(UpdateMaxVolumePacketC2S.class,
+                UpdateMaxVolumePacketC2S::encode,
+                UpdateMaxVolumePacketC2S::new,
+                UpdateMaxVolumePacketC2S::handle
+        );
+        CHANNEL.register(UpdateMaxRangePacketC2S.class,
+                UpdateMaxRangePacketC2S::encode,
+                UpdateMaxRangePacketC2S::new,
+                UpdateMaxRangePacketC2S::handle
+        );
+        CHANNEL.register(UpdateAudioDropoffPacketC2S.class,
+                UpdateAudioDropoffPacketC2S::encode,
+                UpdateAudioDropoffPacketC2S::new,
+                UpdateAudioDropoffPacketC2S::handle
+        );
+        CHANNEL.register(UpdateProxyMaxVolumePacketC2S.class,
+                UpdateProxyMaxVolumePacketC2S::encode,
+                UpdateProxyMaxVolumePacketC2S::new,
+                UpdateProxyMaxVolumePacketC2S::handle
+        );
+        CHANNEL.register(UpdateProxyMaxRangePacketC2S.class,
+                UpdateProxyMaxRangePacketC2S::encode,
+                UpdateProxyMaxRangePacketC2S::new,
+                UpdateProxyMaxRangePacketC2S::handle
+        );
+        CHANNEL.register(UpdateProxyAudioDropoffPacketC2S.class,
+                UpdateProxyAudioDropoffPacketC2S::encode,
+                UpdateProxyAudioDropoffPacketC2S::new,
+                UpdateProxyAudioDropoffPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {

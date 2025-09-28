@@ -10,6 +10,9 @@ public class SpeakerState {
     private boolean isPlaying = false;
     private boolean isLooping = false;
     private long playbackStartTick = -1; // Tick when playback started, -1 if not playing
+    private float maxVolume = 1.0f; // Volume from 0.0 (silent) to 1.0 (full)
+    private int maxRange = 16; // Range from 1 to Config.MAX_RANGE
+    private float audioDropoff = 1.0f; // Dropoff from 0.0 (no dropoff) to 1.0 (linear)
     
     /**
      * Default constructor for creating an empty speaker state.
@@ -32,6 +35,9 @@ public class SpeakerState {
         this.isPlaying = isPlaying;
         this.isLooping = isLooping;
         this.playbackStartTick = playbackStartTick;
+        this.maxVolume = 1.0f;
+        this.maxRange = 16;
+        this.audioDropoff = 1.0f;
     }
     
     // Getters and setters
@@ -95,7 +101,7 @@ public class SpeakerState {
      * @return A new SpeakerState object with the same values
      */
     public SpeakerState copy() {
-        return new SpeakerState(audioId, audioFilename, isPlaying, isLooping, playbackStartTick);
+        return new SpeakerState(audioId, audioFilename, isPlaying, isLooping, playbackStartTick, maxVolume, maxRange, audioDropoff);
     }
     
     @Override
@@ -107,5 +113,53 @@ public class SpeakerState {
                 ", isLooping=" + isLooping +
                 ", playbackStartTick=" + playbackStartTick +
                 '}';
+    }
+    
+    /**
+     * Constructor for creating a speaker state with all values including settings.
+     *
+     * @param audioId The ID of the audio file
+     * @param audioFilename The filename of the audio file
+     * @param isPlaying Whether the speaker is currently playing
+     * @param isLooping Whether the audio should loop
+     * @param playbackStartTick The tick when playback started
+     * @param maxVolume The maximum volume (0.0 to 1.0)
+     * @param maxRange The maximum range (1 to Config.MAX_RANGE)
+     * @param audioDropoff The audio dropoff factor (0.0 to 1.0)
+     */
+    public SpeakerState(String audioId, String audioFilename, boolean isPlaying, boolean isLooping, long playbackStartTick, float maxVolume, int maxRange, float audioDropoff) {
+        this.audioId = audioId;
+        this.audioFilename = audioFilename;
+        this.isPlaying = isPlaying;
+        this.isLooping = isLooping;
+        this.playbackStartTick = playbackStartTick;
+        this.maxVolume = maxVolume;
+        this.maxRange = maxRange;
+        this.audioDropoff = audioDropoff;
+    }
+    
+    // Getters and setters for new settings
+    public float getMaxVolume() {
+        return maxVolume;
+    }
+    
+    public void setMaxVolume(float maxVolume) {
+        this.maxVolume = Math.max(0.0f, Math.min(1.0f, maxVolume)); // Clamp between 0.0 and 1.0
+    }
+    
+    public int getMaxRange() {
+        return maxRange;
+    }
+    
+    public void setMaxRange(int maxRange) {
+        this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+    }
+    
+    public float getAudioDropoff() {
+        return audioDropoff;
+    }
+    
+    public void setAudioDropoff(float audioDropoff) {
+        this.audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff)); // Clamp between 0.0 and 1.0
     }
 }

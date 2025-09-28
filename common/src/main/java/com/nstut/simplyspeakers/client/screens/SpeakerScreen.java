@@ -7,6 +7,7 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import com.nstut.simplyspeakers.client.gui.widgets.SpeakerAudioList;
+import com.nstut.simplyspeakers.client.gui.widgets.SettingsSlider;
 import com.nstut.simplyspeakers.network.*;
 import com.nstut.simplyspeakers.platform.Services;
 import net.minecraft.client.Minecraft;
@@ -38,7 +39,13 @@ public class SpeakerScreen extends Screen {
     private Button loopToggleButton;
     private Button uploadButton;
     private Button saveIdButton;
+    private Button audioTabButton;
+    private Button settingsTabButton;
+    private SettingsSlider maxVolumeSlider;
+    private SettingsSlider maxRangeSlider;
+    private SettingsSlider audioDropoffSlider;
     private Component statusMessage;
+    private int currentTab = 0; // 0 = audio tab, 1 = settings tab
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.literal("Speaker Screen"));
@@ -54,13 +61,27 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 60, Component.empty(), (audio) -> {
-            if (this.speaker != null) {
-                this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
-            }
-            PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
-        });
+        // Create tab buttons
+        this.audioTabButton = Button.builder(Component.literal("Audio"), button -> {
+                    this.currentTab = 0;
+                    updateVisibility();
+                })
+                .pos(guiLeft + 10, guiTop + 10)
+                .size(50, 20)
+                .build();
 
+        this.settingsTabButton = Button.builder(Component.literal("Settings"), button -> {
+                    this.currentTab = 1;
+                    updateVisibility();
+                })
+                .pos(guiLeft + 65, guiTop + 10)
+                .size(60, 20)
+                .build();
+
+        this.addRenderableWidget(this.audioTabButton);
+        this.addRenderableWidget(this.settingsTabButton);
+
+        // Audio tab components
         this.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 33, SCREEN_WIDTH - 80, 20, Component.literal("Speaker ID"));
         if (this.speaker != null) {
             this.speakerIdField.setValue(this.speaker.getSpeakerId());
@@ -81,12 +102,12 @@ public class SpeakerScreen extends Screen {
         this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 70, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
         this.searchBar.setResponder(this.audioListWidget::filter);
 
-        this.addRenderableWidget(this.speakerIdField);
-        this.addRenderableWidget(this.saveIdButton);
-        this.addRenderableWidget(this.searchBar);
-        this.addRenderableWidget(this.audioListWidget);
-
-        PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
+        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 60, Component.empty(), (audio) -> {
+            if (this.speaker != null) {
+                this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
+            }
+            PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
+        });
 
         this.uploadButton = Button.builder(Component.literal("Upload"), button -> {
                     SimplySpeakers.LOGGER.info("Upload button clicked");
@@ -111,20 +132,72 @@ public class SpeakerScreen extends Screen {
                 .size(50, 20)
                 .build();
         this.uploadButton.visible = !Config.disableUpload;
-        this.addRenderableWidget(uploadButton);
 
-        this.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
-                    if (this.speaker == null) return;
-                    boolean newLoopState = !this.speaker.isLooping();
-                    this.speaker.setLoopingClient(newLoopState);
-                    button.setMessage(getLoopButtonTextComponent());
-                    PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
-                })
-                .pos(guiLeft + 78, guiTop + 165)
-                .size(60, 20)
-                .build();
-        this.loopToggleButton.active = (this.speaker != null);
-        this.addRenderableWidget(this.loopToggleButton);
+        // Settings tab components
+        if (this.speaker != null) {
+            this.maxVolumeSlider = new SettingsSlider(
+                    guiLeft + 10, guiTop + 35, SCREEN_WIDTH - 20, 20,
+                    Component.literal("Max Volume: "),
+                    this.speaker.getMaxVolume(),
+                    0.0, 1.0,
+                    value -> Component.literal(String.format("Max Volume: %d%%", (int) (value * 100))),
+                    value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
+            );
+
+            this.maxRangeSlider = new SettingsSlider(
+                    guiLeft + 10, guiTop + 65, SCREEN_WIDTH - 20, 20,
+                    Component.literal("Max Range: "),
+                    this.speaker.getMaxRange(),
+                    1, Config.MAX_RANGE,
+                    value -> Component.literal(String.format("Max Range: %d", (int) value)),
+                    value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
+            );
+
+            this.audioDropoffSlider = new SettingsSlider(
+                    guiLeft + 10, guiTop + 95, SCREEN_WIDTH - 20, 20,
+                    Component.literal("Audio Dropoff: "),
+                    this.speaker.getAudioDropoff(),
+                    0.0, 1.0,
+                    value -> Component.literal(String.format("Audio Dropoff: %d%%", (int) (value * 100))),
+                    value -> PacketRegistries.CHANNEL.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
+            );
+            
+            this.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
+                        if (this.speaker == null) return;
+                        boolean newLoopState = !this.speaker.isLooping();
+                        this.speaker.setLoopingClient(newLoopState);
+                        button.setMessage(getLoopButtonTextComponent());
+                        PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
+                    })
+                    .pos(guiLeft + 10, guiTop + 125)
+                    .size(80, 20)
+                    .build();
+        }
+
+        // Add all widgets
+        this.addRenderableWidget(this.speakerIdField);
+        this.addRenderableWidget(this.saveIdButton);
+        this.addRenderableWidget(this.searchBar);
+        this.addRenderableWidget(this.audioListWidget);
+        this.addRenderableWidget(this.uploadButton);
+        
+        if (this.maxVolumeSlider != null) {
+            this.addRenderableWidget(this.maxVolumeSlider);
+        }
+        if (this.maxRangeSlider != null) {
+            this.addRenderableWidget(this.maxRangeSlider);
+        }
+        if (this.audioDropoffSlider != null) {
+            this.addRenderableWidget(this.audioDropoffSlider);
+        }
+        if (this.loopToggleButton != null) {
+            this.addRenderableWidget(this.loopToggleButton);
+        }
+
+        PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
+        
+        // Set initial visibility
+        updateVisibility();
     }
 
     private Component getLoopButtonTextComponent() {
@@ -141,11 +214,26 @@ public class SpeakerScreen extends Screen {
         guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
         guiGraphics.drawString(this.font, Component.literal("Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Speaker")) / 2, guiTop + 10, 4210752, false);
         
-        // Draw label for speaker ID field
-        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 23, 4210752, false);
-        
-        // Draw label for search bar
-        guiGraphics.drawString(this.font, Component.literal("Search:"), guiLeft + 10, guiTop + 60, 4210752, false);
+        // Draw tab-specific content
+        if (currentTab == 0) {
+            // Audio tab labels
+            guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 23, 4210752, false);
+            guiGraphics.drawString(this.font, Component.literal("Search:"), guiLeft + 10, guiTop + 60, 4210752, false);
+        } else if (currentTab == 1) {
+            // Settings tab labels
+            if (this.maxVolumeSlider != null) {
+                guiGraphics.drawString(this.font, Component.literal("Max Volume (0-100%):"), guiLeft + 10, guiTop + 25, 4210752, false);
+            }
+            if (this.maxRangeSlider != null) {
+                guiGraphics.drawString(this.font, Component.literal("Max Range (1-512):"), guiLeft + 10, guiTop + 55, 4210752, false);
+            }
+            if (this.audioDropoffSlider != null) {
+                guiGraphics.drawString(this.font, Component.literal("Audio Dropoff (0-100%):"), guiLeft + 10, guiTop + 85, 4210752, false);
+            }
+            if (this.loopToggleButton != null) {
+                guiGraphics.drawString(this.font, Component.literal("Loop Settings:"), guiLeft + 10, guiTop + 115, 4210752, false);
+            }
+        }
 
         if (this.speaker != null) {
             this.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
@@ -187,6 +275,32 @@ public class SpeakerScreen extends Screen {
         // Set the selected audio in the list based on the speaker's current audio
         if (this.speaker != null) {
             this.audioListWidget.setSelectedAudioId(this.speaker.getAudioId());
+        }
+    }
+    
+    private void updateVisibility() {
+        boolean isAudioTab = (currentTab == 0);
+        boolean isSettingsTab = (currentTab == 1);
+        
+        // Audio tab components
+        this.speakerIdField.visible = isAudioTab;
+        this.saveIdButton.visible = isAudioTab;
+        this.searchBar.visible = isAudioTab;
+        this.audioListWidget.visible = isAudioTab;
+        this.uploadButton.visible = isAudioTab && !Config.disableUpload;
+        
+        // Settings tab components
+        if (this.maxVolumeSlider != null) {
+            this.maxVolumeSlider.visible = isSettingsTab;
+        }
+        if (this.maxRangeSlider != null) {
+            this.maxRangeSlider.visible = isSettingsTab;
+        }
+        if (this.audioDropoffSlider != null) {
+            this.audioDropoffSlider.visible = isSettingsTab;
+        }
+        if (this.loopToggleButton != null) {
+            this.loopToggleButton.visible = isSettingsTab;
         }
     }
 }

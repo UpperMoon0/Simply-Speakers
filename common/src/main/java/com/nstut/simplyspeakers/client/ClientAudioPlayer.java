@@ -491,8 +491,6 @@ public class ClientAudioPlayer {
         }
 
         Vec3 playerPos = player.position();
-        double maxRange = Config.speakerRange; // Make sure Config.speakerRange is accessible
-        double maxRangeSq = maxRange * maxRange;
 
         List<Map.Entry<BlockPos, StreamingAudioResource>> entries = new ArrayList<>(speakerResources.entrySet());
 
@@ -504,17 +502,47 @@ public class ClientAudioPlayer {
                 continue;
             }
 
+            // Get the speaker block entity to access its settings
+            net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
+            float maxVolume = 1.0f;
+            int maxRange = 16;
+            float audioDropoff = 1.0f;
+            
+            if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
+                // Get speaker settings
+                maxVolume = speakerBlockEntity.getMaxVolume();
+                maxRange = speakerBlockEntity.getMaxRange();
+                audioDropoff = speakerBlockEntity.getAudioDropoff();
+            } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
+                // Get proxy speaker settings
+                maxVolume = proxySpeakerBlockEntity.getMaxVolume();
+                maxRange = proxySpeakerBlockEntity.getMaxRange();
+                audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
+            } else {
+                continue;
+            }
+            
             Vec3 speakerCenterPos = new Vec3(speakerPos.getX() + 0.5, speakerPos.getY() + 0.5, speakerPos.getZ() + 0.5);
             double distSq = playerPos.distanceToSqr(speakerCenterPos);
+            double maxRangeSq = maxRange * maxRange;
 
-            float gain = 1.0f;
+            float gain = maxVolume;
 
             if (distSq >= maxRangeSq) {
                 gain = 0.0f;
             } else if (distSq > 0) {
                 double distance = Math.sqrt(distSq);
-                gain = (float) Math.pow(1.0 - (distance / maxRange), 2.0);
-                gain = Math.max(0.0f, Math.min(1.0f, gain));
+                
+                // Apply audio dropoff factor
+                if (audioDropoff <= 0.0f) {
+                    // No dropoff - audio plays at full volume until max range, then stops
+                    gain = (distance <= maxRange) ? maxVolume : 0.0f;
+                } else {
+                    // Apply dropoff - linear or modified by dropoff factor
+                    double dropoffFactor = Math.pow(1.0 - (distance / maxRange), audioDropoff * 2.0);
+                    gain = (float) (maxVolume * dropoffFactor);
+                    gain = Math.max(0.0f, Math.min(maxVolume, gain));
+                }
             }
 
             final float finalGain = gain;
