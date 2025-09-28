@@ -142,7 +142,7 @@ public class SpeakerScreen extends Screen {
         guiGraphics.drawString(this.font, Component.literal("Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Speaker")) / 2, guiTop + 10, 4210752, false);
         
         // Draw label for speaker ID field
-        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 23, guiTop + 33, 4210752, false);
+        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 23, 4210752, false);
         
         // Draw label for search bar
         guiGraphics.drawString(this.font, Component.literal("Search:"), guiLeft + 10, guiTop + 60, 4210752, false);

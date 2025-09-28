@@ -8,7 +8,16 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio from
 
 * **Speaker Block**: A new block that can be placed in the world.
 * **Custom Audio**: Play audio from any direct .mp3 or .wav URL. **Note: Only local file URLs are supported. Streaming from internet URLs is not supported.**
+* **Proxy Speaker System**: Synchronize audio playback across multiple locations using proxy speakers linked to a main speaker.
 * **Cross-Platform**: Supports both Fabric and Forge mod loaders.
+
+### How it works
+
+1. **Main Speaker**: The main Speaker block controls the audio playback state (play, pause, stop) and stores information about which audio file is selected.
+2. **Proxy Speakers**: These blocks can be placed anywhere in the world and linked to a main Speaker by setting the same Speaker ID in their configuration interface.
+3. **Synchronization**: When the main Speaker starts playing audio, all Proxy Speakers with the same Speaker ID will begin playing the same audio at exactly the same position, creating a synchronized audio experience across multiple locations.
+4. **Redstone Control**: Both Speaker and Proxy Speaker blocks can be controlled using redstone signals. When powered, they will play audio; when unpowered, they will stop.
+5. **Range-based Audio**: Audio from both Speaker and Proxy Speaker blocks can be heard within a configurable range, and players entering or leaving this range will automatically start or stop hearing the audio.
 
 ## Manually Adding Audio Files
 
@@ -26,6 +35,7 @@ Audio files are stored in the `simply_speakers_audios` directory within your wor
       }
     }
     ```
+
 ## Building from Source
 
 1.Clone the repository.
