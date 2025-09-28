@@ -93,6 +93,13 @@ public class SpeakerScreen extends Screen {
                     Services.CLIENT.openFileDialog("mp3,wav", (file) -> {
                         if (file != null) {
                             SimplySpeakers.LOGGER.info("File selected: " + file.getName());
+                            // Validate file extension before starting upload
+                            String fileName = file.getName().toLowerCase();
+                            if (!fileName.endsWith(".mp3") && !fileName.endsWith(".wav")) {
+                                SimplySpeakers.LOGGER.warn("Invalid file type selected: " + file.getName());
+                                setStatusMessage(Component.literal("Invalid file type. Only MP3 and WAV files are supported."));
+                                return;
+                            }
                             var transactionId = ClientAudioPlayer.startUpload(file);
                             PacketRegistries.CHANNEL.sendToServer(new RequestUploadAudioPacketC2S(this.blockEntityPos, transactionId, file.getName(), file.length()));
                         } else {

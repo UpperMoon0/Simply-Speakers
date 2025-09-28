@@ -1,9 +1,9 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    "III",
+    "PPP",
     "RAR",
-    "III"
+    "PPP"
   ],
   "key": {
     "A": {
@@ -12,8 +12,8 @@
     "R": {
       "item": "minecraft:redstone"
     },
-    "I": {
-      "tag": "forge:ingots/iron"
+    "P": {
+      "tag": "minecraft:planks"
     }
   },
   "result": {

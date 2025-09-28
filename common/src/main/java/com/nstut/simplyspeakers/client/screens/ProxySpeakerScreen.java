@@ -50,10 +50,9 @@ public class ProxySpeakerScreen extends Screen {
         this.saveIdButton = Button.builder(Component.literal("Save"), button -> {
                     if (this.speaker != null) {
                         String newId = this.speakerIdField.getValue();
+                        // Optimistically update the client-side speaker entity
+                        this.speaker.setSpeakerIdClient(newId);
                         PacketRegistries.CHANNEL.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
-                        // Close and reopen the screen to refresh the UI with the latest data
-                        Minecraft.getInstance().setScreen(null);
-                        Minecraft.getInstance().setScreen(new ProxySpeakerScreen(this.blockEntityPos));
                     }
                 })
                 .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 33)

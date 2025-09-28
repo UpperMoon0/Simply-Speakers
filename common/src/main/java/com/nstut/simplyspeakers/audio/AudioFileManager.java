@@ -119,6 +119,13 @@ public class AudioFileManager {
             return;
         }
 
+        // Validate file extension before approving upload
+        if (!validateFile(fileName)) {
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Invalid file type. Only MP3 and WAV files are supported.")));
+            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". Invalid file type: " + fileName);
+            return;
+        }
+
         activeUploads.put(transactionId, new UploadState(fileName, fileSize, blockPos));
         PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
         SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Sent response to client.");
@@ -143,7 +150,11 @@ public class AudioFileManager {
                 PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), state.getBlockPos()));
             } catch (IOException e) {
                 SimplySpeakers.LOGGER.error("Failed to save uploaded file for transaction ID: " + transactionId, e);
-                PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Failed to save file on server."), state.getBlockPos()));
+                String errorMessage = "Failed to save file on server.";
+                if (e.getMessage().startsWith("Invalid file type")) {
+                    errorMessage = "Invalid file type. Only MP3 and WAV files are supported.";
+                }
+                PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal(errorMessage), state.getBlockPos()));
             }
         }
     }

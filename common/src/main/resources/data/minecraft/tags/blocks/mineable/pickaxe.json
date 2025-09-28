@@ -1,6 +1,7 @@
 {
   "replace": false,
   "values": [
-    "simplyspeakers:speaker"
+    "simplyspeakers:speaker",
+    "simplyspeakers:proxy_speaker"
   ]
 }

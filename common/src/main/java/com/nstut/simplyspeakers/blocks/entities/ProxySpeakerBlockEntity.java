@@ -128,23 +128,18 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * @param speakerId The speaker ID
      */
     public void setSpeakerId(String speakerId) {
-        if (level != null) {
+        if (level != null && !level.isClientSide) {
             String oldSpeakerId = this.speakerId;
             this.speakerId = speakerId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
-            if (!level.isClientSide) {
-                // Update server registry
-                if (!oldSpeakerId.equals(speakerId)) {
-                    SpeakerRegistry.updateProxySpeakerId(level, worldPosition, oldSpeakerId, speakerId);
-                }
-            } else {
-                // Update client registry
-                if (!oldSpeakerId.equals(speakerId)) {
-                    ClientSpeakerRegistry.updateProxySpeakerId(worldPosition, oldSpeakerId, speakerId);
-                }
+            // Update server registry
+            if (!oldSpeakerId.equals(speakerId)) {
+                SpeakerRegistry.updateProxySpeakerId(level, worldPosition, oldSpeakerId, speakerId);
             }
+        } else if (level != null) { // Client side
+            this.speakerId = speakerId;
         }
     }
     
@@ -556,6 +551,18 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     public void setAudioIdClient(String audioId, String filename) {
         if (this.level != null && this.level.isClientSide) {
             // Client-side update for UI responsiveness
+        }
+    }
+    
+    /**
+     * Updates the speaker ID on the client side for optimistic UI updates.
+     * This method should only be called on the client.
+     *
+     * @param speakerId The new speaker ID.
+     */
+    public void setSpeakerIdClient(String speakerId) {
+        if (this.level != null && this.level.isClientSide) {
+            this.speakerId = speakerId;
         }
     }
 
