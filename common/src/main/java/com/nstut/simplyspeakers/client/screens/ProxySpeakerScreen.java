@@ -18,10 +18,10 @@ import org.jetbrains.annotations.NotNull;
 
 public class ProxySpeakerScreen extends Screen {
 
-    private static final ResourceLocation BACKGROUND_TEXTURE = new ResourceLocation(SimplySpeakers.MOD_ID, "textures/gui/speaker.png");
+    private static final ResourceLocation BACKGROUND_TEXTURE = new ResourceLocation(SimplySpeakers.MOD_ID, "textures/gui/proxy_speaker.png");
 
     private static final int SCREEN_WIDTH = 162;
-    private static final int SCREEN_HEIGHT = 60;
+    private static final int SCREEN_HEIGHT = 70;
 
     private final BlockPos blockEntityPos;
     private ProxySpeakerBlockEntity speaker;
@@ -42,7 +42,7 @@ public class ProxySpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        this.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 23, SCREEN_WIDTH - 50, 20, Component.literal("Speaker ID"));
+        this.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 33, SCREEN_WIDTH - 80, 20, Component.literal("Speaker ID"));
         if (this.speaker != null) {
             this.speakerIdField.setValue(this.speaker.getSpeakerId());
         }
@@ -56,7 +56,7 @@ public class ProxySpeakerScreen extends Screen {
                         Minecraft.getInstance().setScreen(new ProxySpeakerScreen(this.blockEntityPos));
                     }
                 })
-                .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 23)
+                .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 33)
                 .size(45, 20)
                 .build();
 
@@ -74,7 +74,7 @@ public class ProxySpeakerScreen extends Screen {
         guiGraphics.drawString(this.font, Component.literal("Proxy Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Proxy Speaker")) / 2, guiTop + 10, 4210752, false);
         
         // Draw label for speaker ID field
-        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 13, 4210752, false);
+        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 23, 4210752, false);
 
         super.render(guiGraphics, mouseX, mouseY, partialTicks);
     }

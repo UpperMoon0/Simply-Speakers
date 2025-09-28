@@ -117,11 +117,11 @@ public class ProxySpeakerBlock extends BaseEntityBlock {
                 BlockEntity blockEntity = level.getBlockEntity(pos);
                 if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
                     if (hasSignal) {
-                        LOGGER.info("Triggering playAudio for proxy speaker at {}", pos);
-                        proxySpeakerEntity.playAudio();
+                        LOGGER.info("Setting proxy speaker at {} to playing state", pos);
+                        proxySpeakerEntity.setProxyPlaying(true);
                     } else {
-                        LOGGER.info("Triggering stopAudio for proxy speaker at {}", pos);
-                        proxySpeakerEntity.stopAudio();
+                        LOGGER.info("Setting proxy speaker at {} to stopped state", pos);
+                        proxySpeakerEntity.setProxyPlaying(false);
                     }
                 } else {
                     LOGGER.warn("No ProxySpeakerBlockEntity found at {} after power change.", pos);

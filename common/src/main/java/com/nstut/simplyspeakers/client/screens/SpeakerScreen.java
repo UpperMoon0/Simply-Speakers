@@ -28,7 +28,7 @@ public class SpeakerScreen extends Screen {
     private static final ResourceLocation BACKGROUND_TEXTURE = new ResourceLocation(SimplySpeakers.MOD_ID, "textures/gui/speaker.png");
 
     private static final int SCREEN_WIDTH = 162;
-    private static final int SCREEN_HEIGHT = 158;
+    private static final int SCREEN_HEIGHT = 194;
 
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
@@ -54,14 +54,14 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
-        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 80, SCREEN_WIDTH - 20, 60, Component.empty(), (audio) -> {
+        this.audioListWidget = new SpeakerAudioList(guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 60, Component.empty(), (audio) -> {
             if (this.speaker != null) {
                 this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
             }
             PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
         });
 
-        this.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 23, SCREEN_WIDTH - 50, 20, Component.literal("Speaker ID"));
+        this.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 33, SCREEN_WIDTH - 80, 20, Component.literal("Speaker ID"));
         if (this.speaker != null) {
             this.speakerIdField.setValue(this.speaker.getSpeakerId());
         }
@@ -74,11 +74,11 @@ public class SpeakerScreen extends Screen {
                         PacketRegistries.CHANNEL.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
                     }
                 })
-                .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 23)
+                .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 33)
                 .size(45, 20)
                 .build();
 
-        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 50, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
+        this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 70, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
         this.searchBar.setResponder(this.audioListWidget::filter);
 
         this.addRenderableWidget(this.speakerIdField);
@@ -100,7 +100,7 @@ public class SpeakerScreen extends Screen {
                         }
                     });
                 })
-                .pos(guiLeft + 18, guiTop + 145)
+                .pos(guiLeft + 18, guiTop + 165)
                 .size(50, 20)
                 .build();
         this.uploadButton.visible = !Config.disableUpload;
@@ -113,7 +113,7 @@ public class SpeakerScreen extends Screen {
                     button.setMessage(getLoopButtonTextComponent());
                     PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
                 })
-                .pos(guiLeft + 78, guiTop + 145)
+                .pos(guiLeft + 78, guiTop + 165)
                 .size(60, 20)
                 .build();
         this.loopToggleButton.active = (this.speaker != null);
@@ -135,10 +135,10 @@ public class SpeakerScreen extends Screen {
         guiGraphics.drawString(this.font, Component.literal("Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Speaker")) / 2, guiTop + 10, 4210752, false);
         
         // Draw label for speaker ID field
-        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 13, 4210752, false);
+        guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 23, guiTop + 33, 4210752, false);
         
         // Draw label for search bar
-        guiGraphics.drawString(this.font, Component.literal("Search:"), guiLeft + 10, guiTop + 40, 4210752, false);
+        guiGraphics.drawString(this.font, Component.literal("Search:"), guiLeft + 10, guiTop + 60, 4210752, false);
 
         if (this.speaker != null) {
             this.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
@@ -146,7 +146,7 @@ public class SpeakerScreen extends Screen {
         }
 
         if (statusMessage != null) {
-            guiGraphics.drawString(this.font, statusMessage, guiLeft + (SCREEN_WIDTH - this.font.width(statusMessage)) / 2, guiTop + 165, 16777215, false);
+            guiGraphics.drawString(this.font, statusMessage, guiLeft + (SCREEN_WIDTH - this.font.width(statusMessage)) / 2, guiTop + 200, 16777215, false);
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTicks);

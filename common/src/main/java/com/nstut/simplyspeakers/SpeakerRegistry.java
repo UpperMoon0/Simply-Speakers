@@ -1,9 +1,6 @@
 package com.nstut.simplyspeakers;
 
-import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
-import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 
 import java.io.File;
