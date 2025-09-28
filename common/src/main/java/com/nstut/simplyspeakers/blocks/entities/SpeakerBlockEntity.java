@@ -90,16 +90,11 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public SpeakerState getSpeakerState() {
         if (level != null && !level.isClientSide) {
-            SpeakerState state = SpeakerRegistry.getOrCreateSpeakerState(speakerId);
-            SimplySpeakers.LOGGER.info("getSpeakerState called (server side). Speaker ID: {}, State is null: {}", speakerId, state == null);
-            return state;
+            return SpeakerRegistry.getOrCreateSpeakerState(speakerId);
         } else if (level != null && level.isClientSide()) {
             // For client-side, we need to get the state from the client registry
-            SpeakerState state = SpeakerRegistry.getOrCreateSpeakerState(speakerId);
-            SimplySpeakers.LOGGER.info("getSpeakerState called (client side). Speaker ID: {}, State is null: {}", speakerId, state == null);
-            return state;
+            return SpeakerRegistry.getOrCreateSpeakerState(speakerId);
         }
-        SimplySpeakers.LOGGER.info("getSpeakerState called (level null). Level is null: {}", level == null);
         return null;
     }
     
@@ -161,24 +156,19 @@ public class SpeakerBlockEntity extends BlockEntity {
      * Starts playing the audio.
      */
     public void playAudio() {
-        SimplySpeakers.LOGGER.debug("playAudio called for speaker at {}", worldPosition);
         if (level == null || level.isClientSide) {
-            SimplySpeakers.LOGGER.debug("playAudio exit: Level is null or client side. isClientSide={}", level != null && level.isClientSide);
             return;
         }
         
         SpeakerState state = getSpeakerState();
         if (state == null) {
-            SimplySpeakers.LOGGER.warn("playAudio exit: Could not get speaker state for speaker at {}", getBlockPos());
             return;
         }
         
         if (state.isPlaying()) {
-            SimplySpeakers.LOGGER.debug("playAudio exit: Already playing audio '{}' at {}", state.getAudioId(), worldPosition);
             return;
         }
         if (state.getAudioId() == null || state.getAudioId().isEmpty()) {
-            SimplySpeakers.LOGGER.warn("playAudio exit: Audio ID is empty for speaker at {}, cannot play.", getBlockPos());
             return;
         }
 
@@ -189,12 +179,6 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         
-        // Manually save the state to the registry
-        SpeakerRegistry.saveRegistry();
-            
-        SimplySpeakers.LOGGER.info("SERVER: Started audio playback: '{}' at tick {} at {}. Looping: {}", 
-            state.getAudioId(), state.getPlaybackStartTick(), worldPosition, state.isLooping());
-        
         // Notify all proxy speakers in the network
         notifyProxySpeakers("play");
     }
@@ -203,20 +187,16 @@ public class SpeakerBlockEntity extends BlockEntity {
      * Stops playing the audio.
      */
     public void stopAudio() {
-        SimplySpeakers.LOGGER.debug("stopAudio called for speaker at {}", worldPosition);
         if (level == null || level.isClientSide) {
-            SimplySpeakers.LOGGER.debug("stopAudio exit: Level is null or client side.");
             return;
         }
         
         SpeakerState state = getSpeakerState();
         if (state == null) {
-            SimplySpeakers.LOGGER.warn("stopAudio exit: Could not get speaker state for speaker at {}", getBlockPos());
             return;
         }
         
         if (!state.isPlaying()) {
-            SimplySpeakers.LOGGER.debug("stopAudio exit: Not currently playing at {}.", worldPosition);
             return;
         }
 
@@ -226,8 +206,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
-        // Manually save the state to the registry
-        SpeakerRegistry.saveRegistry();
+        // Send stop packet to all players who were listening
 
         // Send stop packet to all players who were listening
         if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
@@ -253,8 +232,6 @@ public class SpeakerBlockEntity extends BlockEntity {
                     notifiedCount++;
                 }
             }
-            
-            SimplySpeakers.LOGGER.info("SERVER: Stopped audio at {} and sent stop packets to {} players.", worldPosition, notifiedCount);
         }
         listeningPlayers.clear(); // Clear the server-side tracking list
         
@@ -303,7 +280,6 @@ public class SpeakerBlockEntity extends BlockEntity {
                         state.isLooping()
                     );
                 PacketRegistries.CHANNEL.sendToPlayers(serverLevel.players(), updatePacket);
-                SimplySpeakers.LOGGER.info("SERVER: Notified clients of speaker state change for speakerId: '{}'", speakerId);
             }
         }
     }
@@ -348,7 +324,6 @@ public class SpeakerBlockEntity extends BlockEntity {
                 listeningPlayers.clear();
                 setChanged();
                 currentLevel.sendBlockUpdated(currentPos, currentState, currentState, 3);
-                SimplySpeakers.LOGGER.info("Speaker at {} stopped due to redstone signal off", currentPos);
             } else if (!listeningPlayers.isEmpty()) {
                 listeningPlayers.clear();
             }
@@ -361,7 +336,6 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (!state.isPlaying()) {
             // If not playing, ensure no players are marked as listening (e.g., after a stop command)
             if (!listeningPlayers.isEmpty()) {
-                SimplySpeakers.LOGGER.debug("Audio stopped at {}, but {} players were still in listeningPlayers set. Clearing.", worldPosition, listeningPlayers.size());
                 listeningPlayers.clear();
             }
             return;
@@ -389,7 +363,6 @@ public class SpeakerBlockEntity extends BlockEntity {
                 PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
                 PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
-                SimplySpeakers.LOGGER.debug("Player {} entered range of speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);
             }
         }
 
@@ -403,7 +376,6 @@ public class SpeakerBlockEntity extends BlockEntity {
                 if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
                     PacketRegistries.CHANNEL.sendToPlayer(serverPlayerInstance, stopPacket);
-                    SimplySpeakers.LOGGER.debug("Player {} left range of speaker at {}. Sending stop packet.", serverPlayerInstance.getName().getString(), currentPos);
                 }
                 listeningPlayers.remove(playerId);
             }
@@ -414,8 +386,6 @@ public class SpeakerBlockEntity extends BlockEntity {
     public void load(@NotNull CompoundTag tag) {
         super.load(tag);
         
-        SimplySpeakers.LOGGER.info("SpeakerBlockEntity.load called for speaker at {}", worldPosition);
-        
         // Load speaker ID
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         
@@ -424,7 +394,6 @@ public class SpeakerBlockEntity extends BlockEntity {
         
         // Register with the registry when loaded from NBT
         if (level != null && !level.isClientSide) {
-            SimplySpeakers.LOGGER.info("Loading speaker at {} with speakerId: '{}'", worldPosition, speakerId);
             // Update registry if speakerId has changed from initial value
             if (!initialSpeakerId.equals(speakerId)) {
                 SpeakerRegistry.updateSpeakerId(level, worldPosition, initialSpeakerId, speakerId);
@@ -436,7 +405,6 @@ public class SpeakerBlockEntity extends BlockEntity {
             // If this speaker was playing, notify proxy speakers
             SpeakerState state = SpeakerRegistry.getSpeakerState(speakerId);
             if (state != null && state.isPlaying()) {
-                SimplySpeakers.LOGGER.info("Speaker at {} was playing, notifying proxy speakers", worldPosition);
                 notifyProxySpeakers("play");
             }
         }
@@ -486,8 +454,6 @@ public class SpeakerBlockEntity extends BlockEntity {
                 updateSpeakerState(state);
                 setChanged();
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-
-                SimplySpeakers.LOGGER.info("Setting audio to: id={}, filename={} for speaker at {}", audioId, filename, worldPosition);
             }
         }
     }
@@ -501,9 +467,7 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     public boolean isLooping() {
         SpeakerState state = getSpeakerState();
-        boolean result = state != null ? state.isLooping() : false;
-        SimplySpeakers.LOGGER.info("isLooping called. State is null: {}, Looping: {}", state == null, result);
-        return result;
+        return state != null ? state.isLooping() : false;
     }
 
     public boolean isPlaying() {
@@ -538,7 +502,6 @@ public class SpeakerBlockEntity extends BlockEntity {
             SpeakerState state = getSpeakerState();
             if (state != null) {
                 state.setLooping(looping);
-                SimplySpeakers.LOGGER.info("Client-side loop state updated to: {}", looping);
             }
         }
     }
@@ -556,7 +519,6 @@ public class SpeakerBlockEntity extends BlockEntity {
             if (state != null) {
                 state.setAudioId(audioId);
                 state.setAudioFilename(filename);
-                SimplySpeakers.LOGGER.info("Client-side audio ID updated to: {}, filename: {}", audioId, filename);
             }
         }
     }

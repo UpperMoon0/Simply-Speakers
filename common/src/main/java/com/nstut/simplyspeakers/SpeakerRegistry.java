@@ -133,7 +133,7 @@ public class SpeakerRegistry {
      */
     public static void updateSpeakerState(String speakerId, SpeakerState state) {
         speakerStates.put(speakerId, state.copy());
-        saveRegistry(); // Persist changes immediately
+        // Don't save immediately - let the periodic save handle it
     }
     
     /**
@@ -143,7 +143,7 @@ public class SpeakerRegistry {
      */
     public static void removeSpeakerState(String speakerId) {
         speakerStates.remove(speakerId);
-        saveRegistry(); // Persist changes immediately
+        // Don't save immediately - let the periodic save handle it
     }
     
     /**

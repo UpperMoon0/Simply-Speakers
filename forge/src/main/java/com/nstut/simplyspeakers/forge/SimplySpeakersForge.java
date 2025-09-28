@@ -10,6 +10,7 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.common.MinecraftForge;
 import java.nio.file.Path;
 
@@ -31,6 +32,9 @@ public final class SimplySpeakersForge {
         
         // Register the server stopping event
         MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
+        
+        // Register the server tick event for periodic saving
+        MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
     }
 
     public void onServerStarting(ServerStartingEvent event) {
@@ -41,5 +45,15 @@ public final class SimplySpeakersForge {
     
     public void onServerStopping(ServerStoppingEvent event) {
         SpeakerRegistry.saveRegistry();
+    }
+    
+    public void onServerTick(TickEvent.ServerTickEvent event) {
+        // We only want to save periodically, not every tick
+        if (event.phase == TickEvent.Phase.END) {
+            // Save every 6000 ticks (5 minutes at 20 TPS)
+            if (event.getServer().getTickCount() % 6000 == 0) {
+                SpeakerRegistry.saveRegistry();
+            }
+        }
     }
 }

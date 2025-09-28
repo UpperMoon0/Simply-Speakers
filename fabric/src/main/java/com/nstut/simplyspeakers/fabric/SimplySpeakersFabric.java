@@ -6,6 +6,7 @@ import com.nstut.simplyspeakers.fabric.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.server.MinecraftServer;
 
 import java.nio.file.Path;
 
@@ -29,6 +30,13 @@ public class SimplySpeakersFabric implements ModInitializer {
         
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             SpeakerRegistry.saveRegistry();
+        });
+        
+        // Add periodic saving every 6000 ticks (5 minutes)
+        ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (server.getTickCount() % 6000 == 0) {
+                SpeakerRegistry.saveRegistry();
+            }
         });
     }
 }
