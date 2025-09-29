@@ -11,6 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.Screen;
@@ -75,6 +76,7 @@ public class ProxySpeakerScreen extends Screen {
         if (this.speaker != null) {
             this.speakerIdField.setValue(this.speaker.getSpeakerId());
         }
+        this.speakerIdField.setTooltip(Tooltip.create(Component.literal("Enter a unique ID to identify this proxy speaker")));
 
         this.saveIdButton = Button.builder(Component.literal("Save"), button -> {
                     if (this.speaker != null) {
@@ -98,6 +100,7 @@ public class ProxySpeakerScreen extends Screen {
                     value -> Component.literal(String.format("Max Volume: %d%%", (int) (value * 100))),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxVolumePacketC2S(this.blockEntityPos, (float) value))
             );
+            this.maxVolumeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum volume level of the proxy speaker")));
 
             this.maxRangeSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 65, SCREEN_WIDTH - 20, 20,
@@ -107,6 +110,7 @@ public class ProxySpeakerScreen extends Screen {
                     value -> Component.literal(String.format("Max Range: %d", (int) value)),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxRangePacketC2S(this.blockEntityPos, (int) value))
             );
+            this.maxRangeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum range/distance the proxy speaker can broadcast audio")));
 
             this.audioDropoffSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 95, SCREEN_WIDTH - 20, 20,
@@ -116,6 +120,7 @@ public class ProxySpeakerScreen extends Screen {
                     value -> Component.literal(String.format("Audio Dropoff: %d%%", (int) (value * 100))),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateProxyAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
             );
+            this.audioDropoffSlider.setTooltip(Tooltip.create(Component.literal("Controls how quickly audio volume decreases with distance")));
         }
 
         // Add all widgets

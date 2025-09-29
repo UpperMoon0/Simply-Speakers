@@ -14,6 +14,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.client.gui.screens.Screen;
@@ -86,6 +87,7 @@ public class SpeakerScreen extends Screen {
         if (this.speaker != null) {
             this.speakerIdField.setValue(this.speaker.getSpeakerId());
         }
+        this.speakerIdField.setTooltip(Tooltip.create(Component.literal("Enter a unique ID to identify this speaker")));
 
         this.saveIdButton = Button.builder(Component.literal("Save"), button -> {
                     if (this.speaker != null) {
@@ -108,6 +110,7 @@ public class SpeakerScreen extends Screen {
 
         this.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 70, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
         this.searchBar.setResponder(this.audioListWidget::filter);
+        this.searchBar.setTooltip(Tooltip.create(Component.literal("Search for music files by name")));
 
         this.uploadButton = Button.builder(Component.literal("Upload"), button -> {
                     SimplySpeakers.LOGGER.info("Upload button clicked");
@@ -143,6 +146,7 @@ public class SpeakerScreen extends Screen {
                     value -> Component.literal(String.format("Max Volume: %d%%", (int) (value * 100))),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
             );
+            this.maxVolumeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum volume level of the speaker")));
 
             this.maxRangeSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 65, SCREEN_WIDTH - 20, 20,
@@ -152,6 +156,7 @@ public class SpeakerScreen extends Screen {
                     value -> Component.literal(String.format("Max Range: %d", (int) value)),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
             );
+            this.maxRangeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum range/distance the speaker can broadcast audio")));
 
             this.audioDropoffSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 95, SCREEN_WIDTH - 20, 20,
@@ -161,6 +166,7 @@ public class SpeakerScreen extends Screen {
                     value -> Component.literal(String.format("Audio Dropoff: %d%%", (int) (value * 100))),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
             );
+            this.audioDropoffSlider.setTooltip(Tooltip.create(Component.literal("Controls how quickly audio volume decreases with distance")));
             
             this.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
                         if (this.speaker == null) return;
@@ -172,6 +178,7 @@ public class SpeakerScreen extends Screen {
                     .pos(guiLeft + 10, guiTop + 125)
                     .size(80, 20)
                     .build();
+            this.loopToggleButton.setTooltip(Tooltip.create(Component.literal("Toggle whether the audio should loop continuously")));
         }
 
         // Add all widgets
