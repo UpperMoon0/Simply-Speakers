@@ -148,7 +148,7 @@ public class SpeakerScreen extends Screen {
                     guiLeft + 10, guiTop + 65, SCREEN_WIDTH - 20, 20,
                     Component.literal("Max Range: "),
                     this.speaker.getMaxRange(),
-                    1, Config.MAX_RANGE,
+                    1, Config.speakerRange,
                     value -> Component.literal(String.format("Max Range: %d", (int) value)),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
             );
@@ -225,7 +225,7 @@ public class SpeakerScreen extends Screen {
                 guiGraphics.drawString(this.font, Component.literal("Max Volume (0-100%):"), guiLeft + 10, guiTop + 25, 4210752, false);
             }
             if (this.maxRangeSlider != null) {
-                guiGraphics.drawString(this.font, Component.literal("Max Range (1-512):"), guiLeft + 10, guiTop + 55, 4210752, false);
+                guiGraphics.drawString(this.font, Component.literal("Max Range (1-" + Config.speakerRange + "):"), guiLeft + 10, guiTop + 55, 4210752, false);
             }
             if (this.audioDropoffSlider != null) {
                 guiGraphics.drawString(this.font, Component.literal("Audio Dropoff (0-100%):"), guiLeft + 10, guiTop + 85, 4210752, false);

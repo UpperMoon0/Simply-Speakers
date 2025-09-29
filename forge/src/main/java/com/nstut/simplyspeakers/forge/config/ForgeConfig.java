@@ -14,8 +14,8 @@ public class ForgeConfig {
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     public static final ForgeConfigSpec.IntValue SPEAKER_RANGE = BUILDER
-            .comment("The range of the speaker block")
-            .defineInRange("speakerRange", Config.speakerRange, Config.MIN_RANGE, Config.MAX_RANGE);
+            .comment("The max range of the speaker block")
+            .defineInRange("speakerRange", 64, Config.MIN_RANGE, Config.MAX_RANGE);
 
     public static final ForgeConfigSpec.BooleanValue DISABLE_UPLOAD = BUILDER
             .comment("Whether to disable audio uploads")

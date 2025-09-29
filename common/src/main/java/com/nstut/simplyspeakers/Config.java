@@ -7,7 +7,7 @@ public class Config {
     /**
      * The range of the speaker block.
      */
-    public static int speakerRange = 16;
+    public static int speakerRange = 64;
     
     /**
      * The minimum range that can be set.

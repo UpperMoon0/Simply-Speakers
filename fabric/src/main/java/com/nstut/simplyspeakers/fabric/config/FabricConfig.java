@@ -34,7 +34,7 @@ public class FabricConfig {
             
             // Read speaker range
             try {
-                int range = Integer.parseInt(props.getProperty("speakerRange", String.valueOf(Config.speakerRange)));
+                int range = Integer.parseInt(props.getProperty("speakerRange", "64"));
                 Config.speakerRange = Math.max(Config.MIN_RANGE, Math.min(Config.MAX_RANGE, range));
             } catch (NumberFormatException e) {
                 SimplySpeakers.LOGGER.error("Failed to parse speaker range from config", e);
@@ -60,7 +60,7 @@ public class FabricConfig {
     private static void writeConfig() {
         try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
             Properties props = new Properties();
-            props.setProperty("speakerRange", String.valueOf(Config.speakerRange));
+            props.setProperty("speakerRange", "64");
             props.setProperty("disableUpload", String.valueOf(Config.disableUpload));
             props.setProperty("maxUploadSize", String.valueOf(Config.maxUploadSize));
             
