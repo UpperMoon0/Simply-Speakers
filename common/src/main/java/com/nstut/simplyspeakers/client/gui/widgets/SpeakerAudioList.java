@@ -42,9 +42,6 @@ public class SpeakerAudioList extends AbstractWidget {
         }
 
         int scrollbarX = this.getX() + this.width - 6;
-        int listTop = this.getY();
-        int listBottom = this.getY() + this.height;
-
         int contentHeight = filteredAudioFiles.size() * ITEM_HEIGHT;
         int maxScroll = Math.max(0, contentHeight - this.height);
 
