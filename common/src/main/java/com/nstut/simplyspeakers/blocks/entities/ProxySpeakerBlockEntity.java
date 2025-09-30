@@ -107,6 +107,18 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
     
     /**
+     * Updates the max volume setting on the client side for optimistic UI updates.
+     * This method should only be called on the client.
+     *
+     * @param maxVolume The new max volume (0.0 to 1.0)
+     */
+    public void setMaxVolumeClient(float maxVolume) {
+        if (this.level != null && this.level.isClientSide) {
+            this.maxVolume = Math.max(0.0f, Math.min(1.0f, maxVolume)); // Clamp between 0.0 and 1.0
+        }
+    }
+    
+    /**
      * Updates the max range setting.
      *
      * @param maxRange The new max range (1 to Config.MAX_RANGE)
@@ -122,6 +134,18 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
     
     /**
+     * Updates the max range setting on the client side for optimistic UI updates.
+     * This method should only be called on the client.
+     *
+     * @param maxRange The new max range (1 to Config.MAX_RANGE)
+     */
+    public void setMaxRangeClient(int maxRange) {
+        if (this.level != null && this.level.isClientSide) {
+            this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+        }
+    }
+    
+    /**
      * Updates the audio dropoff setting.
      *
      * @param audioDropoff The new audio dropoff (0.0 to 1.0)
@@ -132,6 +156,18 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         } else if (level != null) { // Client side
+            this.audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff)); // Clamp between 0.0 and 1.0
+        }
+    }
+    
+    /**
+     * Updates the audio dropoff setting on the client side for optimistic UI updates.
+     * This method should only be called on the client.
+     *
+     * @param audioDropoff The new audio dropoff (0.0 to 1.0)
+     */
+    public void setAudioDropoffClient(float audioDropoff) {
+        if (this.level != null && this.level.isClientSide) {
             this.audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff)); // Clamp between 0.0 and 1.0
         }
     }

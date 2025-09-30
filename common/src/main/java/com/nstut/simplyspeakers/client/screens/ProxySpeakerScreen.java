@@ -119,7 +119,12 @@ public class ProxySpeakerScreen extends Screen {
                     this.speaker.getMaxVolume(),
                     0.0, 1.0,
                     value -> Component.literal(String.format("Max Volume: %d%%", (int) (value * 100))),
-                    value -> PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxVolumePacketC2S(this.blockEntityPos, (float) value))
+                    value -> {
+                        if (this.speaker != null) {
+                            this.speaker.setMaxVolumeClient((float) value);
+                        }
+                        PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxVolumePacketC2S(this.blockEntityPos, (float) value));
+                    }
             );
             this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum volume level of the proxy speaker")));
 
@@ -129,7 +134,12 @@ public class ProxySpeakerScreen extends Screen {
                     this.speaker.getMaxRange(),
                     1, Config.speakerRange,
                     value -> Component.literal(String.format("Max Range: %d", (int) value)),
-                    value -> PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxRangePacketC2S(this.blockEntityPos, (int) value))
+                    value -> {
+                        if (this.speaker != null) {
+                            this.speaker.setMaxRangeClient((int) value);
+                        }
+                        PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxRangePacketC2S(this.blockEntityPos, (int) value));
+                    }
             );
             this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum range/distance the proxy speaker can broadcast audio")));
 
@@ -139,7 +149,12 @@ public class ProxySpeakerScreen extends Screen {
                     this.speaker.getAudioDropoff(),
                     0.0, 1.0,
                     value -> Component.literal(String.format("Audio Dropoff: %d%%", (int) (value * 100))),
-                    value -> PacketRegistries.CHANNEL.sendToServer(new UpdateProxyAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
+                    value -> {
+                        if (this.speaker != null) {
+                            this.speaker.setAudioDropoffClient((float) value);
+                        }
+                        PacketRegistries.CHANNEL.sendToServer(new UpdateProxyAudioDropoffPacketC2S(this.blockEntityPos, (float) value));
+                    }
             );
             this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.literal("Controls how quickly audio volume decreases with distance")));
         }
