@@ -9,6 +9,6 @@ pluginManagement {
 
 rootProject.name = 'simplyspeakers'
 
-include 'common'
-include 'fabric'
-include 'forge'
+include 'common-1.20.1'
+include 'fabric-1.20.1'
+include 'forge-1.20.1'

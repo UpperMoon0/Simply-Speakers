@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "${archives_name}",
+  "version": "${version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": [
+    "${mod_authors}"
+  ],
+  "contact": {
+    "homepage": "https://www.youtube.com/channel/UCsNCpkYlcZ5ahUwU4Hp8mDQ"
+  },
+  "license": "All Rights Reserved",
+  "icon": "assets/simplyspeakers/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.nstut.simplyspeakers.fabric.SimplySpeakersFabric"
+    ]
+  },
+  "mixins": [
+    "simplyspeakers.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=17",
+    "architectury": ">=${architectury_api_version}",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}
