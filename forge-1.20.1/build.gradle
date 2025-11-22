@@ -31,10 +31,10 @@ configurations {
 }
 
 dependencies {
-    forge "net.minecraftforge:forge:$rootProject.forge_version"
+    forge "net.minecraftforge:forge:$rootProject.ext.forge_version"
 
     // Architectury API. This is optional, and you can comment it out if you don't need it.
-    modImplementation "dev.architectury:architectury-forge:$rootProject.architectury_api_version"
+    modImplementation "dev.architectury:architectury-forge:$rootProject.ext.architectury_api_version"
 
     // JLayer (non-MC dependency)
     implementation "javazoom:jlayer:1.0.1"
@@ -51,18 +51,18 @@ processResources {
     inputs.property 'mod_name', rootProject.mod_name
     inputs.property 'mod_description', rootProject.mod_description
     inputs.property 'mod_authors', rootProject.mod_authors
-    inputs.property 'minecraft_version', rootProject.minecraft_version
-    inputs.property 'architectury_api_version', rootProject.architectury_api_version
+    inputs.property 'minecraft_version', rootProject.ext.minecraft_version
+    inputs.property 'architectury_api_version', rootProject.ext.architectury_api_version
 
     filesMatching('META-INF/mods.toml') {
         expand(
-            version: project.version, 
+            version: project.version,
             archives_name: rootProject.archives_name,
             mod_name: rootProject.mod_name,
             mod_description: rootProject.mod_description,
             mod_authors: rootProject.mod_authors,
-            minecraft_version: rootProject.minecraft_version,
-            architectury_api_version: rootProject.architectury_api_version
+            minecraft_version: rootProject.ext.minecraft_version,
+            architectury_api_version: rootProject.ext.architectury_api_version
         )
     }
 }

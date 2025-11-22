@@ -1,4 +1,3 @@
-
 architectury {
     common rootProject.enabled_platforms.split(',')
 }
@@ -8,12 +7,7 @@ rootProject.ext.minecraft_version = project.minecraft_version
 rootProject.ext.architectury_api_version = project.architectury_api_version
 rootProject.ext.fabric_loader_version = project.fabric_loader_version
 rootProject.ext.fabric_api_version = project.fabric_api_version
-rootProject.ext.forge_version = project.forge_version
-
- // Add shadowBundle configuration for runtime dependencies to be bundled
-configurations {
-    shadowBundle
-}
+rootProject.ext.neoforge_version = project.neoforge_version
 
 dependencies {
     // We depend on Fabric Loader here to use the Fabric @Environment annotations,
@@ -23,10 +17,4 @@ dependencies {
 
     // Architectury API. This is optional, and you can comment it out if you don't need it.
     modImplementation "dev.architectury:architectury:$project.architectury_api_version"
-
-    // Lombok
-    compileOnly "org.projectlombok:lombok:1.18.30"
-    annotationProcessor "org.projectlombok:lombok:1.18.30"
-
-    implementation "javazoom:jlayer:1.0.1"
 }
