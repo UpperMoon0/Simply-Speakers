@@ -3,13 +3,6 @@ architectury {
     common rootProject.enabled_platforms.split(',')
 }
 
-// Set version-specific properties on rootProject
-rootProject.ext.minecraft_version = project.minecraft_version
-rootProject.ext.architectury_api_version = project.architectury_api_version
-rootProject.ext.fabric_loader_version = project.fabric_loader_version
-rootProject.ext.fabric_api_version = project.fabric_api_version
-rootProject.ext.forge_version = project.forge_version
-
  // Add shadowBundle configuration for runtime dependencies to be bundled
 configurations {
     shadowBundle

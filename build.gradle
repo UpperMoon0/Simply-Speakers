@@ -48,7 +48,11 @@ afterEvaluate {
         }
 
         dependencies {
-            minecraft "net.minecraft:minecraft:$rootProject.ext.minecraft_version"
+            def commonProjectName = project.name.replace('fabric', 'common').replace('neoforge', 'common').replace('forge', 'common')
+            def commonProject = rootProject.findProject(commonProjectName)
+            def mcVersion = commonProject ? commonProject.findProperty('minecraft_version') : rootProject.ext.minecraft_version
+            
+            minecraft "net.minecraft:minecraft:$mcVersion"
             mappings loom.officialMojangMappings()
             implementation group: 'org.lwjgl', name: 'lwjgl-tinyfd', version: '3.3.6'
         }
