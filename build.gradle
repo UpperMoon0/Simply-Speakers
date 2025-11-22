@@ -54,7 +54,6 @@ afterEvaluate {
             
             minecraft "net.minecraft:minecraft:$mcVersion"
             mappings loom.officialMojangMappings()
-            implementation group: 'org.lwjgl', name: 'lwjgl-tinyfd', version: '3.3.6'
         }
 
         java {
