@@ -1,11 +1,13 @@
-package com.nstut.simplyspeakers.fabric;
+package com.nstut.fabric.simplyspeakers;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
-import com.nstut.simplyspeakers.fabric.config.FabricConfig;
+import com.nstut.fabric.simplyspeakers.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.minecraft.server.MinecraftServer;
+
 import java.nio.file.Path;
 
 /**

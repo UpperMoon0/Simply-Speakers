@@ -45,9 +45,16 @@ dependencies {
 
 processResources {
     inputs.property 'version', project.version
+    inputs.property 'mod_name', project.rootProject.mod_name
+    inputs.property 'mod_description', project.rootProject.mod_description
+    inputs.property 'mod_authors', project.rootProject.mod_authors
+    inputs.property 'fabric_loader_version', project.fabric_loader_version
+    inputs.property 'archives_name', project.rootProject.archives_name
+    inputs.property 'minecraft_version', project.minecraft_version
+    inputs.property 'architectury_api_version', project.architectury_api_version
 
     filesMatching('fabric.mod.json') {
-        expand version: inputs.properties.version
+        expand version: project.version, mod_name: project.rootProject.mod_name, mod_description: project.rootProject.mod_description, mod_authors: project.rootProject.mod_authors, fabric_loader_version: project.fabric_loader_version, archives_name: project.rootProject.archives_name, minecraft_version: project.minecraft_version, architectury_api_version: project.architectury_api_version
     }
 }
 

@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "simplyspeakers:block/proxy_speaker"
+    },
+    "facing=south": {
+      "y": 180,
+      "model": "simplyspeakers:block/proxy_speaker"
+    },
+    "facing=west": {
+      "y": 270,
+      "model": "simplyspeakers:block/proxy_speaker"
+    },
+    "facing=east": {
+      "y": 90,
+      "model": "simplyspeakers:block/proxy_speaker"
+    }
+  }
+}
