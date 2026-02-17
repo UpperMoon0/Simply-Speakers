@@ -114,20 +114,20 @@ public class AudioFileManager {
         SimplySpeakers.LOGGER.info("Handling upload request for transaction ID: " + transactionId);
 
         if (fileSize > Config.maxUploadSize) {
-            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File is too large.")));
+            PacketRegistries.getChannel().sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File is too large.")));
             SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". File size " + fileSize + " exceeds limit of " + Config.maxUploadSize);
             return;
         }
 
         // Validate file extension before approving upload
         if (!validateFile(fileName)) {
-            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Invalid file type. Only MP3 and WAV files are supported.")));
+            PacketRegistries.getChannel().sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Invalid file type. Only MP3 and WAV files are supported.")));
             SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". Invalid file type: " + fileName);
             return;
         }
 
         activeUploads.put(transactionId, new UploadState(fileName, fileSize, blockPos));
-        PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
+        PacketRegistries.getChannel().sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
         SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Sent response to client.");
     }
 
@@ -147,21 +147,21 @@ public class AudioFileManager {
             try {
                 AudioFileMetadata metadata = this.saveFile(new ByteArrayInputStream(state.getCombinedData()), state.fileName);
                 SimplySpeakers.LOGGER.info("File saved successfully for transaction ID: " + transactionId + ". Metadata: " + metadata.getUuid());
-                PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), state.getBlockPos()));
+                PacketRegistries.getChannel().sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), state.getBlockPos()));
             } catch (IOException e) {
                 SimplySpeakers.LOGGER.error("Failed to save uploaded file for transaction ID: " + transactionId, e);
                 String errorMessage = "Failed to save file on server.";
                 if (e.getMessage().startsWith("Invalid file type")) {
                     errorMessage = "Invalid file type. Only MP3 and WAV files are supported.";
                 }
-                PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal(errorMessage), state.getBlockPos()));
+                PacketRegistries.getChannel().sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal(errorMessage), state.getBlockPos()));
             }
         }
     }
 
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
         List<AudioFileMetadata> audioList = new ArrayList<>(this.getManifest().values());
-        PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
+        PacketRegistries.getChannel().sendToPlayer(player, new SendAudioListPacketS2C(audioList));
     }
 
     public void sendAudioFile(ServerPlayer player, String audioId) {
@@ -180,7 +180,7 @@ public class AudioFileManager {
                 System.arraycopy(fileData, offset, chunk, 0, length);
                 offset += length;
                 boolean isLast = offset >= fileData.length;
-                PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast));
+                PacketRegistries.getChannel().sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast));
             }
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read audio file for sending", e);

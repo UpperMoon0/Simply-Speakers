@@ -23,8 +23,10 @@ public final class SimplySpeakersForge {
         // Register config event listener manually
         modEventBus.addListener(ForgeConfig::onLoad);
 
-        // Run our common setup.
-        SimplySpeakers.init();
+        // NOTE: Do NOT call SimplySpeakers.init() here!
+        // The Architectury transformer automatically generates a mod entrypoint
+        // that calls SimplySpeakers.init(). Calling it again would cause
+        // network packets to be registered twice.
 
         // Register the server starting event
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);

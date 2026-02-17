@@ -29,6 +29,7 @@ public class SimplySpeakers {
     // Directly reference a slf4j logger
     public static final Logger LOGGER = LoggerFactory.getLogger("Simply Speakers");
     private static AudioFileManager audioFileManager;
+    private static boolean initialized = false;
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS = DeferredRegister.create(MOD_ID, Registries.SOUND_EVENT);
     public static final DeferredRegister<CreativeModeTab> CREATIVE_TABS = DeferredRegister.create(MOD_ID, Registries.CREATIVE_MODE_TAB);
 
@@ -54,6 +55,13 @@ public class SimplySpeakers {
      * Initializes the mod.
      */
     public static void init() {
+        // Guard against double initialization (can happen with Architectury transformer)
+        if (initialized) {
+            LOGGER.info("Simply Speakers already initialized, skipping");
+            return;
+        }
+        initialized = true;
+        
         LOGGER.info("Initializing Simply Speakers");
           // Register all of our DeferredRegisters
         SOUND_EVENTS.register();
