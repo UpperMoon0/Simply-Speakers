@@ -20,7 +20,7 @@ public class AudioListWidget extends ObjectSelectionList<AudioListWidget.AudioEn
         this.centerListVertically = false;
     }
 
-    @Override
+
     public int getItemHeight() {
         return itemHeight;
     }
@@ -34,12 +34,12 @@ public class AudioListWidget extends ObjectSelectionList<AudioListWidget.AudioEn
     }
 
     public void setX(int x) {
-        setLeftPos(x);
+        setX(x);
     }
 
     @Override
     public int getScrollbarPosition() {
-        return getLeft() + getWidth() - 6;
+        return getX() + getWidth() - 6;
     }
 
     @Override

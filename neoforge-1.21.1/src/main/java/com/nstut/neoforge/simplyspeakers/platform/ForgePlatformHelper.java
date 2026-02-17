@@ -1,8 +1,9 @@
 package com.nstut.neoforge.simplyspeakers.platform;
 
 import com.nstut.simplyspeakers.platform.services.IPlatformHelper;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLLoader;
+import com.nstut.simplyspeakers.platform.services.IPlatformHelper;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.loading.FMLLoader;
 
 /**
  * Forge implementation of the platform helper.
@@ -10,7 +11,7 @@ import net.minecraftforge.fml.loading.FMLLoader;
 public class ForgePlatformHelper implements IPlatformHelper {
     @Override
     public String getPlatformName() {
-        return "Forge";
+        return "NeoForge";
     }
 
     @Override

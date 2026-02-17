@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.MapCodec;
 
 /**
  * The Speaker block that allows players to play audio files.
@@ -54,9 +55,11 @@ public class SpeakerBlock extends BaseEntityBlock {
         this(BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).noOcclusion());
     }
 
+    public static final MapCodec<SpeakerBlock> CODEC = simpleCodec(SpeakerBlock::new);
+
     @Override
-    public Codec<? extends BaseEntityBlock> codec() {
-        return Codec.unit(this);
+    public MapCodec<SpeakerBlock> codec() {
+        return CODEC;
     }
 
     @Override
@@ -81,8 +84,8 @@ public class SpeakerBlock extends BaseEntityBlock {
     }
 
     @Override
-    public @NotNull InteractionResult use(@NotNull BlockState state, Level level, @NotNull BlockPos pos,
-                                          @NotNull Player player, @NotNull InteractionHand hand, @NotNull BlockHitResult hit) {
+    protected @NotNull InteractionResult useWithoutItem(@NotNull BlockState state, Level level, @NotNull BlockPos pos,
+                                          @NotNull Player player, @NotNull BlockHitResult hit) {
         if (level.isClientSide) {
             LOGGER.info("Opening speaker screen at {}", pos);
             Services.CLIENT.openSpeakerScreen(pos);

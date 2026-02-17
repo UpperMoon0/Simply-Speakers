@@ -532,7 +532,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
+    public void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
         
         // Load speaker ID
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
@@ -702,6 +702,6 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
 
     public void handleUpdateTag(CompoundTag tag) {
-        load(tag, level.registryAccess());
+        loadWithComponents(tag, level.registryAccess());
     }
 }

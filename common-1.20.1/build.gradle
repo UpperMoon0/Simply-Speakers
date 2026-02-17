@@ -1,6 +1,6 @@
 
 architectury {
-    common rootProject.enabled_platforms.split(',')
+    common(['fabric', 'forge'])
 }
 
  // Add shadowBundle configuration for runtime dependencies to be bundled
