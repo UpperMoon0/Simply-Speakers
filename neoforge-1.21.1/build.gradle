@@ -44,6 +44,7 @@ dependencies {
 
     // JLayer (non-MC dependency)
     implementation "javazoom:jlayer:1.0.1"
+    forgeRuntimeLibrary "javazoom:jlayer:1.0.1"
     shadowBundle "javazoom:jlayer:1.0.1"
 
     common(project(path: ':common-1.21.1', configuration: 'namedElements')) { transitive = false }

@@ -4,8 +4,6 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import dev.architectury.networking.NetworkManager;
 
 public class PacketRegistries {
-    private static boolean registered = false;
-    
     public static void registerC2S() {
         // Client to Server packets - register receivers on server side
         // Note: registerReceiver also registers the codec for the payload type
@@ -41,12 +39,6 @@ public class PacketRegistries {
     }
     
     public static void init() {
-        if (registered) {
-            SimplySpeakers.LOGGER.info("Packet registries already initialized, skipping");
-            return;
-        }
-        registered = true;
-        
         SimplySpeakers.LOGGER.info("Initializing packet registries...");
         // Always register both directions - Architectury handles the side-specific logic
         registerC2S();
