@@ -5,6 +5,7 @@ import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
+import com.nstut.simplyspeakers.network.PacketRegistries;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.bus.api.IEventBus;
@@ -31,6 +32,9 @@ public final class SimplySpeakersForge {
         BlockRegistries.BLOCKS.register();
         BlockEntityRegistries.BLOCK_ENTITIES.register();
         ItemRegistries.ITEMS.register();
+
+        // Initialize packet registration
+        PacketRegistries.init();
 
         // Register the server starting event
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);

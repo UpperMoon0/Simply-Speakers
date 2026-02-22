@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import com.nstut.simplyspeakers.network.AcknowledgeUploadPacketS2C;
-import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.RespondUploadAudioPacketS2C;
 import com.nstut.simplyspeakers.network.SendAudioFilePacketS2C;
 import com.nstut.simplyspeakers.network.SendAudioListPacketS2C;

@@ -1,11 +1,8 @@
 package com.nstut.simplyspeakers;
 
 import com.nstut.simplyspeakers.audio.AudioFileManager;
-import com.nstut.simplyspeakers.blocks.BlockRegistries;
-import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.platform.Services;
-import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.client.ClientEvents;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;

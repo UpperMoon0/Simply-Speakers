@@ -1,7 +1,6 @@
 package com.nstut.neoforge.simplyspeakers.platform;
 
 import com.nstut.simplyspeakers.platform.services.IPlatformHelper;
-import com.nstut.simplyspeakers.platform.services.IPlatformHelper;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.loading.FMLLoader;
 

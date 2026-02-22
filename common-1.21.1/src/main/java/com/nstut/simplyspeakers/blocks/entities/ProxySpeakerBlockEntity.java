@@ -20,7 +20,6 @@ import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import dev.architectury.networking.NetworkManager;
-import com.nstut.simplyspeakers.blocks.ProxySpeakerBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 

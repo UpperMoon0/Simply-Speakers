@@ -12,7 +12,6 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
-import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;

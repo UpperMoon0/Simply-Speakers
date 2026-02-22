@@ -6,7 +6,6 @@ import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import com.nstut.simplyspeakers.platform.Services;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -24,7 +23,6 @@ import net.minecraft.world.phys.BlockHitResult;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
-import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 
 /**
@@ -105,7 +103,6 @@ public class ProxySpeakerBlock extends BaseEntityBlock {
         return createTickerHelper(blockEntityType, BlockEntityRegistries.PROXY_SPEAKER.get(), ProxySpeakerBlockEntity::serverTick);
     }
 
-    @SuppressWarnings("deprecation")
     @Override
     public void neighborChanged(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, 
                                 @NotNull Block block, @NotNull BlockPos fromPos, boolean isMoving) {

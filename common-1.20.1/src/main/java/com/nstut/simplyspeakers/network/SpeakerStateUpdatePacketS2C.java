@@ -1,6 +1,5 @@
 package com.nstut.simplyspeakers.network;
 
-import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import dev.architectury.networking.NetworkManager;

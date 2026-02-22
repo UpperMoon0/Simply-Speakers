@@ -1,16 +1,15 @@
 package com.nstut.simplyspeakers.network;
 
-import com.nstut.simplyspeakers.SimplySpeakers;
 import dev.architectury.networking.NetworkManager;
-import net.minecraft.resources.ResourceLocation;
+import dev.architectury.platform.Platform;
+import dev.architectury.utils.Env;
 
 public class PacketRegistries {
     private static boolean registered = false;
 
     public static void registerC2S() {
-        if (registered) return;
-        
         // Client to Server packets - register receivers on server side
+        // Note: registerReceiver also registers the codec for the payload type
         NetworkManager.registerReceiver(NetworkManager.c2s(), LoadAudioCallPacketC2S.TYPE, LoadAudioCallPacketC2S.STREAM_CODEC, LoadAudioCallPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), AudioPathPacketC2S.TYPE, AudioPathPacketC2S.STREAM_CODEC, AudioPathPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), ToggleLoopPacketC2S.TYPE, ToggleLoopPacketC2S.STREAM_CODEC, ToggleLoopPacketC2S::handle);
@@ -54,6 +53,8 @@ public class PacketRegistries {
     public static void init() {
         if (registered) return;
         registered = true;
+        
+        // Always register both directions - Architectury handles the side-specific logic
         registerC2S();
         registerS2C();
     }

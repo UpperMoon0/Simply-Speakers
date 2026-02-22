@@ -5,12 +5,11 @@ import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
+import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.fabric.simplyspeakers.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.server.MinecraftServer;
-
 import java.nio.file.Path;
 
 /**
@@ -30,9 +29,8 @@ public class SimplySpeakersFabric implements ModInitializer {
         BlockEntityRegistries.BLOCK_ENTITIES.register();
         ItemRegistries.ITEMS.register();
 
-        // NOTE: Do NOT call PacketRegistries.init() here!
-        // Architectury's transformer automatically registers the NetworkChannel
-        // when it's created. Calling init() would cause double registration.
+        // Initialize packet registration
+        PacketRegistries.init();
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             Path worldSavePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
