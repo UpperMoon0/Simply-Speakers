@@ -82,3 +82,5 @@ saves/
 
 # VS Code settings
 .vscode/
+
+.kilocode/

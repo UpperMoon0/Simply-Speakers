@@ -1,15 +1,24 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.function.Supplier;
+public class SelectAudioPacketC2S implements CustomPacketPayload {
 
-public class SelectAudioPacketC2S {
+    public static final CustomPacketPayload.Type<SelectAudioPacketC2S> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "select_audio"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, SelectAudioPacketC2S> STREAM_CODEC = 
+        StreamCodec.of(SelectAudioPacketC2S::encode, SelectAudioPacketC2S::decode);
+
     private final BlockPos blockPos;
     private final String audioId;
     private final String filename;
@@ -20,26 +29,28 @@ public class SelectAudioPacketC2S {
         this.filename = filename;
     }
 
-    public SelectAudioPacketC2S(FriendlyByteBuf buf) {
-        this.blockPos = buf.readBlockPos();
-        this.audioId = buf.readUtf();
-        this.filename = buf.readUtf();
+    public static void encode(RegistryFriendlyByteBuf buffer, SelectAudioPacketC2S packet) {
+        buffer.writeBlockPos(packet.blockPos);
+        buffer.writeUtf(packet.audioId);
+        buffer.writeUtf(packet.filename);
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeBlockPos(blockPos);
-        buf.writeUtf(audioId);
-        buf.writeUtf(filename);
+    public static SelectAudioPacketC2S decode(RegistryFriendlyByteBuf buffer) {
+        return new SelectAudioPacketC2S(buffer.readBlockPos(), buffer.readUtf(), buffer.readUtf());
     }
 
-    public static void handle(SelectAudioPacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext context = ctxSupplier.get();
+    public static void handle(SelectAudioPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             ServerLevel level = player.serverLevel();
-            if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
-                speaker.setSelectedAudio(pkt.audioId, pkt.filename);
+            if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
+                speaker.setSelectedAudio(packet.audioId, packet.filename);
             }
         });
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

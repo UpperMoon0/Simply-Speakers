@@ -1,36 +1,45 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.function.Supplier;
+public class StopAudioPacketS2C implements CustomPacketPayload {
 
-public class StopAudioPacketS2C {
+    public static final CustomPacketPayload.Type<StopAudioPacketS2C> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "stop_audio"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, StopAudioPacketS2C> STREAM_CODEC = 
+        StreamCodec.of(StopAudioPacketS2C::encode, StopAudioPacketS2C::decode);
+
     private final BlockPos pos;
 
     public StopAudioPacketS2C(BlockPos pos) {
         this.pos = pos;
     }
 
-    // Constructor for decoding
-    public StopAudioPacketS2C(FriendlyByteBuf buf) {
-        this.pos = buf.readBlockPos();
+    public static void encode(RegistryFriendlyByteBuf buffer, StopAudioPacketS2C packet) {
+        buffer.writeBlockPos(packet.pos);
     }
 
-    public static void encode(StopAudioPacketS2C pkt, FriendlyByteBuf buf) {
-        buf.writeBlockPos(pkt.pos);
+    public static StopAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
+        return new StopAudioPacketS2C(buffer.readBlockPos());
     }
 
-    // Updated handle method for Architectury
-    public static void handle(StopAudioPacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext context = ctxSupplier.get();
-        // Always queue on the client, Architectury ensures this is only called on the correct side
+    public static void handle(StopAudioPacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
             // Stop the audio tied to the specific speaker block.
-            ClientAudioPlayer.stop(pkt.pos);
+            ClientAudioPlayer.stop(packet.pos);
         });
-        // For S2C packets, Architectury handles setPacketHandled implicitly when queueing on the client.
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

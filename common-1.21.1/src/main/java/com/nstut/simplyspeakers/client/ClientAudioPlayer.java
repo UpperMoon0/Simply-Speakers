@@ -18,6 +18,7 @@ import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
+import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -713,7 +714,7 @@ public class ClientAudioPlayer {
     public static void handleUploadAcknowledgement(UUID transactionId, boolean success, Component message, BlockPos blockPos) {
         if (success) {
             SimplySpeakers.LOGGER.info("Upload acknowledged for transaction ID: " + transactionId);
-            PacketRegistries.getChannel().sendToServer(new RequestAudioListPacketC2S(blockPos));
+            NetworkManager.sendToServer(new RequestAudioListPacketC2S(blockPos));
         } else {
             SimplySpeakers.LOGGER.error("Upload failed for transaction ID: " + transactionId + ". Reason: " + message.getString());
         }
@@ -730,7 +731,7 @@ public class ClientAudioPlayer {
             return; // Already downloading
         }
         activeDownloads.put(audioId, new DownloadProcess(audioId, filename));
-        PacketRegistries.getChannel().sendToServer(new RequestAudioFilePacketC2S(audioId));
+        NetworkManager.sendToServer(new RequestAudioFilePacketC2S(audioId));
     }
 
     public static void clearAudioList() {
@@ -777,7 +778,7 @@ public class ClientAudioPlayer {
                         byte[] chunk = new byte[length];
                         System.arraycopy(fileData, offset, chunk, 0, length);
                         SimplySpeakers.LOGGER.info("Sending chunk for transaction ID: " + transactionId + ". Offset: " + offset + ", Length: " + length);
-                        PacketRegistries.getChannel().sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
+                        NetworkManager.sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
                         offset += length;
                         try {
                             Thread.sleep(10); // Small delay to avoid overwhelming the network

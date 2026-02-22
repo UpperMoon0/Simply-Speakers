@@ -1,16 +1,24 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import dev.architectury.networking.NetworkManager;
 
-import java.util.function.Supplier;
+public class UpdateMaxRangePacketC2S implements CustomPacketPayload {
 
-public class UpdateMaxRangePacketC2S {
+    public static final CustomPacketPayload.Type<UpdateMaxRangePacketC2S> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "update_max_range"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, UpdateMaxRangePacketC2S> STREAM_CODEC = 
+        StreamCodec.of(UpdateMaxRangePacketC2S::encode, UpdateMaxRangePacketC2S::decode);
 
     private final BlockPos pos;
     private final int maxRange;
@@ -20,29 +28,32 @@ public class UpdateMaxRangePacketC2S {
         this.maxRange = maxRange;
     }
 
-    public UpdateMaxRangePacketC2S(FriendlyByteBuf buf) {
-        this.pos = buf.readBlockPos();
-        this.maxRange = buf.readInt();
+    public static void encode(RegistryFriendlyByteBuf buffer, UpdateMaxRangePacketC2S packet) {
+        buffer.writeBlockPos(packet.pos);
+        buffer.writeInt(packet.maxRange);
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeBlockPos(this.pos);
-        buf.writeInt(this.maxRange);
+    public static UpdateMaxRangePacketC2S decode(RegistryFriendlyByteBuf buffer) {
+        return new UpdateMaxRangePacketC2S(buffer.readBlockPos(), buffer.readInt());
     }
 
-    public static void handle(UpdateMaxRangePacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext context = ctxSupplier.get();
+    public static void handle(UpdateMaxRangePacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             if (player != null) {
                 ServerLevel level = player.serverLevel();
-                if (level.isLoaded(pkt.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+                if (level.isLoaded(packet.pos)) {
+                    BlockEntity blockEntity = level.getBlockEntity(packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        speakerEntity.setMaxRange(pkt.maxRange);
+                        speakerEntity.setMaxRange(packet.maxRange);
                     }
                 }
             }
         });
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

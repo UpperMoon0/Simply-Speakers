@@ -53,6 +53,8 @@ public class SimplySpeakers {
 
     /**
      * Initializes the mod.
+     * NOTE: DeferredRegister registration is handled by platform-specific modules.
+     * This method only handles common initialization logic.
      */
     public static void init() {
         // Guard against double initialization (can happen with Architectury transformer)
@@ -63,13 +65,15 @@ public class SimplySpeakers {
         initialized = true;
         
         LOGGER.info("Initializing Simply Speakers");
-          // Register all of our DeferredRegisters
-        SOUND_EVENTS.register();
-        CREATIVE_TABS.register(); // Register the creative tab
-        BlockRegistries.init();
-        BlockEntityRegistries.init();
-        ItemRegistries.init();
-        PacketRegistries.init();
+        
+        // NOTE: DeferredRegister registration (SOUND_EVENTS, CREATIVE_TABS, BLOCKS, 
+        // BLOCK_ENTITIES, ITEMS) must be done in platform-specific modules 
+        // (e.g., SimplySpeakersForge for NeoForge) by calling .register() directly.
+        // This is required for proper registration with the mod event bus.
+        
+        // NOTE: PacketRegistries.init() should NOT be called manually!
+        // Architectury's transformer automatically registers the NetworkChannel
+        // when getChannel() is called. Manual registration causes double registration.
 
         // Register client-side events only on the client
         if (Platform.getEnv().toString().equals("CLIENT")) {

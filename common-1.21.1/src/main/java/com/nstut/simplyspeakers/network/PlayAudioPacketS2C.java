@@ -3,19 +3,23 @@ package com.nstut.simplyspeakers.network;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
-import dev.architectury.networking.NetworkManager; // Changed import
-
+import dev.architectury.networking.NetworkManager;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.FriendlyByteBuf;
-// Removed: import net.minecraftforge.api.distmarker.Dist;
-// Removed: import net.minecraftforge.fml.DistExecutor;
-// Removed: import net.minecraftforge.network.NetworkEvent;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.function.Supplier;
+public class PlayAudioPacketS2C implements CustomPacketPayload {
+    
+    public static final CustomPacketPayload.Type<PlayAudioPacketS2C> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "play_audio"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, PlayAudioPacketS2C> STREAM_CODEC = 
+        StreamCodec.of(PlayAudioPacketS2C::encode, PlayAudioPacketS2C::decode);
 
-public class PlayAudioPacketS2C {
     private final BlockPos pos;
     private final String audioId;
     private final String audioFilename;
@@ -30,34 +34,38 @@ public class PlayAudioPacketS2C {
         this.isLooping = isLooping;
     }
 
-    public PlayAudioPacketS2C(FriendlyByteBuf buf) {
-        this.pos = buf.readBlockPos();
-        this.audioId = buf.readUtf();
-        this.audioFilename = buf.readUtf();
-        this.playbackPositionSeconds = buf.readFloat();
-        this.isLooping = buf.readBoolean();
+    public static void encode(RegistryFriendlyByteBuf buffer, PlayAudioPacketS2C packet) {
+        buffer.writeBlockPos(packet.pos);
+        buffer.writeUtf(packet.audioId);
+        buffer.writeUtf(packet.audioFilename);
+        buffer.writeFloat(packet.playbackPositionSeconds);
+        buffer.writeBoolean(packet.isLooping);
     }
 
-    public static void encode(PlayAudioPacketS2C pkt, FriendlyByteBuf buf) {
-        buf.writeBlockPos(pkt.pos);
-        buf.writeUtf(pkt.audioId);
-        buf.writeUtf(pkt.audioFilename);
-        buf.writeFloat(pkt.playbackPositionSeconds);
-        buf.writeBoolean(pkt.isLooping);
+    public static PlayAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
+        return new PlayAudioPacketS2C(
+            buffer.readBlockPos(),
+            buffer.readUtf(),
+            buffer.readUtf(),
+            buffer.readFloat(),
+            buffer.readBoolean()
+        );
     }
 
-    // Updated handle method for Architectury
-    public static void handle(PlayAudioPacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext context = ctxSupplier.get();
+    public static void handle(PlayAudioPacketS2C packet, NetworkManager.PacketContext context) {
         // Ensure this code runs only on the client side
         if (Minecraft.getInstance().level.isClientSide) {
             context.queue(() -> {
-                SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, audioId: {}, filename: {}, start: {}s, looping: {}", pkt.pos, pkt.audioId, pkt.audioFilename, pkt.playbackPositionSeconds, pkt.isLooping);
+                SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, audioId: {}, filename: {}, start: {}s, looping: {}", packet.pos, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping);
                 // Play the audio for the specific speaker block, passing the start position and looping state.
-                AudioFileMetadata metadata = new AudioFileMetadata(pkt.audioId, pkt.audioFilename);
-                ClientAudioPlayer.play(pkt.pos, metadata, pkt.playbackPositionSeconds, pkt.isLooping);
+                AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
+                ClientAudioPlayer.play(packet.pos, metadata, packet.playbackPositionSeconds, packet.isLooping);
             });
         }
-        // For S2C packets, Architectury handles setPacketHandled implicitly when queueing on the client.
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

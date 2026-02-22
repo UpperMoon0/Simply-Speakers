@@ -2,6 +2,9 @@ package com.nstut.neoforge.simplyspeakers;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
+import com.nstut.simplyspeakers.blocks.BlockRegistries;
+import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
+import com.nstut.simplyspeakers.items.ItemRegistries;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.bus.api.IEventBus;
@@ -23,10 +26,11 @@ public final class SimplySpeakersForge {
         // Register config event listener manually
         modEventBus.addListener(ForgeConfig::onLoad);
 
-        // NOTE: Do NOT call SimplySpeakers.init() here!
-        // The Architectury transformer automatically generates a mod entrypoint
-        // that calls SimplySpeakers.init(). Calling it again would cause
-        // network packets to be registered twice.
+        SimplySpeakers.SOUND_EVENTS.register();
+        SimplySpeakers.CREATIVE_TABS.register();
+        BlockRegistries.BLOCKS.register();
+        BlockEntityRegistries.BLOCK_ENTITIES.register();
+        ItemRegistries.ITEMS.register();
 
         // Register the server starting event
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);
@@ -38,6 +42,7 @@ public final class SimplySpeakersForge {
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
     }
 
+    @SuppressWarnings("null")
     public void onServerStarting(ServerStartingEvent event) {
         Path worldSavePath = event.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
         SimplySpeakers.initializeAudio(worldSavePath);

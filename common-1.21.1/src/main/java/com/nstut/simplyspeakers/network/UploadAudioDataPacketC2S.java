@@ -2,15 +2,23 @@ package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.audio.AudioFileManager;
 import dev.architectury.networking.NetworkManager;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
-import java.util.function.Supplier;
 
-public class UploadAudioDataPacketC2S {
+public class UploadAudioDataPacketC2S implements CustomPacketPayload {
+
+    public static final CustomPacketPayload.Type<UploadAudioDataPacketC2S> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "upload_audio_data"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, UploadAudioDataPacketC2S> STREAM_CODEC = 
+        StreamCodec.of(UploadAudioDataPacketC2S::encode, UploadAudioDataPacketC2S::decode);
+
     private final UUID transactionId;
     private final byte[] data;
 
@@ -19,18 +27,16 @@ public class UploadAudioDataPacketC2S {
         this.data = data;
     }
 
-    public UploadAudioDataPacketC2S(FriendlyByteBuf buf) {
-        this.transactionId = buf.readUUID();
-        this.data = buf.readByteArray();
+    public static void encode(RegistryFriendlyByteBuf buffer, UploadAudioDataPacketC2S packet) {
+        buffer.writeUUID(packet.transactionId);
+        buffer.writeByteArray(packet.data);
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUUID(transactionId);
-        buf.writeByteArray(data);
+    public static UploadAudioDataPacketC2S decode(RegistryFriendlyByteBuf buffer) {
+        return new UploadAudioDataPacketC2S(buffer.readUUID(), buffer.readByteArray());
     }
 
-    public static void handle(UploadAudioDataPacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext context = ctxSupplier.get();
+    public static void handle(UploadAudioDataPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             // Check if uploads are disabled
@@ -38,7 +44,12 @@ public class UploadAudioDataPacketC2S {
                 return;
             }
 
-            SimplySpeakers.getAudioFileManager().handleUploadData(player, pkt.transactionId, pkt.data);
+            SimplySpeakers.getAudioFileManager().handleUploadData(player, packet.transactionId, packet.data);
         });
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

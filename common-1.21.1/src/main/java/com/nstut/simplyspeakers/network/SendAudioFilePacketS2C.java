@@ -1,12 +1,21 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import dev.architectury.networking.NetworkManager;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.function.Supplier;
+public class SendAudioFilePacketS2C implements CustomPacketPayload {
 
-public class SendAudioFilePacketS2C {
+    public static final CustomPacketPayload.Type<SendAudioFilePacketS2C> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "send_audio_file"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, SendAudioFilePacketS2C> STREAM_CODEC = 
+        StreamCodec.of(SendAudioFilePacketS2C::encode, SendAudioFilePacketS2C::decode);
+
     private final String audioId;
     private final byte[] data;
     private final boolean isLast;
@@ -17,22 +26,28 @@ public class SendAudioFilePacketS2C {
         this.isLast = isLast;
     }
 
-    public SendAudioFilePacketS2C(FriendlyByteBuf buf) {
-        this.audioId = buf.readUtf();
-        this.data = buf.readByteArray();
-        this.isLast = buf.readBoolean();
+    public static void encode(RegistryFriendlyByteBuf buffer, SendAudioFilePacketS2C packet) {
+        buffer.writeUtf(packet.audioId);
+        buffer.writeByteArray(packet.data);
+        buffer.writeBoolean(packet.isLast);
     }
 
-    public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(audioId);
-        buf.writeByteArray(data);
-        buf.writeBoolean(isLast);
+    public static SendAudioFilePacketS2C decode(RegistryFriendlyByteBuf buffer) {
+        return new SendAudioFilePacketS2C(
+            buffer.readUtf(),
+            buffer.readByteArray(),
+            buffer.readBoolean()
+        );
     }
 
-    public static void handle(SendAudioFilePacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext context = ctxSupplier.get();
+    public static void handle(SendAudioFilePacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
-            ClientAudioPlayer.handleAudioFileChunk(pkt.audioId, pkt.data, pkt.isLast);
+            ClientAudioPlayer.handleAudioFileChunk(packet.audioId, packet.data, packet.isLast);
         });
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

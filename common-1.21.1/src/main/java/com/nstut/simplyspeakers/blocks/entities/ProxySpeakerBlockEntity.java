@@ -19,7 +19,7 @@ import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
-import com.nstut.simplyspeakers.network.PacketRegistries;
+import dev.architectury.networking.NetworkManager;
 import com.nstut.simplyspeakers.blocks.ProxySpeakerBlock;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -82,7 +82,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                     
                     for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
                         StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(worldPosition);
-                        PacketRegistries.getChannel().sendToPlayer(player, stopPacket);
+                        NetworkManager.sendToPlayer(player, stopPacket);
                     }
                 }
                 
@@ -418,7 +418,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             for (UUID playerId : playersToNotify) {
                 net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
                 if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
-                    PacketRegistries.getChannel().sendToPlayer(serverPlayerInstance, stopPacket);
+                    NetworkManager.sendToPlayer(serverPlayerInstance, stopPacket);
                     notifiedCount++;
                 }
             }
@@ -430,7 +430,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
                 // Only send to players not already in our listening list to avoid duplicate packets
                 if (!playersToNotify.contains(player.getUUID())) {
-                    PacketRegistries.getChannel().sendToPlayer(player, stopPacket);
+                    NetworkManager.sendToPlayer(player, stopPacket);
                     notifiedCount++;
                 }
             }
@@ -464,7 +464,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 
                 for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                    PacketRegistries.getChannel().sendToPlayer(player, stopPacket);
+                    NetworkManager.sendToPlayer(player, stopPacket);
                 }
             }
             
@@ -508,7 +508,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
                 PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
-                PacketRegistries.getChannel().sendToPlayer(player, playPacket);
+                NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
                 SimplySpeakers.LOGGER.debug("Player {} entered range of proxy speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);
             }
@@ -523,7 +523,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
                 if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                    PacketRegistries.getChannel().sendToPlayer(serverPlayerInstance, stopPacket);
+                    NetworkManager.sendToPlayer(serverPlayerInstance, stopPacket);
                     SimplySpeakers.LOGGER.debug("Player {} left range of proxy speaker at {}. Sending stop packet.", serverPlayerInstance.getName().getString(), currentPos);
                 }
                 listeningPlayers.remove(playerId);

@@ -7,6 +7,7 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.gui.widgets.SettingsSlider;
 import com.nstut.simplyspeakers.network.*;
+import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -104,7 +105,7 @@ public class ProxySpeakerScreen extends Screen {
                         String newId = this.audioTabContent.speakerIdField.getValue();
                         // Optimistically update the client-side speaker entity
                         this.speaker.setSpeakerIdClient(newId);
-                        PacketRegistries.getChannel().sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
+                        NetworkManager.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
                     }
                 })
                 .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 63)
@@ -123,7 +124,7 @@ public class ProxySpeakerScreen extends Screen {
                         if (this.speaker != null) {
                             this.speaker.setMaxVolumeClient((float) value);
                         }
-                        PacketRegistries.getChannel().sendToServer(new UpdateProxyMaxVolumePacketC2S(this.blockEntityPos, (float) value));
+                        NetworkManager.sendToServer(new UpdateProxyMaxVolumePacketC2S(this.blockEntityPos, (float) value));
                     }
             );
             this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum volume level of the proxy speaker")));
@@ -138,7 +139,7 @@ public class ProxySpeakerScreen extends Screen {
                         if (this.speaker != null) {
                             this.speaker.setMaxRangeClient((int) value);
                         }
-                        PacketRegistries.getChannel().sendToServer(new UpdateProxyMaxRangePacketC2S(this.blockEntityPos, (int) value));
+                        NetworkManager.sendToServer(new UpdateProxyMaxRangePacketC2S(this.blockEntityPos, (int) value));
                     }
             );
             this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum range/distance the proxy speaker can broadcast audio")));
@@ -153,7 +154,7 @@ public class ProxySpeakerScreen extends Screen {
                         if (this.speaker != null) {
                             this.speaker.setAudioDropoffClient((float) value);
                         }
-                        PacketRegistries.getChannel().sendToServer(new UpdateProxyAudioDropoffPacketC2S(this.blockEntityPos, (float) value));
+                        NetworkManager.sendToServer(new UpdateProxyAudioDropoffPacketC2S(this.blockEntityPos, (float) value));
                     }
             );
             this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.literal("Controls how quickly audio volume decreases with distance")));

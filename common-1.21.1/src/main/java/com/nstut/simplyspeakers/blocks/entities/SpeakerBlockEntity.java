@@ -20,6 +20,7 @@ import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
+import dev.architectury.networking.NetworkManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -217,7 +218,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             for (UUID playerId : playersToNotify) {
                 net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
                 if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
-                    PacketRegistries.getChannel().sendToPlayer(serverPlayerInstance, stopPacket);
+                    NetworkManager.sendToPlayer(serverPlayerInstance, stopPacket);
                     notifiedCount++;
                 }
             }
@@ -229,7 +230,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
                 // Only send to players not already in our listening list to avoid duplicate packets
                 if (!playersToNotify.contains(player.getUUID())) {
-                    PacketRegistries.getChannel().sendToPlayer(player, stopPacket);
+                    NetworkManager.sendToPlayer(player, stopPacket);
                     notifiedCount++;
                 }
             }
@@ -257,7 +258,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                         state.getPlaybackStartTick(),
                         state.isLooping()
                     );
-                PacketRegistries.getChannel().sendToPlayers(serverLevel.players(), updatePacket);
+                NetworkManager.sendToPlayers(serverLevel.players(), updatePacket);
             }
         }
     }
@@ -280,7 +281,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                         state.getPlaybackStartTick(),
                         state.isLooping()
                     );
-                PacketRegistries.getChannel().sendToPlayers(serverLevel.players(), updatePacket);
+                NetworkManager.sendToPlayers(serverLevel.players(), updatePacket);
             }
         }
     }
@@ -312,7 +313,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 
                 for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                    PacketRegistries.getChannel().sendToPlayer(player, stopPacket);
+                    NetworkManager.sendToPlayer(player, stopPacket);
                 }
             }
             
@@ -362,7 +363,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
                 PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
-                PacketRegistries.getChannel().sendToPlayer(player, playPacket);
+                NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
             }
         }
@@ -376,7 +377,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
                 if (genericPlayer instanceof net.minecraft.server.level.ServerPlayer serverPlayerInstance) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                    PacketRegistries.getChannel().sendToPlayer(serverPlayerInstance, stopPacket);
+                    NetworkManager.sendToPlayer(serverPlayerInstance, stopPacket);
                 }
                 listeningPlayers.remove(playerId);
             }

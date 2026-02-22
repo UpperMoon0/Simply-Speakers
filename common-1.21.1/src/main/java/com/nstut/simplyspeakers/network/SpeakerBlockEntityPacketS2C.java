@@ -1,15 +1,24 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.function.Supplier;
+public class SpeakerBlockEntityPacketS2C implements CustomPacketPayload {
 
-public class SpeakerBlockEntityPacketS2C {
+    public static final CustomPacketPayload.Type<SpeakerBlockEntityPacketS2C> TYPE = 
+        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "speaker_block_entity"));
+    
+    public static final StreamCodec<RegistryFriendlyByteBuf, SpeakerBlockEntityPacketS2C> STREAM_CODEC = 
+        StreamCodec.of(SpeakerBlockEntityPacketS2C::encode, SpeakerBlockEntityPacketS2C::decode);
+
     private final BlockPos pos;
     private final String audioId;
 
@@ -18,30 +27,31 @@ public class SpeakerBlockEntityPacketS2C {
         this.audioId = audioId;
     }
 
-    public SpeakerBlockEntityPacketS2C(FriendlyByteBuf buf) {
-        this.pos = buf.readBlockPos();
-        this.audioId = buf.readUtf();
+    public static void encode(RegistryFriendlyByteBuf buffer, SpeakerBlockEntityPacketS2C packet) {
+        buffer.writeBlockPos(packet.pos);
+        buffer.writeUtf(packet.audioId);
     }
 
-    public static void encode(SpeakerBlockEntityPacketS2C message, FriendlyByteBuf buf) {
-        buf.writeBlockPos(message.pos);
-        buf.writeUtf(message.audioId);
+    public static SpeakerBlockEntityPacketS2C decode(RegistryFriendlyByteBuf buffer) {
+        return new SpeakerBlockEntityPacketS2C(buffer.readBlockPos(), buffer.readUtf());
     }
 
-    // Updated handle method for Architectury
-    public static void handle(SpeakerBlockEntityPacketS2C message, Supplier<NetworkManager.PacketContext> ctxSupplier) {
-        NetworkManager.PacketContext ctx = ctxSupplier.get();
-        ctx.queue(() -> {
+    public static void handle(SpeakerBlockEntityPacketS2C packet, NetworkManager.PacketContext context) {
+        context.queue(() -> {
             if (Minecraft.getInstance().level != null) {
-                var blockEntity = Minecraft.getInstance().level.getBlockEntity(message.pos);
+                var blockEntity = Minecraft.getInstance().level.getBlockEntity(packet.pos);
                 if (blockEntity instanceof SpeakerBlockEntity speaker) {
                     // Create a CompoundTag containing the updated music path
                     CompoundTag tag = new CompoundTag();
-                    tag.putString("AudioID", message.audioId);
-                    speaker.loadAdditional(tag, Minecraft.getInstance().level.registryAccess()); // Use load to update the client-side entity state from the NBT tag
+                    tag.putString("AudioID", packet.audioId);
+                    speaker.loadAdditional(tag, Minecraft.getInstance().level.registryAccess());
                 }
             }
         });
-        // For S2C packets, Architectury handles setPacketHandled implicitly when queueing on the client.
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+        return TYPE;
     }
 }

@@ -10,6 +10,7 @@ import com.nstut.simplyspeakers.client.gui.widgets.SpeakerAudioList;
 import com.nstut.simplyspeakers.client.gui.widgets.SettingsSlider;
 import com.nstut.simplyspeakers.network.*;
 import com.nstut.simplyspeakers.platform.Services;
+import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -120,7 +121,7 @@ public class SpeakerScreen extends Screen {
                         String newId = this.audioTabContent.speakerIdField.getValue();
                         // Optimistically update the client-side speaker entity
                         this.speaker.setSpeakerId(newId);
-                        PacketRegistries.getChannel().sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
+                        NetworkManager.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
                     }
                 })
                 .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 63)
@@ -131,7 +132,7 @@ public class SpeakerScreen extends Screen {
             if (this.speaker != null) {
                 this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
             }
-            PacketRegistries.getChannel().sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
+            NetworkManager.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
         });
 
         this.audioTabContent.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
@@ -151,7 +152,7 @@ public class SpeakerScreen extends Screen {
                                 return;
                             }
                             var transactionId = ClientAudioPlayer.startUpload(file);
-                            PacketRegistries.getChannel().sendToServer(new RequestUploadAudioPacketC2S(this.blockEntityPos, transactionId, file.getName(), file.length()));
+                            NetworkManager.sendToServer(new RequestUploadAudioPacketC2S(this.blockEntityPos, transactionId, file.getName(), file.length()));
                         } else {
                             SimplySpeakers.LOGGER.info("No file selected");
                         }
@@ -170,7 +171,7 @@ public class SpeakerScreen extends Screen {
                     this.speaker.getMaxVolume(),
                     0.0, 1.0,
                     value -> Component.literal(String.format("Max Volume: %d%%", (int) (value * 100))),
-                    value -> PacketRegistries.getChannel().sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
+                    value -> NetworkManager.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
             );
             this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum volume level of the speaker")));
 
@@ -180,7 +181,7 @@ public class SpeakerScreen extends Screen {
                     this.speaker.getMaxRange(),
                     1, Config.speakerRange,
                     value -> Component.literal(String.format("Max Range: %d", (int) value)),
-                    value -> PacketRegistries.getChannel().sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
+                    value -> NetworkManager.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
             );
             this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum range/distance the speaker can broadcast audio")));
 
@@ -190,7 +191,7 @@ public class SpeakerScreen extends Screen {
                     this.speaker.getAudioDropoff(),
                     0.0, 1.0,
                     value -> Component.literal(String.format("Audio Dropoff: %d%%", (int) (value * 100))),
-                    value -> PacketRegistries.getChannel().sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
+                    value -> NetworkManager.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
             );
             this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.literal("Controls how quickly audio volume decreases with distance")));
             
@@ -199,7 +200,7 @@ public class SpeakerScreen extends Screen {
                         boolean newLoopState = !this.speaker.isLooping();
                         this.speaker.setLoopingClient(newLoopState);
                         button.setMessage(getLoopButtonTextComponent());
-                        PacketRegistries.getChannel().sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
+                        NetworkManager.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
                     })
                     .pos(guiLeft + 10, guiTop + 165)
                     .size(80, 20)
@@ -227,7 +228,7 @@ public class SpeakerScreen extends Screen {
             this.addRenderableWidget(this.settingsTabContent.loopToggleButton);
         }
 
-        PacketRegistries.getChannel().sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
+        NetworkManager.sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
         
         // Set initial visibility
         updateVisibility();
