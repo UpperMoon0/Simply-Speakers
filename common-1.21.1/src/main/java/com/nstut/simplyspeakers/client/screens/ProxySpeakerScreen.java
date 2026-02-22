@@ -1,7 +1,6 @@
 // Language: java
 package com.nstut.simplyspeakers.client.screens;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
@@ -180,11 +179,11 @@ public class ProxySpeakerScreen extends Screen {
 
     @Override
     public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        this.renderBackground(guiGraphics, mouseX, mouseY, partialTicks);
-        RenderSystem.setShaderTexture(0, BACKGROUND_TEXTURE);
+        super.render(guiGraphics, mouseX, mouseY, partialTicks);
+        
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
-        guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        
         guiGraphics.drawString(this.font, Component.literal("Proxy Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Proxy Speaker")) / 2, guiTop + 10, 4210752, false);
         
         // Draw tab-specific content
@@ -203,8 +202,14 @@ public class ProxySpeakerScreen extends Screen {
                 guiGraphics.drawString(this.font, Component.literal("Audio Dropoff (0-100%):"), guiLeft + 10, guiTop + 125, 4210752, false);
             }
         }
-
-        super.render(guiGraphics, mouseX, mouseY, partialTicks);
+    }
+    
+    @Override
+    public void renderBackground(GuiGraphics guiGraphics, int i, int j, float f) {
+        super.renderBackground(guiGraphics, i, j, f);
+        int guiLeft = (this.width - SCREEN_WIDTH) / 2;
+        int guiTop = (this.height - SCREEN_HEIGHT) / 2;
+        guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     }
 
     private void fetchDataFromBlockEntity() {
