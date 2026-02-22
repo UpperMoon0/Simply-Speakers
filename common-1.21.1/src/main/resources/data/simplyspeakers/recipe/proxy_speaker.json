@@ -1,10 +1,6 @@
 {
   "type": "minecraft:crafting_shaped",
-  "pattern": [
-    "PPP",
-    "RAR",
-    "PPP"
-  ],
+  "category": "misc",
   "key": {
     "A": {
       "item": "minecraft:amethyst_shard"
@@ -16,8 +12,13 @@
       "tag": "minecraft:planks"
     }
   },
+  "pattern": [
+    "PPP",
+    "RAR",
+    "PPP"
+  ],
   "result": {
-    "item": "simplyspeakers:proxy_speaker",
-    "count": 1
-  }
+    "id": "simplyspeakers:proxy_speaker"
+  },
+  "show_notification": true
 }

@@ -1,10 +1,6 @@
 {
   "type": "minecraft:crafting_shaped",
-  "pattern": [
-    "III",
-    "RAR",
-    "III"
-  ],
+  "category": "misc",
   "key": {
     "A": {
       "item": "minecraft:amethyst_shard"
@@ -16,8 +12,13 @@
       "item": "minecraft:iron_ingot"
     }
   },
+  "pattern": [
+    "III",
+    "RAR",
+    "III"
+  ],
   "result": {
-    "item": "simplyspeakers:speaker",
-    "count": 1
-  }
+    "id": "simplyspeakers:speaker"
+  },
+  "show_notification": true
 }
