@@ -1,12 +1,11 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
 import dev.architectury.networking.NetworkManager;
-import dev.architectury.platform.Platform;
-import dev.architectury.utils.Env;
 
 public class PacketRegistries {
     private static boolean registered = false;
-
+    
     public static void registerC2S() {
         // Client to Server packets - register receivers on server side
         // Note: registerReceiver also registers the codec for the payload type
@@ -29,17 +28,8 @@ public class PacketRegistries {
     }
 
     public static void registerS2C() {
-        // Register S2C payload types on server side
-        NetworkManager.registerS2CPayloadType(StopAudioPacketS2C.TYPE, StopAudioPacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(PlayAudioPacketS2C.TYPE, PlayAudioPacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(SpeakerBlockEntityPacketS2C.TYPE, SpeakerBlockEntityPacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(RespondUploadAudioPacketS2C.TYPE, RespondUploadAudioPacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(AcknowledgeUploadPacketS2C.TYPE, AcknowledgeUploadPacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(SendAudioListPacketS2C.TYPE, SendAudioListPacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(SendAudioFilePacketS2C.TYPE, SendAudioFilePacketS2C.STREAM_CODEC);
-        NetworkManager.registerS2CPayloadType(SpeakerStateUpdatePacketS2C.TYPE, SpeakerStateUpdatePacketS2C.STREAM_CODEC);
-        
-        // Register receivers on client side
+        // Register S2C receivers on client side
+        // Note: registerReceiver also registers the payload type internally, so we don't need to call registerS2CPayloadType separately
         NetworkManager.registerReceiver(NetworkManager.s2c(), StopAudioPacketS2C.TYPE, StopAudioPacketS2C.STREAM_CODEC, StopAudioPacketS2C::handle);
         NetworkManager.registerReceiver(NetworkManager.s2c(), PlayAudioPacketS2C.TYPE, PlayAudioPacketS2C.STREAM_CODEC, PlayAudioPacketS2C::handle);
         NetworkManager.registerReceiver(NetworkManager.s2c(), SpeakerBlockEntityPacketS2C.TYPE, SpeakerBlockEntityPacketS2C.STREAM_CODEC, SpeakerBlockEntityPacketS2C::handle);
@@ -51,11 +41,16 @@ public class PacketRegistries {
     }
     
     public static void init() {
-        if (registered) return;
+        if (registered) {
+            SimplySpeakers.LOGGER.info("Packet registries already initialized, skipping");
+            return;
+        }
         registered = true;
         
+        SimplySpeakers.LOGGER.info("Initializing packet registries...");
         // Always register both directions - Architectury handles the side-specific logic
         registerC2S();
         registerS2C();
+        SimplySpeakers.LOGGER.info("Packet registries initialized");
     }
 }
