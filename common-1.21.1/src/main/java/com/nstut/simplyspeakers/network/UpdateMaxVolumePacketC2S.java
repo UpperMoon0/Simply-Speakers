@@ -45,6 +45,8 @@ public class UpdateMaxVolumePacketC2S implements CustomPacketPayload {
                 if (level.isLoaded(packet.pos)) {
                     BlockEntity blockEntity = level.getBlockEntity(packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
+                        com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[C2S] UpdateMaxVolumePacket received - pos: {}, maxVolume: {}, speakerId: '{}'", 
+                            packet.pos, packet.maxVolume, speakerEntity.getSpeakerId());
                         speakerEntity.setMaxVolume(packet.maxVolume);
                     }
                 }

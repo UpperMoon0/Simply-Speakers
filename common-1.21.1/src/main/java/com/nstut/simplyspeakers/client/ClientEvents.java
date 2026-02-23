@@ -2,10 +2,12 @@ package com.nstut.simplyspeakers.client;
 
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.event.events.client.ClientPlayerEvent;
+import dev.architectury.event.events.client.ClientLifecycleEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.client.screens.ProxySpeakerScreen;
+import com.nstut.simplyspeakers.SimplySpeakers;
 
 public class ClientEvents {
 
@@ -13,8 +15,11 @@ public class ClientEvents {
     private static final int VOLUME_UPDATE_INTERVAL = 5; // Update every 5 ticks instead of every tick
 
     public static void register() {
+        SimplySpeakers.LOGGER.info("Registering client events...");
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
+        ClientLifecycleEvent.CLIENT_STOPPING.register(ClientEvents::onClientStopping);
+        SimplySpeakers.LOGGER.info("Client events registered");
     }
 
     private static void onClientTick(Minecraft client) {
@@ -29,7 +34,14 @@ public class ClientEvents {
     }
 
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
-        System.out.println("[SimplySpeakers] Player logging out, initiating fast audio cleanup...");
+        SimplySpeakers.LOGGER.info("CLIENT_PLAYER_QUIT event fired - Player logging out, initiating fast audio cleanup...");
+        ClientAudioPlayer.stopAll();
+        ClientAudioPlayer.clearAudioList();
+        ClientSpeakerRegistry.clear();
+    }
+    
+    private static void onClientStopping(Minecraft client) {
+        SimplySpeakers.LOGGER.info("CLIENT_STOPPING event fired - Client stopping, initiating audio cleanup...");
         ClientAudioPlayer.stopAll();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();

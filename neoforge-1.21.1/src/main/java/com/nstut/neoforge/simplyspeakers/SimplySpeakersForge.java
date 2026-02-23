@@ -36,6 +36,9 @@ public final class SimplySpeakersForge {
         // Initialize packet registration
         PacketRegistries.init();
 
+        // Run common setup (registers client events for volume updates)
+        SimplySpeakers.init();
+
         // Register the server starting event
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         

@@ -73,8 +73,12 @@ public class SimplySpeakers {
         // when getChannel() is called. Manual registration causes double registration.
 
         // Register client-side events only on the client
+        LOGGER.info("Platform.getEnv() = '{}', checking if CLIENT...", Platform.getEnv().toString());
         if (Platform.getEnv().toString().equals("CLIENT")) {
+            LOGGER.info("Client environment detected, registering client events...");
             ClientEvents.register();
+        } else {
+            LOGGER.info("Server environment detected, skipping client events registration");
         }
         
         // Let each platform handle their own initialization

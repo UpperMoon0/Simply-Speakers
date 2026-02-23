@@ -109,7 +109,13 @@ public class SpeakerRegistry {
      * @return The speaker state
      */
     public static SpeakerState getOrCreateSpeakerState(String speakerId) {
-        return speakerStates.computeIfAbsent(speakerId, k -> new SpeakerState());
+        SpeakerState state = speakerStates.computeIfAbsent(speakerId, k -> {
+            SimplySpeakers.LOGGER.debug("[SpeakerRegistry] Creating NEW SpeakerState for speakerId: '{}'", k);
+            return new SpeakerState();
+        });
+        SimplySpeakers.LOGGER.debug("[SpeakerRegistry] getOrCreateSpeakerState('{}') - maxVolume: {}, maxRange: {}, audioDropoff: {}", 
+            speakerId, state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
+        return state;
     }
     
     /**

@@ -384,9 +384,12 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @Override
     public void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
+        com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Called for pos {}, clientSide: {}, tag keys: {}", 
+            worldPosition, level != null && level.isClientSide(), tag.getAllKeys());
         
         // Load speaker ID
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
+        com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Loaded speakerId: '{}'", speakerId);
         
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
@@ -405,6 +408,15 @@ public class SpeakerBlockEntity extends BlockEntity {
             SpeakerState state = SpeakerRegistry.getSpeakerState(speakerId);
             if (state != null && state.isPlaying()) {
                 notifyProxySpeakers("play");
+            }
+        } else if (level != null && level.isClientSide()) {
+            com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Client side - speakerId: '{}', checking SpeakerRegistry state...", speakerId);
+            SpeakerState state = SpeakerRegistry.getSpeakerState(speakerId);
+            if (state != null) {
+                com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Client side - SpeakerState found: maxVolume: {}, maxRange: {}, audioDropoff: {}", 
+                    state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
+            } else {
+                com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Client side - SpeakerState is NULL, will be created on demand with defaults");
             }
         }
     }
@@ -537,6 +549,8 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     public void handleUpdateTag(CompoundTag tag) {
+        com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[handleUpdateTag] Called on client for pos {}, tag keys: {}", 
+            worldPosition, tag.getAllKeys());
         loadWithComponents(tag, level.registryAccess());
     }
     
@@ -549,11 +563,17 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level != null && !level.isClientSide) {
             SpeakerState state = getSpeakerState();
             if (state != null) {
+                com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[Server] setMaxVolume called for speakerId '{}' at pos {}: {} -> {}", 
+                    speakerId, worldPosition, state.getMaxVolume(), maxVolume);
                 state.setMaxVolume(maxVolume);
                 updateSpeakerState(state);
                 setChanged();
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[Server] sendBlockUpdated called for maxVolume change at {}", worldPosition);
             }
+        } else if (level != null && level.isClientSide()) {
+            com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[Client] setMaxVolume called on client side for pos {}, speakerId '{}': {}", 
+                worldPosition, speakerId, maxVolume);
         }
     }
     
@@ -598,7 +618,12 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public float getMaxVolume() {
         SpeakerState state = getSpeakerState();
-        return state != null ? state.getMaxVolume() : 1.0f;
+        float volume = state != null ? state.getMaxVolume() : 1.0f;
+        if (level != null && level.isClientSide()) {
+            com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[Client] getMaxVolume at pos {}, speakerId '{}': {} (state: {})", 
+                worldPosition, speakerId, volume, state != null ? "found" : "null");
+        }
+        return volume;
     }
     
     /**
@@ -608,7 +633,12 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public int getMaxRange() {
         SpeakerState state = getSpeakerState();
-        return state != null ? state.getMaxRange() : 16;
+        int range = state != null ? state.getMaxRange() : 16;
+        if (level != null && level.isClientSide()) {
+            com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[Client] getMaxRange at pos {}, speakerId '{}': {} (state: {})", 
+                worldPosition, speakerId, range, state != null ? "found" : "null");
+        }
+        return range;
     }
     
     /**
@@ -618,6 +648,11 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public float getAudioDropoff() {
         SpeakerState state = getSpeakerState();
-        return state != null ? state.getAudioDropoff() : 1.0f;
+        float dropoff = state != null ? state.getAudioDropoff() : 1.0f;
+        if (level != null && level.isClientSide()) {
+            com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[Client] getAudioDropoff at pos {}, speakerId '{}': {} (state: {})", 
+                worldPosition, speakerId, dropoff, state != null ? "found" : "null");
+        }
+        return dropoff;
     }
 }

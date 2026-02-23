@@ -450,7 +450,7 @@ public class ClientAudioPlayer {
 
     // Optimized stopAll method for fast world save performance
     public static void stopAll() {
-         SimplySpeakers.LOGGER.info("Stopping all playback...");
+         SimplySpeakers.LOGGER.info("Stopping all playback... speakerResources size: {}", speakerResources.size());
          // Create a copy of resources to avoid ConcurrentModificationException
          List<Map.Entry<BlockPos, StreamingAudioResource>> resourcesToStop = new ArrayList<>(speakerResources.entrySet());
          SimplySpeakers.LOGGER.info("Found {} active speakers to stop.", resourcesToStop.size());
@@ -465,6 +465,7 @@ public class ClientAudioPlayer {
                      try {
                          StreamingAudioResource resource = entry.getValue();
                          if (resource != null) {
+                             SimplySpeakers.LOGGER.info("Stopping speaker at {} with source {}", entry.getKey(), resource.sourceID);
                              resource.stopAndCleanup();
                          }
                      } catch (Exception e) {
@@ -484,9 +485,13 @@ public class ClientAudioPlayer {
     public static void updateSpeakerVolumes() {
         Minecraft mc = Minecraft.getInstance();
         Player player = mc.player;
-        if (player == null || mc.level == null || speakerResources.isEmpty()) {
+        if (player == null || mc.level == null) {
             return;
         }
+        if (speakerResources.isEmpty()) {
+            return;
+        }
+        SimplySpeakers.LOGGER.debug("[VolumeUpdate] Updating volumes for {} active speakers", speakerResources.size());
 
         Vec3 playerPos = player.position();
 
@@ -511,12 +516,26 @@ public class ClientAudioPlayer {
                 maxVolume = speakerBlockEntity.getMaxVolume();
                 maxRange = speakerBlockEntity.getMaxRange();
                 audioDropoff = speakerBlockEntity.getAudioDropoff();
+                SimplySpeakers.LOGGER.debug("[VolumeUpdate] SpeakerBlockEntity at {} - maxVolume: {}, maxRange: {}, audioDropoff: {}", 
+                    speakerPos, maxVolume, maxRange, audioDropoff);
+                // Debug: Check SpeakerState from registry
+                com.nstut.simplyspeakers.SpeakerState state = speakerBlockEntity.getSpeakerState();
+                if (state != null) {
+                    SimplySpeakers.LOGGER.debug("[VolumeUpdate] SpeakerState for speakerId '{}' - maxVolume: {}, maxRange: {}, audioDropoff: {}", 
+                        speakerBlockEntity.getSpeakerId(), state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
+                } else {
+                    SimplySpeakers.LOGGER.warn("[VolumeUpdate] SpeakerState is NULL for speakerId: '{}'", speakerBlockEntity.getSpeakerId());
+                }
             } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
                 // Get proxy speaker settings
                 maxVolume = proxySpeakerBlockEntity.getMaxVolume();
                 maxRange = proxySpeakerBlockEntity.getMaxRange();
                 audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
+                SimplySpeakers.LOGGER.debug("[VolumeUpdate] ProxySpeakerBlockEntity at {} - maxVolume: {}, maxRange: {}, audioDropoff: {}", 
+                    speakerPos, maxVolume, maxRange, audioDropoff);
             } else {
+                SimplySpeakers.LOGGER.debug("[VolumeUpdate] No valid block entity at {} - blockEntity type: {}", 
+                    speakerPos, blockEntity != null ? blockEntity.getClass().getSimpleName() : "null");
                 continue;
             }
             

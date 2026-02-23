@@ -136,15 +136,24 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
     }
     
     private static void handleRegularSpeakerStateUpdate(SpeakerStateUpdatePacketS2C packet) {
+        SimplySpeakers.LOGGER.debug("[S2C] handleRegularSpeakerStateUpdate - speakerId: '{}', action: '{}', audioId: '{}'", 
+            packet.speakerId, packet.action, packet.audioId);
+        
         // Update the client-side speaker registry with the new state
         
         // Get or create the speaker state in the client registry
         com.nstut.simplyspeakers.SpeakerState state = com.nstut.simplyspeakers.SpeakerRegistry.getOrCreateSpeakerState(packet.speakerId);
         if (state != null) {
+            SimplySpeakers.LOGGER.debug("[S2C] BEFORE update - SpeakerState maxVolume: {}, maxRange: {}, audioDropoff: {}", 
+                state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
+            
             state.setAudioId(packet.audioId);
             state.setAudioFilename(packet.audioFilename);
             state.setPlaybackStartTick(packet.playbackStartTick);
             state.setLooping(packet.isLooping);
+            
+            SimplySpeakers.LOGGER.debug("[S2C] AFTER update - SpeakerState maxVolume: {}, maxRange: {}, audioDropoff: {} (NOTE: settings NOT synced!)", 
+                state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
         }
         
         // Handle specific actions

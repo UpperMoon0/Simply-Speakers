@@ -3,6 +3,8 @@ package com.nstut.fabric.simplyspeakers.config;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import net.fabricmc.loader.api.FabricLoader;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 
 import java.io.File;
 import java.io.FileReader;
@@ -51,6 +53,16 @@ public class FabricConfig {
                 SimplySpeakers.LOGGER.error("Failed to parse max upload size from config", e);
             }
             
+            // Read debug logging
+            Config.debugLogging = Boolean.parseBoolean(props.getProperty("debugLogging", String.valueOf(Config.debugLogging)));
+            
+            // Set logger level based on debug config
+            // The logger name is "Simply Speakers" (as defined in SimplySpeakers.java)
+            if (Config.debugLogging) {
+                Configurator.setLevel("Simply Speakers", Level.DEBUG);
+                SimplySpeakers.LOGGER.info("Debug logging enabled for Simply Speakers");
+            }
+            
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read config file", e);
             writeConfig();
@@ -63,6 +75,7 @@ public class FabricConfig {
             props.setProperty("speakerRange", "64");
             props.setProperty("disableUpload", String.valueOf(Config.disableUpload));
             props.setProperty("maxUploadSize", String.valueOf(Config.maxUploadSize));
+            props.setProperty("debugLogging", String.valueOf(Config.debugLogging));
             
             props.store(writer, "Simply Speakers Configuration");
         } catch (IOException e) {

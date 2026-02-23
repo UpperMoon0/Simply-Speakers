@@ -1,8 +1,11 @@
 package com.nstut.neoforge.simplyspeakers.config;
 
 import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.SimplySpeakers;
 import net.neoforged.neoforge.common.ModConfigSpec;
 import net.neoforged.fml.event.config.ModConfigEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 
 /**
  * Forge-specific configuration handler.
@@ -22,6 +25,10 @@ public class ForgeConfig {
             .comment("The maximum upload size in bytes")
             .defineInRange("maxUploadSize", Config.maxUploadSize, Config.MIN_UPLOAD_SIZE, Config.MAX_UPLOAD_SIZE);
 
+    public static final ModConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
+            .comment("Enable debug logging for troubleshooting audio/settings issues")
+            .define("debugLogging", Config.debugLogging);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -33,6 +40,16 @@ public class ForgeConfig {
             Config.speakerRange = SPEAKER_RANGE.get();
             Config.disableUpload = DISABLE_UPLOAD.get();
             Config.maxUploadSize = MAX_UPLOAD_SIZE.get();
+            Config.debugLogging = DEBUG_LOGGING.get();
+            
+            // Set logger level based on debug config
+            // The logger name is "Simply Speakers" (as defined in SimplySpeakers.java)
+            if (Config.debugLogging) {
+                Configurator.setLevel("Simply Speakers", Level.DEBUG);
+                SimplySpeakers.LOGGER.info("Debug logging enabled for Simply Speakers");
+            } else {
+                Configurator.setLevel("Simply Speakers", Level.INFO);
+            }
         }
     }
 }
