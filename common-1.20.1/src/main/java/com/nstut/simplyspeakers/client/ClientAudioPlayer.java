@@ -79,7 +79,7 @@ public class ClientAudioPlayer {
                     
                     // Schedule OpenAL cleanup on main thread with minimal operations
                     Minecraft.getInstance().tell(() -> cleanupOpenALResources());
-                }, "SimplySpeakers-Cleanup-" + position.toString());
+                }, SimplySpeakers.MOD_ID + "-cleanup-" + position.toString());
                 cleanupThread.setDaemon(true);
                 cleanupThread.start();
             } else {
@@ -143,7 +143,7 @@ public class ClientAudioPlayer {
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
                 Thread streamingThread = new Thread(() -> streamAudioData(pos, sourceID, bufferIDs, filePath, startPositionSeconds, isLooping),
-                        "SimplySpeakers Streaming Thread - " + pos);
+                        SimplySpeakers.MOD_ID + "-stream-" + pos);
                 streamingThread.setDaemon(true);
 
                 StreamingAudioResource resource = new StreamingAudioResource(sourceID, bufferIDs, streamingThread, pos, isLooping);
@@ -472,7 +472,7 @@ public class ClientAudioPlayer {
                      }
                  }
                  SimplySpeakers.LOGGER.info("Batch cleanup completed for {} speakers.", resourcesToStop.size());
-             }, "SimplySpeakers-BatchCleanup");
+              }, SimplySpeakers.MOD_ID + "-batch-cleanup");
              batchCleanupThread.setDaemon(true);
              batchCleanupThread.start();
          }

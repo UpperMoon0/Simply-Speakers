@@ -23,8 +23,8 @@ import java.nio.file.Path;
 public class SimplySpeakers {
     // Define mod id in a common place for everything to reference
     public static final String MOD_ID = "simplyspeakers";
-    // Directly reference a slf4j logger
-    public static final Logger LOGGER = LoggerFactory.getLogger("Simply Speakers");
+    // Directly reference a slf4j logger - use MOD_ID for consistent logging prefix
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
     private static AudioFileManager audioFileManager;
     private static boolean initialized = false;
     public static final DeferredRegister<SoundEvent> SOUND_EVENTS = DeferredRegister.create(MOD_ID, Registries.SOUND_EVENT);

@@ -79,7 +79,7 @@ public class ClientAudioPlayer {
                     
                     // Schedule OpenAL cleanup on main thread with minimal operations
                     Minecraft.getInstance().tell(() -> cleanupOpenALResources());
-                }, "SimplySpeakers-Cleanup-" + position.toString());
+                }, SimplySpeakers.MOD_ID + "-cleanup-" + position.toString());
                 cleanupThread.setDaemon(true);
                 cleanupThread.start();
             } else {
@@ -97,7 +97,7 @@ public class ClientAudioPlayer {
                     AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Detach buffer pointer
                     AL10.alDeleteSources(sourceID);
                     AL10.alDeleteBuffers(bufferIDs);
-                    SimplySpeakers.LOGGER.info("Fast cleanup completed for source {} at {}", sourceID, position);
+                    SimplySpeakers.LOGGER.debug("Fast cleanup completed for source {} at {}", sourceID, position);
                 } else {
                     SimplySpeakers.LOGGER.warn("Source {} at {} already invalid, skipping cleanup.", sourceID, position);
                 }
@@ -109,7 +109,7 @@ public class ClientAudioPlayer {
     }
 
     public static void play(BlockPos pos, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
-        SimplySpeakers.LOGGER.info("CLIENT: play called for pos: {}, audioId: {}, start: {}s, looping: {}", pos, metadata.getUuid(), startPositionSeconds, isLooping);
+        SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, audioId: {}, start: {}s, looping: {}", pos, metadata.getUuid(), startPositionSeconds, isLooping);
         stop(pos);
 
         if (!CACHE_DIR.exists()) {
@@ -143,13 +143,13 @@ public class ClientAudioPlayer {
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
                 Thread streamingThread = new Thread(() -> streamAudioData(pos, sourceID, bufferIDs, filePath, startPositionSeconds, isLooping),
-                        "SimplySpeakers Streaming Thread - " + pos);
+                        SimplySpeakers.MOD_ID + "-stream-" + pos);
                 streamingThread.setDaemon(true);
 
                 StreamingAudioResource resource = new StreamingAudioResource(sourceID, bufferIDs, streamingThread, pos, isLooping);
                 speakerResources.put(pos, resource);
                 streamingThread.start();
-                SimplySpeakers.LOGGER.info("CLIENT: Started streaming thread for source {} at {}", sourceID, pos);
+                SimplySpeakers.LOGGER.debug("CLIENT: Started streaming thread for source {} at {}", sourceID, pos);
             } catch (Exception e) {
                 SimplySpeakers.LOGGER.error("CLIENT: Failed to start audio playback at {}", pos, e);
             }
@@ -171,7 +171,7 @@ public class ClientAudioPlayer {
 
     // Core streaming logic executed in a separate thread
     private static void streamAudioData(BlockPos pos, int sourceID, int[] bufferIDs, String filePath, float startPositionSeconds, boolean isLooping) {
-        SimplySpeakers.LOGGER.info("STREAMER [{}]: Thread started. File: {}, Start: {}s, Looping: {}", sourceID, filePath, startPositionSeconds, isLooping);
+        SimplySpeakers.LOGGER.debug("STREAMER [{}]: Thread started. File: {}, Start: {}s, Looping: {}", sourceID, filePath, startPositionSeconds, isLooping);
         StreamingAudioResource resource = speakerResources.get(pos);
 
         // Loop control
@@ -275,7 +275,7 @@ public class ClientAudioPlayer {
 
                     if (!playbackAttempted) {
                         AL10.alSourcePlay(sourceID);
-                        SimplySpeakers.LOGGER.info("Streaming thread for {}: Started playback after queuing first/initial buffer (ID: {}).", pos, bufferIDs[i]);
+                        SimplySpeakers.LOGGER.debug("Streaming thread for {}: Started playback after queuing first/initial buffer (ID: {}).", pos, bufferIDs[i]);
                         playbackAttempted = true;
                     }
                 }
@@ -286,7 +286,7 @@ public class ClientAudioPlayer {
                         int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
                         if (queued > 0 && AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
                             AL10.alSourcePlay(sourceID);
-                            SimplySpeakers.LOGGER.info("Streaming thread for {}: Started playback (post-initial loop check).", pos);
+                            SimplySpeakers.LOGGER.debug("Streaming thread for {}: Started playback (post-initial loop check).", pos);
                             playbackAttempted = true;
                         }
                     }
@@ -330,7 +330,7 @@ public class ClientAudioPlayer {
                     if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
                          int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
                          if (queuedBuffers > 0) {
-                            SimplySpeakers.LOGGER.info("Source {} at {} stopped but has queued buffers. Restarting playback.", sourceID, pos);
+                            SimplySpeakers.LOGGER.debug("Source {} at {} stopped but has queued buffers. Restarting playback.", sourceID, pos);
                             AL10.alSourcePlay(sourceID);
                          } else if (!resource.stopFlag.get()) {
                             SimplySpeakers.LOGGER.warn("Buffer underrun for source {} at {}. Waiting for more data.", sourceID, pos);
@@ -353,7 +353,7 @@ public class ClientAudioPlayer {
                     continueStreaming = false; // Do not loop if explicitly stopped or interrupted
                 } else if (playbackCompletedSuccessfully) { // EOF reached for this cycle
                     if (isLooping) {
-                        SimplySpeakers.LOGGER.info("Audio track finished for {}. Looping enabled, restarting.", pos);
+                        SimplySpeakers.LOGGER.debug("Audio track finished for {}. Looping enabled, restarting.", pos);
                         // Clean up OpenAL source state for restart, but keep buffers
                         Minecraft.getInstance().tell(() -> {
                             if (AL10.alIsSource(sourceID)) {
@@ -371,7 +371,7 @@ public class ClientAudioPlayer {
                         initialDataLoaded = false; // Reset for next loop iteration
                         // continueStreaming remains true
                     } else {
-                        SimplySpeakers.LOGGER.info("Audio track finished for {}. Looping disabled.", pos);
+                        SimplySpeakers.LOGGER.debug("Audio track finished for {}. Looping disabled.", pos);
                         resource.stopFlag.set(true); // Set stop flag as playback is complete and not looping
                         continueStreaming = false;
                     }
@@ -432,7 +432,7 @@ public class ClientAudioPlayer {
 
         } // End of while(continueStreaming) loop
 
-        SimplySpeakers.LOGGER.info("Streaming thread fully finished for {} (source {}).", pos, sourceID);
+        SimplySpeakers.LOGGER.debug("Streaming thread fully finished for {} (source {}).", pos, sourceID);
         // Final cleanup is handled by stopAndCleanup when resource is removed or stopAll is called.
         // If the loop finishes because stopFlag was set (e.g. by stop(pos) externally),
         // the resource.stopAndCleanup() will eventually be called.
@@ -444,41 +444,41 @@ public class ClientAudioPlayer {
         StreamingAudioResource resource = speakerResources.remove(pos);
         if (resource != null) {
             resource.stopAndCleanup();
-            SimplySpeakers.LOGGER.info("Stopped audio for speaker at {}", pos);
+            SimplySpeakers.LOGGER.debug("Stopped audio for speaker at {}", pos);
         }
     }
 
     // Optimized stopAll method for fast world save performance
     public static void stopAll() {
-         SimplySpeakers.LOGGER.info("Stopping all playback... speakerResources size: {}", speakerResources.size());
+         SimplySpeakers.LOGGER.debug("Stopping all playback... speakerResources size: {}", speakerResources.size());
          // Create a copy of resources to avoid ConcurrentModificationException
          List<Map.Entry<BlockPos, StreamingAudioResource>> resourcesToStop = new ArrayList<>(speakerResources.entrySet());
-         SimplySpeakers.LOGGER.info("Found {} active speakers to stop.", resourcesToStop.size());
+         SimplySpeakers.LOGGER.debug("Found {} active speakers to stop.", resourcesToStop.size());
          
          // PERFORMANCE FIX: Clear the map immediately to prevent new operations during cleanup
          speakerResources.clear();
          
-         // Batch cleanup using a single background thread to prevent blocking world save
-         if (!resourcesToStop.isEmpty()) {
-             Thread batchCleanupThread = new Thread(() -> {
-                 for (Map.Entry<BlockPos, StreamingAudioResource> entry : resourcesToStop) {
-                     try {
-                         StreamingAudioResource resource = entry.getValue();
-                         if (resource != null) {
-                             SimplySpeakers.LOGGER.info("Stopping speaker at {} with source {}", entry.getKey(), resource.sourceID);
-                             resource.stopAndCleanup();
-                         }
-                     } catch (Exception e) {
-                         SimplySpeakers.LOGGER.error("Error stopping speaker at {}", entry.getKey(), e);
-                     }
-                 }
-                 SimplySpeakers.LOGGER.info("Batch cleanup completed for {} speakers.", resourcesToStop.size());
-             }, "SimplySpeakers-BatchCleanup");
-             batchCleanupThread.setDaemon(true);
-             batchCleanupThread.start();
-         }
-         
-         SimplySpeakers.LOGGER.info("Initiated fast shutdown for all playback.");
+          // Batch cleanup using a single background thread to prevent blocking world save
+          if (!resourcesToStop.isEmpty()) {
+              Thread batchCleanupThread = new Thread(() -> {
+                  for (Map.Entry<BlockPos, StreamingAudioResource> entry : resourcesToStop) {
+                      try {
+                          StreamingAudioResource resource = entry.getValue();
+                          if (resource != null) {
+                              SimplySpeakers.LOGGER.debug("Stopping speaker at {} with source {}", entry.getKey(), resource.sourceID);
+                              resource.stopAndCleanup();
+                          }
+                      } catch (Exception e) {
+                          SimplySpeakers.LOGGER.error("Error stopping speaker at {}", entry.getKey(), e);
+                      }
+                  }
+                  SimplySpeakers.LOGGER.debug("Batch cleanup completed for {} speakers.", resourcesToStop.size());
+              }, SimplySpeakers.MOD_ID + "-batch-cleanup");
+              batchCleanupThread.setDaemon(true);
+              batchCleanupThread.start();
+          }
+          
+          SimplySpeakers.LOGGER.debug("Initiated fast shutdown for all playback.");
     }
 
     // Added back updateSpeakerVolumes method
