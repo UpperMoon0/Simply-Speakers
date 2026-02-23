@@ -43,12 +43,12 @@ public class ForgeConfig {
             Config.debugLogging = DEBUG_LOGGING.get();
             
             // Set logger level based on debug config
-            // The logger name is "Simply Speakers" (as defined in SimplySpeakers.java)
+            // The logger name is the MOD_ID ("simplyspeakers")
             if (Config.debugLogging) {
-                Configurator.setLevel("Simply Speakers", Level.DEBUG);
+                Configurator.setLevel(SimplySpeakers.MOD_ID, Level.DEBUG);
                 SimplySpeakers.LOGGER.info("Debug logging enabled for Simply Speakers");
             } else {
-                Configurator.setLevel("Simply Speakers", Level.INFO);
+                Configurator.setLevel(SimplySpeakers.MOD_ID, Level.INFO);
             }
         }
     }

@@ -38,4 +38,9 @@ public class Config {
      * The maximum upload size that can be set.
      */
     public static final int MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100MB
+    
+    /**
+     * Whether to enable debug logging for troubleshooting.
+     */
+    public static boolean debugLogging = false;
 }

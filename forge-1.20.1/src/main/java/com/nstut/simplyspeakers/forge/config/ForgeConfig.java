@@ -1,10 +1,13 @@
 package com.nstut.simplyspeakers.forge.config;
 
 import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.SimplySpeakers;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 
 /**
  * Forge-specific configuration handler.
@@ -25,6 +28,10 @@ public class ForgeConfig {
             .comment("The maximum upload size in bytes")
             .defineInRange("maxUploadSize", Config.maxUploadSize, Config.MIN_UPLOAD_SIZE, Config.MAX_UPLOAD_SIZE);
 
+    public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
+            .comment("Enable debug logging for troubleshooting audio/settings issues")
+            .define("debugLogging", Config.debugLogging);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -37,6 +44,16 @@ public class ForgeConfig {
             Config.speakerRange = SPEAKER_RANGE.get();
             Config.disableUpload = DISABLE_UPLOAD.get();
             Config.maxUploadSize = MAX_UPLOAD_SIZE.get();
+            Config.debugLogging = DEBUG_LOGGING.get();
+            
+            // Set logger level based on debug config
+            // The logger name is the MOD_ID ("simplyspeakers")
+            if (Config.debugLogging) {
+                Configurator.setLevel(SimplySpeakers.MOD_ID, Level.DEBUG);
+                SimplySpeakers.LOGGER.info("Debug logging enabled for Simply Speakers");
+            } else {
+                Configurator.setLevel(SimplySpeakers.MOD_ID, Level.INFO);
+            }
         }
     }
 }
