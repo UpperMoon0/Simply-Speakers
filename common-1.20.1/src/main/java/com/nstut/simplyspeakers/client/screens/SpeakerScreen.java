@@ -75,7 +75,7 @@ public class SpeakerScreen extends Screen {
     private SettingsTabContent settingsTabContent = new SettingsTabContent();
 
     public SpeakerScreen(BlockPos blockEntityPos) {
-        super(Component.literal("Speaker Screen"));
+        super(Component.translatable("gui.simplyspeakers.speaker.title"));
         this.blockEntityPos = blockEntityPos;
     }
 
@@ -89,7 +89,7 @@ public class SpeakerScreen extends Screen {
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
 
         // Create tab buttons
-        this.audioTabButton = Button.builder(Component.literal("Audio"), button -> {
+        this.audioTabButton = Button.builder(Component.translatable("gui.simplyspeakers.tab.audio"), button -> {
                     this.currentTab = 0;
                     updateVisibility();
                 })
@@ -97,7 +97,7 @@ public class SpeakerScreen extends Screen {
                 .size(50, 20)
                 .build();
 
-        this.settingsTabButton = Button.builder(Component.literal("Settings"), button -> {
+        this.settingsTabButton = Button.builder(Component.translatable("gui.simplyspeakers.tab.settings"), button -> {
                     this.currentTab = 1;
                     updateVisibility();
                 })
@@ -109,13 +109,13 @@ public class SpeakerScreen extends Screen {
         this.addRenderableWidget(this.settingsTabButton);
 
         // Audio tab components
-        this.audioTabContent.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 63, SCREEN_WIDTH - 80, 20, Component.literal("Speaker ID"));
+        this.audioTabContent.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 63, SCREEN_WIDTH - 80, 20, Component.translatable("gui.simplyspeakers.speaker_id.placeholder"));
         if (this.speaker != null) {
             this.audioTabContent.speakerIdField.setValue(this.speaker.getSpeakerId());
         }
-        this.audioTabContent.speakerIdField.setTooltip(Tooltip.create(Component.literal("Enter a unique ID to identify this speaker")));
+        this.audioTabContent.speakerIdField.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.speaker_id.tooltip")));
 
-        this.audioTabContent.saveIdButton = Button.builder(Component.literal("Save"), button -> {
+        this.audioTabContent.saveIdButton = Button.builder(Component.translatable("gui.simplyspeakers.save"), button -> {
                     if (this.speaker != null) {
                         String newId = this.audioTabContent.speakerIdField.getValue();
                         // Optimistically update the client-side speaker entity
@@ -134,11 +134,11 @@ public class SpeakerScreen extends Screen {
             PacketRegistries.CHANNEL.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
         });
 
-        this.audioTabContent.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 20, Component.literal("Search..."));
+        this.audioTabContent.searchBar = new EditBox(this.font, guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 20, Component.translatable("gui.simplyspeakers.search.placeholder"));
         this.audioTabContent.searchBar.setResponder(this.audioTabContent.audioListWidget::filter);
-        this.audioTabContent.searchBar.setTooltip(Tooltip.create(Component.literal("Search for music files by name")));
+        this.audioTabContent.searchBar.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.search.tooltip")));
 
-        this.audioTabContent.uploadButton = Button.builder(Component.literal("Upload"), button -> {
+        this.audioTabContent.uploadButton = Button.builder(Component.translatable("gui.simplyspeakers.upload"), button -> {
                     SimplySpeakers.LOGGER.info("Upload button clicked");
                     Services.CLIENT.openFileDialog("mp3,wav", (file) -> {
                         if (file != null) {
@@ -147,7 +147,7 @@ public class SpeakerScreen extends Screen {
                             String fileName = file.getName().toLowerCase();
                             if (!fileName.endsWith(".mp3") && !fileName.endsWith(".wav")) {
                                 SimplySpeakers.LOGGER.warn("Invalid file type selected: " + file.getName());
-                                setStatusMessage(Component.literal("Invalid file type. Only MP3 and WAV files are supported."));
+                                setStatusMessage(Component.translatable("gui.simplyspeakers.upload.invalid_type"));
                                 return;
                             }
                             var transactionId = ClientAudioPlayer.startUpload(file);
@@ -166,33 +166,33 @@ public class SpeakerScreen extends Screen {
         if (this.speaker != null) {
             this.settingsTabContent.maxVolumeSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 65, SCREEN_WIDTH - 20, 20,
-                    Component.literal("Max Volume: "),
+                    Component.translatable("gui.simplyspeakers.max_volume.slider"),
                     this.speaker.getMaxVolume(),
                     0.0, 1.0,
-                    value -> Component.literal(String.format("Max Volume: %d%%", (int) (value * 100))),
+                    value -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (value * 100)),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
             );
-            this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum volume level of the speaker")));
+            this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.max_volume.tooltip")));
 
             this.settingsTabContent.maxRangeSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 20,
-                    Component.literal("Max Range: "),
+                    Component.translatable("gui.simplyspeakers.max_range.slider"),
                     this.speaker.getMaxRange(),
                     1, Config.speakerRange,
-                    value -> Component.literal(String.format("Max Range: %d", (int) value)),
+                    value -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) value),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
             );
-            this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.literal("Controls the maximum range/distance the speaker can broadcast audio")));
+            this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.max_range.tooltip")));
 
             this.settingsTabContent.audioDropoffSlider = new SettingsSlider(
                     guiLeft + 10, guiTop + 135, SCREEN_WIDTH - 20, 20,
-                    Component.literal("Audio Dropoff: "),
+                    Component.translatable("gui.simplyspeakers.audio_dropoff.slider"),
                     this.speaker.getAudioDropoff(),
                     0.0, 1.0,
-                    value -> Component.literal(String.format("Audio Dropoff: %d%%", (int) (value * 100))),
+                    value -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (value * 100)),
                     value -> PacketRegistries.CHANNEL.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
             );
-            this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.literal("Controls how quickly audio volume decreases with distance")));
+            this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")));
             
             this.settingsTabContent.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
                         if (this.speaker == null) return;
@@ -204,7 +204,7 @@ public class SpeakerScreen extends Screen {
                     .pos(guiLeft + 10, guiTop + 165)
                     .size(80, 20)
                     .build();
-            this.settingsTabContent.loopToggleButton.setTooltip(Tooltip.create(Component.literal("Toggle whether the audio should loop continuously")));
+            this.settingsTabContent.loopToggleButton.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.loop.tooltip")));
         }
 
         // Add all widgets
@@ -235,7 +235,7 @@ public class SpeakerScreen extends Screen {
 
     private Component getLoopButtonTextComponent() {
         boolean looping = (this.speaker != null) && this.speaker.isLooping();
-        return Component.literal("Loop: " + (looping ? "ON" : "OFF"));
+        return Component.translatable(looping ? "gui.simplyspeakers.loop.on" : "gui.simplyspeakers.loop.off");
     }
 
     @Override
@@ -245,23 +245,24 @@ public class SpeakerScreen extends Screen {
         int guiLeft = (this.width - SCREEN_WIDTH) / 2;
         int guiTop = (this.height - SCREEN_HEIGHT) / 2;
         guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-        guiGraphics.drawString(this.font, Component.literal("Speaker"), guiLeft + (SCREEN_WIDTH - this.font.width("Speaker")) / 2, guiTop + 10, 4210752, false);
+        Component title = Component.translatable("gui.simplyspeakers.speaker.title");
+        guiGraphics.drawString(this.font, title, guiLeft + (SCREEN_WIDTH - this.font.width(title)) / 2, guiTop + 10, 4210752, false);
         
         // Draw tab-specific content
         if (currentTab == 0) {
             // Audio tab labels
-            guiGraphics.drawString(this.font, Component.literal("Speaker ID:"), guiLeft + 10, guiTop + 53, 4210752, false);
-            guiGraphics.drawString(this.font, Component.literal("Search:"), guiLeft + 10, guiTop + 90, 4210752, false);
+            guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.speaker_id"), guiLeft + 10, guiTop + 53, 4210752, false);
+            guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.search"), guiLeft + 10, guiTop + 90, 4210752, false);
         } else if (currentTab == 1) {
             // Settings tab labels
             if (this.settingsTabContent.maxVolumeSlider != null) {
-                guiGraphics.drawString(this.font, Component.literal("Max Volume (0-100%):"), guiLeft + 10, guiTop + 55, 4210752, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_volume"), guiLeft + 10, guiTop + 55, 4210752, false);
             }
             if (this.settingsTabContent.maxRangeSlider != null) {
-                guiGraphics.drawString(this.font, Component.literal("Max Range (1-" + Config.speakerRange + "):"), guiLeft + 10, guiTop + 90, 4210752, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_range", Config.speakerRange), guiLeft + 10, guiTop + 90, 4210752, false);
             }
             if (this.settingsTabContent.audioDropoffSlider != null) {
-                guiGraphics.drawString(this.font, Component.literal("Audio Dropoff (0-100%):"), guiLeft + 10, guiTop + 125, 4210752, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.audio_dropoff"), guiLeft + 10, guiTop + 125, 4210752, false);
             }
         }
 
