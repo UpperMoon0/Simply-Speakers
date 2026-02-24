@@ -12,8 +12,8 @@
   "gui.simplyspeakers.tab.settings": "Settings",
   "gui.simplyspeakers.speaker_id": "Speaker ID:",
   "gui.simplyspeakers.speaker_id.placeholder": "Speaker ID",
-  "gui.simplyspeakers.speaker_id.tooltip": "Enter a unique ID to identify this speaker",
-  "gui.simplyspeakers.proxy_speaker_id.tooltip": "Enter a unique ID to identify this proxy speaker",
+  "gui.simplyspeakers.speaker_id.tooltip": "A unique name for this speaker. Proxy speakers with the same ID will play the same audio.",
+  "gui.simplyspeakers.proxy_speaker_id.tooltip": "Set this to match a main Speaker's ID to play its audio at this location.",
   "gui.simplyspeakers.save": "Save",
   "gui.simplyspeakers.search": "Search:",
   "gui.simplyspeakers.search.placeholder": "Search...",
@@ -23,19 +23,19 @@
   
   "gui.simplyspeakers.max_volume": "Max Volume (0-100%):",
   "gui.simplyspeakers.max_volume.slider": "Max Volume: %d%%",
-  "gui.simplyspeakers.max_volume.tooltip": "Controls the maximum volume level of the speaker",
-  "gui.simplyspeakers.proxy_max_volume.tooltip": "Controls the maximum volume level of the proxy speaker",
+  "gui.simplyspeakers.max_volume.tooltip": "The overall volume level. Higher = louder at all distances.",
+  "gui.simplyspeakers.proxy_max_volume.tooltip": "The overall volume level. Higher = louder at all distances.",
   
   "gui.simplyspeakers.max_range": "Max Range (1-%s):",
   "gui.simplyspeakers.max_range.slider": "Max Range: %d",
-  "gui.simplyspeakers.max_range.tooltip": "Controls the maximum range/distance the speaker can broadcast audio",
-  "gui.simplyspeakers.proxy_max_range.tooltip": "Controls the maximum range/distance the proxy speaker can broadcast audio",
+  "gui.simplyspeakers.max_range.tooltip": "How far away the audio can be heard (in blocks).",
+  "gui.simplyspeakers.proxy_max_range.tooltip": "How far away the audio can be heard from this proxy (in blocks).",
   
   "gui.simplyspeakers.audio_dropoff": "Audio Dropoff (0-100%):",
   "gui.simplyspeakers.audio_dropoff.slider": "Audio Dropoff: %d%%",
-  "gui.simplyspeakers.audio_dropoff.tooltip": "Controls how quickly audio volume decreases with distance",
+  "gui.simplyspeakers.audio_dropoff.tooltip": "How fast volume fades with distance. 0% = full volume until max range, 100% = gradual fade.",
   
   "gui.simplyspeakers.loop.on": "Loop: ON",
   "gui.simplyspeakers.loop.off": "Loop: OFF",
-  "gui.simplyspeakers.loop.tooltip": "Toggle whether the audio should loop continuously"
+  "gui.simplyspeakers.loop.tooltip": "When ON, the audio will restart automatically when it ends."
 }
