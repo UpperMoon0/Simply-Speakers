@@ -27,8 +27,87 @@ dependencies {
     implementation "javazoom:jlayer:1.0.1"
 }
 
+import groovy.json.JsonSlurper
+import groovy.json.JsonBuilder
+
+// Task to transform resources from 1.21.1 format to 1.20.1 format
+// This handles:
+// 1. Renaming data pack folders (singular -> plural): recipe -> recipes, loot_table -> loot_tables
+// 2. Renaming tags folders: block -> blocks
+// 3. Transforming recipe JSON format (result.id -> result.item, remove category/show_notification)
+tasks.register('transformResources', Copy) {
+    description = 'Transform common resources from 1.21.1 format to 1.20.1 format'
+    group = 'build'
+    
+    from(project(':common').sourceSets.main.resources)
+    into(layout.buildDirectory.dir('transformed-resources'))
+    
+    // Rename data pack folders from singular (1.21.1) to plural (1.20.1)
+    eachFile { fileCopyDetails ->
+        def path = fileCopyDetails.path
+        // Transform data/simplyspeakers/recipe/ -> data/simplyspeakers/recipes/
+        path = path.replace('data/simplyspeakers/recipe/', 'data/simplyspeakers/recipes/')
+        // Transform data/simplyspeakers/loot_table/ -> data/simplyspeakers/loot_tables/
+        path = path.replace('data/simplyspeakers/loot_table/', 'data/simplyspeakers/loot_tables/')
+        // Transform data/minecraft/tags/block/ -> data/minecraft/tags/blocks/
+        path = path.replace('data/minecraft/tags/block/', 'data/minecraft/tags/blocks/')
+        fileCopyDetails.path = path
+    }
+    
+    // Exclude binary files from text filtering
+    exclude '**/*.png'
+}
+
+// Task to transform recipe JSON files more thoroughly using a proper approach
+tasks.register('transformRecipes') {
+    description = 'Transform recipe JSON files from 1.21.1 format to 1.20.1 format'
+    group = 'build'
+    
+    dependsOn transformResources
+    
+    doLast {
+        def recipesDir = layout.buildDirectory.dir('transformed-resources/data/simplyspeakers/recipes').get().asFile
+        if (recipesDir.exists()) {
+            recipesDir.eachFileMatch(~/.*\.json/) { recipeFile ->
+                def content = recipeFile.text
+                def json = new JsonSlurper().parseText(content)
+                
+                // Transform recipe format
+                def transformed = [:]
+                transformed.type = json.type
+                transformed.pattern = json.pattern
+                transformed.key = json.key
+                
+                // Transform result: id -> item, add count
+                transformed.result = [:]
+                if (json.result?.id) {
+                    transformed.result.item = json.result.id
+                }
+                if (json.result?.count) {
+                    transformed.result.count = json.result.count
+                } else {
+                    transformed.result.count = 1
+                }
+                
+                // Write back with proper formatting
+                recipeFile.text = new JsonBuilder(transformed).toPrettyString()
+            }
+        }
+    }
+}
+
+// Configure processResources to use transformed resources
+processResources {
+    dependsOn transformRecipes
+    from(layout.buildDirectory.dir('transformed-resources')) {
+        exclude 'data/simplyspeakers/recipe/'  // Exclude original singular folder
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 // Include :common classes in the jar so they're available at runtime
 jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from {
         project(':common').sourceSets.main.output
     }

@@ -26,8 +26,16 @@ dependencies {
     implementation "javazoom:jlayer:1.0.1"
 }
 
+// Configure processResources to include common resources directly
+// Resources in common module are already in 1.21.1 format
+processResources {
+    from(project(':common').sourceSets.main.resources)
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
 // Include :common classes in the jar so they're available at runtime
 jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from {
         project(':common').sourceSets.main.output
     }
