@@ -42,6 +42,10 @@ dependencies {
     implementation "javazoom:jlayer:1.0.1"
     shadowBundle "javazoom:jlayer:1.0.1"
 
+    // Shared common module (pure Java, no MC dependencies)
+    // implementation for compile-time, shadowBundle NOT needed as it's bundled via transformProductionFabric
+    implementation project(':common')
+
     common(project(path: ':common-1.20.1', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common-1.20.1', configuration: 'transformProductionFabric')
 }

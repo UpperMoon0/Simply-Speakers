@@ -8,6 +8,9 @@ configurations {
 }
 
 dependencies {
+    // Depend on the shared common module
+    implementation project(':common')
+
     // We depend on Fabric Loader here to use the Fabric @Environment annotations,
     // which get remapped to the correct annotations on each platform.
     // Do NOT use other classes from Fabric Loader.
@@ -21,4 +24,11 @@ dependencies {
     annotationProcessor "org.projectlombok:lombok:1.18.30"
 
     implementation "javazoom:jlayer:1.0.1"
+}
+
+// Include :common classes in the jar so they're available at runtime
+jar {
+    from {
+        project(':common').sourceSets.main.output
+    }
 }

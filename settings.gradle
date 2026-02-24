@@ -9,9 +9,15 @@ pluginManagement {
 
 rootProject.name = 'simplyspeakers'
 
+// Shared common module (version-independent)
+include 'common'
+
+// Minecraft 1.20.1 modules
 include 'common-1.20.1'
 include 'fabric-1.20.1'
 include 'forge-1.20.1'
+
+// Minecraft 1.21.1 modules
 include 'common-1.21.1'
 include 'fabric-1.21.1'
 include 'neoforge-1.21.1'

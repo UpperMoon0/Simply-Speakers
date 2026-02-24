@@ -1,0 +1,33 @@
+// Pure Java library - no Minecraft dependencies
+// This module contains code shared across all Minecraft versions (1.20.1 and 1.21.1)
+
+plugins {
+    id 'java-library'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+}
+
+// Use the same group and version as the parent project
+group = rootProject.maven_group
+version = rootProject.mod_version
+
+base {
+    archivesName = "$rootProject.archives_name-$project.name"
+}
+
+dependencies {
+    // Lombok for code generation
+    compileOnly "org.projectlombok:lombok:1.18.30"
+    annotationProcessor "org.projectlombok:lombok:1.18.30"
+    
+    // SLF4J API for logging (implementation provided by Minecraft)
+    compileOnly "org.slf4j:slf4j-api:2.0.9"
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 17
+}
