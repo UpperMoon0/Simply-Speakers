@@ -15,6 +15,7 @@ import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 import java.nio.file.Path;
 
@@ -33,8 +34,11 @@ public final class SimplySpeakersForge {
         BlockEntityRegistries.BLOCK_ENTITIES.register();
         ItemRegistries.ITEMS.register();
 
-        // Initialize packet registration
+        // Initialize packet registration (C2S only - server side receivers)
         PacketRegistries.init();
+
+        // Register client setup event for S2C packet registration
+        modEventBus.addListener(this::onClientSetup);
 
         // Run common setup (registers client events for volume updates)
         SimplySpeakers.init();
@@ -47,6 +51,11 @@ public final class SimplySpeakersForge {
         
         // Register the server tick event for periodic saving
         NeoForge.EVENT_BUS.addListener(this::onServerTick);
+    }
+
+    private void onClientSetup(final FMLClientSetupEvent event) {
+        // Register S2C packet receivers on client side only
+        PacketRegistries.registerS2C();
     }
 
     @SuppressWarnings("null")

@@ -16,6 +16,9 @@
   "entrypoints": {
     "main": [
       "com.nstut.fabric.simplyspeakers.SimplySpeakersFabric"
+    ],
+    "client": [
+      "com.nstut.fabric.simplyspeakers.SimplySpeakersFabricClient"
     ]
   },
   "mixins": [

@@ -40,9 +40,9 @@ public class PacketRegistries {
     
     public static void init() {
         SimplySpeakers.LOGGER.info("Initializing packet registries...");
-        // Always register both directions - Architectury handles the side-specific logic
+        // Only register C2S packets here (server-side receivers)
+        // S2C packets are registered on the client side via client entrypoint
         registerC2S();
-        registerS2C();
         SimplySpeakers.LOGGER.info("Packet registries initialized");
     }
 }
