@@ -122,7 +122,7 @@ public class ClientAudioPlayer {
             SimplySpeakers.LOGGER.debug("CLIENT: Cached file found for {}. Playing from file.", metadata.getUuid());
             playFromFile(pos, cachedFile.getAbsolutePath(), startPositionSeconds, isLooping);
         } else {
-            SimplySpeakers.LOGGER.info("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
+            SimplySpeakers.LOGGER.debug("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
             pendingPlays.put(metadata.getUuid(), new PlayRequest(pos, startPositionSeconds, isLooping));
             requestFileFromServer(metadata.getUuid(), metadata.getOriginalFilename());
         }
@@ -683,7 +683,7 @@ public class ClientAudioPlayer {
 
     public static UUID startUpload(File file) {
         UUID transactionId = UUID.randomUUID();
-        SimplySpeakers.LOGGER.info("Starting upload process for file: " + file.getName() + " with transaction ID: " + transactionId);
+        SimplySpeakers.LOGGER.debug("Starting upload process for file: " + file.getName() + " with transaction ID: " + transactionId);
         activeUploads.put(transactionId, new UploadProcess(file));
         return transactionId;
     }
@@ -696,7 +696,7 @@ public class ClientAudioPlayer {
         }
 
         if (allowed) {
-            SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Starting data transfer.");
+            SimplySpeakers.LOGGER.debug("Upload approved for transaction ID: " + transactionId + ". Starting data transfer.");
             process.start(transactionId, maxChunkSize);
         } else {
             SimplySpeakers.LOGGER.error("Upload denied for transaction ID: " + transactionId + ". Reason: " + message.getString());
@@ -710,7 +710,7 @@ public class ClientAudioPlayer {
 
     public static void handleUploadAcknowledgement(UUID transactionId, boolean success, Component message, BlockPos blockPos) {
         if (success) {
-            SimplySpeakers.LOGGER.info("Upload acknowledged for transaction ID: " + transactionId);
+            SimplySpeakers.LOGGER.debug("Upload acknowledged for transaction ID: " + transactionId);
             PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(blockPos));
         } else {
             SimplySpeakers.LOGGER.error("Upload failed for transaction ID: " + transactionId + ". Reason: " + message.getString());
@@ -718,7 +718,7 @@ public class ClientAudioPlayer {
         activeUploads.remove(transactionId);
         Screen currentScreen = Minecraft.getInstance().screen;
         if (currentScreen instanceof SpeakerScreen) {
-            SimplySpeakers.LOGGER.info("Setting status message: " + message.getString());
+            SimplySpeakers.LOGGER.debug("Setting status message: " + message.getString());
             ((SpeakerScreen) currentScreen).setStatusMessage(message);
         }
     }
@@ -767,14 +767,14 @@ public class ClientAudioPlayer {
         public void start(UUID transactionId, int chunkSize) {
             try {
                 this.fileData = Files.readAllBytes(file.toPath());
-                SimplySpeakers.LOGGER.info("Starting to send file data for transaction ID: " + transactionId + ". Total size: " + fileData.length);
+                SimplySpeakers.LOGGER.debug("Starting to send file data for transaction ID: " + transactionId + ". Total size: " + fileData.length);
                 new Thread(() -> {
                     int offset = 0;
                     while (offset < fileData.length) {
                         int length = Math.min(chunkSize, fileData.length - offset);
                         byte[] chunk = new byte[length];
                         System.arraycopy(fileData, offset, chunk, 0, length);
-                        SimplySpeakers.LOGGER.info("Sending chunk for transaction ID: " + transactionId + ". Offset: " + offset + ", Length: " + length);
+                        SimplySpeakers.LOGGER.debug("Sending chunk for transaction ID: " + transactionId + ". Offset: " + offset + ", Length: " + length);
                         PacketRegistries.CHANNEL.sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
                         offset += length;
                         try {
@@ -784,7 +784,7 @@ public class ClientAudioPlayer {
                             break;
                         }
                     }
-                    SimplySpeakers.LOGGER.info("Finished sending file data for transaction ID: " + transactionId);
+                    SimplySpeakers.LOGGER.debug("Finished sending file data for transaction ID: " + transactionId);
                 }).start();
             } catch (IOException e) {
                 SimplySpeakers.LOGGER.error("Failed to read file for upload: " + file.getName(), e);
@@ -818,12 +818,12 @@ public class ClientAudioPlayer {
             File cachedFile = new File(CACHE_DIR, audioId + (extension.isEmpty() ? "" : "." + extension));
             try {
                 Files.write(cachedFile.toPath(), dataStream.toByteArray());
-                SimplySpeakers.LOGGER.info("CLIENT: Download complete for {}. File saved to cache.", audioId);
+                SimplySpeakers.LOGGER.debug("CLIENT: Download complete for {}. File saved to cache.", audioId);
 
                 // Check for and handle pending play requests
                 PlayRequest pendingPlay = pendingPlays.remove(audioId);
                 if (pendingPlay != null) {
-                    SimplySpeakers.LOGGER.info("CLIENT: Pending play request found for {}. Initiating playback.", audioId);
+                    SimplySpeakers.LOGGER.debug("CLIENT: Pending play request found for {}. Initiating playback.", audioId);
                     playFromFile(pendingPlay.pos, cachedFile.getAbsolutePath(), pendingPlay.startPositionSeconds, pendingPlay.isLooping);
                 }
             } catch (IOException e) {
