@@ -14,13 +14,13 @@ jobs:
     strategy:
       matrix:
         include:
-          # Minecraft 1.20.1 builds (Java 17)
-          - java: 17
+          # Minecraft 1.20.1 builds (Java 21)
+          - java: 21
             version: '1.20.1'
             platform: 'fabric'
             project: 'fabric-1.20.1'
             artifact_pattern: 'simplyspeakers-fabric-1.20.1-*.jar'
-          - java: 17
+          - java: 21
             version: '1.20.1'
             platform: 'forge'
             project: 'forge-1.20.1'
