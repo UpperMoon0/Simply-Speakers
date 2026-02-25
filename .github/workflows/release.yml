@@ -6,7 +6,63 @@ on:
       - main 
 
 jobs:
-  build-and-release:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        include:
+          # Minecraft 1.20.1 builds (Java 17)
+          - java: 17
+            version: '1.20.1'
+            platform: 'fabric'
+            project: 'fabric-1.20.1'
+            artifact_pattern: 'simplyspeakers-fabric-1.20.1-*.jar'
+          - java: 17
+            version: '1.20.1'
+            platform: 'forge'
+            project: 'forge-1.20.1'
+            artifact_pattern: 'simplyspeakers-forge-1.20.1-*.jar'
+          # Minecraft 1.21.1 builds (Java 21)
+          - java: 21
+            version: '1.21.1'
+            platform: 'fabric'
+            project: 'fabric-1.21.1'
+            artifact_pattern: 'simplyspeakers-fabric-1.21.1-*.jar'
+          - java: 21
+            version: '1.21.1'
+            platform: 'neoforge'
+            project: 'neoforge-1.21.1'
+            artifact_pattern: 'simplyspeakers-neoforge-1.21.1-*.jar'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: 'temurin'
+          cache: 'gradle' 
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Build ${{ matrix.platform }} ${{ matrix.version }}
+        run: ./gradlew :${{ matrix.project }}:build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: simplyspeakers-${{ matrix.platform }}-${{ matrix.version }}
+          path: ${{ matrix.project }}/build/libs/${{ matrix.artifact_pattern }}
+          if-no-files-found: error
+
+  release:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -15,19 +71,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle' 
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
-
-      - name: Build with Gradle
-        run: ./gradlew build
-
       - name: Get Mod Version
         id: get_version
         run: |
@@ -35,25 +78,43 @@ jobs:
           mod_version=$(echo "$mod_version_line" | cut -d '=' -f 2 | xargs)
           echo "mod_version=$mod_version" >> $GITHUB_OUTPUT
 
-      - name: Generate Release Tag
-        id: tag_generator
-        run: echo "tag_name=v${{ steps.get_version.outputs.mod_version }}" >> $GITHUB_OUTPUT
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: find artifacts -type f -name "*.jar"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.tag_generator.outputs.tag_name }}
-          name: "Simply Speakers ${{ steps.tag_generator.outputs.tag_name }}"
+          tag_name: v${{ steps.get_version.outputs.mod_version }}
+          name: "Simply Speakers v${{ steps.get_version.outputs.mod_version }}"
           body: |
+            ## Simply Speakers v${{ steps.get_version.outputs.mod_version }}
+
             Automatic release triggered by commit ${{ github.sha }} to the main branch.
 
-            **Artifacts:**
-            - Fabric Mod JAR
-            - Forge Mod JAR
+            ### Supported Versions
+
+            | Minecraft | Fabric | Forge | NeoForge |
+            |-----------|--------|-------|----------|
+            | 1.20.1    | ✅     | ✅    | -        |
+            | 1.21.1    | ✅     | -     | ✅       |
+
+            ### Downloads
+            - **Fabric 1.20.1**: `simplyspeakers-fabric-1.20.1-*.jar`
+            - **Forge 1.20.1**: `simplyspeakers-forge-1.20.1-*.jar`
+            - **Fabric 1.21.1**: `simplyspeakers-fabric-1.21.1-*.jar`
+            - **NeoForge 1.21.1**: `simplyspeakers-neoforge-1.21.1-*.jar`
+
           draft: false
           prerelease: false
           files: |
-            forge/build/libs/simplyspeakers-forge-*.jar
-            fabric/build/libs/simplyspeakers-fabric-*.jar
+            artifacts/simplyspeakers-fabric-1.20.1/*.jar
+            artifacts/simplyspeakers-forge-1.20.1/*.jar
+            artifacts/simplyspeakers-fabric-1.21.1/*.jar
+            artifacts/simplyspeakers-neoforge-1.21.1/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

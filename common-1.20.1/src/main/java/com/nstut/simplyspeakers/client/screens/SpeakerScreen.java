@@ -319,4 +319,24 @@ public class SpeakerScreen extends Screen {
         this.audioTabContent.setVisible(isAudioTab);
         this.settingsTabContent.setVisible(isSettingsTab);
     }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (currentTab == 0 && this.audioTabContent.audioListWidget != null && this.audioTabContent.audioListWidget.visible) {
+            if (this.audioTabContent.audioListWidget.isMouseOver(mouseX, mouseY)) {
+                return this.audioTabContent.audioListWidget.mouseScrolled(mouseX, mouseY, delta);
+            }
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (currentTab == 0 && this.audioTabContent.audioListWidget != null && this.audioTabContent.audioListWidget.visible) {
+            if (this.audioTabContent.audioListWidget.isMouseOver(mouseX, mouseY)) {
+                return this.audioTabContent.audioListWidget.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+            }
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    }
 }

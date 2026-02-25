@@ -22,6 +22,7 @@ public class SpeakerAudioList extends AbstractWidget {
     private AudioFileMetadata selected;
     private String playingAudioId;
     private final Consumer<AudioFileMetadata> onSelect;
+    private boolean isDraggingScrollbar = false;
 
     public SpeakerAudioList(int x, int y, int width, int height, Component message, Consumer<AudioFileMetadata> onSelect) {
         super(x, y, width, height, message);
@@ -94,7 +95,8 @@ public class SpeakerAudioList extends AbstractWidget {
 
         int scrollbarX = this.getX() + this.width - 6;
         if (mouseX >= scrollbarX) {
-            return true; // Handled by mouseDragged
+            this.isDraggingScrollbar = true;
+            return true;
         }
 
         int itemIndex = (int) (mouseY - this.getY() + scrollAmount) / ITEM_HEIGHT;
@@ -119,6 +121,29 @@ public class SpeakerAudioList extends AbstractWidget {
         }
 
         return false;
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        this.isDraggingScrollbar = false;
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        if (this.isDraggingScrollbar) {
+            int contentHeight = filteredAudioFiles.size() * ITEM_HEIGHT;
+            int maxScroll = Math.max(0, contentHeight - this.height);
+            if (maxScroll > 0) {
+                int scrollbarHeight = (int) ((float) this.height / contentHeight * this.height);
+                scrollbarHeight = Mth.clamp(scrollbarHeight, 32, this.height - 8);
+                // Convert mouse Y position to scroll amount
+                double relativeY = mouseY - this.getY() - scrollbarHeight / 2.0;
+                scrollAmount = Mth.clamp((relativeY / (this.height - scrollbarHeight)) * maxScroll, 0, maxScroll);
+            }
+            return true;
+        }
+        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
     }
 
     @Override
