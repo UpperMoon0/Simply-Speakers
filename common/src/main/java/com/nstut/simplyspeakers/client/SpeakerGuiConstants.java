@@ -13,14 +13,14 @@ public class SpeakerGuiConstants {
     public static final int SPEAKER_ID_LABEL_Y = 53;
     public static final int SPEAKER_ID_FIELD_Y = 63;
     public static final int SPEAKER_ID_FIELD_WIDTH = 82;
-    public static final int SAVE_BUTTON_X = 102;
+    public static final int SAVE_BUTTON_X = 100;
 
     public static final int SEARCH_LABEL_Y = 53;
     public static final int SEARCH_BAR_Y = 63;
 
     public static final int AUDIO_LIST_Y = 90;
     public static final int AUDIO_LIST_HEIGHT = 75;
-    public static final int UPLOAD_BUTTON_Y = 170;
+    public static final int UPLOAD_BUTTON_Y = 180;
     public static final int STATUS_MESSAGE_Y = 202;
 
     public static final int VOLUME_LABEL_Y = 87;
@@ -29,5 +29,5 @@ public class SpeakerGuiConstants {
     public static final int RANGE_SLIDER_Y = 132;
     public static final int DROPOFF_LABEL_Y = 157;
     public static final int DROPOFF_SLIDER_Y = 167;
-    public static final int LOOP_BUTTON_Y = 197;
+    public static final int LOOP_BUTTON_Y = 193;
 }
