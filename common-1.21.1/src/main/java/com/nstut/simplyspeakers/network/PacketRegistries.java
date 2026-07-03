@@ -17,6 +17,7 @@ public class PacketRegistries {
         NetworkManager.registerReceiver(NetworkManager.c2s(), RequestAudioFilePacketC2S.TYPE, RequestAudioFilePacketC2S.STREAM_CODEC, RequestAudioFilePacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), StopPlaybackPacketC2S.TYPE, StopPlaybackPacketC2S.STREAM_CODEC, StopPlaybackPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), SetSpeakerIdPacketC2S.TYPE, SetSpeakerIdPacketC2S.STREAM_CODEC, SetSpeakerIdPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), DeleteAudioPacketC2S.TYPE, DeleteAudioPacketC2S.STREAM_CODEC, DeleteAudioPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateMaxVolumePacketC2S.TYPE, UpdateMaxVolumePacketC2S.STREAM_CODEC, UpdateMaxVolumePacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateMaxRangePacketC2S.TYPE, UpdateMaxRangePacketC2S.STREAM_CODEC, UpdateMaxRangePacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateAudioDropoffPacketC2S.TYPE, UpdateAudioDropoffPacketC2S.STREAM_CODEC, UpdateAudioDropoffPacketC2S::handle);

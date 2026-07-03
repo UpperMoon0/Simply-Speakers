@@ -164,6 +164,27 @@ public class AudioFileManager {
         PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
     }
 
+    public boolean deleteAudioFile(String audioId, String playerUUID) {
+        AudioFileMetadata metadata = manifest.get(audioId);
+        if (metadata == null) {
+            return false;
+        }
+
+        Path filePath = getAudioFilePath(audioId);
+        if (filePath != null) {
+            try {
+                Files.deleteIfExists(filePath);
+            } catch (IOException e) {
+                SimplySpeakers.LOGGER.error("Failed to delete audio file {}", audioId, e);
+                return false;
+            }
+        }
+
+        manifest.remove(audioId);
+        saveManifest();
+        return true;
+    }
+
     public void sendAudioFile(ServerPlayer player, String audioId) {
         Path filePath = this.getAudioFilePath(audioId);
         if (filePath == null || !Files.exists(filePath)) {

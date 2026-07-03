@@ -91,6 +91,11 @@ public class PacketRegistries {
                 UpdateProxyAudioDropoffPacketC2S::new,
                 UpdateProxyAudioDropoffPacketC2S::handle
         );
+        CHANNEL.register(DeleteAudioPacketC2S.class,
+                DeleteAudioPacketC2S::encode,
+                DeleteAudioPacketC2S::new,
+                DeleteAudioPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {

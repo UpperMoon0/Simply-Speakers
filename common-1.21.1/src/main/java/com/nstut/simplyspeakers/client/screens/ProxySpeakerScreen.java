@@ -4,6 +4,7 @@ package com.nstut.simplyspeakers.client.screens;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
+import com.nstut.simplyspeakers.client.SpeakerGuiConstants;
 import com.nstut.simplyspeakers.client.gui.widgets.SettingsSlider;
 import com.nstut.simplyspeakers.network.*;
 import dev.architectury.networking.NetworkManager;
@@ -23,8 +24,8 @@ public class ProxySpeakerScreen extends Screen {
 
     private static final ResourceLocation BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "textures/gui/proxy_speaker.png");
 
-    private static final int SCREEN_WIDTH = 162;
-    private static final int SCREEN_HEIGHT = 168; 
+    private static final int SCREEN_WIDTH = SpeakerGuiConstants.SCREEN_WIDTH;
+    private static final int SCREEN_HEIGHT = SpeakerGuiConstants.PROXY_SPEAKER_SCREEN_HEIGHT; 
 
     private final BlockPos blockEntityPos;
     private ProxySpeakerBlockEntity speaker;
@@ -34,21 +35,20 @@ public class ProxySpeakerScreen extends Screen {
     
     // Container classes for tab content
     private class AudioTabContent {
-        EditBox speakerIdField;
-        Button saveIdButton;
-        
         void setVisible(boolean visible) {
-            if (speakerIdField != null) speakerIdField.visible = visible;
-            if (saveIdButton != null) saveIdButton.visible = visible;
         }
     }
-    
+
     private class SettingsTabContent {
+        EditBox speakerIdField;
+        Button saveIdButton;
         SettingsSlider maxVolumeSlider;
         SettingsSlider maxRangeSlider;
         SettingsSlider audioDropoffSlider;
-        
+
         void setVisible(boolean visible) {
+            if (speakerIdField != null) speakerIdField.visible = visible;
+            if (saveIdButton != null) saveIdButton.visible = visible;
             if (maxVolumeSlider != null) maxVolumeSlider.visible = visible;
             if (maxRangeSlider != null) maxRangeSlider.visible = visible;
             if (audioDropoffSlider != null) audioDropoffSlider.visible = visible;
@@ -77,44 +77,42 @@ public class ProxySpeakerScreen extends Screen {
                     this.currentTab = 0;
                     updateVisibility();
                 })
-                .pos(guiLeft + 10, guiTop + 25)
-                .size(50, 20)
+                .pos(guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.TAB_BUTTON_Y)
+                .size(50, SpeakerGuiConstants.TAB_BUTTON_HEIGHT)
                 .build();
 
         this.settingsTabButton = Button.builder(Component.translatable("gui.simplyspeakers.tab.settings"), button -> {
                     this.currentTab = 1;
                     updateVisibility();
                 })
-                .pos(guiLeft + 65, guiTop + 25)
-                .size(60, 20)
+                .pos(guiLeft + 65, guiTop + SpeakerGuiConstants.TAB_BUTTON_Y)
+                .size(60, SpeakerGuiConstants.TAB_BUTTON_HEIGHT)
                 .build();
 
         this.addRenderableWidget(this.audioTabButton);
         this.addRenderableWidget(this.settingsTabButton);
 
-        // Audio tab components
-        this.audioTabContent.speakerIdField = new EditBox(this.font, guiLeft + 10, guiTop + 63, SCREEN_WIDTH - 80, 20, Component.translatable("gui.simplyspeakers.speaker_id.placeholder"));
+        // Settings tab components
+        this.settingsTabContent.speakerIdField = new EditBox(this.font, guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.SPEAKER_ID_FIELD_Y, SpeakerGuiConstants.SPEAKER_ID_FIELD_WIDTH, SpeakerGuiConstants.BUTTON_HEIGHT, Component.translatable("gui.simplyspeakers.speaker_id.placeholder"));
         if (this.speaker != null) {
-            this.audioTabContent.speakerIdField.setValue(this.speaker.getSpeakerId());
+            this.settingsTabContent.speakerIdField.setValue(this.speaker.getSpeakerId());
         }
-        this.audioTabContent.speakerIdField.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.proxy_speaker_id.tooltip")));
+        this.settingsTabContent.speakerIdField.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.proxy_speaker_id.tooltip")));
 
-        this.audioTabContent.saveIdButton = Button.builder(Component.translatable("gui.simplyspeakers.save"), button -> {
+        this.settingsTabContent.saveIdButton = Button.builder(Component.translatable("gui.simplyspeakers.save"), button -> {
                     if (this.speaker != null) {
-                        String newId = this.audioTabContent.speakerIdField.getValue();
-                        // Optimistically update the client-side speaker entity
+                        String newId = this.settingsTabContent.speakerIdField.getValue();
                         this.speaker.setSpeakerIdClient(newId);
                         NetworkManager.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
                     }
                 })
-                .pos(guiLeft + SCREEN_WIDTH - 55, guiTop + 63)
-                .size(45, 20)
+                .pos(guiLeft + SpeakerGuiConstants.SAVE_BUTTON_X, guiTop + SpeakerGuiConstants.SPEAKER_ID_FIELD_Y)
+                .size(45, SpeakerGuiConstants.BUTTON_HEIGHT)
                 .build();
 
-        // Settings tab components
         if (this.speaker != null) {
             this.settingsTabContent.maxVolumeSlider = new SettingsSlider(
-                    guiLeft + 10, guiTop + 65, SCREEN_WIDTH - 20, 20,
+                    guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.VOLUME_SLIDER_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT,
                     Component.translatable("gui.simplyspeakers.max_volume.slider"),
                     this.speaker.getMaxVolume(),
                     0.0, 1.0,
@@ -129,7 +127,7 @@ public class ProxySpeakerScreen extends Screen {
             this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.proxy_max_volume.tooltip")));
 
             this.settingsTabContent.maxRangeSlider = new SettingsSlider(
-                    guiLeft + 10, guiTop + 100, SCREEN_WIDTH - 20, 20,
+                    guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.RANGE_SLIDER_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT,
                     Component.translatable("gui.simplyspeakers.max_range.slider"),
                     this.speaker.getMaxRange(),
                     1, Config.speakerRange,
@@ -144,7 +142,7 @@ public class ProxySpeakerScreen extends Screen {
             this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.proxy_max_range.tooltip")));
 
             this.settingsTabContent.audioDropoffSlider = new SettingsSlider(
-                    guiLeft + 10, guiTop + 135, SCREEN_WIDTH - 20, 20,
+                    guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.DROPOFF_SLIDER_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT,
                     Component.translatable("gui.simplyspeakers.audio_dropoff.slider"),
                     this.speaker.getAudioDropoff(),
                     0.0, 1.0,
@@ -160,9 +158,9 @@ public class ProxySpeakerScreen extends Screen {
         }
 
         // Add all widgets
-        this.addRenderableWidget(this.audioTabContent.speakerIdField);
-        this.addRenderableWidget(this.audioTabContent.saveIdButton);
-        
+        this.addRenderableWidget(this.settingsTabContent.speakerIdField);
+        this.addRenderableWidget(this.settingsTabContent.saveIdButton);
+
         if (this.settingsTabContent.maxVolumeSlider != null) {
             this.addRenderableWidget(this.settingsTabContent.maxVolumeSlider);
         }
@@ -188,19 +186,17 @@ public class ProxySpeakerScreen extends Screen {
         guiGraphics.drawString(this.font, title, guiLeft + (SCREEN_WIDTH - this.font.width(title)) / 2, guiTop + 10, 4210752, false);
         
         // Draw tab-specific content
-        if (currentTab == 0) {
-            // Audio tab labels
-            guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.speaker_id"), guiLeft + 10, guiTop + 53, 4210752, false);
-        } else if (currentTab == 1) {
+        if (currentTab == 1) {
             // Settings tab labels
+            guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.speaker_id"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.SPEAKER_ID_LABEL_Y, 4210752, false);
             if (this.settingsTabContent.maxVolumeSlider != null) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_volume"), guiLeft + 10, guiTop + 55, 4210752, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_volume"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.VOLUME_LABEL_Y, 4210752, false);
             }
             if (this.settingsTabContent.maxRangeSlider != null) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_range", Config.speakerRange), guiLeft + 10, guiTop + 90, 4210752, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_range", Config.speakerRange), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.RANGE_LABEL_Y, 4210752, false);
             }
             if (this.settingsTabContent.audioDropoffSlider != null) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.audio_dropoff"), guiLeft + 10, guiTop + 125, 4210752, false);
+                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.audio_dropoff"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.DROPOFF_LABEL_Y, 4210752, false);
             }
         }
     }

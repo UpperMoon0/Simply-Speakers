@@ -16,17 +16,24 @@ import java.util.stream.Collectors;
 
 public class SpeakerAudioList extends AbstractWidget {
     private static final int ITEM_HEIGHT = 20;
+    private static final int TEXT_PADDING = 5;
+    private static final int ACTION_BUTTON_WIDTH = 45;
+    private static final int ACTION_BUTTON_GAP = 2;
+    private static final int MARQUEE_PAUSE_MS = 1000;
+    private static final int MARQUEE_PIXELS_PER_SECOND = 30;
     private List<AudioFileMetadata> audioFiles = new ArrayList<>();
     private List<AudioFileMetadata> filteredAudioFiles = new ArrayList<>();
     private double scrollAmount;
     private AudioFileMetadata selected;
     private String playingAudioId;
     private final Consumer<AudioFileMetadata> onSelect;
+    private final Consumer<AudioFileMetadata> onRemove;
     private boolean isDraggingScrollbar = false;
 
-    public SpeakerAudioList(int x, int y, int width, int height, Component message, Consumer<AudioFileMetadata> onSelect) {
+    public SpeakerAudioList(int x, int y, int width, int height, Component message, Consumer<AudioFileMetadata> onSelect, Consumer<AudioFileMetadata> onRemove) {
         super(x, y, width, height, message);
         this.onSelect = onSelect;
+        this.onRemove = onRemove;
     }
 
     @Override
@@ -70,21 +77,57 @@ public class SpeakerAudioList extends AbstractWidget {
             int backgroundColor = isSelected ? 0xFF808080 : (isHovered ? 0xFF404040 : 0xFF202020);
             guiGraphics.fill(this.getX(), itemTop, scrollbarX, itemBottom, backgroundColor);
 
+            int selectButtonX = scrollbarX - ACTION_BUTTON_WIDTH - ACTION_BUTTON_GAP;
+            int removeButtonX = selectButtonX - ACTION_BUTTON_WIDTH - ACTION_BUTTON_GAP;
+            int textLeft = this.getX() + TEXT_PADDING;
+            int textRight = removeButtonX - TEXT_PADDING;
             int textColor = isSelected ? 0xFF55FF55 : 0xFFFFFFFF; // Green if selected, white otherwise.
-            guiGraphics.drawString(Minecraft.getInstance().font, metadata.getOriginalFilename(), this.getX() + 5, itemTop + (ITEM_HEIGHT - 8) / 2, textColor);
+            renderMarqueeText(guiGraphics, metadata.getOriginalFilename(), textLeft,
+                    itemTop + (ITEM_HEIGHT - 8) / 2, textRight, textColor);
 
-            if (isHovered && !isPlaying) {
-                int buttonWidth = 50;
+            if (isHovered) {
                 int buttonHeight = 18;
-                int buttonX = scrollbarX - buttonWidth - 2;
                 int buttonY = itemTop + 1;
-                Button selectButton = Button.builder(Component.literal("Select"), (button) -> onSelect.accept(metadata))
-                        .bounds(buttonX, buttonY, buttonWidth, buttonHeight)
+                int visibleRemoveButtonX = isPlaying ? selectButtonX : removeButtonX;
+                Button removeButton = Button.builder(Component.literal("Delete"), (button) -> onRemove.accept(metadata))
+                        .bounds(visibleRemoveButtonX, buttonY, ACTION_BUTTON_WIDTH, buttonHeight)
                         .build();
-                selectButton.render(guiGraphics, mouseX, mouseY, partialTicks);
+                removeButton.render(guiGraphics, mouseX, mouseY, partialTicks);
+                if (!isPlaying) {
+                    Button selectButton = Button.builder(Component.literal("Select"), (button) -> onSelect.accept(metadata))
+                            .bounds(selectButtonX, buttonY, ACTION_BUTTON_WIDTH, buttonHeight)
+                            .build();
+                    selectButton.render(guiGraphics, mouseX, mouseY, partialTicks);
+                }
             }
         }
         guiGraphics.disableScissor();
+    }
+
+    private void renderMarqueeText(GuiGraphics guiGraphics, String text, int left, int y, int right, int color) {
+        int availableWidth = Math.max(0, right - left);
+        int textWidth = Minecraft.getInstance().font.width(text);
+        int overflow = Math.max(0, textWidth - availableWidth);
+        int offset = getMarqueeOffset(overflow);
+
+        guiGraphics.enableScissor(left, this.getY(), right, this.getY() + this.height);
+        guiGraphics.drawString(Minecraft.getInstance().font, text, left - offset, y, color);
+        guiGraphics.disableScissor();
+    }
+
+    private int getMarqueeOffset(int overflow) {
+        if (overflow <= 0) return 0;
+
+        long travelMs = Math.max(1L, overflow * 1000L / MARQUEE_PIXELS_PER_SECOND);
+        long cycleMs = MARQUEE_PAUSE_MS * 2L + travelMs * 2L;
+        long elapsed = System.currentTimeMillis() % cycleMs;
+        if (elapsed < MARQUEE_PAUSE_MS) return 0;
+        elapsed -= MARQUEE_PAUSE_MS;
+        if (elapsed < travelMs) return (int) (overflow * elapsed / travelMs);
+        elapsed -= travelMs;
+        if (elapsed < MARQUEE_PAUSE_MS) return overflow;
+        elapsed -= MARQUEE_PAUSE_MS;
+        return overflow - (int) (overflow * elapsed / travelMs);
     }
 
     @Override
@@ -108,11 +151,19 @@ public class SpeakerAudioList extends AbstractWidget {
             boolean isHovered = mouseX >= this.getX() && mouseX < scrollbarX && mouseY >= itemTop && mouseY < itemTop + ITEM_HEIGHT;
             boolean isPlaying = this.playingAudioId != null && this.playingAudioId.equals(metadata.getUuid());
 
-            if (isHovered && !isPlaying) {
-                int buttonWidth = 50;
-                int buttonX = scrollbarX - buttonWidth - 2;
-                if (mouseX >= buttonX && mouseX < scrollbarX) {
+            if (isHovered) {
+                int removeButtonWidth = 45;
+                int selectButtonWidth = 45;
+                int selectButtonX = scrollbarX - selectButtonWidth - 2;
+                int removeButtonX = selectButtonX - removeButtonWidth - 2;
+                if (!isPlaying && mouseX >= selectButtonX && mouseX < scrollbarX) {
                     onSelect.accept(metadata);
+                    return true;
+                }
+                int visibleRemoveButtonX = isPlaying ? selectButtonX : removeButtonX;
+                int visibleRemoveButtonRight = isPlaying ? scrollbarX : selectButtonX;
+                if (mouseX >= visibleRemoveButtonX && mouseX < visibleRemoveButtonRight) {
+                    onRemove.accept(metadata);
                     return true;
                 }
             }
