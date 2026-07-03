@@ -36,6 +36,12 @@ jobs:
             platform: 'neoforge'
             project: 'neoforge-1.21.1'
             artifact_pattern: 'simplyspeakers-neoforge-1.21.1-*.jar'
+          # Minecraft 26.1.2 builds (Java 25)
+          - java: 25
+            version: '26.1.2'
+            platform: 'neoforge'
+            project: 'neoforge-26.1.2'
+            artifact_pattern: 'simplyspeakers-neoforge-26.1.2-*.jar'
 
     steps:
       - name: Checkout repository
@@ -100,14 +106,16 @@ jobs:
 
             | Minecraft | Fabric | Forge | NeoForge |
             |-----------|--------|-------|----------|
-            | 1.20.1    | ✅     | ✅    | -        |
-            | 1.21.1    | ✅     | -     | ✅       |
+            | 1.20.1    | Yes    | Yes   | -        |
+            | 1.21.1    | Yes    | -     | Yes      |
+            | 26.1.2    | -      | -     | Yes      |
 
             ### Downloads
             - **Fabric 1.20.1**: `simplyspeakers-fabric-1.20.1-*.jar`
             - **Forge 1.20.1**: `simplyspeakers-forge-1.20.1-*.jar`
             - **Fabric 1.21.1**: `simplyspeakers-fabric-1.21.1-*.jar`
             - **NeoForge 1.21.1**: `simplyspeakers-neoforge-1.21.1-*.jar`
+            - **NeoForge 26.1.2**: `simplyspeakers-neoforge-26.1.2-*.jar`
 
           draft: false
           prerelease: false
@@ -116,5 +124,6 @@ jobs:
             artifacts/simplyspeakers-forge-1.20.1/*.jar
             artifacts/simplyspeakers-fabric-1.21.1/*.jar
             artifacts/simplyspeakers-neoforge-1.21.1/*.jar
+            artifacts/simplyspeakers-neoforge-26.1.2/*.jar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

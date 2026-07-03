@@ -7,17 +7,34 @@ pluginManagement {
     }
 }
 
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.9.0'
+}
+
 rootProject.name = 'simplyspeakers'
 
+// A targeted 26.1.2 invocation must not configure the legacy Loom projects.
+// Besides being faster, this keeps IDE-held 1.20.1 mapping locks from blocking
+// the standalone ModDevGradle client/server runs.
+def requestedTasks = gradle.startParameter.taskNames
+def onlyNeoForge2612 = !requestedTasks.isEmpty() && requestedTasks.every {
+    it == 'neoforge-26.1.2' || it.startsWith(':neoforge-26.1.2:')
+}
+
 // Shared common module (version-independent)
-include 'common'
+if (!onlyNeoForge2612) {
+    include 'common'
 
-// Minecraft 1.20.1 modules
-include 'common-1.20.1'
-include 'fabric-1.20.1'
-include 'forge-1.20.1'
+    // Minecraft 1.20.1 modules
+    include 'common-1.20.1'
+    include 'fabric-1.20.1'
+    include 'forge-1.20.1'
 
-// Minecraft 1.21.1 modules
-include 'common-1.21.1'
-include 'fabric-1.21.1'
-include 'neoforge-1.21.1'
+    // Minecraft 1.21.1 modules
+    include 'common-1.21.1'
+    include 'fabric-1.21.1'
+    include 'neoforge-1.21.1'
+}
+
+// Minecraft 26.1.2 module (NeoForge, standalone ModDevGradle project)
+include 'neoforge-26.1.2'

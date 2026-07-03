@@ -1,5 +1,5 @@
 plugins {
-    id 'dev.architectury.loom' version '1.7-SNAPSHOT' apply false
+    id 'dev.architectury.loom' version '1.11-SNAPSHOT' apply false
     id 'architectury-plugin' version '3.4-SNAPSHOT'
     id 'com.gradleup.shadow' version '8.3.6' apply false
 }
@@ -26,6 +26,9 @@ afterEvaluate {
     }
 
     subprojects {
+        if (project.name == 'neoforge-26.1.2') {
+            return
+        }
         apply plugin: 'dev.architectury.loom'
         apply plugin: 'architectury-plugin'
         apply plugin: 'maven-publish'
@@ -89,4 +92,10 @@ afterEvaluate {
             }
         }
     }
+}
+
+tasks.register('testAllVersions') {
+    group = 'verification'
+    description = 'Runs shared and version-specific tests for every supported Minecraft version.'
+    dependsOn ':common-1.20.1:test', ':common-1.21.1:test', ':neoforge-26.1.2:test'
 }
