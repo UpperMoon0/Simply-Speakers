@@ -1,8 +1,9 @@
 // Language: java
 package com.nstut.simplyspeakers.client.screens;
 
-import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
+
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import com.nstut.simplyspeakers.client.SpeakerGuiConstants;
@@ -81,7 +82,7 @@ public class SpeakerScreen extends Screen {
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.translatable("gui.simplyspeakers.speaker.title"));
-        this.blockEntityPos = blockEntityPos;
+        this.blockEntityPos = blockEntityPos.immutable();
     }
 
     @Override
@@ -176,7 +177,10 @@ public class SpeakerScreen extends Screen {
                     this.speaker.getMaxVolume(),
                     0.0, 1.0,
                     value -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (value * 100)),
-                    value -> NetworkManager.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
+                    value -> {
+                        this.speaker.setMaxVolumeClient((float) value);
+                        NetworkManager.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value));
+                    }
             );
             this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.max_volume.tooltip")));
 
@@ -186,7 +190,10 @@ public class SpeakerScreen extends Screen {
                     this.speaker.getMaxRange(),
                     1, Config.speakerRange,
                     value -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) value),
-                    value -> NetworkManager.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
+                    value -> {
+                        this.speaker.setMaxRangeClient((int) value);
+                        NetworkManager.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value));
+                    }
             );
             this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.max_range.tooltip")));
 
@@ -196,7 +203,10 @@ public class SpeakerScreen extends Screen {
                     this.speaker.getAudioDropoff(),
                     0.0, 1.0,
                     value -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (value * 100)),
-                    value -> NetworkManager.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
+                    value -> {
+                        this.speaker.setAudioDropoffClient((float) value);
+                        NetworkManager.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value));
+                    }
             );
             this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")));
             
@@ -381,4 +391,3 @@ public class SpeakerScreen extends Screen {
         return super.mouseDragged(event, dragX, dragY);
     }
 }
-

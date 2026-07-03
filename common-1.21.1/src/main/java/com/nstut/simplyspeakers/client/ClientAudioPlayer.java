@@ -139,7 +139,8 @@ public class ClientAudioPlayer {
 
                 AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
                 AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
-                AL10.alSourcef(sourceID, AL10.AL_GAIN, 1.0f);
+                // Avoid a full-volume frame before the first settings/category-volume update.
+                AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
                 Thread streamingThread = new Thread(() -> streamAudioData(pos, sourceID, bufferIDs, filePath, startPositionSeconds, isLooping),
@@ -562,7 +563,10 @@ public class ClientAudioPlayer {
                 }
             }
 
-            final float finalGain = gain;
+            final float finalGain = com.nstut.simplyspeakers.audio.AudioGain.applyGameVolume(
+                    gain,
+                    mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER),
+                    mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.RECORDS));
             mc.tell(() -> {
                  StreamingAudioResource currentResource = speakerResources.get(speakerPos);
                  if (currentResource != null && currentResource.sourceID == resource.sourceID && !currentResource.stopFlag.get()) {

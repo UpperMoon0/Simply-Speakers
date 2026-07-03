@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -24,7 +25,7 @@ public class UpdateProxyMaxVolumePacketC2S implements CustomPacketPayload {
     private final float maxVolume;
 
     public UpdateProxyMaxVolumePacketC2S(BlockPos pos, float maxVolume) {
-        this.pos = pos;
+        this.pos = pos.immutable();
         this.maxVolume = maxVolume;
     }
 
@@ -57,6 +58,4 @@ public class UpdateProxyMaxVolumePacketC2S implements CustomPacketPayload {
         return TYPE;
     }
 }
-
-
 

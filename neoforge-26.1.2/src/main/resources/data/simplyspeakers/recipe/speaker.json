@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": "minecraft:amethyst_shard",
+    "R": "minecraft:redstone",
+    "I": "minecraft:iron_ingot"
+  },
+  "pattern": [
+    "III",
+    "RAR",
+    "III"
+  ],
+  "result": {
+    "id": "simplyspeakers:speaker"
+  },
+  "show_notification": true
+}

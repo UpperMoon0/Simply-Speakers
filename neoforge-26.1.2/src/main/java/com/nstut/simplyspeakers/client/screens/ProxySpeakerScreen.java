@@ -1,8 +1,9 @@
 // Language: java
 package com.nstut.simplyspeakers.client.screens;
 
-import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
+
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.SpeakerGuiConstants;
 import com.nstut.simplyspeakers.client.gui.widgets.SettingsSlider;
@@ -61,7 +62,7 @@ public class ProxySpeakerScreen extends Screen {
 
     public ProxySpeakerScreen(BlockPos blockEntityPos) {
         super(Component.translatable("gui.simplyspeakers.proxy_speaker.title"));
-        this.blockEntityPos = blockEntityPos;
+        this.blockEntityPos = blockEntityPos.immutable();
     }
 
     @Override
@@ -232,5 +233,3 @@ public class ProxySpeakerScreen extends Screen {
         this.settingsTabContent.setVisible(isSettingsTab);
     }
 }
-
-

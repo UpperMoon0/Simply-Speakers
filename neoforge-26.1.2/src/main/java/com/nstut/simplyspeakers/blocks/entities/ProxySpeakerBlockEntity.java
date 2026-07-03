@@ -1,5 +1,7 @@
 package com.nstut.simplyspeakers.blocks.entities;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
+
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -15,9 +17,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
-import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
@@ -544,9 +546,10 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         isProxyPlaying = tag.getBooleanOr(NBT_PROXY_PLAYING, false);
         
         // Load settings
-        maxVolume = tag.getFloatOr("MaxVolume", 1.0f);
-        maxRange = tag.getIntOr("MaxRange", 16);
-        audioDropoff = tag.getFloatOr("AudioDropoff", 1.0f);
+        SpeakerSettings settings = SpeakerSettings.read(tag, new SpeakerSettings(maxVolume, maxRange, audioDropoff));
+        maxVolume = settings.maxVolume();
+        maxRange = settings.maxRange();
+        audioDropoff = settings.audioDropoff();
         
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
@@ -604,9 +607,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         tag.putBoolean(NBT_PROXY_PLAYING, isProxyPlaying);
         
         // Save settings
-        tag.putFloat("MaxVolume", maxVolume);
-        tag.putInt("MaxRange", maxRange);
-        tag.putFloat("AudioDropoff", audioDropoff);
+        new SpeakerSettings(maxVolume, maxRange, audioDropoff).write(tag);
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
         // This prevents accumulation of player UUIDs in save files
@@ -701,6 +702,3 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 }
-
-
-

@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -24,7 +25,7 @@ public class UpdateProxyAudioDropoffPacketC2S implements CustomPacketPayload {
     private final float audioDropoff;
 
     public UpdateProxyAudioDropoffPacketC2S(BlockPos pos, float audioDropoff) {
-        this.pos = pos;
+        this.pos = pos.immutable();
         this.audioDropoff = audioDropoff;
     }
 
@@ -57,6 +58,4 @@ public class UpdateProxyAudioDropoffPacketC2S implements CustomPacketPayload {
         return TYPE;
     }
 }
-
-
 

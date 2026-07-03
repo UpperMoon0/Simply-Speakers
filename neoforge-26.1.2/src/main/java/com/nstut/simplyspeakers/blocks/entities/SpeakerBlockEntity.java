@@ -1,5 +1,7 @@
 package com.nstut.simplyspeakers.blocks.entities;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
+
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -17,6 +19,7 @@ import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
@@ -393,6 +396,11 @@ public class SpeakerBlockEntity extends BlockEntity {
         // Load speaker ID
         speakerId = tag.getStringOr(NBT_SPEAKER_ID, "");
         com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Loaded speakerId: '{}'", speakerId);
+
+        // Settings must travel in block-entity update data as well as the world save.
+        // The client audio engine and newly opened GUIs both read this registry state.
+        SpeakerState persistedState = SpeakerRegistry.getOrCreateSpeakerState(speakerId);
+        SpeakerSettings.read(tag, SpeakerSettings.from(persistedState)).applyTo(persistedState);
         
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
@@ -431,6 +439,11 @@ public class SpeakerBlockEntity extends BlockEntity {
         // Save speaker ID
         if (!speakerId.isEmpty()) {
             tag.putString(NBT_SPEAKER_ID, speakerId);
+        }
+
+        SpeakerState persistedState = getSpeakerState();
+        if (persistedState != null) {
+            SpeakerSettings.from(persistedState).write(tag);
         }
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
@@ -571,6 +584,12 @@ public class SpeakerBlockEntity extends BlockEntity {
                 worldPosition, speakerId, maxVolume);
         }
     }
+
+    public void setMaxVolumeClient(float maxVolume) {
+        if (level != null && level.isClientSide()) {
+            getSpeakerState().setMaxVolume(maxVolume);
+        }
+    }
     
     /**
      * Updates the max range setting.
@@ -588,6 +607,12 @@ public class SpeakerBlockEntity extends BlockEntity {
             }
         }
     }
+
+    public void setMaxRangeClient(int maxRange) {
+        if (level != null && level.isClientSide()) {
+            getSpeakerState().setMaxRange(maxRange);
+        }
+    }
     
     /**
      * Updates the audio dropoff setting.
@@ -603,6 +628,12 @@ public class SpeakerBlockEntity extends BlockEntity {
                 setChanged();
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             }
+        }
+    }
+
+    public void setAudioDropoffClient(float audioDropoff) {
+        if (level != null && level.isClientSide()) {
+            getSpeakerState().setAudioDropoff(audioDropoff);
         }
     }
     
@@ -651,5 +682,3 @@ public class SpeakerBlockEntity extends BlockEntity {
         return dropoff;
     }
 }
-
-

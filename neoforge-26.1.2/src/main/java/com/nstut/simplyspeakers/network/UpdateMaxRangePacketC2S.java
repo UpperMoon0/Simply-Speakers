@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -24,7 +25,7 @@ public class UpdateMaxRangePacketC2S implements CustomPacketPayload {
     private final int maxRange;
 
     public UpdateMaxRangePacketC2S(BlockPos pos, int maxRange) {
-        this.pos = pos;
+        this.pos = pos.immutable();
         this.maxRange = maxRange;
     }
 
@@ -57,6 +58,4 @@ public class UpdateMaxRangePacketC2S implements CustomPacketPayload {
         return TYPE;
     }
 }
-
-
 

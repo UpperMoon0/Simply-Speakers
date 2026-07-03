@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -24,7 +25,7 @@ public class UpdateMaxVolumePacketC2S implements CustomPacketPayload {
     private final float maxVolume;
 
     public UpdateMaxVolumePacketC2S(BlockPos pos, float maxVolume) {
-        this.pos = pos;
+        this.pos = pos.immutable();
         this.maxVolume = maxVolume;
     }
 
@@ -45,8 +46,6 @@ public class UpdateMaxVolumePacketC2S implements CustomPacketPayload {
                 if (level.isLoaded(packet.pos)) {
                     BlockEntity blockEntity = level.getBlockEntity(packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[C2S] UpdateMaxVolumePacket received - pos: {}, maxVolume: {}, speakerId: '{}'", 
-                            packet.pos, packet.maxVolume, speakerEntity.getSpeakerId());
                         speakerEntity.setMaxVolume(packet.maxVolume);
                     }
                 }
@@ -59,6 +58,4 @@ public class UpdateMaxVolumePacketC2S implements CustomPacketPayload {
         return TYPE;
     }
 }
-
-
 
