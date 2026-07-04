@@ -2,6 +2,8 @@ architectury {
     common rootProject.enabled_platforms.split(',')
 }
 
+sourceSets.main.java.srcDir('../shared-1.21plus/src/main/java')
+
  // Add shadowBundle configuration for runtime dependencies to be bundled
 configurations {
     shadowBundle

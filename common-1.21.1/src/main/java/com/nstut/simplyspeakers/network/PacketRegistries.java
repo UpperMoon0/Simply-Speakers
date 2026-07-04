@@ -1,7 +1,9 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+import dev.architectury.platform.Platform;
 import dev.architectury.networking.NetworkManager;
+import net.fabricmc.api.EnvType;
 
 public class PacketRegistries {
     public static void registerC2S() {
@@ -27,23 +29,15 @@ public class PacketRegistries {
     }
 
     public static void registerS2C() {
-        // Register S2C receivers on client side
-        // Note: registerReceiver also registers the payload type internally, so we don't need to call registerS2CPayloadType separately
-        NetworkManager.registerReceiver(NetworkManager.s2c(), StopAudioPacketS2C.TYPE, StopAudioPacketS2C.STREAM_CODEC, StopAudioPacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), PlayAudioPacketS2C.TYPE, PlayAudioPacketS2C.STREAM_CODEC, PlayAudioPacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), SpeakerBlockEntityPacketS2C.TYPE, SpeakerBlockEntityPacketS2C.STREAM_CODEC, SpeakerBlockEntityPacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), RespondUploadAudioPacketS2C.TYPE, RespondUploadAudioPacketS2C.STREAM_CODEC, RespondUploadAudioPacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), AcknowledgeUploadPacketS2C.TYPE, AcknowledgeUploadPacketS2C.STREAM_CODEC, AcknowledgeUploadPacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), SendAudioListPacketS2C.TYPE, SendAudioListPacketS2C.STREAM_CODEC, SendAudioListPacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), SendAudioFilePacketS2C.TYPE, SendAudioFilePacketS2C.STREAM_CODEC, SendAudioFilePacketS2C::handle);
-        NetworkManager.registerReceiver(NetworkManager.s2c(), SpeakerStateUpdatePacketS2C.TYPE, SpeakerStateUpdatePacketS2C.STREAM_CODEC, SpeakerStateUpdatePacketS2C::handle);
+        S2CPacketCatalog.registerReceivers();
     }
     
     public static void init() {
         SimplySpeakers.LOGGER.info("Initializing packet registries...");
-        // Only register C2S packets here (server-side receivers)
-        // S2C packets are registered on the client side via client entrypoint
         registerC2S();
+        if (Platform.getEnv() == EnvType.SERVER) {
+            S2CPacketCatalog.registerPayloadTypes();
+        }
         SimplySpeakers.LOGGER.info("Packet registries initialized");
     }
 }
