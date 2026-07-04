@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
@@ -790,14 +791,14 @@ public class ClientAudioPlayer {
         public void start(UUID transactionId, int chunkSize) {
             try {
                 this.fileData = Files.readAllBytes(file.toPath());
-                SimplySpeakers.LOGGER.info("Starting to send file data for transaction ID: " + transactionId + ". Total size: " + fileData.length);
+                UploadProgressLogger.logStart(SimplySpeakers.LOGGER, transactionId, fileData.length);
                 new Thread(() -> {
                     int offset = 0;
                     while (offset < fileData.length) {
                         int length = Math.min(chunkSize, fileData.length - offset);
                         byte[] chunk = new byte[length];
                         System.arraycopy(fileData, offset, chunk, 0, length);
-                        SimplySpeakers.LOGGER.info("Sending chunk for transaction ID: " + transactionId + ". Offset: " + offset + ", Length: " + length);
+                        UploadProgressLogger.logChunk(SimplySpeakers.LOGGER, transactionId, offset, length, fileData.length);
                         NetworkManager.sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
                         offset += length;
                         try {
