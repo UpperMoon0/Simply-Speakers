@@ -12,10 +12,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 25
+      # Gradle 8.14 does not support JDK 25.  The neoforge-26.1.2 module
+      # declares its own Java 25 toolchain, so only JDK 21 is needed here.
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '25'
+          java-version: '21'
           distribution: 'temurin'
           cache: 'gradle'
 
