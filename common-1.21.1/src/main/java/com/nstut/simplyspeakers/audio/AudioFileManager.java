@@ -9,6 +9,7 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.Reader;
 import com.nstut.simplyspeakers.network.AcknowledgeUploadPacketS2C;
 import com.nstut.simplyspeakers.network.RespondUploadAudioPacketS2C;
@@ -17,9 +18,9 @@ import com.nstut.simplyspeakers.network.SendAudioListPacketS2C;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.io.ByteArrayInputStream;
 import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
@@ -31,12 +32,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class AudioFileManager {
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
     private static final int MAX_CHUNK_SIZE = 32000;
     private static final Map<UUID, UploadState> activeUploads = new ConcurrentHashMap<>();
+    private static final ExecutorService AUDIO_FILE_EXECUTOR = Executors.newFixedThreadPool(2, runnable -> {
+        Thread thread = new Thread(runnable, "Simply Speakers Audio File");
+        thread.setDaemon(true);
+        return thread;
+    });
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path audioDirPath;
     private final Path manifestPath;
@@ -144,19 +152,47 @@ public class AudioFileManager {
         if (state.isComplete()) {
             SimplySpeakers.LOGGER.info("Upload complete for transaction ID: " + transactionId + ". Saving file.");
             activeUploads.remove(transactionId);
-            try {
-                AudioFileMetadata metadata = this.saveFile(new ByteArrayInputStream(state.getCombinedData()), state.fileName, state.ownerUUID);
-                SimplySpeakers.LOGGER.info("File saved successfully for transaction ID: " + transactionId + ". Metadata: " + metadata.getUuid());
-                NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), state.getBlockPos()));
-            } catch (IOException e) {
-                SimplySpeakers.LOGGER.error("Failed to save uploaded file for transaction ID: " + transactionId, e);
-                String errorMessage = "Failed to save file on server.";
-                if (e.getMessage().startsWith("Invalid file type")) {
-                    errorMessage = "Invalid file type. Only MP3 and WAV files are supported.";
-                }
-                NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal(errorMessage), state.getBlockPos()));
+            MinecraftServer server = player.getServer();
+            AUDIO_FILE_EXECUTOR.execute(() -> finishUpload(player, server, transactionId, state));
+        }
+    }
+
+    private void finishUpload(ServerPlayer player, MinecraftServer server, UUID transactionId, UploadState state) {
+        try {
+            AudioFileMetadata metadata = this.saveUploadedFile(state);
+            SimplySpeakers.LOGGER.info("File saved successfully for transaction ID: " + transactionId + ". Metadata: " + metadata.getUuid());
+            server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), state.getBlockPos())));
+        } catch (IOException e) {
+            SimplySpeakers.LOGGER.error("Failed to save uploaded file for transaction ID: " + transactionId, e);
+            String errorMessage = "Failed to save file on server.";
+            if (e.getMessage() != null && e.getMessage().startsWith("Invalid file type")) {
+                errorMessage = "Invalid file type. Only MP3 and WAV files are supported.";
+            }
+            String finalErrorMessage = errorMessage;
+            server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal(finalErrorMessage), state.getBlockPos())));
+        }
+    }
+
+    private AudioFileMetadata saveUploadedFile(UploadState state) throws IOException {
+        if (!validateFile(state.fileName)) {
+            throw new IOException("Invalid file type: " + state.fileName);
+        }
+
+        String uuid = UUID.randomUUID().toString();
+        String extension = FilenameUtils.getExtension(state.fileName);
+        Path filePath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
+
+        try (OutputStream outputStream = Files.newOutputStream(filePath)) {
+            for (byte[] chunk : state.chunks) {
+                outputStream.write(chunk);
             }
         }
+
+        AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName, state.ownerUUID);
+        manifest.put(uuid, metadata);
+        saveManifest();
+
+        return metadata;
     }
 
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
@@ -208,16 +244,26 @@ public class AudioFileManager {
             return;
         }
 
-        try {
-            byte[] fileData = Files.readAllBytes(filePath);
-            int offset = 0;
-            while (offset < fileData.length) {
-                int length = Math.min(MAX_CHUNK_SIZE, fileData.length - offset);
-                byte[] chunk = new byte[length];
-                System.arraycopy(fileData, offset, chunk, 0, length);
-                offset += length;
-                boolean isLast = offset >= fileData.length;
-                NetworkManager.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast));
+        MinecraftServer server = player.getServer();
+        AUDIO_FILE_EXECUTOR.execute(() -> sendAudioFileAsync(player, server, audioId, filePath));
+    }
+
+    private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath) {
+        try (InputStream inputStream = Files.newInputStream(filePath)) {
+            long remaining = Files.size(filePath);
+            if (remaining > Config.maxUploadSize) {
+                SimplySpeakers.LOGGER.warn("Refusing to send audio {} because it is {} bytes, over the configured limit of {} bytes", audioId, remaining, Config.maxUploadSize);
+                return;
+            }
+
+            byte[] buffer = new byte[MAX_CHUNK_SIZE];
+            int read;
+            while ((read = inputStream.read(buffer)) != -1) {
+                byte[] chunk = new byte[read];
+                System.arraycopy(buffer, 0, chunk, 0, read);
+                remaining -= read;
+                boolean isLast = remaining <= 0;
+                server.execute(() -> NetworkManager.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast)));
             }
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read audio file for sending", e);
@@ -250,16 +296,6 @@ public class AudioFileManager {
 
         public boolean isComplete() {
             return receivedSize >= fileSize;
-        }
-
-        public byte[] getCombinedData() {
-            byte[] combined = new byte[(int) fileSize];
-            int offset = 0;
-            for (byte[] chunk : chunks) {
-                System.arraycopy(chunk, 0, combined, offset, chunk.length);
-                offset += chunk.length;
-            }
-            return combined;
         }
 
         public BlockPos getBlockPos() {
