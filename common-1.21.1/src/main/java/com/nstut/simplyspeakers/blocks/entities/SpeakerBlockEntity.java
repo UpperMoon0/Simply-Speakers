@@ -15,6 +15,7 @@ import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
@@ -384,12 +385,19 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @Override
     public void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
         com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Called for pos {}, clientSide: {}, tag keys: {}", 
             worldPosition, level != null && level.isClientSide(), tag.getAllKeys());
         
         // Load speaker ID
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[loadAdditional] Loaded speakerId: '{}'", speakerId);
+
+        SpeakerState persistedState = SpeakerRegistry.getOrCreateSpeakerState(speakerId);
+        SpeakerSettings.read(
+                (key, fallback) -> tag.contains(key) ? tag.getFloat(key) : fallback,
+                (key, fallback) -> tag.contains(key) ? tag.getInt(key) : fallback,
+                SpeakerSettings.from(persistedState)).applyTo(persistedState);
         
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
@@ -428,6 +436,11 @@ public class SpeakerBlockEntity extends BlockEntity {
         // Save speaker ID
         if (!speakerId.isEmpty()) {
             tag.putString(NBT_SPEAKER_ID, speakerId);
+        }
+
+        SpeakerState persistedState = getSpeakerState();
+        if (persistedState != null) {
+            SpeakerSettings.from(persistedState).write(tag::putFloat, tag::putInt);
         }
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data

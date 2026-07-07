@@ -16,6 +16,7 @@ import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
@@ -541,9 +542,13 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         isProxyPlaying = tag.contains(NBT_PROXY_PLAYING) ? tag.getBoolean(NBT_PROXY_PLAYING) : false;
         
         // Load settings
-        maxVolume = tag.contains("MaxVolume") ? tag.getFloat("MaxVolume") : 1.0f;
-        maxRange = tag.contains("MaxRange") ? tag.getInt("MaxRange") : 16;
-        audioDropoff = tag.contains("AudioDropoff") ? tag.getFloat("AudioDropoff") : 1.0f;
+        SpeakerSettings settings = SpeakerSettings.read(
+                (key, fallback) -> tag.contains(key) ? tag.getFloat(key) : fallback,
+                (key, fallback) -> tag.contains(key) ? tag.getInt(key) : fallback,
+                new SpeakerSettings(maxVolume, maxRange, audioDropoff));
+        maxVolume = settings.maxVolume();
+        maxRange = settings.maxRange();
+        audioDropoff = settings.audioDropoff();
         
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
@@ -601,9 +606,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         tag.putBoolean(NBT_PROXY_PLAYING, isProxyPlaying);
         
         // Save settings
-        tag.putFloat("MaxVolume", maxVolume);
-        tag.putInt("MaxRange", maxRange);
-        tag.putFloat("AudioDropoff", audioDropoff);
+        new SpeakerSettings(maxVolume, maxRange, audioDropoff).write(tag::putFloat, tag::putInt);
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
         // This prevents accumulation of player UUIDs in save files

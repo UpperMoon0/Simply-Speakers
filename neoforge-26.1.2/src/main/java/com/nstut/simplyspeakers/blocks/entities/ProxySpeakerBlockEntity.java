@@ -546,7 +546,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         isProxyPlaying = tag.getBooleanOr(NBT_PROXY_PLAYING, false);
         
         // Load settings
-        SpeakerSettings settings = SpeakerSettings.read(tag, new SpeakerSettings(maxVolume, maxRange, audioDropoff));
+        SpeakerSettings settings = SpeakerSettings.read(
+                tag::getFloatOr, tag::getIntOr, new SpeakerSettings(maxVolume, maxRange, audioDropoff));
         maxVolume = settings.maxVolume();
         maxRange = settings.maxRange();
         audioDropoff = settings.audioDropoff();
@@ -607,7 +608,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         tag.putBoolean(NBT_PROXY_PLAYING, isProxyPlaying);
         
         // Save settings
-        new SpeakerSettings(maxVolume, maxRange, audioDropoff).write(tag);
+        new SpeakerSettings(maxVolume, maxRange, audioDropoff).write(tag::putFloat, tag::putInt);
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
         // This prevents accumulation of player UUIDs in save files

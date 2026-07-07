@@ -400,7 +400,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         // Settings must travel in block-entity update data as well as the world save.
         // The client audio engine and newly opened GUIs both read this registry state.
         SpeakerState persistedState = SpeakerRegistry.getOrCreateSpeakerState(speakerId);
-        SpeakerSettings.read(tag, SpeakerSettings.from(persistedState)).applyTo(persistedState);
+        SpeakerSettings.read(tag::getFloatOr, tag::getIntOr, SpeakerSettings.from(persistedState)).applyTo(persistedState);
         
         // Clear runtime data on load - listeningPlayers should not persist across saves
         listeningPlayers.clear();
@@ -443,7 +443,7 @@ public class SpeakerBlockEntity extends BlockEntity {
 
         SpeakerState persistedState = getSpeakerState();
         if (persistedState != null) {
-            SpeakerSettings.from(persistedState).write(tag);
+            SpeakerSettings.from(persistedState).write(tag::putFloat, tag::putInt);
         }
         
         // PERFORMANCE FIX: Don't save listeningPlayers set to NBT as it's runtime-only data
