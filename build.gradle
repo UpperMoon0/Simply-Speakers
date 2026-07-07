@@ -97,5 +97,5 @@ afterEvaluate {
 tasks.register('testAllVersions') {
     group = 'verification'
     description = 'Runs shared and version-specific tests for every supported Minecraft version.'
-    dependsOn ':common-1.20.1:test', ':common-1.21.1:test', ':neoforge-26.1.2:test'
+    dependsOn ':common:test', ':common-1.20.1:test', ':common-1.21.1:test', ':neoforge-26.1.2:test'
 }

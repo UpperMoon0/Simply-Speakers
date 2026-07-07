@@ -9,7 +9,6 @@ import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.Reader;
 import com.nstut.simplyspeakers.network.AcknowledgeUploadPacketS2C;
 import com.nstut.simplyspeakers.network.RespondUploadAudioPacketS2C;
@@ -25,6 +24,7 @@ import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,18 +33,16 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class AudioFileManager {
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
     private static final int MAX_CHUNK_SIZE = 32000;
     private static final Map<UUID, UploadState> activeUploads = new ConcurrentHashMap<>();
-    private static final ExecutorService AUDIO_FILE_EXECUTOR = Executors.newFixedThreadPool(2, runnable -> {
-        Thread thread = new Thread(runnable, "Simply Speakers Audio File");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static final TransferRequestCoordinator<String> activeDownloads =
+            new TransferRequestCoordinator<>(Duration.ofSeconds(30));
+    private static final ExecutorService AUDIO_FILE_EXECUTOR =
+            ChunkedFileTransfer.newDaemonFixedThreadPool(2, "Simply Speakers Audio File");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private final Path audioDirPath;
     private final Path manifestPath;
@@ -182,11 +180,7 @@ public class AudioFileManager {
         String extension = FilenameUtils.getExtension(state.fileName);
         Path filePath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
 
-        try (OutputStream outputStream = Files.newOutputStream(filePath)) {
-            for (byte[] chunk : state.chunks) {
-                outputStream.write(chunk);
-            }
-        }
+        ChunkedFileTransfer.writeChunks(filePath, state.chunks);
 
         AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName, state.ownerUUID);
         manifest.put(uuid, metadata);
@@ -238,34 +232,32 @@ public class AudioFileManager {
     }
 
     public void sendAudioFile(ServerPlayer player, String audioId) {
-        Path filePath = this.getAudioFilePath(audioId);
-        if (filePath == null || !Files.exists(filePath)) {
-            // Handle file not found
-            return;
-        }
-
-        MinecraftServer server = player.getServer();
-        AUDIO_FILE_EXECUTOR.execute(() -> sendAudioFileAsync(player, server, audioId, filePath));
+        String transferKey = player.getUUID() + ":" + audioId;
+        activeDownloads.tryStart(transferKey, () -> {
+            Path filePath = this.getAudioFilePath(audioId);
+            if (filePath == null || !Files.exists(filePath)) {
+                activeDownloads.release(transferKey);
+                return;
+            }
+            MinecraftServer server = player.getServer();
+            AUDIO_FILE_EXECUTOR.execute(() -> sendAudioFileAsync(player, server, audioId, filePath, transferKey));
+        });
     }
 
-    private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath) {
-        try (InputStream inputStream = Files.newInputStream(filePath)) {
-            long remaining = Files.size(filePath);
-            if (remaining > Config.maxUploadSize) {
-                SimplySpeakers.LOGGER.warn("Refusing to send audio {} because it is {} bytes, over the configured limit of {} bytes", audioId, remaining, Config.maxUploadSize);
+    private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath, String transferKey) {
+        try {
+            long fileSize = Files.size(filePath);
+            if (fileSize > Config.maxUploadSize) {
+                activeDownloads.release(transferKey);
+                SimplySpeakers.LOGGER.warn("Refusing to send audio {} because it is {} bytes, over the configured limit of {} bytes", audioId, fileSize, Config.maxUploadSize);
                 return;
             }
 
-            byte[] buffer = new byte[MAX_CHUNK_SIZE];
-            int read;
-            while ((read = inputStream.read(buffer)) != -1) {
-                byte[] chunk = new byte[read];
-                System.arraycopy(buffer, 0, chunk, 0, read);
-                remaining -= read;
-                boolean isLast = remaining <= 0;
+            ChunkedFileTransfer.streamFile(filePath, MAX_CHUNK_SIZE, (chunk, isLast) -> {
                 server.execute(() -> NetworkManager.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast)));
-            }
+            });
         } catch (IOException e) {
+            activeDownloads.release(transferKey);
             SimplySpeakers.LOGGER.error("Failed to read audio file for sending", e);
         }
     }
