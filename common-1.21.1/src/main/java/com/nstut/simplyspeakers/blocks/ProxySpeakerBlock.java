@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.blocks;
 
 import com.mojang.logging.LogUtils;
+import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import com.nstut.simplyspeakers.platform.Services;
@@ -101,6 +102,19 @@ public class ProxySpeakerBlock extends BaseEntityBlock {
         }
         // Check if the requested type matches our proxy speaker BE type and return the serverTick method reference
         return createTickerHelper(blockEntityType, BlockEntityRegistries.PROXY_SPEAKER.get(), ProxySpeakerBlockEntity::serverTick);
+    }
+
+    @Override
+    public void onRemove(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos,
+                         @NotNull BlockState newState, boolean isMoving) {
+        if (!state.is(newState.getBlock()) && !level.isClientSide) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
+                proxySpeakerEntity.stopAudio();
+                SpeakerRegistry.unregisterProxySpeaker(level, pos, proxySpeakerEntity.getSpeakerId());
+            }
+        }
+        super.onRemove(state, level, pos, newState, isMoving);
     }
 
     @Override

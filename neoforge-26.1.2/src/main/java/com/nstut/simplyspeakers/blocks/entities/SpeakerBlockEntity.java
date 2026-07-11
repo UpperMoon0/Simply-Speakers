@@ -149,12 +149,16 @@ public class SpeakerBlockEntity extends BlockEntity {
     
     @Override
     public void setRemoved() {
+        super.setRemoved();
+    }
+
+    @Override
+    public void preRemoveSideEffects(BlockPos pos, BlockState state) {
         if (level != null && !level.isClientSide()) {
-            stopAudio(); // Ensure stop logic runs
-            // Unregister from the registry
+            stopAudio();
             SpeakerRegistry.unregisterSpeaker(level, worldPosition, speakerId);
         }
-        super.setRemoved();
+        super.preRemoveSideEffects(pos, state);
     }
     
     /**

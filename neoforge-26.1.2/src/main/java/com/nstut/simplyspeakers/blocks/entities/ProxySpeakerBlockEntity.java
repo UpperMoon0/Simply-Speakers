@@ -310,19 +310,22 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     @Override
     public void setRemoved() {
-        if (level != null) {
-            if (!level.isClientSide()) {
-                stopAudio(); // Ensure stop logic runs
-                // Unregister from the server registry
-                SpeakerRegistry.unregisterProxySpeaker(level, worldPosition, speakerId);
-            } else {
-                // Stop client audio if playing
-                com.nstut.simplyspeakers.client.ClientAudioPlayer.stop(worldPosition);
-                // Unregister from the client registry
-                ClientSpeakerRegistry.unregisterProxySpeaker(worldPosition, speakerId);
-            }
+        if (level != null && level.isClientSide()) {
+            // Stop client audio if playing
+            com.nstut.simplyspeakers.client.ClientAudioPlayer.stop(worldPosition);
+            // Unregister from the client registry
+            ClientSpeakerRegistry.unregisterProxySpeaker(worldPosition, speakerId);
         }
         super.setRemoved();
+    }
+
+    @Override
+    public void preRemoveSideEffects(BlockPos pos, BlockState state) {
+        if (level != null && !level.isClientSide()) {
+            stopAudio();
+            SpeakerRegistry.unregisterProxySpeaker(level, worldPosition, speakerId);
+        }
+        super.preRemoveSideEffects(pos, state);
     }
     
     /**
