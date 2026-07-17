@@ -3,6 +3,7 @@ package com.nstut.simplyspeakers.network;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
+import com.nstut.simplyspeakers.client.DeferredTaskQueue;
 import dev.architectury.networking.NetworkManager; // Changed import
 
 
@@ -16,6 +17,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import java.util.function.Supplier;
 
 public class PlayAudioPacketS2C {
+    private static final DeferredTaskQueue PENDING_PLAYS = new DeferredTaskQueue();
     private final BlockPos pos;
     private final String audioId;
     private final String audioFilename;
@@ -49,15 +51,32 @@ public class PlayAudioPacketS2C {
     // Updated handle method for Architectury
     public static void handle(PlayAudioPacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext context = ctxSupplier.get();
-        // Ensure this code runs only on the client side
-        if (Minecraft.getInstance().level.isClientSide) {
-            context.queue(() -> {
-                SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, audioId: {}, filename: {}, start: {}s, looping: {}", pkt.pos, pkt.audioId, pkt.audioFilename, pkt.playbackPositionSeconds, pkt.isLooping);
-                // Play the audio for the specific speaker block, passing the start position and looping state.
-                AudioFileMetadata metadata = new AudioFileMetadata(pkt.audioId, pkt.audioFilename);
-                ClientAudioPlayer.play(pkt.pos, metadata, pkt.playbackPositionSeconds, pkt.isLooping);
-            });
-        }
+        context.queue(() -> playOrDefer(pkt));
         // For S2C packets, Architectury handles setPacketHandled implicitly when queueing on the client.
+    }
+
+    private static void playOrDefer(PlayAudioPacketS2C packet) {
+        if (Minecraft.getInstance().level == null) {
+            SimplySpeakers.LOGGER.debug("Deferring speaker playback at {} until the client world is ready", packet.pos);
+            PENDING_PLAYS.defer(() -> play(packet));
+            return;
+        }
+        play(packet);
+    }
+
+    private static void play(PlayAudioPacketS2C packet) {
+        SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, audioId: {}, filename: {}, start: {}s, looping: {}", packet.pos, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping);
+        AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
+        ClientAudioPlayer.play(packet.pos, metadata, packet.playbackPositionSeconds, packet.isLooping);
+    }
+
+    public static void processPendingPlays() {
+        if (Minecraft.getInstance().level != null) {
+            PENDING_PLAYS.drain();
+        }
+    }
+
+    public static void clearPendingPlays() {
+        PENDING_PLAYS.clear();
     }
 }

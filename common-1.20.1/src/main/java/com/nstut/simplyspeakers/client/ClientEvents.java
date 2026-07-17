@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.client.screens.ProxySpeakerScreen;
+import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 
 public class ClientEvents {
 
@@ -20,6 +21,7 @@ public class ClientEvents {
     private static void onClientTick(Minecraft client) {
         // PERFORMANCE FIX: Reduce volume update frequency to prevent excessive OpenAL calls during world operations
         if (client.player != null && client.level != null) {
+            PlayAudioPacketS2C.processPendingPlays();
             volumeUpdateTicks++;
             if (volumeUpdateTicks >= VOLUME_UPDATE_INTERVAL) {
                 ClientAudioPlayer.updateSpeakerVolumes();
@@ -31,6 +33,7 @@ public class ClientEvents {
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
         System.out.println("[SimplySpeakers] Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
+        PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
     }

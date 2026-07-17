@@ -200,7 +200,7 @@ public class AudioFileManager {
             return false;
         }
 
-        if (metadata.getOwnerUUID() != null && !metadata.getOwnerUUID().equals(playerUUID)) {
+        if (!AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerUUID)) {
             SimplySpeakers.LOGGER.warn("Player {} tried to delete audio {} owned by {}", playerUUID, audioId, metadata.getOwnerUUID());
             return false;
         }
@@ -221,14 +221,7 @@ public class AudioFileManager {
     }
 
     public List<AudioFileMetadata> getAudioListForPlayer(String playerUUID) {
-        List<AudioFileMetadata> allAudio = new ArrayList<>(this.getManifest().values());
-        List<AudioFileMetadata> playerAudio = new ArrayList<>();
-        for (AudioFileMetadata audio : allAudio) {
-            if (audio.getOwnerUUID() == null || audio.getOwnerUUID().equals(playerUUID)) {
-                playerAudio.add(audio);
-            }
-        }
-        return playerAudio;
+        return AudioOwnership.ownedBy(manifest.values(), AudioFileMetadata::getOwnerUUID, playerUUID);
     }
 
     public void sendAudioFile(ServerPlayer player, String audioId) {

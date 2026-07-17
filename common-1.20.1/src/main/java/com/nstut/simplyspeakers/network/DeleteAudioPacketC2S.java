@@ -6,7 +6,6 @@ import dev.architectury.networking.NetworkManager;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -30,7 +29,8 @@ public class DeleteAudioPacketC2S {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             SimplySpeakers.getAudioFileManager().deleteAudioFile(pkt.audioId, player.getUUID().toString());
-            List<AudioFileMetadata> audioList = new ArrayList<>(SimplySpeakers.getAudioFileManager().getManifest().values());
+            List<AudioFileMetadata> audioList = SimplySpeakers.getAudioFileManager()
+                    .getAudioListForPlayer(player.getUUID().toString());
             PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
         });
     }

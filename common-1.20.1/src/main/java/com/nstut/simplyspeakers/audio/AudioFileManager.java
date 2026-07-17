@@ -89,7 +89,7 @@ public class AudioFileManager {
         return extension.equals("mp3") || extension.equals("wav");
     }
 
-    public AudioFileMetadata saveFile(InputStream inputStream, String originalFilename) throws IOException {
+    public AudioFileMetadata saveFile(InputStream inputStream, String originalFilename, String ownerUUID) throws IOException {
         if (!validateFile(originalFilename)) {
             throw new IOException("Invalid file type: " + originalFilename);
         }
@@ -100,7 +100,7 @@ public class AudioFileManager {
 
         Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
 
-        AudioFileMetadata metadata = new AudioFileMetadata(uuid, originalFilename);
+        AudioFileMetadata metadata = new AudioFileMetadata(uuid, originalFilename, ownerUUID);
         manifest.put(uuid, metadata);
         saveManifest();
 
@@ -132,7 +132,7 @@ public class AudioFileManager {
             return;
         }
 
-        activeUploads.put(transactionId, new UploadState(fileName, fileSize, blockPos));
+        activeUploads.put(transactionId, new UploadState(fileName, fileSize, blockPos, player.getUUID().toString()));
         PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
         SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Sent response to client.");
     }
@@ -182,7 +182,7 @@ public class AudioFileManager {
 
         ChunkedFileTransfer.writeChunks(filePath, state.chunks);
 
-        AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName);
+        AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName, state.ownerUUID);
         manifest.put(uuid, metadata);
         saveManifest();
 
@@ -190,13 +190,18 @@ public class AudioFileManager {
     }
 
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
-        List<AudioFileMetadata> audioList = new ArrayList<>(this.getManifest().values());
+        List<AudioFileMetadata> audioList = getAudioListForPlayer(player.getUUID().toString());
         PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
     }
 
     public boolean deleteAudioFile(String audioId, String playerUUID) {
         AudioFileMetadata metadata = manifest.get(audioId);
         if (metadata == null) {
+            return false;
+        }
+
+        if (!AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerUUID)) {
+            SimplySpeakers.LOGGER.warn("Player {} tried to delete audio {} owned by {}", playerUUID, audioId, metadata.getOwnerUUID());
             return false;
         }
 
@@ -213,6 +218,10 @@ public class AudioFileManager {
         manifest.remove(audioId);
         saveManifest();
         return true;
+    }
+
+    public List<AudioFileMetadata> getAudioListForPlayer(String playerUUID) {
+        return AudioOwnership.ownedBy(manifest.values(), AudioFileMetadata::getOwnerUUID, playerUUID);
     }
 
     public void sendAudioFile(ServerPlayer player, String audioId) {
@@ -254,13 +263,15 @@ public class AudioFileManager {
         private final String fileName;
         private final long fileSize;
         private final BlockPos blockPos;
+        private final String ownerUUID;
         private final List<byte[]> chunks = new ArrayList<>();
         private long receivedSize = 0;
 
-        public UploadState(String fileName, long fileSize, BlockPos blockPos) {
+        public UploadState(String fileName, long fileSize, BlockPos blockPos, String ownerUUID) {
             this.fileName = fileName;
             this.fileSize = fileSize;
             this.blockPos = blockPos;
+            this.ownerUUID = ownerUUID;
         }
 
         public void addData(byte[] data) {
