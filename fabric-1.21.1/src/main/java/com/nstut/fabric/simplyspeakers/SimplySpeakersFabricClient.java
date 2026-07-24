@@ -1,5 +1,6 @@
 package com.nstut.fabric.simplyspeakers;
 
+import com.nstut.simplyspeakers.client.ClientEvents;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import net.fabricmc.api.ClientModInitializer;
 
@@ -12,5 +13,6 @@ public class SimplySpeakersFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         // Register S2C packet receivers on client side only
         PacketRegistries.registerS2C();
+        ClientEvents.register();
     }
 }

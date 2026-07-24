@@ -4,6 +4,7 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import com.nstut.simplyspeakers.client.DeferredTaskQueue;
+import com.nstut.simplyspeakers.testing.LiveJoinTestProtocol;
 import dev.architectury.networking.NetworkManager;
 
 import net.minecraft.client.Minecraft;
@@ -59,8 +60,12 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
     }
 
     private static void playOrDefer(PlayAudioPacketS2C packet) {
-        if (Minecraft.getInstance().level == null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client == null || client.level == null) {
             SimplySpeakers.LOGGER.debug("Deferring speaker playback at {} until the client world is ready", packet.pos);
+            if (LiveJoinTestProtocol.PROBE_AUDIO_ID.equals(packet.audioId)) {
+                LiveJoinTestProtocol.markDeferred();
+            }
             PENDING_PLAYS.defer(() -> play(packet));
             return;
         }
@@ -68,19 +73,34 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
     }
 
     private static void play(PlayAudioPacketS2C packet) {
+        if (LiveJoinTestProtocol.PROBE_AUDIO_ID.equals(packet.audioId)) {
+            LiveJoinTestProtocol.markCompleted();
+            return;
+        }
         SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, audioId: {}, filename: {}, start: {}s, looping: {}", packet.pos, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping);
         AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
         ClientAudioPlayer.play(packet.pos, metadata, packet.playbackPositionSeconds, packet.isLooping);
     }
 
     public static void processPendingPlays() {
-        if (Minecraft.getInstance().level != null) {
+        Minecraft client = Minecraft.getInstance();
+        if (client != null && client.level != null) {
             PENDING_PLAYS.drain();
         }
     }
 
     public static void clearPendingPlays() {
-        PENDING_PLAYS.clear();
+        if (!LiveJoinTestProtocol.hasPendingProbe()) {
+            PENDING_PLAYS.clear();
+        }
+    }
+
+    public static void startLiveJoinProbe() {
+        if (LiveJoinTestProtocol.isEnabled()) {
+            LiveJoinTestProtocol.reset();
+            playOrDefer(new PlayAudioPacketS2C(
+                    BlockPos.ZERO, LiveJoinTestProtocol.PROBE_AUDIO_ID, "probe.wav", 0.0f, false));
+        }
     }
 
     @Override

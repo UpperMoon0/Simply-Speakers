@@ -21,6 +21,8 @@ class ClientPacketJoinSafetyWiringTest {
             String packet = read(root, module, "network/PlayAudioPacketS2C.java");
             assertFalse(packet.contains("Minecraft.getInstance().level.isClientSide"),
                     module + " must not dereference the level on the network thread");
+            assertTrue(packet.contains("client == null || client.level == null"),
+                    module + " must also tolerate mod construction before Minecraft exists");
             assertTrue(packet.contains("PENDING_PLAYS.defer"),
                     module + " must preserve packets received during join");
             assertTrue(packet.contains("processPendingPlays"),
@@ -32,6 +34,15 @@ class ClientPacketJoinSafetyWiringTest {
             assertTrue(events.contains("PlayAudioPacketS2C.clearPendingPlays"),
                     module + " must discard stale packets on disconnect");
         }
+    }
+
+    @Test
+    void fabric121ClientEntrypointRegistersSharedClientEvents() throws IOException {
+        Path root = findProjectRoot();
+        String entrypoint = Files.readString(root.resolve(
+                "fabric-1.21.1/src/main/java/com/nstut/fabric/simplyspeakers/SimplySpeakersFabricClient.java"));
+        assertTrue(entrypoint.contains("ClientEvents.register()"),
+                "Fabric 1.21.1 must drain the shared deferred-play queue on client ticks");
     }
 
     private static String read(Path root, String module, String relativePath) throws IOException {

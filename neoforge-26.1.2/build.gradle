@@ -65,6 +65,7 @@ sourceSets.main.resources {
 // Compile the version-neutral configuration, registry index, and image helpers directly.
 sourceSets.main.java.srcDir('../common/src/main/java')
 sourceSets.main.java.srcDir('../shared-1.21plus/src/main/java')
+sourceSets.main.java.srcDir('../shared-neoforge/src/main/java')
 sourceSets.main.java.exclude('com/nstut/simplyspeakers/client/gui/widgets/AudioListWidget.java')
 sourceSets.test.java.srcDir('../common/src/test/java')
 
@@ -101,10 +102,24 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        liveJoinTestClient {
+            client()
+            gameDirectory = project.file("run/live-join/client")
+            systemProperty 'simplyspeakers.liveJoinTest', 'true'
+            programArguments.addAll '--quickPlayMultiplayer', '127.0.0.1:25575'
+        }
+
         server {
             server()
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+
+
+        liveJoinTestServer {
+            server()
+            gameDirectory = project.file("run/live-join/server")
+            programArgument '--nogui'
         }
 
         // This run config launches GameTestServer and runs all registered gametests, then exits.

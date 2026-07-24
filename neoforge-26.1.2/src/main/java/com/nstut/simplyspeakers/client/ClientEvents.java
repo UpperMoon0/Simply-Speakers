@@ -9,6 +9,7 @@ import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.client.screens.ProxySpeakerScreen;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
+import com.nstut.simplyspeakers.testing.LiveJoinTestProtocol;
 
 public class ClientEvents {
 
@@ -20,6 +21,7 @@ public class ClientEvents {
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
         ClientLifecycleEvent.CLIENT_STOPPING.register(ClientEvents::onClientStopping);
+        PlayAudioPacketS2C.startLiveJoinProbe();
         SimplySpeakers.LOGGER.info("Client events registered");
     }
 
@@ -27,11 +29,21 @@ public class ClientEvents {
         // PERFORMANCE FIX: Reduce volume update frequency to prevent excessive OpenAL calls during world operations
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
+            finishLiveJoinTest(client);
             volumeUpdateTicks++;
             if (volumeUpdateTicks >= VOLUME_UPDATE_INTERVAL) {
                 ClientAudioPlayer.updateSpeakerVolumes();
                 volumeUpdateTicks = 0;
             }
+        }
+    }
+
+    private static void finishLiveJoinTest(Minecraft client) {
+        if (LiveJoinTestProtocol.isEnabled()
+                && LiveJoinTestProtocol.passed()
+                && LiveJoinTestProtocol.markReported()) {
+            SimplySpeakers.LOGGER.info(LiveJoinTestProtocol.PASS_MARKER);
+            LiveJoinTestProtocol.stopClient(client::stop);
         }
     }
 

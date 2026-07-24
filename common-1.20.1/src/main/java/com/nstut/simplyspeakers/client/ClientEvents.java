@@ -7,6 +7,7 @@ import net.minecraft.core.BlockPos;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.client.screens.ProxySpeakerScreen;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
+import com.nstut.simplyspeakers.testing.LiveJoinTestProtocol;
 
 public class ClientEvents {
 
@@ -16,17 +17,28 @@ public class ClientEvents {
     public static void register() {
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
+        PlayAudioPacketS2C.startLiveJoinProbe();
     }
 
     private static void onClientTick(Minecraft client) {
         // PERFORMANCE FIX: Reduce volume update frequency to prevent excessive OpenAL calls during world operations
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
+            finishLiveJoinTest(client);
             volumeUpdateTicks++;
             if (volumeUpdateTicks >= VOLUME_UPDATE_INTERVAL) {
                 ClientAudioPlayer.updateSpeakerVolumes();
                 volumeUpdateTicks = 0;
             }
+        }
+    }
+
+    private static void finishLiveJoinTest(Minecraft client) {
+        if (LiveJoinTestProtocol.isEnabled()
+                && LiveJoinTestProtocol.passed()
+                && LiveJoinTestProtocol.markReported()) {
+            System.out.println(LiveJoinTestProtocol.PASS_MARKER);
+            LiveJoinTestProtocol.stopClient(client::stop);
         }
     }
 

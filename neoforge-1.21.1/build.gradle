@@ -12,6 +12,24 @@ architectury {
     neoForge()
 }
 
+loom {
+    runs {
+        liveJoinTestClient {
+            client()
+            runDir("run/live-join/client")
+            property "simplyspeakers.liveJoinTest", "true"
+            programArgs "--quickPlayMultiplayer", "127.0.0.1:25575"
+        }
+        liveJoinTestServer {
+            server()
+            runDir("run/live-join/server")
+            programArg "nogui"
+        }
+    }
+}
+
+sourceSets.main.java.srcDir('../shared-neoforge/src/main/java')
+
 configurations {
     common {
         canBeResolved = true

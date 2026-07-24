@@ -74,6 +74,15 @@ afterEvaluate {
             it.options.release = project.name.contains('1.21.1') ? 21 : 17
         }
 
+        // Use the Minecraft-supported runtime as well as its bytecode target.
+        // Forge 1.20.1's network handshake is not compatible with Java 21.
+        tasks.withType(JavaExec).configureEach {
+            def runtimeVersion = project.name.contains('1.21.1') ? 21 : 17
+            javaLauncher = javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(runtimeVersion)
+            }
+        }
+
         // Configure Maven publishing.
         publishing {
             publications {
