@@ -2,61 +2,118 @@
 
 CurseForge: https://www.curseforge.com/minecraft/mc-mods/simply-speakers
 
-Simply Speakers is a Minecraft mod that allows players to play custom audio from a local URL in-game using a speaker block.
+Simply Speakers is a Minecraft mod that allows players to play custom audio files in-game using speaker blocks.
 
 ## Features
 
-* **Speaker Block**: A new block that can be placed in the world.
-* **Custom Audio**: Play audio from any direct .mp3 or .wav URL. **Note: Only local file URLs are supported. Streaming from internet URLs is not supported.**
-* **Proxy Speaker System**: Synchronize audio playback across multiple locations using proxy speakers linked to a main speaker.
-* **Cross-Platform**: Supports both Fabric and Forge mod loaders.
+* **Speaker Block**: The main controller block that stores and plays audio files.
+* **Proxy Speaker Block**: Sync audio playback across multiple locations by linking to a main Speaker.
+* **Custom Audio**: Upload or manually add .mp3 and .wav files.
+* **Per-Speaker Audio Settings**: Fine-tune max volume (0-100%), max range (1-512 blocks), and audio dropoff (0-100%) per speaker.
+* **Redstone Control**: Power a speaker to play, unpower to stop.
+* **Range-based Audio**: Volume fades with distance; players entering/leaving range automatically start/stop hearing audio.
+* **Loop Playback**: Toggle looping from the speaker GUI.
+* **Cross-Platform**: Supports Fabric, Forge, and NeoForge across multiple Minecraft versions.
 
-### How it works
+## Supported Platforms
 
-1. **Main Speaker**: The main Speaker block controls the audio playback state (play, pause, stop) and stores information about which audio file is selected.
-2. **Proxy Speakers**: These blocks can be placed anywhere in the world and linked to a main Speaker by setting the same Speaker ID in their configuration interface.
-3. **Synchronization**: When the main Speaker starts playing audio, all Proxy Speakers with the same Speaker ID will begin playing the same audio at exactly the same position, creating a synchronized audio experience across multiple locations.
-4. **Redstone Control**: Both Speaker and Proxy Speaker blocks can be controlled using redstone signals. When powered, they will play audio; when unpowered, they will stop.
-5. **Range-based Audio**: Audio from both Speaker and Proxy Speaker blocks can be heard within a configurable range, and players entering or leaving this range will automatically start or stop hearing the audio.
+| Platform  | Minecraft   |
+|-----------|-------------|
+| Fabric    | 1.20.1      |
+| Forge     | 1.20.1      |
+| Fabric    | 1.21.1      |
+| NeoForge  | 1.21.1      |
+| NeoForge  | 26.1.2      |
 
-## Manually Adding Audio Files
+## How it works
 
-Audio files are stored in the `simply_speakers_audios` directory within your world's save folder. To manually add a new audio file, follow these steps:
+1. **Main Speaker**: Controls audio playback state (play, pause, stop) and stores the selected audio file and settings.
+2. **Proxy Speakers**: Place anywhere and link to a main Speaker by setting the same Speaker ID in their configuration interface.
+3. **Synchronization**: When the main Speaker starts playback, all linked Proxy Speakers begin playing the same audio at the same position.
+4. **Redstone Control**: Both Speaker types respond to redstone signals — powered plays, unpowered stops.
+5. **Range & Dropoff**: Audio fades with distance based on each speaker's configurable max range and dropoff curve.
 
-1.  **Generate a UUID**: Create a new UUID (e.g., using an online generator: https://www.uuidgenerator.net/).
-2.  **Rename and Place the File**: Rename your .mp3 or .wav file to <your-uuid>.mp3 (or .wav) and place it in the simply_speakers_audios directory (located at "{your save directory}\simply_speakers_audios").
-3.  **Update the Manifest**: Open the audio_manifest.json file and add a new entry with the UUID as the key and the original filename as the value, like this:
+## Audio Settings
 
-    ```json
-    {
-      "your-uuid": {
-        "uuid": "your-uuid",
-        "originalFilename": "your-song.mp3"
-      }
-    }
-    ```
+Each speaker and proxy speaker has independent settings:
 
-## Building from Source
+| Setting        | Range      | Description                                               |
+|----------------|------------|-----------------------------------------------------------|
+| Max Volume     | 0% – 100%  | How loud the speaker is at the source                     |
+| Max Range      | 1 – 512    | Maximum distance (in blocks) the audio can be heard       |
+| Audio Dropoff  | 0% – 100%  | 0% = uniform volume at all distances; 100% = linear fade  |
 
-1.Clone the repository.
-2.Run `./gradlew build` (or `gradlew.bat build` on Windows) to build the mod.
-    * The compiled JAR files will be located in the `build/libs` directory of the forge and fabric subprojects.
+## Adding Audio Files
 
-## Mod Structure
+### In-Game Upload
+Right-click a Speaker, click the upload button, and select an audio file. Files are validated and saved automatically.
 
-The project is a multi-loader project structured as follows:
+### Manual Installation
+Audio files are stored in `simply_speakers_audios/` inside your world's save folder.
 
-* `common/`: Contains the core logic of the mod, shared between Fabric and Forge.
-* `fabric/`: Contains Fabric-specific implementation details and the Fabric mod entry point (`SimplySpeakersFabric.java`).
-* `forge/`: Contains Forge-specific implementation details and the Forge mod entry point (`SimplySpeakersForge.java`).
+1. Generate a UUID (e.g. from [uuidgenerator.net](https://www.uuidgenerator.net/)).
+2. Rename your `.mp3` or `.wav` file to `<your-uuid>.mp3` and place it in the `simply_speakers_audios/` folder.
+3. Add an entry to `audio_manifest.json`:
+```json
+{
+  "your-uuid": {
+    "uuid": "your-uuid",
+    "originalFilename": "your-song.mp3"
+  }
+}
+```
+
+## Configuration
+
+Edit the mod config file to adjust:
+- `speakerRange`: Default range for new speakers (1–512, default: 64)
+- `disableUpload`: Disable the in-game upload feature
+- `maxUploadSize`: Maximum file size for uploads in bytes
+- `debugLogging`: Enable verbose logging for troubleshooting
 
 ## Dependencies
 
-* Minecraft Version: 1.20.1
-* Architectury API
-* Fabric Loader (for Fabric version)
-* Fabric API (for Fabric version)
-* Forge (for Forge version)
+- **Architectury API** (matching your Minecraft version and loader)
+- **Fabric API** (for Fabric versions)
+
+## Building from Source
+
+1. Clone the repository.
+2. Run `gradlew.bat build` (or `./gradlew build` on Linux/Mac).
+3. JAR files are located in each subproject's `build/libs/` directory.
+
+To target a specific module:
+```bash
+gradlew.bat :neoforge-1.21.1:build
+gradlew.bat :fabric-1.20.1:build
+```
+
+To run all version-independent tests:
+```bash
+gradlew.bat testAllVersions
+```
+
+## Mod Structure
+
+The project is a multi-loader, multi-version project:
+
+| Module              | Description                                          |
+|---------------------|------------------------------------------------------|
+| `common/`           | Pure Java logic — config, audio ownership, state     |
+| `common-1.20.1/`   | Shared Minecraft code for 1.20.1 (Fabric + Forge)    |
+| `common-1.21.1/`   | Shared Minecraft code for 1.21.1 (Fabric + NeoForge) |
+| `shared-1.21plus/`  | Shared code between 1.21.1 and 26.1.2 NeoForge       |
+| `shared-neoforge/`  | Shared NeoForge platform code                        |
+| `fabric-1.20.1/`   | Fabric 1.20.1 loader entry point                     |
+| `fabric-1.21.1/`   | Fabric 1.21.1 loader entry point                     |
+| `forge-1.20.1/`    | Forge 1.20.1 loader entry point                      |
+| `neoforge-1.21.1/` | NeoForge 1.21.1 loader entry point                   |
+| `neoforge-26.1.2/` | NeoForge 26.1.2 loader entry point (standalone)      |
+| `tools/`            | Automated test scripts                               |
+
+## Changelog
+
+See [changelog/changelog.txt](changelog/changelog.txt) for the full version history.
 
 ## Contributing
 

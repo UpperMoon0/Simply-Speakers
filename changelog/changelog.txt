@@ -1,0 +1,15 @@
+=====================================================
+  Simply Speakers - Changelog
+=====================================================
+
+-----------------------------------------------------
+  Version 0.7.5
+-----------------------------------------------------
+
+ Fixed
+  - Joining a world with active speakers no longer causes 
+    a crash.
+  - Fixed audio from different speakers overlapping or 
+    cutting each other off.
+  - Breaking a speaker while audio is playing now instantly 
+    stops the sound for everyone nearby.
