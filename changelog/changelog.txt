@@ -3,13 +3,15 @@
 =====================================================
 
 -----------------------------------------------------
-  Version 0.7.6
+  Version 0.7.7
 -----------------------------------------------------
 
  Fixed
-  - Joining a world with active speakers no longer causes 
-    a crash.
-  - Fixed audio from different speakers overlapping or 
-    cutting each other off.
-  - Breaking a speaker while audio is playing now instantly 
-    stops the sound for everyone nearby.
+  - Looping audio now resumes at the correct position after
+    leaving a speaker's range and returning.
+  - Short audio clips now continue looping indefinitely
+    instead of stopping after only a few repetitions.
+  - Fixed an OpenAL buffer cleanup race that caused permanent
+    buffer underruns during loop playback.
+  - Loop transitions now finish playing all queued audio,
+    preventing clipped or shortened repetitions.

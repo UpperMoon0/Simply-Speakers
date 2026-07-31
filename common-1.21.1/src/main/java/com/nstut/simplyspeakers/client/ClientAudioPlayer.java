@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.PlaybackOffset;
 import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
@@ -218,7 +219,11 @@ public class ClientAudioPlayer {
                     int frameSize = format.getFrameSize();
 
                     if (frameRate > 0 && frameSize > 0) {
-                        long framesToSkip = (long) (startPositionSeconds * frameRate);
+                        long framesToSkip = PlaybackOffset.frameOffset(
+                                startPositionSeconds,
+                                isLooping,
+                                pcmAudioStream.getFrameLength(),
+                                frameRate);
                         bytesToSkip = framesToSkip * frameSize;
                         SimplySpeakers.LOGGER.debug("Streaming thread for {}: Calculated skip: {} bytes for {}s", pos, bytesToSkip, startPositionSeconds);
                     } else {
@@ -242,6 +247,7 @@ public class ClientAudioPlayer {
 
                 boolean playbackAttempted = false;
                 initialDataLoaded = false;
+                boolean endOfStream = false;
 
                 int alFormat = getOpenALFormat(format);
                 if (alFormat == -1) {
@@ -264,7 +270,7 @@ public class ClientAudioPlayer {
                     int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
                     if (bytesRead <= 0) {
                         SimplySpeakers.LOGGER.debug("Streaming thread for {}: EOF or read error during initial buffering. Bytes read: {}", pos, bytesRead);
-                        // Don't set stopFlag.set(true) here if looping, let the outer loop decide
+                        endOfStream = true;
                         break; // Break from initial buffer filling, will check isLooping later
                     }
 
@@ -311,26 +317,30 @@ public class ClientAudioPlayer {
 
                     for (int i = 0; i < buffersProcessed; i++) {
                         int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
-                        int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
-
-                        if (bytesRead > 0) {
-                            ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
-                            alBuffer.put(bufferData, 0, bytesRead).flip();
-                            AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
-                            AL10.alSourceQueueBuffers(sourceID, bufferID);
-                        } else { // EOF reached during streaming
-                            SimplySpeakers.LOGGER.debug("EOF in streaming loop for {}. Buffer {} not re-queued. Bytes read: {}", pos, bufferID, bytesRead);
-                            // Don't set resource.stopFlag.set(true) here if looping. Let the outer logic handle it.
-                            playbackCompletedSuccessfully = true; // Mark that this cycle finished normally (EOF)
-                            break; // Exit inner streaming loop
+                        if (!endOfStream) {
+                            int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
+                            if (bytesRead > 0) {
+                                ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
+                                alBuffer.put(bufferData, 0, bytesRead).flip();
+                                AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                                AL10.alSourceQueueBuffers(sourceID, bufferID);
+                            } else {
+                                SimplySpeakers.LOGGER.debug("EOF in streaming loop for {}. Draining queued audio before restart.", pos);
+                                endOfStream = true;
+                            }
                         }
                     }
-                    if (playbackCompletedSuccessfully || resource.stopFlag.get() || Thread.currentThread().isInterrupted()) {
+                    if (resource.stopFlag.get() || Thread.currentThread().isInterrupted()) {
                         break; // Exit inner streaming loop
                     }
 
+                    int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                    if (endOfStream && queuedBuffers == 0) {
+                        playbackCompletedSuccessfully = true;
+                        break;
+                    }
+
                     if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
-                         int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
                          if (queuedBuffers > 0) {
                             SimplySpeakers.LOGGER.debug("Source {} at {} stopped but has queued buffers. Restarting playback.", sourceID, pos);
                             AL10.alSourcePlay(sourceID);
@@ -356,17 +366,13 @@ public class ClientAudioPlayer {
                 } else if (playbackCompletedSuccessfully) { // EOF reached for this cycle
                     if (isLooping) {
                         SimplySpeakers.LOGGER.debug("Audio track finished for {}. Looping enabled, restarting.", pos);
-                        // Clean up OpenAL source state for restart, but keep buffers
-                        Minecraft.getInstance().tell(() -> {
-                            if (AL10.alIsSource(sourceID)) {
-                                AL10.alSourceStop(sourceID);
-                                int processed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
-                                if (processed > 0) AL10.alSourceUnqueueBuffers(sourceID, new int[processed]);
-                                int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
-                                if (queued > 0) AL10.alSourceUnqueueBuffers(sourceID, new int[queued]);
-                                AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0); // Detach any buffer pointer
-                            }
-                        });
+                        // Reset before the next cycle can queue new data. Deferring this
+                        // races the next cycle and can remove its newly queued buffers.
+                        if (AL10.alIsSource(sourceID)) {
+                            AL10.alSourceStop(sourceID);
+                            int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                            if (queued > 0) AL10.alSourceUnqueueBuffers(sourceID, new int[queued]);
+                        }
                         // The outer while loop will re-initialize pcmAudioStream and start over.
                         // startPositionSeconds is already 0 for loops.
                         playbackCompletedSuccessfully = false; // Reset for next loop iteration
