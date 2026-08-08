@@ -93,6 +93,10 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+
+    // Keep our bundled JLayer private. Ad Astra also embeds JLayer under its
+    // original package, which makes Forge reject both mods as split packages.
+    relocate 'javazoom.jl', 'com.nstut.simplyspeakers.shadow.javazoom.jl'
 }
 
 remapJar {

@@ -85,6 +85,7 @@ processResources {
 shadowJar {
     configurations = [project.configurations.shadowBundle]
     archiveClassifier = 'dev-shadow'
+    relocate 'javazoom.jl', 'com.nstut.simplyspeakers.shadow.javazoom.jl'
 }
 
 remapJar {
