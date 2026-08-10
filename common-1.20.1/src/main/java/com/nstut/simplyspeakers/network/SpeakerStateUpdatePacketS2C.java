@@ -1,5 +1,6 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import dev.architectury.networking.NetworkManager;
@@ -73,6 +74,7 @@ public class SpeakerStateUpdatePacketS2C {
     }
     
     private static void handleProxySpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
+        if (!SpeakerLink.isLinkableId(pkt.speakerId)) return;
         // Find all proxy speakers with the matching speaker ID in the current level
         if (Minecraft.getInstance().level != null && Minecraft.getInstance().player != null) {
             // Get player position to limit search area

@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.client;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.SpeakerLink;
 import net.minecraft.core.BlockPos;
 
 import java.util.HashSet;
@@ -26,6 +27,7 @@ public class ClientSpeakerRegistry {
      * @param speakerId The speaker ID
      */
     public static void registerProxySpeaker(BlockPos pos, String speakerId) {
+        if (!SpeakerLink.isLinkableId(speakerId)) return;
         SimplySpeakers.LOGGER.info("CLIENT: Registering proxy speaker at {} with speakerId: '{}'", pos, speakerId);
         // Add to proxy speaker positions map
         proxySpeakerPositions.computeIfAbsent(speakerId, k -> ConcurrentHashMap.newKeySet()).add(pos);
@@ -78,6 +80,7 @@ public class ClientSpeakerRegistry {
      * @return Set of positions of proxy speakers with the specified ID
      */
     public static Set<BlockPos> getProxySpeakerPositions(String speakerId) {
+        if (!SpeakerLink.isLinkableId(speakerId)) return new HashSet<>();
         SimplySpeakers.LOGGER.info("CLIENT: Getting proxy speaker positions for speakerId: '{}'", speakerId);
         Set<BlockPos> positions = proxySpeakerPositions.get(speakerId);
         SimplySpeakers.LOGGER.info("CLIENT: Found {} positions for speakerId: '{}'", positions != null ? positions.size() : 0, speakerId);

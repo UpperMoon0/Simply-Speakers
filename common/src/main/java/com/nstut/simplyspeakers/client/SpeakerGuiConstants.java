@@ -3,7 +3,7 @@ package com.nstut.simplyspeakers.client;
 public class SpeakerGuiConstants {
     public static final int SCREEN_WIDTH = 256;
     public static final int SPEAKER_SCREEN_HEIGHT = 224;
-    public static final int PROXY_SPEAKER_SCREEN_HEIGHT = 184;
+    public static final int PROXY_SPEAKER_SCREEN_HEIGHT = SPEAKER_SCREEN_HEIGHT;
 
     public static final int MARGIN_X = 10;
     public static final int BUTTON_HEIGHT = 20;

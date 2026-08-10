@@ -13,7 +13,7 @@
   "gui.simplyspeakers.speaker_id": "Speaker ID:",
   "gui.simplyspeakers.speaker_id.placeholder": "Speaker ID",
   "gui.simplyspeakers.speaker_id.tooltip": "A unique name for this speaker. Proxy speakers with the same ID will play the same audio.",
-  "gui.simplyspeakers.proxy_speaker_id.tooltip": "Set this to match a main Speaker's ID to play its audio at this location.",
+  "gui.simplyspeakers.proxy_speaker_id.tooltip": "Match a main Speaker's non-empty ID. Both speakers must be redstone-powered.",
   "gui.simplyspeakers.save": "Save",
   "gui.simplyspeakers.search": "Search:",
   "gui.simplyspeakers.search.placeholder": "Search...",

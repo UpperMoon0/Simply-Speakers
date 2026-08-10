@@ -14,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerRegistry;
+import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
@@ -239,18 +240,22 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * @param speakerId The speaker ID
      */
     public void setSpeakerId(String speakerId) {
+        String newSpeakerId = speakerId == null ? "" : speakerId;
         if (level != null && !level.isClientSide) {
             String oldSpeakerId = this.speakerId;
-            this.speakerId = speakerId;
+            if (!oldSpeakerId.equals(newSpeakerId)) {
+                stopAudio();
+            }
+            this.speakerId = newSpeakerId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             
             // Update server registry
-            if (!oldSpeakerId.equals(speakerId)) {
-                SpeakerRegistry.updateProxySpeakerId(level, worldPosition, oldSpeakerId, speakerId);
+            if (!oldSpeakerId.equals(newSpeakerId)) {
+                SpeakerRegistry.updateProxySpeakerId(level, worldPosition, oldSpeakerId, newSpeakerId);
             }
         } else if (level != null) { // Client side
-            this.speakerId = speakerId;
+            this.speakerId = newSpeakerId;
         }
     }
     
@@ -260,7 +265,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * @return The speaker state
      */
     public SpeakerState getSpeakerState() {
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide && SpeakerLink.isLinkableId(speakerId)) {
             return SpeakerRegistry.getOrCreateSpeakerState(speakerId);
         }
         return null;
@@ -272,7 +277,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * @param state The new speaker state
      */
     public void updateSpeakerState(SpeakerState state) {
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide && SpeakerLink.isLinkableId(speakerId)) {
             SpeakerRegistry.updateSpeakerState(speakerId, state);
         }
     }
@@ -443,7 +448,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         // Validate block state is still correct
         if (!currentState.is(com.nstut.simplyspeakers.blocks.BlockRegistries.PROXY_SPEAKER.get())) {
-            if (getSpeakerState().isPlaying()) stopAudio(); // Stop audio if the block is no longer a proxy speaker
+            SpeakerState state = getSpeakerState();
+            if (state != null && state.isPlaying()) stopAudio(); // Stop audio if the block is no longer a proxy speaker
             return;
         }
 
@@ -476,7 +482,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             // If not playing, ensure no players are marked as listening (e.g., after a stop command)
             if (!listeningPlayers.isEmpty()) {
                 SimplySpeakers.LOGGER.debug("Audio stopped at {}, but {} players were still in listeningPlayers set. Clearing.", worldPosition, listeningPlayers.size());
-                listeningPlayers.clear();
+                stopAudio();
             }
             return;
         }
@@ -559,7 +565,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 }
                 
                 // If this proxy speaker was set to playing, check if we should continue playing
-                if (isProxyPlaying) {
+                if (SpeakerLink.isLinkableId(speakerId) && isProxyPlaying) {
                     SpeakerState state = SpeakerRegistry.getSpeakerState(speakerId);
                     if (state != null && state.isPlaying()) {
                         SimplySpeakers.LOGGER.info("Proxy speaker at {} was set to playing, continuing to play based on main speaker state", worldPosition);
@@ -679,7 +685,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     public void setSpeakerIdClient(String speakerId) {
         if (this.level != null && this.level.isClientSide) {
-            this.speakerId = speakerId;
+            this.speakerId = speakerId == null ? "" : speakerId;
         }
     }
 

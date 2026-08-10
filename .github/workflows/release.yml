@@ -86,8 +86,150 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: simplyspeakers-${{ matrix.platform }}-${{ matrix.version }}
-          path: ${{ matrix.project }}/build/libs/${{ matrix.artifact_pattern }}
+          path: |
+            ${{ matrix.project }}/build/libs/${{ matrix.artifact_pattern }}
+            !${{ matrix.project }}/build/libs/*-sources.jar
+            !${{ matrix.project }}/build/libs/*-dev-shadow.jar
           if-no-files-found: error
+
+  publish-curseforge:
+    name: Publish ${{ matrix.platform }} ${{ matrix.version }} to CurseForge
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '1.20.1'
+            platform: 'fabric'
+            loader_name: 'Fabric'
+            java_version_name: 'Java 17'
+          - version: '1.20.1'
+            platform: 'forge'
+            loader_name: 'Forge'
+            java_version_name: 'Java 17'
+          - version: '1.21.1'
+            platform: 'fabric'
+            loader_name: 'Fabric'
+            java_version_name: 'Java 21'
+          - version: '1.21.1'
+            platform: 'neoforge'
+            loader_name: 'NeoForge'
+            java_version_name: 'Java 21'
+          - version: '26.1.2'
+            platform: 'neoforge'
+            loader_name: 'NeoForge'
+            java_version_name: 'Java 25'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download built JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: simplyspeakers-${{ matrix.platform }}-${{ matrix.version }}
+          path: curseforge-artifact
+
+      - name: Read mod version and select release JAR
+        id: release_file
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mod_version="$(sed -n 's/^mod_version[[:space:]]*=[[:space:]]*//p' gradle.properties | head -n 1)"
+          if [[ -z "$mod_version" ]]; then
+            echo "Could not read mod_version from gradle.properties" >&2
+            exit 1
+          fi
+
+          mapfile -t jars < <(find curseforge-artifact -maxdepth 1 -type f -name '*.jar' \
+            ! -name '*-sources.jar' ! -name '*-dev-shadow.jar' | sort)
+          if [[ ${#jars[@]} -ne 1 ]]; then
+            echo "Expected exactly one runnable JAR, found ${#jars[@]}:" >&2
+            printf '  %s\n' "${jars[@]}" >&2
+            exit 1
+          fi
+
+          echo "mod_version=$mod_version" >> "$GITHUB_OUTPUT"
+          echo "jar_path=${jars[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to CurseForge
+        shell: bash
+        env:
+          CURSEFORGE_API_TOKEN: ${{ secrets.CURSEFORGE_API_TOKEN }}
+          CURSEFORGE_PROJECT_ID: '1267397'
+          MOD_VERSION: ${{ steps.release_file.outputs.mod_version }}
+          CHANGELOG_PATH: changelog/${{ steps.release_file.outputs.mod_version }}.md
+          JAR_PATH: ${{ steps.release_file.outputs.jar_path }}
+          MINECRAFT_VERSION: ${{ matrix.version }}
+          PLATFORM: ${{ matrix.platform }}
+          LOADER_NAME: ${{ matrix.loader_name }}
+          JAVA_VERSION_NAME: ${{ matrix.java_version_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${CURSEFORGE_API_TOKEN:-}" ]]; then
+            echo "Missing required GitHub secret: CURSEFORGE_API_TOKEN" >&2
+            exit 1
+          fi
+
+          if [[ ! -f "$CHANGELOG_PATH" ]]; then
+            echo "Missing release changelog: ${CHANGELOG_PATH}" >&2
+            exit 1
+          fi
+
+          if [[ "$PLATFORM" == "fabric" ]]; then
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"}]}'
+          else
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"}]}'
+          fi
+
+          changelog="$(<"$CHANGELOG_PATH")"
+          display_name="Simply Speakers ${MOD_VERSION} - ${LOADER_NAME} ${MINECRAFT_VERSION}"
+          game_version_names="$(jq -cn \
+            --arg minecraftVersion "$MINECRAFT_VERSION" \
+            --arg loaderName "$LOADER_NAME" \
+            --arg javaVersionName "$JAVA_VERSION_NAME" \
+            '[$minecraftVersion, $loaderName, $javaVersionName, "Client", "Server"]')"
+
+          available_versions="$(curl --fail-with-body --silent --show-error \
+            --header "X-Api-Token: ${CURSEFORGE_API_TOKEN}" \
+            "https://minecraft.curseforge.com/api/game/versions")"
+          while IFS= read -r version_name; do
+            if ! jq -e --arg name "$version_name" 'any(.[]; .name == $name)' \
+              <<< "$available_versions" > /dev/null; then
+              echo "CurseForge does not recognize game version tag: ${version_name}" >&2
+              exit 1
+            fi
+          done < <(jq -r '.[]' <<< "$game_version_names")
+
+          metadata="$(jq -cn \
+            --arg changelog "$changelog" \
+            --arg displayName "$display_name" \
+            --argjson gameVersionNames "$game_version_names" \
+            --argjson relations "$relations" \
+            '{
+              changelog: $changelog,
+              changelogType: "markdown",
+              displayName: $displayName,
+              gameVersionNames: $gameVersionNames,
+              releaseType: "release",
+              relations: $relations
+            }')"
+
+          response="$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "X-Api-Token: ${CURSEFORGE_API_TOKEN}" \
+            --form-string "metadata=${metadata}" \
+            --form "file=@${JAR_PATH}" \
+            "https://minecraft.curseforge.com/api/projects/${CURSEFORGE_PROJECT_ID}/upload-file")"
+
+          file_id="$(jq -er '.id' <<< "$response")"
+          echo "Published ${JAR_PATH} to CurseForge as file ID ${file_id}."
 
   release:
     needs: build

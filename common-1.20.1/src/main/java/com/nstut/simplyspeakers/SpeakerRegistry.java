@@ -170,7 +170,7 @@ public class SpeakerRegistry {
      * @param speakerId The speaker ID
      */
     public static void registerProxySpeaker(Level level, BlockPos pos, String speakerId) {
-        if (level.isClientSide()) return;
+        if (level.isClientSide() || !SpeakerLink.isLinkableId(speakerId)) return;
         
         // Add to proxy speaker positions map
         proxySpeakerPositions.computeIfAbsent(speakerId, k -> ConcurrentHashMap.newKeySet()).add(pos);
@@ -303,6 +303,7 @@ public class SpeakerRegistry {
      * @return Set of positions of proxy speakers with the specified ID
      */
     public static Set<BlockPos> getProxySpeakerPositions(String speakerId) {
+        if (!SpeakerLink.isLinkableId(speakerId)) return new HashSet<>();
         Set<BlockPos> positions = proxySpeakerPositions.get(speakerId);
         return positions != null ? new HashSet<>(positions) : new HashSet<>();
     }
