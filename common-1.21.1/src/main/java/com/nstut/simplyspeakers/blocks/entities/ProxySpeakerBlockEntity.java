@@ -400,12 +400,6 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             return;
         }
         
-        SpeakerState state = getSpeakerState();
-        if (state == null) {
-            SimplySpeakers.LOGGER.warn("stopAudio exit: Could not get speaker state for proxy speaker at {}", getBlockPos());
-            return;
-        }
-
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 

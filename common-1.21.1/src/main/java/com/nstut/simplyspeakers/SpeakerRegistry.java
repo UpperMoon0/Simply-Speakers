@@ -261,9 +261,20 @@ public class SpeakerRegistry {
      */
     public static void updateSpeakerId(Level level, BlockPos pos, String oldSpeakerId, String newSpeakerId) {
         if (level.isClientSide()) return;
+
+        SpeakerState sourceState = speakerStates.get(oldSpeakerId);
+        SpeakerState destinationState = speakerStates.get(newSpeakerId);
+        Set<BlockPos> destinationSpeakers = speakerPositions.get(newSpeakerId);
+        boolean destinationHasMainSpeaker = destinationSpeakers != null && !destinationSpeakers.isEmpty();
+        SpeakerState stateForNewId = SpeakerStateRelinker.stateForNewId(
+                sourceState, destinationState, destinationHasMainSpeaker);
         
         // Unregister with old ID
         unregisterSpeaker(level, pos, oldSpeakerId);
+
+        if (stateForNewId != null) {
+            speakerStates.put(newSpeakerId, stateForNewId);
+        }
         
         // Register with new ID
         registerSpeaker(level, pos, newSpeakerId);

@@ -70,17 +70,32 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public void setSpeakerId(String speakerId) {
         if (level != null && !level.isClientSide) {
+            String newSpeakerId = speakerId == null ? "" : speakerId;
             String oldSpeakerId = this.speakerId;
-            this.speakerId = speakerId;
+            if (oldSpeakerId.equals(newSpeakerId)) {
+                return;
+            }
+
+            SpeakerState oldState = getSpeakerState();
+            boolean resumePlayback = oldState != null && oldState.isPlaying();
+            if (resumePlayback) {
+                // Stop the old network and the sound at this block position before
+                // moving the state. This prevents orphaned client playback.
+                stopAudio();
+            }
+
+            SpeakerRegistry.updateSpeakerId(level, worldPosition, oldSpeakerId, newSpeakerId);
+            this.speakerId = newSpeakerId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
-            // Update registry
-            if (!oldSpeakerId.equals(speakerId)) {
-                SpeakerRegistry.updateSpeakerId(level, worldPosition, oldSpeakerId, speakerId);
+            if (resumePlayback) {
+                // Continue on the new network. playAudio also broadcasts the new ID
+                // to matching proxies and the next tick restores client playback.
+                playAudio();
             }
         } else if (level != null) { // Client side
-            this.speakerId = speakerId;
+            this.speakerId = speakerId == null ? "" : speakerId;
         }
     }
     
@@ -192,13 +207,11 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
         
-        if (!state.isPlaying()) {
-            return;
+        if (state.isPlaying()) {
+            state.setPlaying(false);
+            state.setPlaybackStartTick(-1); // Reset start tick
+            updateSpeakerState(state);
         }
-
-        state.setPlaying(false);
-        state.setPlaybackStartTick(-1); // Reset start tick
-        updateSpeakerState(state);
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 

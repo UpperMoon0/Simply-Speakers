@@ -140,9 +140,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          mod_version="$(sed -n 's/^mod_version[[:space:]]*=[[:space:]]*//p' gradle.properties | head -n 1)"
+          # gradle.properties is committed with CRLF line endings. Strip CR and
+          # surrounding whitespace before writing the value to GITHUB_OUTPUT;
+          # otherwise the carriage return becomes a newline in later env values.
+          mod_version="$(sed -n 's/^mod_version[[:space:]]*=[[:space:]]*//p' gradle.properties \
+            | head -n 1 | tr -d '\r' | xargs)"
           if [[ -z "$mod_version" ]]; then
             echo "Could not read mod_version from gradle.properties" >&2
+            exit 1
+          fi
+          if [[ ! "$mod_version" =~ ^[0-9A-Za-z][0-9A-Za-z._+-]*$ ]]; then
+            printf 'Invalid mod_version value: %q\n' "$mod_version" >&2
             exit 1
           fi
 
@@ -154,8 +162,8 @@ jobs:
             exit 1
           fi
 
-          echo "mod_version=$mod_version" >> "$GITHUB_OUTPUT"
-          echo "jar_path=${jars[0]}" >> "$GITHUB_OUTPUT"
+          printf 'mod_version=%s\n' "$mod_version" >> "$GITHUB_OUTPUT"
+          printf 'jar_path=%s\n' "${jars[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to CurseForge
         shell: bash
