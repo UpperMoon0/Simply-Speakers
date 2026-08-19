@@ -7,6 +7,8 @@ import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.platform.Services;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.client.ClientEvents;
+import dev.architectury.event.events.common.PlayerEvent;
+import com.nstut.simplyspeakers.network.SyncConfigPacketS2C;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import dev.architectury.platform.Platform;
@@ -62,6 +64,13 @@ public class SimplySpeakers {
         BlockEntityRegistries.init();
         ItemRegistries.init();
         PacketRegistries.init();
+
+        // Synchronize server configuration to connecting players
+        PlayerEvent.PLAYER_JOIN.register(player -> {
+            LOGGER.info("Sending server config to joining player: {} (speakerRange={}, disableUpload={}, maxUploadSize={})",
+                    player.getName().getString(), Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
+        });
 
         // Register client-side events only on the client
         if (Platform.getEnv().toString().equals("CLIENT")) {

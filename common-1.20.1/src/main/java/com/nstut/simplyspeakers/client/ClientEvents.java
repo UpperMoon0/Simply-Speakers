@@ -48,6 +48,7 @@ public class ClientEvents {
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
+        com.nstut.simplyspeakers.Config.restoreLocalConfig();
     }
 
     public static void openSpeakerScreen(BlockPos pos) {

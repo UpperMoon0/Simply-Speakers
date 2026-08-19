@@ -50,6 +50,7 @@ public final class S2CPacketCatalog {
         registrar.register(SendAudioListPacketS2C.TYPE, SendAudioListPacketS2C.STREAM_CODEC, SendAudioListPacketS2C::handle);
         registrar.register(SendAudioFilePacketS2C.TYPE, SendAudioFilePacketS2C.STREAM_CODEC, SendAudioFilePacketS2C::handle);
         registrar.register(SpeakerStateUpdatePacketS2C.TYPE, SpeakerStateUpdatePacketS2C.STREAM_CODEC, SpeakerStateUpdatePacketS2C::handle);
+        registrar.register(SyncConfigPacketS2C.TYPE, SyncConfigPacketS2C.STREAM_CODEC, SyncConfigPacketS2C::handle);
     }
 
     interface Registrar {

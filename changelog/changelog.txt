@@ -3,7 +3,19 @@
 =====================================================
 
 -----------------------------------------------------
-  Version 0.7.7
+  Version 0.7.9
+-----------------------------------------------------
+
+ Added
+  - Server Config Synchronization: Server configs (speaker range,
+    upload limits) now automatically synchronize to clients on join
+    and restore client-local values upon disconnecting.
+  - Overlapping Speaker Audio Blending: Speakers and proxies sharing
+    the same ID blend into a single synchronized virtual multi-point
+    emitter, eliminating echoes, comb filtering, and volume doubling.
+
+-----------------------------------------------------
+  Version 0.7.8
 -----------------------------------------------------
 
  Fixed

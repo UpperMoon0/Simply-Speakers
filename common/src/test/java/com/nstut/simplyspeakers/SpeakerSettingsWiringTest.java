@@ -47,6 +47,29 @@ class SpeakerSettingsWiringTest {
         }
     }
 
+    @Test
+    void everyVersionModuleWiresServerConfigSync() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String initCode = Files.readString(root.resolve(module).resolve(
+                    "src/main/java/com/nstut/simplyspeakers/SimplySpeakers.java"));
+            assertContains(initCode, "PlayerEvent.PLAYER_JOIN", module + " must register PLAYER_JOIN event");
+            assertContains(initCode, "SyncConfigPacketS2C", module + " must send SyncConfigPacketS2C on player join");
+
+            String clientEvents = Files.readString(root.resolve(module).resolve(
+                    "src/main/java/com/nstut/simplyspeakers/client/ClientEvents.java"));
+            assertContains(clientEvents, "Config.restoreLocalConfig()", module + " ClientEvents must restore local config on logout");
+        }
+
+        // Verify modern packet catalog registers SyncConfigPacketS2C
+        String catalog = Files.readString(root.resolve("shared-1.21plus/src/main/java/com/nstut/simplyspeakers/network/S2CPacketCatalog.java"));
+        assertContains(catalog, "SyncConfigPacketS2C", "S2CPacketCatalog must register SyncConfigPacketS2C");
+
+        // Verify 1.20.1 packet registry registers SyncConfigPacketS2C
+        String p120 = Files.readString(root.resolve("common-1.20.1/src/main/java/com/nstut/simplyspeakers/network/PacketRegistries.java"));
+        assertContains(p120, "SyncConfigPacketS2C", "1.20.1 PacketRegistries must register SyncConfigPacketS2C");
+    }
+
     private static Path findProjectRoot() {
         Path candidate = Path.of("").toAbsolutePath();
         while (candidate != null) {

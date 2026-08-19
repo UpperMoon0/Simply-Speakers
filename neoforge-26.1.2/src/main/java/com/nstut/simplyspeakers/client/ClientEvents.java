@@ -46,13 +46,13 @@ public class ClientEvents {
             LiveJoinTestProtocol.stopClient(client::stop);
         }
     }
-
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
         SimplySpeakers.LOGGER.info("CLIENT_PLAYER_QUIT event fired - Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
+        com.nstut.simplyspeakers.Config.restoreLocalConfig();
     }
     
     private static void onClientStopping(Minecraft client) {
@@ -61,6 +61,7 @@ public class ClientEvents {
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
+        com.nstut.simplyspeakers.Config.restoreLocalConfig();
     }
 
     public static void openSpeakerScreen(BlockPos pos) {
@@ -71,4 +72,3 @@ public class ClientEvents {
         Minecraft.getInstance().setScreen(new ProxySpeakerScreen(pos));
     }
 }
-

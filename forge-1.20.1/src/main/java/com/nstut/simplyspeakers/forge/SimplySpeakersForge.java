@@ -20,6 +20,7 @@ public final class SimplySpeakersForge {
     public SimplySpeakersForge() {
         // Register Forge config
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ForgeConfig.SPEC);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(ForgeConfig::onLoad);
 
         // Submit our event bus to let Architectury API register our content at the right time.
         EventBuses.registerModEventBus(SimplySpeakers.MOD_ID, FMLJavaModLoadingContext.get().getModEventBus());

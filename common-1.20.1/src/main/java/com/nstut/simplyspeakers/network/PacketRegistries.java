@@ -140,6 +140,11 @@ public class PacketRegistries {
                 SpeakerStateUpdatePacketS2C::new,
                 SpeakerStateUpdatePacketS2C::handle
         );
+        CHANNEL.register(SyncConfigPacketS2C.class,
+                SyncConfigPacketS2C::encode,
+                SyncConfigPacketS2C::new,
+                SyncConfigPacketS2C::handle
+        );
     }
     
     public static void init() {

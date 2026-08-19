@@ -32,24 +32,26 @@ public class FabricConfig {
             Properties props = new Properties();
             props.load(reader);
             
+            int range = 64;
             // Read speaker range
             try {
-                int range = Integer.parseInt(props.getProperty("speakerRange", "64"));
-                Config.speakerRange = Math.max(Config.MIN_RANGE, Math.min(Config.MAX_RANGE, range));
+                range = Integer.parseInt(props.getProperty("speakerRange", "64"));
             } catch (NumberFormatException e) {
                 SimplySpeakers.LOGGER.error("Failed to parse speaker range from config", e);
             }
 
             // Read disable upload
-            Config.disableUpload = Boolean.parseBoolean(props.getProperty("disableUpload", String.valueOf(Config.disableUpload)));
+            boolean disableUpload = Boolean.parseBoolean(props.getProperty("disableUpload", String.valueOf(Config.isLocalDisableUpload())));
 
             // Read max upload size
+            int size = 5 * 1024 * 1024;
             try {
-                int size = Integer.parseInt(props.getProperty("maxUploadSize", String.valueOf(Config.maxUploadSize)));
-                Config.maxUploadSize = Math.max(Config.MIN_UPLOAD_SIZE, Math.min(Config.MAX_UPLOAD_SIZE, size));
+                size = Integer.parseInt(props.getProperty("maxUploadSize", String.valueOf(Config.getLocalMaxUploadSize())));
             } catch (NumberFormatException e) {
                 SimplySpeakers.LOGGER.error("Failed to parse max upload size from config", e);
             }
+
+            Config.setLocalConfig(range, disableUpload, size);
             
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read config file", e);

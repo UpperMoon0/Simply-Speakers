@@ -37,9 +37,7 @@ public class ForgeConfig {
      */
     public static void onLoad(final ModConfigEvent event) {
         if (event.getConfig().getSpec() == SPEC) {
-            Config.speakerRange = SPEAKER_RANGE.get();
-            Config.disableUpload = DISABLE_UPLOAD.get();
-            Config.maxUploadSize = MAX_UPLOAD_SIZE.get();
+            Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get());
             Config.debugLogging = DEBUG_LOGGING.get();
             
             // Set logger level based on debug config

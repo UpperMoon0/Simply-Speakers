@@ -4,6 +4,9 @@ import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.platform.Services;
 import com.nstut.simplyspeakers.client.ClientEvents;
+import dev.architectury.event.events.common.PlayerEvent;
+import dev.architectury.networking.NetworkManager;
+import com.nstut.simplyspeakers.network.SyncConfigPacketS2C;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -72,6 +75,13 @@ public class SimplySpeakers {
         // NOTE: PacketRegistries.init() should NOT be called manually!
         // Architectury's transformer automatically registers the NetworkChannel
         // when getChannel() is called. Manual registration causes double registration.
+
+        // Synchronize server configuration to connecting players
+        PlayerEvent.PLAYER_JOIN.register(player -> {
+            LOGGER.info("Sending server config to joining player: {} (speakerRange={}, disableUpload={}, maxUploadSize={})",
+                    player.getName().getString(), Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+            NetworkManager.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
+        });
 
         // Register client-side events only on the client
         LOGGER.info("Platform.getEnv() = '{}', checking if CLIENT...", Platform.getEnv().toString());
