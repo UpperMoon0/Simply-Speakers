@@ -31,6 +31,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 
 import javazoom.jl.decoder.Decoder;
 import javazoom.jl.decoder.Header;
@@ -54,7 +56,7 @@ public class ClientAudioPlayer {
     private static final Map<BlockPos, EmitterData> cachedEmitters = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
-    private static final Map<String, PlayRequest> pendingPlays = new ConcurrentHashMap<>();
+    private static final Map<String, List<PlayRequest>> pendingPlays = new ConcurrentHashMap<>();
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
@@ -81,12 +83,14 @@ public class ClientAudioPlayer {
         final int[] bufferIDs; // Array of buffer IDs
         final Thread streamingThread; // The thread handling buffer refills
         final AtomicBoolean stopFlag = new AtomicBoolean(false); // Flag to signal thread termination
+        final AtomicBoolean isLooping = new AtomicBoolean(false);
 
-        StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread) {
+        StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread, boolean initialLooping) {
             this.networkKey = networkKey;
             this.sourceID = sourceID;
             this.bufferIDs = bufferIDs;
             this.streamingThread = streamingThread;
+            this.isLooping.set(initialLooping);
         }
 
         // Method to signal the streaming thread to stop and clean up resources
@@ -199,9 +203,18 @@ public class ClientAudioPlayer {
             SimplySpeakers.LOGGER.debug("CLIENT: Cached file found for {}. Playing from file.", metadata.getUuid());
             playFromFile(networkKey, pos, cachedFile.getAbsolutePath(), startPositionSeconds, isLooping);
         } else {
-            SimplySpeakers.LOGGER.debug("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
-            pendingPlays.put(metadata.getUuid(), new PlayRequest(pos, startPositionSeconds, isLooping));
+            SimplySpeakers.LOGGER.info("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
+            pendingPlays.computeIfAbsent(metadata.getUuid(), k -> Collections.synchronizedList(new ArrayList<>()))
+                    .add(new PlayRequest(pos, networkKey, startPositionSeconds, isLooping));
             requestFileFromServer(metadata.getUuid(), metadata.getOriginalFilename());
+        }
+    }
+
+    public static void setLooping(String networkKey, boolean looping) {
+        StreamingAudioResource res = networkResources.get(networkKey);
+        if (res != null) {
+            res.isLooping.set(looping);
+            SimplySpeakers.LOGGER.debug("CLIENT: Updated live loop state for network {} to {}", networkKey, looping);
         }
     }
 
@@ -239,7 +252,7 @@ public class ClientAudioPlayer {
                         SimplySpeakers.MOD_ID + "-stream-" + networkKey);
                 streamingThread.setDaemon(true);
 
-                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread);
+                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping);
                 networkResources.put(networkKey, resource);
                 streamingThread.start();
                 SimplySpeakers.LOGGER.debug("CLIENT: Started streaming thread for source {} on network {}", sourceID, networkKey);
@@ -407,8 +420,9 @@ public class ClientAudioPlayer {
                 } else if (!playbackAttempted) {
                     SimplySpeakers.LOGGER.debug("Streaming thread for network {}: Playback not attempted (no initial data or error). Not entering main streaming loop for this iteration.", networkKey);
                     // If no data loaded at all, and not looping, then stop. If looping, the outer loop will handle.
-                    if (!isLooping) resource.stopFlag.set(true);
-                    continueStreaming = isLooping; // Continue to next iteration only if looping
+                    boolean currentlyLooping = resource != null ? resource.isLooping.get() : isLooping;
+                    if (!currentlyLooping) resource.stopFlag.set(true);
+                    continueStreaming = currentlyLooping; // Continue to next iteration only if looping
                     break; // Break from current try-catch, to re-evaluate outer loop
                 }
 
@@ -465,7 +479,8 @@ public class ClientAudioPlayer {
                 if (resource.stopFlag.get() || Thread.currentThread().isInterrupted()) {
                     continueStreaming = false; // Do not loop if explicitly stopped or interrupted
                 } else if (playbackCompletedSuccessfully) { // EOF reached for this cycle
-                    if (isLooping) {
+                    boolean currentlyLooping = resource != null ? resource.isLooping.get() : isLooping;
+                    if (currentlyLooping) {
                         SimplySpeakers.LOGGER.debug("Audio track finished for {}. Looping enabled, restarting.", networkKey);
                         // Reset before the next cycle can queue new data. Deferring this
                         // races the next cycle and can remove its newly queued buffers.
@@ -485,11 +500,12 @@ public class ClientAudioPlayer {
                         continueStreaming = false;
                     }
                 } else { // Inner loop exited for other reasons (e.g. no initial data, error before main loop)
-                    SimplySpeakers.LOGGER.debug("Streaming for network {} ended without reaching EOF (e.g. no data, early stop). Looping: {}", networkKey, isLooping);
-                    if (!isLooping) {
+                    boolean currentlyLooping = resource != null ? resource.isLooping.get() : isLooping;
+                    SimplySpeakers.LOGGER.debug("Streaming for network {} ended without reaching EOF (e.g. no data, early stop). Looping: {}", networkKey, currentlyLooping);
+                    if (!currentlyLooping) {
                         resource.stopFlag.set(true);
                     }
-                    continueStreaming = isLooping && !resource.stopFlag.get(); // Only continue if looping and not explicitly stopped
+                    continueStreaming = currentlyLooping && !resource.stopFlag.get(); // Only continue if looping and not explicitly stopped
                 }
 
             } catch (UnsupportedAudioFileException e) {
@@ -547,6 +563,11 @@ public class ClientAudioPlayer {
 
     // Stop method for specific speaker block position
     public static void stop(BlockPos pos) {
+        // Cancel any pending play requests for this position
+        for (List<PlayRequest> requests : pendingPlays.values()) {
+            requests.removeIf(req -> req.pos.equals(pos));
+        }
+
         cachedEmitters.remove(pos);
         String networkKey = posToNetworkKey.remove(pos);
         if (networkKey != null) {
@@ -571,6 +592,7 @@ public class ClientAudioPlayer {
     // Optimized stopAll method for fast world save performance
     public static void stopAll() {
         SimplySpeakers.LOGGER.debug("Stopping all playback... networkResources size: {}", networkResources.size());
+        pendingPlays.clear();
         List<StreamingAudioResource> resourcesToStop = new ArrayList<>(networkResources.values());
         cachedEmitters.clear();
         posToNetworkKey.clear();
@@ -834,6 +856,7 @@ public class ClientAudioPlayer {
 
     public static void clearAudioList() {
         audioList.clear();
+        pendingPlays.clear();
     }
 
     public static void setAudioList(List<AudioFileMetadata> newAudioList) {
@@ -922,11 +945,25 @@ public class ClientAudioPlayer {
                 SimplySpeakers.LOGGER.debug("CLIENT: Download complete for {}. File saved to cache.", audioId);
 
                 // Check for and handle pending play requests
-                PlayRequest pendingPlay = pendingPlays.remove(audioId);
-                if (pendingPlay != null) {
-                    SimplySpeakers.LOGGER.debug("CLIENT: Pending play request found for {}. Initiating playback.", audioId);
-                    String networkKey = resolveNetworkKey(pendingPlay.pos);
-                    playFromFile(networkKey, pendingPlay.pos, cachedFile.getAbsolutePath(), pendingPlay.startPositionSeconds, pendingPlay.isLooping);
+                List<PlayRequest> requests = pendingPlays.remove(audioId);
+                if (requests != null && !requests.isEmpty()) {
+                    SimplySpeakers.LOGGER.debug("CLIENT: Processing {} pending play request(s) for {}.", requests.size(), audioId);
+                    Map<String, PlayRequest> requestsByNetwork = new LinkedHashMap<>();
+                    for (PlayRequest req : requests) {
+                        String currentNetworkKey = posToNetworkKey.get(req.pos);
+                        if (req.networkKey != null && req.networkKey.equals(currentNetworkKey)) {
+                            requestsByNetwork.putIfAbsent(req.networkKey, req);
+                        } else {
+                            SimplySpeakers.LOGGER.debug("CLIENT: Discarding stale pending play request for pos {} (expected network {}, current {})",
+                                    req.pos, req.networkKey, currentNetworkKey);
+                        }
+                    }
+
+                    for (Map.Entry<String, PlayRequest> entry : requestsByNetwork.entrySet()) {
+                        String netKey = entry.getKey();
+                        PlayRequest req = entry.getValue();
+                        playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.startPositionSeconds, req.isLooping);
+                    }
                 }
             } catch (IOException e) {
                 SimplySpeakers.LOGGER.error("Failed to write cached audio file: {}", cachedFile.toPath(), e);
@@ -936,11 +973,13 @@ public class ClientAudioPlayer {
 
     private static class PlayRequest {
         final BlockPos pos;
+        final String networkKey;
         final float startPositionSeconds;
         final boolean isLooping;
 
-        PlayRequest(BlockPos pos, float startPositionSeconds, boolean isLooping) {
+        PlayRequest(BlockPos pos, String networkKey, float startPositionSeconds, boolean isLooping) {
             this.pos = pos;
+            this.networkKey = networkKey;
             this.startPositionSeconds = startPositionSeconds;
             this.isLooping = isLooping;
         }

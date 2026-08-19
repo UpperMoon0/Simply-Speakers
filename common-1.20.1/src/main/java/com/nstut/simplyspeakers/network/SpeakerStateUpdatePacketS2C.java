@@ -3,6 +3,7 @@ package com.nstut.simplyspeakers.network;
 import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.client.ClientAudioPlayer;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
@@ -61,6 +62,8 @@ public class SpeakerStateUpdatePacketS2C {
             return;
         }
         
+        ClientAudioPlayer.setLooping("net_" + pkt.speakerId.trim(), pkt.isLooping);
+
         SpeakerState state = SpeakerRegistry.getOrCreateSpeakerState(pkt.speakerId);
         if (state != null) {
             state.setAudioId(pkt.audioId);

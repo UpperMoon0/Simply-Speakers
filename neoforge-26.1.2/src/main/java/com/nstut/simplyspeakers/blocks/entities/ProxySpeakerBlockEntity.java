@@ -468,20 +468,17 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         // Check if the proxy speaker is set to playing
         if (!isProxyPlaying) {
-            // Stop audio for all players who might be listening
-            if (currentLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
-                // Send stop packet to all players in range
-                double maxRangeSq = Config.speakerRange * Config.speakerRange;
-                Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
-                
-                for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
-                    StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                    NetworkManager.sendToPlayer(player, stopPacket);
-                }
-            }
-            
-            // Clear the listening players
+            // Stop audio only for players who were actually listening
             if (!listeningPlayers.isEmpty()) {
+                if (currentLevel instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                    for (UUID playerId : listeningPlayers) {
+                        net.minecraft.world.entity.player.Player genericPlayer = serverLevel.getPlayerByUUID(playerId);
+                        if (genericPlayer instanceof ServerPlayer serverPlayer) {
+                            StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
+                            NetworkManager.sendToPlayer(serverPlayer, stopPacket);
+                        }
+                    }
+                }
                 listeningPlayers.clear();
             }
             return;

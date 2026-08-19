@@ -43,7 +43,7 @@ public class PcmAudioDownmixerTest {
     }
 
     @Test
-    public void testEnsureMono16BitPcmStream() throws IOException {
+    public void testEnsureMono16BitPcmStream() throws Exception {
         AudioFormat stereoFormat = new AudioFormat(44100.0f, 16, 2, true, false);
         byte[] stereoData = new byte[8]; // 2 frames
         // Frame 1: L=200, R=400 -> Mono=300
@@ -79,7 +79,7 @@ public class PcmAudioDownmixerTest {
     }
 
     @Test
-    public void testEnsureMono16BitPcmStreamFrom8Bit() throws IOException {
+    public void testEnsureMono16BitPcmStreamFrom8Bit() throws Exception {
         AudioFormat eightBitFormat = new AudioFormat(
                 AudioFormat.Encoding.PCM_UNSIGNED,
                 22050.0f,
@@ -108,7 +108,7 @@ public class PcmAudioDownmixerTest {
     }
 
     @Test
-    public void testEnsureMono16BitPcmStreamMultiChannel() throws IOException {
+    public void testEnsureMono16BitPcmStreamMultiChannel() throws Exception {
         AudioFormat quadFormat = new AudioFormat(44100.0f, 16, 4, true, false);
         // 1 frame of 4 channels: 100, 200, 300, 400 -> avg = 250
         byte[] quadData = new byte[8];
@@ -132,5 +132,25 @@ public class PcmAudioDownmixerTest {
 
         short monoSample = (short) ((readBuffer[0] & 0xFF) | (readBuffer[1] << 8));
         assertEquals(250, monoSample);
+    }
+
+    @Test
+    public void testUnsupportedAudioFormatThrows() {
+        // Custom unsupported encoding
+        AudioFormat unsupported = new AudioFormat(
+                new AudioFormat.Encoding("CUSTOM_UNKNOWN"),
+                44100.0f,
+                32,
+                2,
+                8,
+                44100.0f,
+                false
+        );
+        AudioInputStream stream = new AudioInputStream(
+                new ByteArrayInputStream(new byte[16]), unsupported, 2);
+
+        assertThrows(javax.sound.sampled.UnsupportedAudioFileException.class, () -> {
+            PcmAudioDownmixer.ensureMono16BitPcmStream(stream);
+        });
     }
 }

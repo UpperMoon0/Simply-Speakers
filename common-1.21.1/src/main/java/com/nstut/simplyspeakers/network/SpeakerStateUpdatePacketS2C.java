@@ -71,6 +71,8 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
             return;
         }
         
+        com.nstut.simplyspeakers.client.ClientAudioPlayer.setLooping("net_" + packet.speakerId.trim(), packet.isLooping);
+
         SpeakerState state = SpeakerRegistry.getOrCreateSpeakerState(packet.speakerId);
         if (state != null) {
             state.setAudioId(packet.audioId);

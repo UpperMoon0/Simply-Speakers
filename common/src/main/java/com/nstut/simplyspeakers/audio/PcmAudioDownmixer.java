@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.UnsupportedAudioFileException;
 
 /**
  * Utility for converting and downmixing multi-channel (e.g. stereo) PCM audio
@@ -87,7 +88,7 @@ public final class PcmAudioDownmixer {
      * @return a mono AudioInputStream with sample rate preserved
      * @throws IOException if reading the stream fails
      */
-    public static AudioInputStream ensureMono16BitPcmStream(AudioInputStream sourceStream) throws IOException {
+    public static AudioInputStream ensureMono16BitPcmStream(AudioInputStream sourceStream) throws UnsupportedAudioFileException, IOException {
         AudioFormat srcFormat = sourceStream.getFormat();
         float sampleRate = srcFormat.getSampleRate();
         int channels = srcFormat.getChannels();
@@ -114,16 +115,24 @@ public final class PcmAudioDownmixer {
             );
             if (javax.sound.sampled.AudioSystem.isConversionSupported(targetPcmFormat, srcFormat)) {
                 pcmStream = javax.sound.sampled.AudioSystem.getAudioInputStream(targetPcmFormat, sourceStream);
+            } else {
+                try {
+                    sourceStream.close();
+                } catch (IOException ignored) {}
+                throw new UnsupportedAudioFileException("Conversion to PCM_SIGNED 16-bit Little Endian not supported for format: " + srcFormat);
             }
         }
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        byte[] buffer = new byte[4096];
-        int read;
-        while ((read = pcmStream.read(buffer)) != -1) {
-            out.write(buffer, 0, read);
+        byte[] rawBytes;
+        try (AudioInputStream toConsume = pcmStream;
+             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = toConsume.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            rawBytes = out.toByteArray();
         }
-        byte[] rawBytes = out.toByteArray();
 
         byte[] monoBytes;
         if (channels == 2) {
