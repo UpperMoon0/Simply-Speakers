@@ -73,18 +73,19 @@ public class SpeakerBlockEntity extends BlockEntity {
      * @param speakerId The speaker ID
      */
     public void setSpeakerId(String speakerId) {
+        String newSpeakerId = speakerId == null ? "" : speakerId.trim();
         if (level != null && !level.isClientSide()) {
             String oldSpeakerId = this.speakerId;
-            this.speakerId = speakerId;
+            this.speakerId = newSpeakerId;
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
             // Update registry
-            if (!oldSpeakerId.equals(speakerId)) {
-                SpeakerRegistry.updateSpeakerId(level, worldPosition, oldSpeakerId, speakerId);
+            if (!oldSpeakerId.equals(newSpeakerId)) {
+                SpeakerRegistry.updateSpeakerId(level, worldPosition, oldSpeakerId, newSpeakerId);
             }
         } else if (level != null) { // Client side
-            this.speakerId = speakerId;
+            this.speakerId = newSpeakerId;
         }
     }
     
@@ -356,7 +357,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         // PERFORMANCE FIX: Cache these expensive calculations
-        double maxRangeSq = Config.speakerRange * Config.speakerRange;
+        double maxRangeSq = (double) state.getMaxRange() * state.getMaxRange();
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 
@@ -369,7 +370,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 float playbackPositionSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
                 if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping(), state.getMaxRange(), state.getMaxVolume(), state.getAudioDropoff());
                 NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
             }

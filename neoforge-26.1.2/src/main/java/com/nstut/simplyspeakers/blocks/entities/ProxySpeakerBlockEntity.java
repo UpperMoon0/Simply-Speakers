@@ -244,7 +244,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * @param speakerId The speaker ID
      */
     public void setSpeakerId(String speakerId) {
-        String newSpeakerId = speakerId == null ? "" : speakerId;
+        String newSpeakerId = speakerId == null ? "" : speakerId.trim();
         if (level != null && !level.isClientSide()) {
             String oldSpeakerId = this.speakerId;
             if (!oldSpeakerId.equals(newSpeakerId)) {
@@ -506,7 +506,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         }
 
         // PERFORMANCE FIX: Cache these expensive calculations
-        double maxRangeSq = Config.speakerRange * Config.speakerRange;
+        double maxRangeSq = (double) this.maxRange * this.maxRange;
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 
@@ -519,7 +519,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 float playbackPositionSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
                 if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping(), this.maxRange, this.maxVolume, this.audioDropoff);
                 NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
                 SimplySpeakers.LOGGER.debug("Player {} entered range of proxy speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);

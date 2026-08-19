@@ -98,22 +98,56 @@ public final class PcmAudioDownmixer {
             return sourceStream;
         }
 
+        AudioInputStream pcmStream = sourceStream;
+        // If not standard 16-bit little-endian PCM, convert using AudioSystem first
+        if (srcFormat.getEncoding() != AudioFormat.Encoding.PCM_SIGNED
+                || srcFormat.getSampleSizeInBits() != 16
+                || srcFormat.isBigEndian()) {
+            AudioFormat targetPcmFormat = new AudioFormat(
+                    AudioFormat.Encoding.PCM_SIGNED,
+                    sampleRate,
+                    16,
+                    channels,
+                    channels * 2,
+                    sampleRate,
+                    false
+            );
+            if (javax.sound.sampled.AudioSystem.isConversionSupported(targetPcmFormat, srcFormat)) {
+                pcmStream = javax.sound.sampled.AudioSystem.getAudioInputStream(targetPcmFormat, sourceStream);
+            }
+        }
+
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         byte[] buffer = new byte[4096];
         int read;
-        while ((read = sourceStream.read(buffer)) != -1) {
+        while ((read = pcmStream.read(buffer)) != -1) {
             out.write(buffer, 0, read);
         }
         byte[] rawBytes = out.toByteArray();
 
         byte[] monoBytes;
-        if (channels == 2 && srcFormat.getSampleSizeInBits() == 16) {
+        if (channels == 2) {
             monoBytes = downmixStereoBytesToMonoBytes(rawBytes, rawBytes.length);
-        } else if (channels == 1 && srcFormat.getSampleSizeInBits() == 16) {
+        } else if (channels == 1) {
             monoBytes = rawBytes;
         } else {
-            // Default passthrough or single-channel truncation
-            monoBytes = rawBytes;
+            // Downmix multi-channel (e.g. 5.1 surround) by averaging all channels
+            int bytesPerFrame = Math.max(2, channels * 2);
+            int frameCount = rawBytes.length / bytesPerFrame;
+            monoBytes = new byte[frameCount * 2];
+            for (int i = 0; i < frameCount; i++) {
+                int sum = 0;
+                for (int ch = 0; ch < channels; ch++) {
+                    int offset = i * bytesPerFrame + ch * 2;
+                    if (offset + 1 < rawBytes.length) {
+                        short sample = (short) ((rawBytes[offset] & 0xFF) | (rawBytes[offset + 1] << 8));
+                        sum += sample;
+                    }
+                }
+                short monoSample = (short) (sum / channels);
+                monoBytes[i * 2] = (byte) (monoSample & 0xFF);
+                monoBytes[i * 2 + 1] = (byte) ((monoSample >> 8) & 0xFF);
+            }
         }
 
         AudioFormat monoFormat = new AudioFormat(

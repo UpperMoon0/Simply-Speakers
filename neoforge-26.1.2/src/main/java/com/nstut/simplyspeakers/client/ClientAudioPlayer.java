@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.audio.PlaybackOffset;
@@ -152,27 +153,16 @@ public class ClientAudioPlayer {
         return "pos_" + pos.asLong();
     }
 
-    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
+    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff) {
         String networkKey = (speakerId != null && !speakerId.trim().isEmpty())
                 ? "net_" + speakerId.trim()
                 : "pos_" + pos.asLong();
 
-        SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, speakerId: '{}', networkKey: {}, audioId: {}, start: {}s, looping: {}",
-                pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping);
+        SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, speakerId: '{}', networkKey: {}, audioId: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
+                pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff);
 
-        // Cache initial emitter data for this pos if not present
-        cachedEmitters.computeIfAbsent(pos, p -> {
-            Minecraft mc = Minecraft.getInstance();
-            if (mc.level != null && mc.level.hasChunkAt(p)) {
-                net.minecraft.world.level.block.entity.BlockEntity be = mc.level.getBlockEntity(p);
-                if (be instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity s) {
-                    return new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, s.getMaxRange(), s.getMaxVolume(), s.getAudioDropoff());
-                } else if (be instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity pr) {
-                    return new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, pr.getMaxRange(), pr.getMaxVolume(), pr.getAudioDropoff());
-                }
-            }
-            return new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, com.nstut.simplyspeakers.Config.speakerRange, 1.0f, 1.0f);
-        });
+        // Store authoritative emitter data directly from packet
+        cachedEmitters.put(pos, new EmitterData(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, maxRange, maxVolume, audioDropoff));
 
         // Disassociate pos from any previously registered network key if changed
         String oldKey = posToNetworkKey.put(pos, networkKey);
@@ -215,8 +205,12 @@ public class ClientAudioPlayer {
         }
     }
 
+    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
+        play(pos, speakerId, metadata, startPositionSeconds, isLooping, Config.speakerRange, 1.0f, 1.0f);
+    }
+
     public static void play(BlockPos pos, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
-        play(pos, null, metadata, startPositionSeconds, isLooping);
+        play(pos, null, metadata, startPositionSeconds, isLooping, Config.speakerRange, 1.0f, 1.0f);
     }
 
     private static void playFromFile(String networkKey, BlockPos pos, String filePath, float startPositionSeconds, boolean isLooping) {

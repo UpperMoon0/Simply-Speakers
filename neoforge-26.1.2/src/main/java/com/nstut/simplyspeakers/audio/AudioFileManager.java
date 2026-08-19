@@ -150,6 +150,14 @@ public class AudioFileManager {
             return;
         }
 
+        long newSize = state.receivedSize + data.length;
+        if (data.length > MAX_CHUNK_SIZE || newSize > state.fileSize || newSize > Config.maxUploadSize) {
+            activeUploads.remove(transactionId);
+            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: chunk size or total size exceeded limit", transactionId);
+            NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Upload exceeded maximum size limits.")));
+            return;
+        }
+
         SimplySpeakers.LOGGER.info("Received data chunk for transaction ID: " + transactionId + ". Size: " + data.length);
         state.addData(data);
 

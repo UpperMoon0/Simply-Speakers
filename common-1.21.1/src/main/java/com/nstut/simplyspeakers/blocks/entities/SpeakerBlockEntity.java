@@ -70,7 +70,7 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public void setSpeakerId(String speakerId) {
         if (level != null && !level.isClientSide) {
-            String newSpeakerId = speakerId == null ? "" : speakerId;
+            String newSpeakerId = speakerId == null ? "" : speakerId.trim();
             String oldSpeakerId = this.speakerId;
             if (oldSpeakerId.equals(newSpeakerId)) {
                 return;
@@ -356,7 +356,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         // PERFORMANCE FIX: Cache these expensive calculations
-        double maxRangeSq = Config.speakerRange * Config.speakerRange;
+        double maxRangeSq = (double) state.getMaxRange() * state.getMaxRange();
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 
@@ -369,7 +369,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 float playbackPositionSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
                 if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping(), state.getMaxRange(), state.getMaxVolume(), state.getAudioDropoff());
                 NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
             }
