@@ -130,11 +130,11 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     public void setMaxRange(int maxRange) {
         if (level != null && !level.isClientSide()) {
-            this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+            this.maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange)); // Clamp between 1 and active speakerRange
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         } else if (level != null) { // Client side
-            this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+            this.maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange)); // Clamp between 1 and active speakerRange
         }
     }
     
@@ -142,11 +142,11 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      * Updates the max range setting on the client side for optimistic UI updates.
      * This method should only be called on the client.
      *
-     * @param maxRange The new max range (1 to Config.MAX_RANGE)
+     * @param maxRange The new max range (1 to Config.speakerRange)
      */
     public void setMaxRangeClient(int maxRange) {
         if (this.level != null && this.level.isClientSide()) {
-            this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+            this.maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange)); // Clamp between 1 and active speakerRange
         }
     }
     
@@ -519,7 +519,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 float playbackPositionSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
                 if (playbackPositionSeconds < 0) playbackPositionSeconds = 0; // Should not happen
                 
-                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
+                PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(currentPos, this.speakerId, state.getAudioId(), state.getAudioFilename(), playbackPositionSeconds, state.isLooping());
                 NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
                 SimplySpeakers.LOGGER.debug("Player {} entered range of proxy speaker at {}. Sending play packet with offset {}s.", player.getName().getString(), currentPos, playbackPositionSeconds);

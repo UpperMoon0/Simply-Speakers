@@ -119,6 +119,12 @@ public class AudioFileManager {
     public void handleUploadRequest(ServerPlayer player, BlockPos blockPos, UUID transactionId, String fileName, long fileSize) {
         SimplySpeakers.LOGGER.info("Handling upload request for transaction ID: " + transactionId);
 
+        if (Config.disableUpload) {
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Audio uploads are disabled on this server.")));
+            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". Audio uploads are disabled.");
+            return;
+        }
+
         if (fileSize > Config.maxUploadSize) {
             PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File is too large.")));
             SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". File size " + fileSize + " exceeds limit of " + Config.maxUploadSize);

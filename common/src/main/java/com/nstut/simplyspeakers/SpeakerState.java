@@ -152,7 +152,7 @@ public class SpeakerState {
     }
     
     public void setMaxRange(int maxRange) {
-        this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+        this.maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange)); // Clamp between 1 and active speakerRange
     }
     
     public float getAudioDropoff() {

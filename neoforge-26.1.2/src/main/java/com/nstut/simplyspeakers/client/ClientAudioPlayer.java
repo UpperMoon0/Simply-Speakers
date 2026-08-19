@@ -18,6 +18,7 @@ import com.nstut.simplyspeakers.audio.PlaybackOffset;
 import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.audio.AudioGain;
+import com.nstut.simplyspeakers.audio.PcmAudioDownmixer;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
@@ -49,12 +50,29 @@ public class ClientAudioPlayer {
     private static final Map<String, StreamingAudioResource> networkResources = new ConcurrentHashMap<>();
     private static final Map<BlockPos, String> posToNetworkKey = new ConcurrentHashMap<>();
     private static final Map<String, Set<BlockPos>> networkToPositions = new ConcurrentHashMap<>();
+    private static final Map<BlockPos, EmitterData> cachedEmitters = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
     private static final Map<String, PlayRequest> pendingPlays = new ConcurrentHashMap<>();
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
+
+    private static class EmitterData {
+        final double x, y, z;
+        volatile int maxRange;
+        volatile float maxVolume;
+        volatile float audioDropoff;
+
+        EmitterData(double x, double y, double z, int maxRange, float maxVolume, float audioDropoff) {
+            this.x = x;
+            this.y = y;
+            this.z = z;
+            this.maxRange = maxRange;
+            this.maxVolume = maxVolume;
+            this.audioDropoff = audioDropoff;
+        }
+    }
 
     private static class StreamingAudioResource {
         final String networkKey;
@@ -134,10 +152,27 @@ public class ClientAudioPlayer {
         return "pos_" + pos.asLong();
     }
 
-    public static void play(BlockPos pos, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
-        String networkKey = resolveNetworkKey(pos);
-        SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, networkKey: {}, audioId: {}, start: {}s, looping: {}",
-                pos, networkKey, metadata.getUuid(), startPositionSeconds, isLooping);
+    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
+        String networkKey = (speakerId != null && !speakerId.trim().isEmpty())
+                ? "net_" + speakerId.trim()
+                : "pos_" + pos.asLong();
+
+        SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, speakerId: '{}', networkKey: {}, audioId: {}, start: {}s, looping: {}",
+                pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping);
+
+        // Cache initial emitter data for this pos if not present
+        cachedEmitters.computeIfAbsent(pos, p -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null && mc.level.hasChunkAt(p)) {
+                net.minecraft.world.level.block.entity.BlockEntity be = mc.level.getBlockEntity(p);
+                if (be instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity s) {
+                    return new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, s.getMaxRange(), s.getMaxVolume(), s.getAudioDropoff());
+                } else if (be instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity pr) {
+                    return new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, pr.getMaxRange(), pr.getMaxVolume(), pr.getAudioDropoff());
+                }
+            }
+            return new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, com.nstut.simplyspeakers.Config.speakerRange, 1.0f, 1.0f);
+        });
 
         // Disassociate pos from any previously registered network key if changed
         String oldKey = posToNetworkKey.put(pos, networkKey);
@@ -178,6 +213,10 @@ public class ClientAudioPlayer {
             pendingPlays.put(metadata.getUuid(), new PlayRequest(pos, startPositionSeconds, isLooping));
             requestFileFromServer(metadata.getUuid(), metadata.getOriginalFilename());
         }
+    }
+
+    public static void play(BlockPos pos, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping) {
+        play(pos, null, metadata, startPositionSeconds, isLooping);
     }
 
     private static void playFromFile(String networkKey, BlockPos pos, String filePath, float startPositionSeconds, boolean isLooping) {
@@ -514,6 +553,7 @@ public class ClientAudioPlayer {
 
     // Stop method for specific speaker block position
     public static void stop(BlockPos pos) {
+        cachedEmitters.remove(pos);
         String networkKey = posToNetworkKey.remove(pos);
         if (networkKey != null) {
             Set<BlockPos> positions = networkToPositions.get(networkKey);
@@ -538,6 +578,7 @@ public class ClientAudioPlayer {
     public static void stopAll() {
         SimplySpeakers.LOGGER.debug("Stopping all playback... networkResources size: {}", networkResources.size());
         List<StreamingAudioResource> resourcesToStop = new ArrayList<>(networkResources.values());
+        cachedEmitters.clear();
         posToNetworkKey.clear();
         networkToPositions.clear();
         networkResources.clear();
@@ -598,39 +639,43 @@ public class ClientAudioPlayer {
             List<BlockPos> deadPositions = new ArrayList<>();
 
             for (BlockPos speakerPos : positions) {
-                net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
-                float maxVolume;
-                int maxRange;
-                float audioDropoff;
-
-                if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
-                    maxVolume = speakerBlockEntity.getMaxVolume();
-                    maxRange = speakerBlockEntity.getMaxRange();
-                    audioDropoff = speakerBlockEntity.getAudioDropoff();
-                } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
-                    maxVolume = proxySpeakerBlockEntity.getMaxVolume();
-                    maxRange = proxySpeakerBlockEntity.getMaxRange();
-                    audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
-                } else {
-                    if (mc.level.hasChunkAt(speakerPos)) {
+                if (mc.level.hasChunkAt(speakerPos)) {
+                    net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
+                    if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
+                        EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
+                                new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
+                        data.maxVolume = speakerBlockEntity.getMaxVolume();
+                        data.maxRange = speakerBlockEntity.getMaxRange();
+                        data.audioDropoff = speakerBlockEntity.getAudioDropoff();
+                    } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
+                        EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
+                                new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
+                        data.maxVolume = proxySpeakerBlockEntity.getMaxVolume();
+                        data.maxRange = proxySpeakerBlockEntity.getMaxRange();
+                        data.audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
+                    } else {
                         deadPositions.add(speakerPos);
+                        continue;
                     }
-                    continue;
                 }
 
-                emitters.add(new SpatialAudioCalculator.SpeakerEmitter(
-                        speakerPos.getX() + 0.5,
-                        speakerPos.getY() + 0.5,
-                        speakerPos.getZ() + 0.5,
-                        maxRange,
-                        maxVolume,
-                        audioDropoff
-                ));
+                EmitterData cached = cachedEmitters.get(speakerPos);
+                if (cached != null) {
+                    emitters.add(new SpatialAudioCalculator.SpeakerEmitter(
+                            cached.x,
+                            cached.y,
+                            cached.z,
+                            cached.maxRange,
+                            cached.maxVolume,
+                            cached.audioDropoff
+                    ));
+                }
             }
 
             for (BlockPos dead : deadPositions) {
                 positions.remove(dead);
                 posToNetworkKey.remove(dead);
+                cachedEmitters.remove(dead);
             }
 
             if (emitters.isEmpty()) {
@@ -703,7 +748,13 @@ public class ClientAudioPlayer {
                     short[] pcmShorts = outputBuffer.getBuffer();
                     int samplesRead = outputBuffer.getBufferLength();
 
-                    byte[] pcmBytes = shortsToBytesLE(pcmShorts, samplesRead);
+                    byte[] pcmBytes;
+                    if (effectiveChannels == 2) {
+                        short[] monoShorts = PcmAudioDownmixer.downmixStereoToMono(pcmShorts, samplesRead);
+                        pcmBytes = PcmAudioDownmixer.shortsToBytesLE(monoShorts, monoShorts.length);
+                    } else {
+                        pcmBytes = PcmAudioDownmixer.shortsToBytesLE(pcmShorts, samplesRead);
+                    }
                     pcmOutputStream.write(pcmBytes);
                     
                     bitstream.closeFrame(); // Important to advance the stream
@@ -714,11 +765,11 @@ public class ClientAudioPlayer {
                     throw new IOException("No MP3 frames decoded or invalid format for: " + filePath);
                 }
 
-                AudioFormat pcmFormat = new AudioFormat(effectiveSampleRate, 16, effectiveChannels, true, false);
+                AudioFormat pcmFormat = new AudioFormat(effectiveSampleRate, 16, 1, true, false);
                 byte[] pcmData = pcmOutputStream.toByteArray();
                 ByteArrayInputStream pcmByteStream = new ByteArrayInputStream(pcmData);
                 AudioInputStream pcmInputStream = new AudioInputStream(pcmByteStream, pcmFormat, pcmData.length / pcmFormat.getFrameSize());
-                SimplySpeakers.LOGGER.debug("MP3 decoded to PCM format: {}", pcmFormat);
+                SimplySpeakers.LOGGER.debug("MP3 decoded to mono PCM format: {}", pcmFormat);
                 return pcmInputStream;
 
             } catch (BitstreamException | DecoderException e) {
@@ -727,54 +778,14 @@ public class ClientAudioPlayer {
         } else {
             SimplySpeakers.LOGGER.debug("Reading non-MP3: {}", filePath);
             AudioInputStream initialStream = AudioSystem.getAudioInputStream(audioFile);
-            AudioFormat initialFormat = initialStream.getFormat();
-            SimplySpeakers.LOGGER.debug("Initial format: {}", initialFormat);
-
-            AudioFormat targetPcmFormat = new AudioFormat(
-                AudioFormat.Encoding.PCM_SIGNED,
-                initialFormat.getSampleRate(),
-                16,
-                initialFormat.getChannels(),
-                initialFormat.getChannels() * 2,
-                initialFormat.getSampleRate(),
-                false
-            );
-
-            if (!initialFormat.matches(targetPcmFormat)) {
-                SimplySpeakers.LOGGER.debug("Converting to target PCM format: {}", targetPcmFormat);
-                if (AudioSystem.isConversionSupported(targetPcmFormat, initialFormat)) {
-                    AudioInputStream convertedStream = AudioSystem.getAudioInputStream(targetPcmFormat, initialStream);
-                    SimplySpeakers.LOGGER.debug("Converted to PCM format: {}", convertedStream.getFormat());
-                    return convertedStream;
-                } else {
-                    initialStream.close();
-                    throw new UnsupportedAudioFileException("Conversion to PCM_SIGNED 16-bit Little Endian not supported for: " + filePath + " from format " + initialFormat);
-                }
-            } else {
-                SimplySpeakers.LOGGER.debug("Audio is already in target PCM format.");
-                return initialStream;
-            }
+            AudioInputStream monoStream = PcmAudioDownmixer.ensureMono16BitPcmStream(initialStream);
+            SimplySpeakers.LOGGER.debug("Non-MP3 converted to mono PCM format: {}", monoStream.getFormat());
+            return monoStream;
         }
-    }
-
-    private static byte[] shortsToBytesLE(short[] shorts, int count) {
-        byte[] bytes = new byte[count * 2];
-        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shorts, 0, count);
-        return bytes;
     }
 
     private static int getOpenALFormat(AudioFormat format) {
-        int openALFormat = -1;
-
-        if (format.getChannels() == 1) {
-            openALFormat = AL10.AL_FORMAT_MONO16;
-        } else if (format.getChannels() == 2) {
-            openALFormat = AL10.AL_FORMAT_STEREO16;
-        } else {
-            SimplySpeakers.LOGGER.error("Unsupported number of channels for OpenAL: {}", format.getChannels());
-        }
-
-        return openALFormat;
+        return AL10.AL_FORMAT_MONO16;
     }
 
     public static UUID startUpload(File file) {

@@ -24,21 +24,28 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         StreamCodec.of(PlayAudioPacketS2C::encode, PlayAudioPacketS2C::decode);
 
     private final BlockPos pos;
+    private final String speakerId;
     private final String audioId;
     private final String audioFilename;
     private final float playbackPositionSeconds;
     private final boolean isLooping;
 
-    public PlayAudioPacketS2C(BlockPos pos, String audioId, String audioFilename, float playbackPositionSeconds, boolean isLooping) {
+    public PlayAudioPacketS2C(BlockPos pos, String speakerId, String audioId, String audioFilename, float playbackPositionSeconds, boolean isLooping) {
         this.pos = pos;
+        this.speakerId = speakerId != null ? speakerId : "";
         this.audioId = audioId;
         this.audioFilename = audioFilename;
         this.playbackPositionSeconds = playbackPositionSeconds;
         this.isLooping = isLooping;
     }
 
+    public PlayAudioPacketS2C(BlockPos pos, String audioId, String audioFilename, float playbackPositionSeconds, boolean isLooping) {
+        this(pos, "", audioId, audioFilename, playbackPositionSeconds, isLooping);
+    }
+
     public static void encode(RegistryFriendlyByteBuf buffer, PlayAudioPacketS2C packet) {
         buffer.writeBlockPos(packet.pos);
+        buffer.writeUtf(packet.speakerId);
         buffer.writeUtf(packet.audioId);
         buffer.writeUtf(packet.audioFilename);
         buffer.writeFloat(packet.playbackPositionSeconds);
@@ -48,6 +55,7 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
     public static PlayAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
         return new PlayAudioPacketS2C(
             buffer.readBlockPos(),
+            buffer.readUtf(),
             buffer.readUtf(),
             buffer.readUtf(),
             buffer.readFloat(),
@@ -77,9 +85,10 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
             LiveJoinTestProtocol.markCompleted();
             return;
         }
-        SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, audioId: {}, filename: {}, start: {}s, looping: {}", packet.pos, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping);
+        SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, speakerId: '{}', audioId: {}, filename: {}, start: {}s, looping: {}",
+                packet.pos, packet.speakerId, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping);
         AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
-        ClientAudioPlayer.play(packet.pos, metadata, packet.playbackPositionSeconds, packet.isLooping);
+        ClientAudioPlayer.play(packet.pos, packet.speakerId, metadata, packet.playbackPositionSeconds, packet.isLooping);
     }
 
     public static void processPendingPlays() {
@@ -99,8 +108,32 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         if (LiveJoinTestProtocol.isEnabled()) {
             LiveJoinTestProtocol.reset();
             playOrDefer(new PlayAudioPacketS2C(
-                    BlockPos.ZERO, LiveJoinTestProtocol.PROBE_AUDIO_ID, "probe.wav", 0.0f, false));
+                    BlockPos.ZERO, "", LiveJoinTestProtocol.PROBE_AUDIO_ID, "probe.wav", 0.0f, false));
         }
+    }
+
+    public BlockPos getPos() {
+        return pos;
+    }
+
+    public String getSpeakerId() {
+        return speakerId;
+    }
+
+    public String getAudioId() {
+        return audioId;
+    }
+
+    public String getAudioFilename() {
+        return audioFilename;
+    }
+
+    public float getPlaybackPositionSeconds() {
+        return playbackPositionSeconds;
+    }
+
+    public boolean isLooping() {
+        return isLooping;
     }
 
     @Override
@@ -108,6 +141,3 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         return TYPE;
     }
 }
-
-
-

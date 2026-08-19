@@ -21,15 +21,10 @@ public class ClientEvents {
     }
 
     private static void onClientTick(Minecraft client) {
-        // PERFORMANCE FIX: Reduce volume update frequency to prevent excessive OpenAL calls during world operations
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
             finishLiveJoinTest(client);
-            volumeUpdateTicks++;
-            if (volumeUpdateTicks >= VOLUME_UPDATE_INTERVAL) {
-                ClientAudioPlayer.updateSpeakerVolumes();
-                volumeUpdateTicks = 0;
-            }
+            ClientAudioPlayer.updateSpeakerVolumes();
         }
     }
 
