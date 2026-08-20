@@ -9,6 +9,7 @@ import com.nstut.simplyspeakers.audio.PlaybackOffset;
 import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
+import com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
@@ -17,7 +18,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.openal.AL10;
 
@@ -61,15 +61,13 @@ public class ClientAudioPlayer {
     private static final int BUFFER_SIZE_SECONDS = 1;
 
     private static class EmitterData {
-        final double x, y, z;
+        final BlockPos localPosition;
         volatile int maxRange;
         volatile float maxVolume;
         volatile float audioDropoff;
 
-        EmitterData(double x, double y, double z, int maxRange, float maxVolume, float audioDropoff) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
+        EmitterData(BlockPos localPosition, int maxRange, float maxVolume, float audioDropoff) {
+            this.localPosition = localPosition.immutable();
             this.maxRange = maxRange;
             this.maxVolume = maxVolume;
             this.audioDropoff = audioDropoff;
@@ -153,7 +151,7 @@ public class ClientAudioPlayer {
         SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, speakerId: '{}', networkKey: {}, audioId: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
                 pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff);
 
-        cachedEmitters.put(pos, new EmitterData(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, maxRange, maxVolume, audioDropoff));
+        cachedEmitters.put(pos, new EmitterData(pos, maxRange, maxVolume, audioDropoff));
 
         String oldKey = posToNetworkKey.put(pos, networkKey);
         if (oldKey != null && !oldKey.equals(networkKey)) {
@@ -538,15 +536,14 @@ public class ClientAudioPlayer {
 
     public static void updateSpeakerVolumes() {
         Minecraft mc = Minecraft.getInstance();
-        Player player = mc.player;
-        if (player == null || mc.level == null) {
+        if (mc.player == null || mc.level == null) {
             return;
         }
         if (networkResources.isEmpty()) {
             return;
         }
 
-        Vec3 playerPos = player.position();
+        Vec3 listenerPosition = mc.gameRenderer.getMainCamera().getPosition();
         float masterVolume = mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER);
         float recordVolume = mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.RECORDS);
 
@@ -573,13 +570,13 @@ public class ClientAudioPlayer {
                     net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
                     if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
                         EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
-                                new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
+                                new EmitterData(p, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = speakerBlockEntity.getMaxVolume();
                         data.maxRange = speakerBlockEntity.getMaxRange();
                         data.audioDropoff = speakerBlockEntity.getAudioDropoff();
                     } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
                         EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
-                                new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
+                                new EmitterData(p, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = proxySpeakerBlockEntity.getMaxVolume();
                         data.maxRange = proxySpeakerBlockEntity.getMaxRange();
                         data.audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
@@ -591,10 +588,12 @@ public class ClientAudioPlayer {
 
                 EmitterData cached = cachedEmitters.get(speakerPos);
                 if (cached != null) {
+                    Vec3 renderPosition = ClientSpeakerSpatialResolver.resolveRender(mc.level, cached.localPosition);
+                    if (renderPosition == null) continue;
                     emitters.add(new SpatialAudioCalculator.SpeakerEmitter(
-                            cached.x,
-                            cached.y,
-                            cached.z,
+                            renderPosition.x,
+                            renderPosition.y,
+                            renderPosition.z,
                             cached.maxRange,
                             cached.maxVolume,
                             cached.audioDropoff
@@ -623,7 +622,7 @@ public class ClientAudioPlayer {
             }
 
             SpatialAudioCalculator.VirtualEmitterResult result =
-                    SpatialAudioCalculator.calculateVirtualEmitter(playerPos.x, playerPos.y, playerPos.z, emitters);
+                    SpatialAudioCalculator.calculateVirtualEmitter(listenerPosition.x, listenerPosition.y, listenerPosition.z, emitters);
 
             final float finalGain = AudioGain.applyGameVolume(result.maxGain(), masterVolume, recordVolume);
             final float posX = (float) result.x();

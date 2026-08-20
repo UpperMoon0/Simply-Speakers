@@ -7,6 +7,9 @@
 -----------------------------------------------------
 
  Added
+  - Sable Compatibility (Minecraft 1.21.1): Speakers in sublevels now
+    use logical server positions and interpolated client render poses,
+    with listener hysteresis at range boundaries.
   - Server Config Synchronization: Server configs (speaker range,
     upload availability, and upload limits) now synchronize on join
     and hot reload, then restore client values after disconnecting.

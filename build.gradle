@@ -17,6 +17,12 @@ allprojects {
 
     repositories {
         maven { url 'https://jitpack.io' }
+        exclusiveContent {
+            forRepository {
+                maven { url 'https://maven.ryanhcode.dev/releases' }
+            }
+            filter { includeGroup 'dev.ryanhcode.sable-companion' }
+        }
     }
 }
 

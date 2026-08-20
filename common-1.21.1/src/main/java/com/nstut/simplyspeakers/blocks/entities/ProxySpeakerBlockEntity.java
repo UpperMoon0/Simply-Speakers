@@ -8,6 +8,7 @@ import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
+import com.nstut.simplyspeakers.compat.sable.SpeakerSpatialResolver;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
@@ -276,11 +277,15 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         }
 
         int effectiveRange = Math.min(maxRange, Config.speakerRange);
-        double maxRangeSq = (double) effectiveRange * effectiveRange;
-        Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
+        Vec3 speakerCenterPos = SpeakerSpatialResolver.resolveLogical(currentLevel, currentPos);
+        if (speakerCenterPos == null) return;
         Set<UUID> playersInRange = new HashSet<>();
 
-        for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
+        for (ServerPlayer player : serverLevel.players()) {
+            Vec3 playerPosition = SpeakerSpatialResolver.resolveLogical(currentLevel, player.position());
+            if (playerPosition == null) continue;
+            double listenerRange = listeningPlayers.contains(player.getUUID()) ? effectiveRange + 2.0 : effectiveRange;
+            if (playerPosition.distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
             playersInRange.add(player.getUUID());
 
             if (!listeningPlayers.contains(player.getUUID())) {
