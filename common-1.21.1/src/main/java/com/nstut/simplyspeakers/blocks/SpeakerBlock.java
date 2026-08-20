@@ -110,7 +110,7 @@ public class SpeakerBlock extends BaseEntityBlock {
         if (!state.is(newState.getBlock()) && !level.isClientSide) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                speakerEntity.stopAudio();
+                speakerEntity.detachEmitterForPowerOff();
                 com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.unregisterSpeaker(level, pos, speakerEntity.getStateKey());
             }
         }

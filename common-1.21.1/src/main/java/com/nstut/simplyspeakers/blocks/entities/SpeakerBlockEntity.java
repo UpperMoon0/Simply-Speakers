@@ -86,10 +86,11 @@ public class SpeakerBlockEntity extends BlockEntity {
         String newSpeakerId = speakerId == null ? "" : speakerId.trim();
         if (level != null && !level.isClientSide()) {
             String oldKey = getStateKey();
-            boolean resumePlayback = isPlaying();
-            if (resumePlayback) {
-                stopAudio();
-            }
+            boolean physicallyPowered = getBlockState().hasProperty(SpeakerBlock.POWERED)
+                    && getBlockState().getValue(SpeakerBlock.POWERED);
+            String prospectiveKey = SpeakerLink.isLinkableId(newSpeakerId) ? "net_" + newSpeakerId : "internal_" + internalStateId;
+            SpeakerState destinationBeforeRelink = ServerSpeakerRegistry.getSpeakerState(level, prospectiveKey);
+            if (!oldKey.equals(prospectiveKey)) detachEmitterForPowerOff();
             this.speakerId = newSpeakerId;
             String newKey = getStateKey();
 
@@ -99,8 +100,15 @@ public class SpeakerBlockEntity extends BlockEntity {
             if (!oldKey.equals(newKey)) {
                 SpeakerRegistry.updateSpeakerId(level, worldPosition, oldKey, newKey);
                 registeredKey = newKey;
+                if (!physicallyPowered && (destinationBeforeRelink == null || !destinationBeforeRelink.isPlaying())) {
+                    SpeakerState newState = getSpeakerState();
+                    newState.setPlaying(false);
+                    newState.setPlaybackStartTick(-1);
+                    updateSpeakerState(newState);
+                    notifyClientsOfStateChange();
+                }
             }
-            if (resumePlayback) {
+            if (physicallyPowered && !oldKey.equals(newKey)) {
                 playAudio();
             }
         } else if (level != null) {
@@ -407,6 +415,10 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @Override
     public void setRemoved() {
+        if (level != null && !level.isClientSide()) {
+            detachEmitterForPowerOff();
+            ServerSpeakerRegistry.unregisterSpeaker(level, worldPosition, getStateKey());
+        }
         super.setRemoved();
     }
 

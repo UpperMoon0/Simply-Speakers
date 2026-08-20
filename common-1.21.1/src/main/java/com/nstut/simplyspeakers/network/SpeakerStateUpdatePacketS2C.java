@@ -98,6 +98,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
             } else if ("stop".equals(pkt.action)) {
                 state.setPlaying(false);
                 state.setPlaybackStartTick(-1);
+                ClientAudioPlayer.stopNetwork(linkKey);
             }
             ClientSpeakerRegistry.updateState(linkKey, state);
         } else if (Minecraft.getInstance().level != null) {
@@ -120,7 +121,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
         }
 
         if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
-            if (!linked && pkt.blockPos.equals(screen.getBlockEntityPos())) {
+            if (pkt.blockPos.equals(screen.getBlockEntityPos())) {
                 screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
             }
         }

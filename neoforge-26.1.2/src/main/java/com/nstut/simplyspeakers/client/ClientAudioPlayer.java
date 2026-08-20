@@ -486,6 +486,21 @@ public class ClientAudioPlayer {
         }
     }
 
+    public static void stopNetwork(String networkKey) {
+        for (List<PlayRequest> requests : pendingPlays.values()) {
+            requests.removeIf(req -> networkKey.equals(req.networkKey));
+        }
+        Set<BlockPos> positions = networkToPositions.remove(networkKey);
+        if (positions != null) {
+            for (BlockPos pos : positions) {
+                posToNetworkKey.remove(pos, networkKey);
+                cachedEmitters.remove(pos);
+            }
+        }
+        StreamingAudioResource resource = networkResources.remove(networkKey);
+        if (resource != null) resource.stopAndCleanup();
+    }
+
     public static void stopAll() {
         pendingPlays.clear();
         for (DownloadProcess download : activeDownloads.values()) {

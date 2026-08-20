@@ -36,7 +36,7 @@ public class DeleteAudioPacketC2S implements CustomPacketPayload {
     public static void handle(DeleteAudioPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            SimplySpeakers.getAudioFileManager().deleteAudioFile(packet.audioId, player.getUUID().toString());
+            SimplySpeakers.getAudioFileManager().deleteAudioFile(packet.audioId, player.getUUID().toString(), player.getServer());
             List<AudioFileMetadata> audioList = SimplySpeakers.getAudioFileManager()
                 .getAudioListForPlayer(player.getUUID().toString());
             NetworkManager.sendToPlayer(player, new SendAudioListPacketS2C(audioList));

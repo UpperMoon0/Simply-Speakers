@@ -9,6 +9,7 @@ import com.nstut.simplyspeakers.network.AcknowledgeUploadPacketS2C;
 import com.nstut.simplyspeakers.network.RespondUploadAudioPacketS2C;
 import com.nstut.simplyspeakers.network.SendAudioFilePacketS2C;
 import com.nstut.simplyspeakers.network.SendAudioListPacketS2C;
+import com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import javazoom.jl.decoder.Bitstream;
@@ -142,8 +144,8 @@ public class AudioFileManager {
         return extension.equals("mp3") || extension.equals("wav");
     }
 
-    public static boolean validateAudioContent(Path filePath) {
-        String extension = FilenameUtils.getExtension(filePath.getFileName().toString()).toLowerCase();
+    public static boolean validateAudioContent(Path filePath, String originalFilename) {
+        String extension = FilenameUtils.getExtension(originalFilename).toLowerCase();
         if (extension.equals("mp3")) {
             try (InputStream in = Files.newInputStream(filePath)) {
                 Bitstream bitstream = new Bitstream(in);
@@ -302,7 +304,7 @@ public class AudioFileManager {
         try {
             session.close();
 
-            if (!validateAudioContent(session.tempFilePath)) {
+            if (!validateAudioContent(session.tempFilePath, session.fileName)) {
                 session.cleanup();
                 SimplySpeakers.LOGGER.warn("Rejecting upload {}: invalid or corrupt audio content", transactionId);
                 if (server != null) {
@@ -345,7 +347,7 @@ public class AudioFileManager {
         NetworkManager.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
     }
 
-    public boolean deleteAudioFile(String audioId, String playerUUID) {
+    public boolean deleteAudioFile(String audioId, String playerUUID, MinecraftServer server) {
         AudioFileMetadata metadata = manifest.get(audioId);
         if (metadata == null) {
             return false;
@@ -378,8 +380,26 @@ public class AudioFileManager {
             state.setPlaybackStartTick(-1);
         }
         ServerSpeakerRegistry.saveRegistry();
+        broadcastDeletedAudioState(server, states);
 
         return true;
+    }
+
+    private void broadcastDeletedAudioState(MinecraftServer server, Map<String, com.nstut.simplyspeakers.SpeakerState> affected) {
+        if (server == null) return;
+        for (var level : server.getAllLevels()) {
+            String prefix = level.dimension().identifier() + "/";
+            for (String fullKey : affected.keySet()) {
+                if (!fullKey.startsWith(prefix)) continue;
+                String stateKey = fullKey.substring(prefix.length());
+                String speakerId = stateKey.startsWith("net_") ? stateKey.substring(4) : "";
+                Set<BlockPos> positions = ServerSpeakerRegistry.getSpeakerPositions(level, stateKey);
+                if (positions.isEmpty()) positions = Collections.singleton(BlockPos.ZERO);
+                for (BlockPos pos : positions) {
+                    NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, false));
+                }
+            }
+        }
     }
 
     public List<AudioFileMetadata> getAudioListForPlayer(String playerUUID) {
@@ -391,7 +411,7 @@ public class AudioFileManager {
         String playerId = player.getUUID().toString();
         String grantKey = playerId + ":" + audioId;
         boolean owner = metadata != null && AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerId);
-        Long grantExpiry = playbackGrants.remove(grantKey);
+        Long grantExpiry = playbackGrants.get(grantKey);
         if (!owner && (grantExpiry == null || grantExpiry < System.currentTimeMillis())) return;
         String transferKey = player.getUUID() + ":" + audioId;
         activeDownloads.tryStart(transferKey, () -> {
