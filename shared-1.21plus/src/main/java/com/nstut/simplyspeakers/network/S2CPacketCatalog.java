@@ -44,7 +44,6 @@ public final class S2CPacketCatalog {
     static void registerAll(Registrar registrar) {
         registrar.register(StopAudioPacketS2C.TYPE, StopAudioPacketS2C.STREAM_CODEC, StopAudioPacketS2C::handle);
         registrar.register(PlayAudioPacketS2C.TYPE, PlayAudioPacketS2C.STREAM_CODEC, PlayAudioPacketS2C::handle);
-        registrar.register(SpeakerBlockEntityPacketS2C.TYPE, SpeakerBlockEntityPacketS2C.STREAM_CODEC, SpeakerBlockEntityPacketS2C::handle);
         registrar.register(RespondUploadAudioPacketS2C.TYPE, RespondUploadAudioPacketS2C.STREAM_CODEC, RespondUploadAudioPacketS2C::handle);
         registrar.register(AcknowledgeUploadPacketS2C.TYPE, AcknowledgeUploadPacketS2C.STREAM_CODEC, AcknowledgeUploadPacketS2C::handle);
         registrar.register(SendAudioListPacketS2C.TYPE, SendAudioListPacketS2C.STREAM_CODEC, SendAudioListPacketS2C::handle);

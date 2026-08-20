@@ -5,6 +5,8 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
@@ -168,16 +170,26 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         }
     }
 
+    public void ensureServerRegistration() {
+        if (level != null && !level.isClientSide() && SpeakerLink.isLinkableId(speakerId)) {
+            String currentId = speakerId.trim();
+            if (registeredId.isEmpty() || !registeredId.equals(currentId)) {
+                if (!registeredId.isEmpty()) {
+                    ServerSpeakerRegistry.unregisterProxySpeaker(level, worldPosition, registeredId);
+                }
+                ServerSpeakerRegistry.registerProxySpeaker(level, worldPosition, currentId);
+                registeredId = currentId;
+            }
+        }
+    }
+
     public static void serverTick(Level level, BlockPos pos, BlockState state, ProxySpeakerBlockEntity blockEntity) {
+        blockEntity.ensureServerRegistration();
         blockEntity.tick(level, pos, state);
     }
 
     @Override
     public void setRemoved() {
-        if (level != null && level.isClientSide()) {
-            com.nstut.simplyspeakers.client.ClientAudioPlayer.stop(worldPosition);
-            ClientSpeakerRegistry.unregisterProxySpeaker(worldPosition, speakerId);
-        }
         super.setRemoved();
     }
 
@@ -269,8 +281,16 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             playersInRange.add(player.getUUID());
 
             if (!listeningPlayers.contains(player.getUUID())) {
-                float playbackPositionSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
-                if (playbackPositionSeconds < 0) playbackPositionSeconds = 0;
+                float elapsedSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
+                if (elapsedSeconds < 0) elapsedSeconds = 0;
+                float playbackPositionSeconds = elapsedSeconds;
+                AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
+                if (audioFileManager != null) {
+                    AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
+                    if (meta != null && meta.getDurationSeconds() > 0.0f && state.isLooping()) {
+                        playbackPositionSeconds = elapsedSeconds % meta.getDurationSeconds();
+                    }
+                }
 
                 PlayAudioPacketS2C playPacket = new PlayAudioPacketS2C(
                         currentPos,
@@ -320,13 +340,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         listeningPlayers.clear();
 
-        if (level != null && !level.isClientSide() && SpeakerLink.isLinkableId(speakerId)) {
-            String currentId = speakerId.trim();
-            if (!registeredId.isEmpty() && !registeredId.equals(currentId)) {
-                ServerSpeakerRegistry.unregisterProxySpeaker(level, worldPosition, registeredId);
-            }
-            ServerSpeakerRegistry.registerProxySpeaker(level, worldPosition, currentId);
-            registeredId = currentId;
+        if (level != null && !level.isClientSide()) {
+            ensureServerRegistration();
         }
     }
 

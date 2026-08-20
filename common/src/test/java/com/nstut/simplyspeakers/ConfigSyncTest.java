@@ -12,11 +12,13 @@ class ConfigSyncTest {
 
     @BeforeEach
     void setUp() {
+        Config.restoreLocalConfig();
         Config.setLocalConfig(64, false, 5 * 1024 * 1024);
     }
 
     @AfterEach
     void tearDown() {
+        Config.restoreLocalConfig();
         Config.setLocalConfig(64, false, 5 * 1024 * 1024);
     }
 

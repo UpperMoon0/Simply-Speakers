@@ -11,7 +11,6 @@ import net.minecraft.world.level.Level;
 
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
@@ -82,7 +81,11 @@ public final class ServerSpeakerRegistry {
             String json = GSON.toJson(statesToSave);
             Files.createDirectories(registryFilePath.getParent());
             Files.writeString(tmpPath, json);
-            Files.move(tmpPath, registryFilePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(tmpPath, registryFilePath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                Files.move(tmpPath, registryFilePath, StandardCopyOption.REPLACE_EXISTING);
+            }
             SimplySpeakers.LOGGER.debug("SERVER: Saved speaker registry to {}", registryFilePath);
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("SERVER: Failed to save speaker registry", e);
@@ -98,13 +101,41 @@ public final class ServerSpeakerRegistry {
         try {
             File file = registryFilePath.toFile();
             if (file.exists()) {
+                // Back up old registry file before loading/migrating
+                try {
+                    Path backupPath = registryFilePath.resolveSibling("speaker_registry.json.bak");
+                    Files.copy(registryFilePath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    SimplySpeakers.LOGGER.warn("SERVER: Failed to create backup of speaker_registry.json", e);
+                }
+
                 try (FileReader reader = new FileReader(file)) {
                     Type type = new TypeToken<Map<String, SpeakerState>>() {}.getType();
                     Map<String, SpeakerState> loadedStates = GSON.fromJson(reader, type);
                     if (loadedStates != null) {
                         speakerStates.clear();
-                        speakerStates.putAll(loadedStates);
-                        SimplySpeakers.LOGGER.info("SERVER: Loaded speaker registry with {} entries", loadedStates.size());
+                        boolean migratedAny = false;
+                        for (Map.Entry<String, SpeakerState> entry : loadedStates.entrySet()) {
+                            String key = entry.getKey();
+                            SpeakerState state = entry.getValue();
+                            if (key == null || state == null) continue;
+
+                            String normalizedKey = key;
+                            if (!key.contains("/")) {
+                                // Old legacy unprefixed format
+                                migratedAny = true;
+                                if (key.startsWith("internal_") || key.startsWith("net_")) {
+                                    normalizedKey = "minecraft:overworld/" + key;
+                                } else {
+                                    normalizedKey = "minecraft:overworld/net_" + key.trim();
+                                }
+                            }
+                            speakerStates.put(normalizedKey, state);
+                        }
+                        SimplySpeakers.LOGGER.info("SERVER: Loaded speaker registry with {} entries (migrated: {})", speakerStates.size(), migratedAny);
+                        if (migratedAny) {
+                            saveRegistry();
+                        }
                     }
                 }
             } else {
@@ -195,8 +226,27 @@ public final class ServerSpeakerRegistry {
 
     public static void updateSpeakerKey(Level level, BlockPos pos, String oldKey, String newKey) {
         if (level == null || level.isClientSide()) return;
+        if (oldKey == null) oldKey = "";
+        if (newKey == null) newKey = "";
+        if (oldKey.equals(newKey)) return;
+
+        String dimension = getDimension(level);
+        String oldFullKey = getRegistryKey(dimension, oldKey);
+        String newFullKey = getRegistryKey(dimension, newKey);
+
+        SpeakerState sourceState = speakerStates.get(oldFullKey);
+        SpeakerState destinationState = speakerStates.get(newFullKey);
+        Set<BlockPos> existingMainSpeakers = speakerPositions.get(newFullKey);
+        boolean destinationHasMainSpeaker = existingMainSpeakers != null && !existingMainSpeakers.isEmpty();
+
+        SpeakerState finalState = com.nstut.simplyspeakers.SpeakerStateRelinker.stateForNewId(sourceState, destinationState, destinationHasMainSpeaker);
+        if (finalState != null) {
+            speakerStates.put(newFullKey, finalState);
+        }
+
         unregisterSpeaker(level, pos, oldKey);
         registerSpeaker(level, pos, newKey);
+        saveRegistry();
     }
 
     public static Set<BlockPos> getSpeakerPositions(Level level, String stateKey) {

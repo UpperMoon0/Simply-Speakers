@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -52,6 +53,7 @@ public class ClientAudioPlayer {
     private static final Map<String, Set<BlockPos>> networkToPositions = new ConcurrentHashMap<>();
     private static final Map<BlockPos, EmitterData> cachedEmitters = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
+    private static final Map<UUID, Thread> activeUploadWorkers = new ConcurrentHashMap<>();
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
     private static final Map<String, List<PlayRequest>> pendingPlays = new ConcurrentHashMap<>();
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
@@ -453,9 +455,10 @@ public class ClientAudioPlayer {
             }
         }
 
-        StreamingAudioResource current = networkResources.remove(networkKey);
-        if (current != null) {
-            current.stopAndCleanup();
+        // Clean up when thread finishes naturally (e.g. non-looping track reached EOF)
+        if (resource != null) {
+            networkResources.remove(networkKey, resource);
+            resource.stopAndCleanup();
         }
     }
 
@@ -489,6 +492,12 @@ public class ClientAudioPlayer {
             download.cleanup();
         }
         activeDownloads.clear();
+        for (Thread worker : activeUploadWorkers.values()) {
+            try {
+                worker.interrupt();
+            } catch (Exception ignored) {}
+        }
+        activeUploadWorkers.clear();
         activeUploads.clear();
 
         List<StreamingAudioResource> resourcesToStop = new ArrayList<>(networkResources.values());
@@ -708,30 +717,41 @@ public class ClientAudioPlayer {
         }
 
         public void start(UUID transactionId, int chunkSize) {
-            new Thread(() -> {
-                long totalLength = file.length();
-                UploadProgressLogger.logStart(SimplySpeakers.LOGGER, transactionId, totalLength);
-                try (InputStream in = new FileInputStream(file)) {
-                    byte[] buffer = new byte[chunkSize];
-                    int read;
-                    long offset = 0;
-                    while ((read = in.read(buffer)) > 0) {
-                        byte[] chunk = new byte[read];
-                        System.arraycopy(buffer, 0, chunk, 0, read);
-                        UploadProgressLogger.logChunk(SimplySpeakers.LOGGER, transactionId, offset, read, totalLength);
-                        NetworkManager.sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
-                        offset += read;
-                        try {
-                            Thread.sleep(5);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            break;
+            Thread uploadThread = new Thread(() -> {
+                try {
+                    long totalLength = file.length();
+                    UploadProgressLogger.logStart(SimplySpeakers.LOGGER, transactionId, totalLength);
+                    try (InputStream in = new FileInputStream(file)) {
+                        byte[] buffer = new byte[chunkSize];
+                        int read;
+                        long offset = 0;
+                        while ((read = in.read(buffer)) > 0) {
+                            if (Thread.currentThread().isInterrupted()) {
+                                break;
+                            }
+                            byte[] chunk = new byte[read];
+                            System.arraycopy(buffer, 0, chunk, 0, read);
+                            UploadProgressLogger.logChunk(SimplySpeakers.LOGGER, transactionId, offset, read, totalLength);
+                            NetworkManager.sendToServer(new UploadAudioDataPacketC2S(transactionId, chunk));
+                            offset += read;
+                            try {
+                                Thread.sleep(5);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                break;
+                            }
                         }
+                    } catch (IOException e) {
+                        SimplySpeakers.LOGGER.error("Failed to stream file for upload: {}", file.getName(), e);
                     }
-                } catch (IOException e) {
-                    SimplySpeakers.LOGGER.error("Failed to stream file for upload: {}", file.getName(), e);
+                } finally {
+                    activeUploadWorkers.remove(transactionId);
+                    activeUploads.remove(transactionId);
                 }
-            }, SimplySpeakers.MOD_ID + "-upload-" + transactionId).start();
+            }, SimplySpeakers.MOD_ID + "-upload-" + transactionId);
+            uploadThread.setDaemon(true);
+            activeUploadWorkers.put(transactionId, uploadThread);
+            uploadThread.start();
         }
     }
 
@@ -772,7 +792,11 @@ public class ClientAudioPlayer {
                 String extension = com.google.common.io.Files.getFileExtension(filename);
                 File cachedFile = new File(CACHE_DIR, audioId + (extension.isEmpty() ? "" : "." + extension));
 
-                Files.move(partFile.toPath(), cachedFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(partFile.toPath(), cachedFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException e) {
+                    Files.move(partFile.toPath(), cachedFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
                 ClientCacheManager.recordAccess(cachedFile);
                 ClientCacheManager.enforceBudget(CACHE_DIR);
 
@@ -789,7 +813,8 @@ public class ClientAudioPlayer {
                     for (Map.Entry<String, PlayRequest> entry : requestsByNetwork.entrySet()) {
                         String netKey = entry.getKey();
                         PlayRequest req = entry.getValue();
-                        playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.startPositionSeconds, req.isLooping);
+                        boolean liveLooping = ClientSpeakerRegistry.getLooping(netKey, req.isLooping);
+                        playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.startPositionSeconds, liveLooping);
                     }
                 }
             } catch (IOException e) {

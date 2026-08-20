@@ -38,7 +38,8 @@ public final class ClientCacheManager {
     }
 
     public static void enforceBudget(File cacheDir) {
-        enforceCacheLimit(cacheDir, DEFAULT_MAX_CACHE_BYTES);
+        long limit = com.nstut.simplyspeakers.Config.clientCacheLimitBytes;
+        enforceCacheLimit(cacheDir, limit > 0 ? limit : DEFAULT_MAX_CACHE_BYTES);
     }
 
     /**

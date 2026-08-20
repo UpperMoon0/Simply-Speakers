@@ -65,9 +65,11 @@ public class Config {
         localDisableUpload = disableUp;
         localMaxUploadSize = Math.max(MIN_UPLOAD_SIZE, Math.min(MAX_UPLOAD_SIZE, maxUpSize));
 
-        speakerRange = localSpeakerRange;
-        disableUpload = localDisableUpload;
-        maxUploadSize = localMaxUploadSize;
+        if (!isRemoteServerActive) {
+            speakerRange = localSpeakerRange;
+            disableUpload = localDisableUpload;
+            maxUploadSize = localMaxUploadSize;
+        }
     }
 
     /**

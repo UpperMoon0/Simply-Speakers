@@ -100,11 +100,6 @@ public class PacketRegistries {
                 PlayAudioPacketS2C::new,
                 PlayAudioPacketS2C::handle
         );
-        CHANNEL.register(SpeakerBlockEntityPacketS2C.class,
-                SpeakerBlockEntityPacketS2C::encode,
-                SpeakerBlockEntityPacketS2C::new,
-                SpeakerBlockEntityPacketS2C::handle
-        );
         CHANNEL.register(RespondUploadAudioPacketS2C.class,
                 RespondUploadAudioPacketS2C::encode,
                 RespondUploadAudioPacketS2C::new,

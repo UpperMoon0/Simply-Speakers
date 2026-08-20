@@ -73,7 +73,27 @@ public class AudioFileManager {
             Map<String, AudioFileMetadata> loadedManifest = GSON.fromJson(reader, type);
             if (loadedManifest != null) {
                 manifest.clear();
-                manifest.putAll(loadedManifest);
+                boolean manifestModified = false;
+                for (Map.Entry<String, AudioFileMetadata> entry : loadedManifest.entrySet()) {
+                    AudioFileMetadata meta = entry.getValue();
+                    if (meta != null && meta.getDurationSeconds() <= 0.0f) {
+                        String extension = FilenameUtils.getExtension(meta.getOriginalFilename());
+                        Path filePath = audioDirPath.resolve(meta.getUuid() + (extension.isEmpty() ? "" : "." + extension));
+                        if (Files.exists(filePath)) {
+                            float duration = AudioDurationCalculator.calculateDurationSeconds(filePath);
+                            if (duration > 0.0f) {
+                                meta = meta.withDuration(duration);
+                                manifestModified = true;
+                            }
+                        }
+                    }
+                    if (meta != null) {
+                        manifest.put(entry.getKey(), meta);
+                    }
+                }
+                if (manifestModified) {
+                    saveManifest();
+                }
             }
         } catch (Exception e) {
             SimplySpeakers.LOGGER.error("Failed to load audio manifest, quarantining corrupt manifest", e);
@@ -155,8 +175,16 @@ public class AudioFileManager {
             return;
         }
 
-        if (fileSize > Config.maxUploadSize) {
-            NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File exceeds maximum allowed upload size.")));
+        if (fileSize <= 0 || fileSize > Config.maxUploadSize || fileSize > Config.MAX_FILE_SIZE) {
+            NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File size is invalid or exceeds maximum allowed upload size.")));
+            return;
+        }
+
+        String playerUUID = player.getUUID().toString();
+        boolean alreadyUploading = activeUploads.values().stream()
+                .anyMatch(s -> playerUUID.equals(s.ownerUUID));
+        if (alreadyUploading) {
+            NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("You already have an active upload in progress.")));
             return;
         }
 
@@ -185,6 +213,11 @@ public class AudioFileManager {
         UploadSession session = activeUploads.get(transactionId);
         if (session == null) {
             SimplySpeakers.LOGGER.warn("Received upload data for unknown/expired transaction ID: {}", transactionId);
+            return;
+        }
+
+        if (!session.ownerUUID.equals(player.getUUID().toString())) {
+            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: player mismatch", transactionId);
             return;
         }
 
@@ -222,7 +255,11 @@ public class AudioFileManager {
             String extension = FilenameUtils.getExtension(session.fileName);
             Path finalPath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
 
-            Files.move(session.tempFilePath, finalPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(session.tempFilePath, finalPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                Files.move(session.tempFilePath, finalPath, StandardCopyOption.REPLACE_EXISTING);
+            }
             float durationSeconds = AudioDurationCalculator.calculateDurationSeconds(finalPath);
 
             UploadSession state = session;

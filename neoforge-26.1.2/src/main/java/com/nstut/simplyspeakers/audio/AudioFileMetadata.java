@@ -39,6 +39,10 @@ public class AudioFileMetadata {
         return durationSeconds;
     }
 
+    public AudioFileMetadata withDuration(float newDurationSeconds) {
+        return new AudioFileMetadata(this.uuid, this.originalFilename, this.ownerUUID, newDurationSeconds);
+    }
+
     public void encode(FriendlyByteBuf buf) {
         buf.writeUtf(uuid);
         buf.writeUtf(originalFilename);
@@ -57,4 +61,3 @@ public class AudioFileMetadata {
         return new AudioFileMetadata(uuid, originalFilename, ownerUUID, durationSeconds);
     }
 }
-

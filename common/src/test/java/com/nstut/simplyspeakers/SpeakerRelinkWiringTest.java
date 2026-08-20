@@ -14,13 +14,14 @@ class SpeakerRelinkWiringTest {
     void minecraft1211MovesStateAndStopsOldPlaybackWhenIdChanges() throws IOException {
         Path root = findProjectRoot();
         String registry = Files.readString(root.resolve(
-                "common-1.21.1/src/main/java/com/nstut/simplyspeakers/SpeakerRegistry.java"));
+                "common-1.21.1/src/main/java/com/nstut/simplyspeakers/speakers/ServerSpeakerRegistry.java"));
         String speaker = Files.readString(root.resolve(
                 "common-1.21.1/src/main/java/com/nstut/simplyspeakers/blocks/entities/SpeakerBlockEntity.java"));
 
         assertTrue(registry.contains("SpeakerStateRelinker.stateForNewId"),
                 "1.21.1 registry must transfer state when a main speaker ID changes");
-        assertTrue(speaker.indexOf("stopAudio();") < speaker.indexOf("SpeakerRegistry.updateSpeakerId"),
+        assertTrue(speaker.indexOf("stopAudio();") < speaker.indexOf("SpeakerRegistry.updateSpeakerId")
+                        || speaker.indexOf("stopAudio();") < speaker.indexOf("ServerSpeakerRegistry.updateSpeakerKey"),
                 "old-position audio must stop before changing the registry ID");
         assertTrue(speaker.contains("if (resumePlayback)"),
                 "a playing speaker must resume under its new ID");

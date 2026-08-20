@@ -1,11 +1,11 @@
 package com.nstut.fabric.simplyspeakers;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.fabric.simplyspeakers.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -35,17 +35,21 @@ public class SimplySpeakersFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             Path worldSavePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
             SimplySpeakers.initializeAudio(worldSavePath);
-            SpeakerRegistry.init(worldSavePath);
+            ServerSpeakerRegistry.init(worldSavePath);
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            SpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.saveRegistry();
+        });
+
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            ServerSpeakerRegistry.resetForWorld();
         });
 
         // Add periodic saving every 6000 ticks (5 minutes)
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (server.getTickCount() % 6000 == 0) {
-                SpeakerRegistry.saveRegistry();
+                ServerSpeakerRegistry.saveRegistry();
             }
         });
     }
