@@ -1,9 +1,9 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SpeakerLink;
-import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
+import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
@@ -58,26 +58,22 @@ public class SpeakerStateUpdatePacketS2C {
     }
     
     private static void handleSpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
-        if (!SpeakerLink.isLinkableId(pkt.speakerId)) {
-            return;
-        }
-        
-        ClientAudioPlayer.setLooping("net_" + pkt.speakerId.trim(), pkt.isLooping);
+        String netKey = SpeakerLink.isLinkableId(pkt.speakerId) ? "net_" + pkt.speakerId.trim() : pkt.speakerId;
+        ClientAudioPlayer.setLooping(netKey, pkt.isLooping);
 
-        SpeakerState state = SpeakerRegistry.getOrCreateSpeakerState(pkt.speakerId);
-        if (state != null) {
-            state.setAudioId(pkt.audioId);
-            state.setAudioFilename(pkt.audioFilename);
-            state.setPlaybackStartTick(pkt.playbackStartTick);
-            state.setLooping(pkt.isLooping);
-            
-            if ("play".equals(pkt.action)) {
-                state.setPlaying(true);
-            } else if ("stop".equals(pkt.action)) {
-                state.setPlaying(false);
-                state.setPlaybackStartTick(-1);
-            }
+        SpeakerState state = ClientSpeakerRegistry.getOrCreateState(netKey);
+        state.setAudioId(pkt.audioId);
+        state.setAudioFilename(pkt.audioFilename);
+        state.setPlaybackStartTick(pkt.playbackStartTick);
+        state.setLooping(pkt.isLooping);
+        
+        if ("play".equals(pkt.action)) {
+            state.setPlaying(true);
+        } else if ("stop".equals(pkt.action)) {
+            state.setPlaying(false);
+            state.setPlaybackStartTick(-1);
         }
+        ClientSpeakerRegistry.updateState(netKey, state);
     }
     
     // Getters

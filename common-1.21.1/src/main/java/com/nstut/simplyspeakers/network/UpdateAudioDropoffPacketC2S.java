@@ -30,24 +30,24 @@ public class UpdateAudioDropoffPacketC2S implements CustomPacketPayload {
 
     public static void encode(RegistryFriendlyByteBuf buffer, UpdateAudioDropoffPacketC2S packet) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeFloat(packet.audioDropoff);
+        buffer.writeFloat(com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(packet.audioDropoff, 1.0f));
     }
 
     public static UpdateAudioDropoffPacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new UpdateAudioDropoffPacketC2S(buffer.readBlockPos(), buffer.readFloat());
+        return new UpdateAudioDropoffPacketC2S(buffer.readBlockPos(), com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(buffer.readFloat(), 1.0f));
     }
 
     public static void handle(UpdateAudioDropoffPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.serverLevel();
-                if (level.isLoaded(packet.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(packet.pos);
-                    if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        speakerEntity.setAudioDropoff(packet.audioDropoff);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
+                return;
+            }
+
+            ServerLevel level = player.serverLevel();
+            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
+                speakerEntity.setAudioDropoff(packet.audioDropoff);
             }
         });
     }

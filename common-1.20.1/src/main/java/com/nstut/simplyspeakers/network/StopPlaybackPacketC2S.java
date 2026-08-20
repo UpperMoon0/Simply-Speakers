@@ -28,6 +28,10 @@ public class StopPlaybackPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+                return;
+            }
+
             ServerLevel level = player.serverLevel();
             if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.stopAudio();

@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
+import com.nstut.simplyspeakers.math.AudioMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
@@ -22,26 +23,26 @@ public class UpdateProxyMaxVolumePacketC2S {
 
     public UpdateProxyMaxVolumePacketC2S(FriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
-        this.maxVolume = buf.readFloat();
+        this.maxVolume = AudioMath.sanitizeFloat(buf.readFloat(), 1.0f);
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
-        buf.writeFloat(this.maxVolume);
+        buf.writeFloat(AudioMath.sanitizeFloat(this.maxVolume, 1.0f));
     }
 
     public static void handle(UpdateProxyMaxVolumePacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.serverLevel();
-                if (level.isLoaded(pkt.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
-                    if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
-                        proxySpeakerEntity.setMaxVolume(pkt.maxVolume);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) {
+                return;
+            }
+
+            ServerLevel level = player.serverLevel();
+            BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
+                proxySpeakerEntity.setMaxVolume(pkt.maxVolume);
             }
         });
     }

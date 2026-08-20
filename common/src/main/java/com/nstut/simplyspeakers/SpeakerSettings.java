@@ -1,5 +1,7 @@
 package com.nstut.simplyspeakers;
 
+import com.nstut.simplyspeakers.math.AudioMath;
+
 /** Shared codec-neutral representation of settings persisted by every version module. */
 public record SpeakerSettings(float maxVolume, int maxRange, float audioDropoff) {
     public static final String MAX_VOLUME_KEY = "MaxVolume";
@@ -7,9 +9,9 @@ public record SpeakerSettings(float maxVolume, int maxRange, float audioDropoff)
     public static final String AUDIO_DROPOFF_KEY = "AudioDropoff";
 
     public SpeakerSettings {
-        maxVolume = Math.max(0.0f, Math.min(1.0f, maxVolume));
-        maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange));
-        audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff));
+        maxVolume = AudioMath.sanitizeFloat(maxVolume, 0.0f, 1.0f, 1.0f);
+        maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange));
+        audioDropoff = AudioMath.sanitizeFloat(audioDropoff, 0.0f, 1.0f, 1.0f);
     }
 
     public static SpeakerSettings from(SpeakerState state) {

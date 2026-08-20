@@ -67,26 +67,22 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
     }
     
     private static void handleSpeakerStateUpdate(SpeakerStateUpdatePacketS2C packet) {
-        if (!SpeakerLink.isLinkableId(packet.speakerId)) {
-            return;
-        }
-        
-        com.nstut.simplyspeakers.client.ClientAudioPlayer.setLooping("net_" + packet.speakerId.trim(), packet.isLooping);
+        String netKey = SpeakerLink.isLinkableId(packet.speakerId) ? "net_" + packet.speakerId.trim() : packet.speakerId;
+        com.nstut.simplyspeakers.client.ClientAudioPlayer.setLooping(netKey, packet.isLooping);
 
-        SpeakerState state = SpeakerRegistry.getOrCreateSpeakerState(packet.speakerId);
-        if (state != null) {
-            state.setAudioId(packet.audioId);
-            state.setAudioFilename(packet.audioFilename);
-            state.setPlaybackStartTick(packet.playbackStartTick);
-            state.setLooping(packet.isLooping);
-            
-            if ("play".equals(packet.action)) {
-                state.setPlaying(true);
-            } else if ("stop".equals(packet.action)) {
-                state.setPlaying(false);
-                state.setPlaybackStartTick(-1);
-            }
+        SpeakerState state = com.nstut.simplyspeakers.client.ClientSpeakerRegistry.getOrCreateState(netKey);
+        state.setAudioId(packet.audioId);
+        state.setAudioFilename(packet.audioFilename);
+        state.setPlaybackStartTick(packet.playbackStartTick);
+        state.setLooping(packet.isLooping);
+        
+        if ("play".equals(packet.action)) {
+            state.setPlaying(true);
+        } else if ("stop".equals(packet.action)) {
+            state.setPlaying(false);
+            state.setPlaybackStartTick(-1);
         }
+        com.nstut.simplyspeakers.client.ClientSpeakerRegistry.updateState(netKey, state);
     }
     
     // Getters

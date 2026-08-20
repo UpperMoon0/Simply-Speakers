@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
+import com.nstut.simplyspeakers.math.AudioMath;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerLevel;
@@ -22,26 +23,26 @@ public class UpdateProxyAudioDropoffPacketC2S {
 
     public UpdateProxyAudioDropoffPacketC2S(FriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
-        this.audioDropoff = buf.readFloat();
+        this.audioDropoff = AudioMath.sanitizeFloat(buf.readFloat(), 1.0f);
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
-        buf.writeFloat(this.audioDropoff);
+        buf.writeFloat(AudioMath.sanitizeFloat(this.audioDropoff, 1.0f));
     }
 
     public static void handle(UpdateProxyAudioDropoffPacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.serverLevel();
-                if (level.isLoaded(pkt.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
-                    if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
-                        proxySpeakerEntity.setAudioDropoff(pkt.audioDropoff);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) {
+                return;
+            }
+
+            ServerLevel level = player.serverLevel();
+            BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
+                proxySpeakerEntity.setAudioDropoff(pkt.audioDropoff);
             }
         });
     }

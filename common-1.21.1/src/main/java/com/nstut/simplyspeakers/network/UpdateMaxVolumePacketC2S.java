@@ -30,26 +30,24 @@ public class UpdateMaxVolumePacketC2S implements CustomPacketPayload {
 
     public static void encode(RegistryFriendlyByteBuf buffer, UpdateMaxVolumePacketC2S packet) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeFloat(packet.maxVolume);
+        buffer.writeFloat(com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(packet.maxVolume, 1.0f));
     }
 
     public static UpdateMaxVolumePacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new UpdateMaxVolumePacketC2S(buffer.readBlockPos(), buffer.readFloat());
+        return new UpdateMaxVolumePacketC2S(buffer.readBlockPos(), com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(buffer.readFloat(), 1.0f));
     }
 
     public static void handle(UpdateMaxVolumePacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.serverLevel();
-                if (level.isLoaded(packet.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(packet.pos);
-                    if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        com.nstut.simplyspeakers.SimplySpeakers.LOGGER.debug("[C2S] UpdateMaxVolumePacket received - pos: {}, maxVolume: {}, speakerId: '{}'", 
-                            packet.pos, packet.maxVolume, speakerEntity.getSpeakerId());
-                        speakerEntity.setMaxVolume(packet.maxVolume);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
+                return;
+            }
+
+            ServerLevel level = player.serverLevel();
+            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
+                speakerEntity.setMaxVolume(packet.maxVolume);
             }
         });
     }

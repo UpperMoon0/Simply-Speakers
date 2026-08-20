@@ -5,29 +5,29 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
-import org.apache.commons.io.FilenameUtils;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Reader;
 import com.nstut.simplyspeakers.network.AcknowledgeUploadPacketS2C;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.RespondUploadAudioPacketS2C;
 import com.nstut.simplyspeakers.network.SendAudioFilePacketS2C;
 import com.nstut.simplyspeakers.network.SendAudioListPacketS2C;
+import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import org.apache.commons.io.FilenameUtils;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.Reader;
 import java.io.Writer;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,15 +38,19 @@ public class AudioFileManager {
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
     private static final int MAX_CHUNK_SIZE = 32000;
-    private static final Map<UUID, UploadState> activeUploads = new ConcurrentHashMap<>();
+    private static final int MAX_CONCURRENT_UPLOADS = 5;
+    private static final long UPLOAD_TIMEOUT_MS = 60_000L;
+
+    private static final Map<UUID, UploadSession> activeUploads = new ConcurrentHashMap<>();
     private static final TransferRequestCoordinator<String> activeDownloads =
             new TransferRequestCoordinator<>(Duration.ofSeconds(30));
     private static final ExecutorService AUDIO_FILE_EXECUTOR =
             ChunkedFileTransfer.newDaemonFixedThreadPool(2, "Simply Speakers Audio File");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+
     private final Path audioDirPath;
     private final Path manifestPath;
-    private final Map<String, AudioFileMetadata> manifest = new HashMap<>();
+    private final Map<String, AudioFileMetadata> manifest = new ConcurrentHashMap<>();
 
     public AudioFileManager(Path worldSavePath) {
         this.audioDirPath = worldSavePath.resolve(AUDIO_DIR_NAME);
@@ -59,32 +63,44 @@ public class AudioFileManager {
         }
     }
 
-    private void loadManifest() {
+    private synchronized void loadManifest() {
         if (!Files.exists(manifestPath)) {
             return;
         }
 
         try (Reader reader = Files.newBufferedReader(manifestPath)) {
-            Type type = new TypeToken<Map<String, AudioFileMetadata>>() {
-            }.getType();
+            Type type = new TypeToken<Map<String, AudioFileMetadata>>() {}.getType();
             Map<String, AudioFileMetadata> loadedManifest = GSON.fromJson(reader, type);
             if (loadedManifest != null) {
+                manifest.clear();
                 manifest.putAll(loadedManifest);
             }
-        } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed to load audio manifest", e);
+        } catch (Exception e) {
+            SimplySpeakers.LOGGER.error("Failed to load audio manifest, quarantining corrupt manifest", e);
+            try {
+                Path corruptPath = audioDirPath.resolve(MANIFEST_FILE_NAME + ".corrupt." + System.currentTimeMillis());
+                Files.move(manifestPath, corruptPath, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ignored) {}
         }
     }
 
-    private void saveManifest() {
-        try (Writer writer = Files.newBufferedWriter(manifestPath)) {
-            GSON.toJson(manifest, writer);
+    private synchronized void saveManifest() {
+        Path tmpPath = audioDirPath.resolve(MANIFEST_FILE_NAME + ".tmp");
+        try {
+            try (Writer writer = Files.newBufferedWriter(tmpPath)) {
+                GSON.toJson(manifest, writer);
+            }
+            Files.move(tmpPath, manifestPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to save audio manifest", e);
+            try {
+                Files.deleteIfExists(tmpPath);
+            } catch (IOException ignored) {}
         }
     }
 
     public boolean validateFile(String filename) {
+        if (filename == null) return false;
         String extension = FilenameUtils.getExtension(filename).toLowerCase();
         return extension.equals("mp3") || extension.equals("wav");
     }
@@ -99,8 +115,9 @@ public class AudioFileManager {
         Path filePath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
 
         Files.copy(inputStream, filePath, StandardCopyOption.REPLACE_EXISTING);
+        float durationSeconds = AudioDurationCalculator.calculateDurationSeconds(filePath);
 
-        AudioFileMetadata metadata = new AudioFileMetadata(uuid, originalFilename, ownerUUID);
+        AudioFileMetadata metadata = new AudioFileMetadata(uuid, originalFilename, ownerUUID, durationSeconds);
         manifest.put(uuid, metadata);
         saveManifest();
 
@@ -116,91 +133,114 @@ public class AudioFileManager {
         return audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
     }
 
+    private void cleanStaleUploads() {
+        long now = System.currentTimeMillis();
+        for (Map.Entry<UUID, UploadSession> entry : activeUploads.entrySet()) {
+            if (now - entry.getValue().lastActivityTime > UPLOAD_TIMEOUT_MS) {
+                UploadSession session = activeUploads.remove(entry.getKey());
+                if (session != null) {
+                    session.cleanup();
+                    SimplySpeakers.LOGGER.warn("Timed out stale upload session {}", entry.getKey());
+                }
+            }
+        }
+    }
+
     public void handleUploadRequest(ServerPlayer player, BlockPos blockPos, UUID transactionId, String fileName, long fileSize) {
-        SimplySpeakers.LOGGER.info("Handling upload request for transaction ID: " + transactionId);
+        cleanStaleUploads();
+        SimplySpeakers.LOGGER.debug("Handling upload request for transaction ID: {}", transactionId);
 
         if (Config.disableUpload) {
             PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Audio uploads are disabled on this server.")));
-            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". Audio uploads are disabled.");
             return;
         }
 
         if (fileSize > Config.maxUploadSize) {
-            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File is too large.")));
-            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". File size " + fileSize + " exceeds limit of " + Config.maxUploadSize);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("File exceeds maximum allowed upload size.")));
             return;
         }
 
-        // Validate file extension before approving upload
         if (!validateFile(fileName)) {
             PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Invalid file type. Only MP3 and WAV files are supported.")));
-            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID: " + transactionId + ". Invalid file type: " + fileName);
             return;
         }
 
-        activeUploads.put(transactionId, new UploadState(fileName, fileSize, blockPos, player.getUUID().toString()));
-        PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
-        SimplySpeakers.LOGGER.info("Upload approved for transaction ID: " + transactionId + ". Sent response to client.");
+        if (activeUploads.size() >= MAX_CONCURRENT_UPLOADS) {
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Server is currently busy with other uploads. Please try again shortly.")));
+            return;
+        }
+
+        try {
+            Path tmpPath = audioDirPath.resolve(transactionId.toString() + ".tmp");
+            UploadSession session = new UploadSession(transactionId, fileName, fileSize, blockPos, player.getUUID().toString(), tmpPath);
+            activeUploads.put(transactionId, session);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
+        } catch (IOException e) {
+            SimplySpeakers.LOGGER.error("Failed to initialize upload temporary file", e);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Server failed to create upload session.")));
+        }
     }
 
     public void handleUploadData(ServerPlayer player, UUID transactionId, byte[] data) {
-        UploadState state = activeUploads.get(transactionId);
-        if (state == null) {
-            SimplySpeakers.LOGGER.warn("Received upload data for unknown transaction ID: " + transactionId);
+        UploadSession session = activeUploads.get(transactionId);
+        if (session == null) {
+            SimplySpeakers.LOGGER.warn("Received upload data for unknown/expired transaction ID: {}", transactionId);
             return;
         }
 
-        long newSize = state.receivedSize + data.length;
-        if (data.length > MAX_CHUNK_SIZE || newSize > state.fileSize || newSize > Config.maxUploadSize) {
+        session.lastActivityTime = System.currentTimeMillis();
+        long newSize = session.receivedSize + data.length;
+        if (data.length > MAX_CHUNK_SIZE || newSize > session.declaredFileSize || newSize > Config.maxUploadSize) {
             activeUploads.remove(transactionId);
-            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: chunk size or total size exceeded limit", transactionId);
+            session.cleanup();
+            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: size exceeded limit", transactionId);
             PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Upload exceeded maximum size limits.")));
             return;
         }
 
-        SimplySpeakers.LOGGER.info("Received data chunk for transaction ID: " + transactionId + ". Size: " + data.length);
-        state.addData(data);
+        try {
+            session.appendChunk(data);
+        } catch (IOException e) {
+            activeUploads.remove(transactionId);
+            session.cleanup();
+            SimplySpeakers.LOGGER.error("Failed writing chunk to disk for upload {}", transactionId, e);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Disk write error during upload.")));
+            return;
+        }
 
-        if (state.isComplete()) {
-            SimplySpeakers.LOGGER.info("Upload complete for transaction ID: " + transactionId + ". Saving file.");
+        if (session.isComplete()) {
             activeUploads.remove(transactionId);
             MinecraftServer server = player.getServer();
-            AUDIO_FILE_EXECUTOR.execute(() -> finishUpload(player, server, transactionId, state));
+            AUDIO_FILE_EXECUTOR.execute(() -> finishUpload(player, server, transactionId, session));
         }
     }
 
-    private void finishUpload(ServerPlayer player, MinecraftServer server, UUID transactionId, UploadState state) {
+    private void finishUpload(ServerPlayer player, MinecraftServer server, UUID transactionId, UploadSession session) {
         try {
-            AudioFileMetadata metadata = this.saveUploadedFile(state);
-            SimplySpeakers.LOGGER.info("File saved successfully for transaction ID: " + transactionId + ". Metadata: " + metadata.getUuid());
-            server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), state.getBlockPos())));
-        } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed to save uploaded file for transaction ID: " + transactionId, e);
-            String errorMessage = "Failed to save file on server.";
-            if (e.getMessage() != null && e.getMessage().startsWith("Invalid file type")) {
-                errorMessage = "Invalid file type. Only MP3 and WAV files are supported.";
+            session.close();
+            String uuid = UUID.randomUUID().toString();
+            String extension = FilenameUtils.getExtension(session.fileName);
+            Path finalPath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
+
+            Files.move(session.tempFilePath, finalPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            float durationSeconds = AudioDurationCalculator.calculateDurationSeconds(finalPath);
+
+            UploadSession state = session;
+            AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName, state.ownerUUID, durationSeconds);
+            manifest.put(uuid, metadata);
+            saveManifest();
+
+            SimplySpeakers.LOGGER.info("Upload completed for transaction {}. Saved as {} (duration: {}s)", transactionId, uuid, durationSeconds);
+            if (server != null) {
+                server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), session.blockPos)));
             }
-            String finalErrorMessage = errorMessage;
-            server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal(finalErrorMessage), state.getBlockPos())));
+        } catch (Exception e) {
+            session.cleanup();
+            SimplySpeakers.LOGGER.error("Failed to complete upload for transaction {}", transactionId, e);
+            if (server != null) {
+                server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Failed to save uploaded file on server."), session.blockPos)));
+            }
         }
-    }
-
-    private AudioFileMetadata saveUploadedFile(UploadState state) throws IOException {
-        if (!validateFile(state.fileName)) {
-            throw new IOException("Invalid file type: " + state.fileName);
-        }
-
-        String uuid = UUID.randomUUID().toString();
-        String extension = FilenameUtils.getExtension(state.fileName);
-        Path filePath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
-
-        ChunkedFileTransfer.writeChunks(filePath, state.chunks);
-
-        AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName, state.ownerUUID);
-        manifest.put(uuid, metadata);
-        saveManifest();
-
-        return metadata;
     }
 
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
@@ -231,6 +271,17 @@ public class AudioFileManager {
 
         manifest.remove(audioId);
         saveManifest();
+
+        // Cascade delete: stop & clear any active speaker states referencing this audio
+        Map<String, com.nstut.simplyspeakers.SpeakerState> states = ServerSpeakerRegistry.findStatesWithAudioId(audioId);
+        for (com.nstut.simplyspeakers.SpeakerState state : states.values()) {
+            state.setAudioId("");
+            state.setAudioFilename("");
+            state.setPlaying(false);
+            state.setPlaybackStartTick(-1);
+        }
+        ServerSpeakerRegistry.saveRegistry();
+
         return true;
     }
 
@@ -254,51 +305,73 @@ public class AudioFileManager {
     private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath, String transferKey) {
         try {
             long fileSize = Files.size(filePath);
-            if (fileSize > Config.maxUploadSize) {
+            if (fileSize > Config.MAX_FILE_SIZE) {
                 activeDownloads.release(transferKey);
-                SimplySpeakers.LOGGER.warn("Refusing to send audio {} because it is {} bytes, over the configured limit of {} bytes", audioId, fileSize, Config.maxUploadSize);
+                SimplySpeakers.LOGGER.warn("Refusing to send audio {} because it is {} bytes, over hard limit", audioId, fileSize);
                 return;
             }
 
-            ChunkedFileTransfer.streamFile(filePath, MAX_CHUNK_SIZE, (chunk, isLast) -> {
-                server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast)));
+            ChunkedFileTransfer.streamFilePaced(filePath, MAX_CHUNK_SIZE, 5L, (chunk, isLast) -> {
+                if (server != null) {
+                    server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, isLast)));
+                }
+                if (isLast) {
+                    activeDownloads.release(transferKey);
+                }
             });
         } catch (IOException e) {
             activeDownloads.release(transferKey);
-            SimplySpeakers.LOGGER.error("Failed to read audio file for sending", e);
+            SimplySpeakers.LOGGER.error("Failed to stream audio file for download", e);
         }
     }
 
     public Map<String, AudioFileMetadata> getManifest() {
-        return manifest;
+        return Collections.unmodifiableMap(manifest);
     }
 
-    private static class UploadState {
+    private static class UploadSession {
+        private final UUID transactionId;
         private final String fileName;
-        private final long fileSize;
+        private final long declaredFileSize;
         private final BlockPos blockPos;
         private final String ownerUUID;
-        private final List<byte[]> chunks = new ArrayList<>();
+        private final Path tempFilePath;
+        private final OutputStream outputStream;
         private long receivedSize = 0;
+        private volatile long lastActivityTime;
 
-        public UploadState(String fileName, long fileSize, BlockPos blockPos, String ownerUUID) {
+        public UploadSession(UUID transactionId, String fileName, long declaredFileSize, BlockPos blockPos, String ownerUUID, Path tempFilePath) throws IOException {
+            this.transactionId = transactionId;
             this.fileName = fileName;
-            this.fileSize = fileSize;
+            this.declaredFileSize = declaredFileSize;
             this.blockPos = blockPos;
             this.ownerUUID = ownerUUID;
+            this.tempFilePath = tempFilePath;
+            this.outputStream = Files.newOutputStream(tempFilePath);
+            this.lastActivityTime = System.currentTimeMillis();
         }
 
-        public void addData(byte[] data) {
-            chunks.add(data);
+        public synchronized void appendChunk(byte[] data) throws IOException {
+            outputStream.write(data);
             receivedSize += data.length;
         }
 
         public boolean isComplete() {
-            return receivedSize >= fileSize;
+            return receivedSize >= declaredFileSize;
         }
 
-        public BlockPos getBlockPos() {
-            return blockPos;
+        public synchronized void close() throws IOException {
+            outputStream.flush();
+            outputStream.close();
+        }
+
+        public synchronized void cleanup() {
+            try {
+                outputStream.close();
+            } catch (IOException ignored) {}
+            try {
+                Files.deleteIfExists(tempFilePath);
+            } catch (IOException ignored) {}
         }
     }
 }

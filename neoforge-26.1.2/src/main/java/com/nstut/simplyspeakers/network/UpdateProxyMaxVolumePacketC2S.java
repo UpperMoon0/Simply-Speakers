@@ -9,8 +9,8 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class UpdateProxyMaxVolumePacketC2S implements CustomPacketPayload {
@@ -31,24 +31,24 @@ public class UpdateProxyMaxVolumePacketC2S implements CustomPacketPayload {
 
     public static void encode(RegistryFriendlyByteBuf buffer, UpdateProxyMaxVolumePacketC2S packet) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeFloat(packet.maxVolume);
+        buffer.writeFloat(com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(packet.maxVolume, 1.0f));
     }
 
     public static UpdateProxyMaxVolumePacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new UpdateProxyMaxVolumePacketC2S(buffer.readBlockPos(), buffer.readFloat());
+        return new UpdateProxyMaxVolumePacketC2S(buffer.readBlockPos(), com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(buffer.readFloat(), 1.0f));
     }
 
     public static void handle(UpdateProxyMaxVolumePacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.level();
-                if (level.isLoaded(packet.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(packet.pos);
-                    if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
-                        proxySpeakerEntity.setMaxVolume(packet.maxVolume);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
+                return;
+            }
+
+            Level level = player.level();
+            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
+                proxySpeakerEntity.setMaxVolume(packet.maxVolume);
             }
         });
     }

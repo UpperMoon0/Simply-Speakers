@@ -9,8 +9,8 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class UpdateProxyMaxRangePacketC2S implements CustomPacketPayload {
@@ -31,24 +31,24 @@ public class UpdateProxyMaxRangePacketC2S implements CustomPacketPayload {
 
     public static void encode(RegistryFriendlyByteBuf buffer, UpdateProxyMaxRangePacketC2S packet) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeInt(packet.maxRange);
+        buffer.writeInt(Math.max(1, Math.min(com.nstut.simplyspeakers.Config.speakerRange, packet.maxRange)));
     }
 
     public static UpdateProxyMaxRangePacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new UpdateProxyMaxRangePacketC2S(buffer.readBlockPos(), buffer.readInt());
+        return new UpdateProxyMaxRangePacketC2S(buffer.readBlockPos(), Math.max(1, Math.min(com.nstut.simplyspeakers.Config.speakerRange, buffer.readInt())));
     }
 
     public static void handle(UpdateProxyMaxRangePacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.level();
-                if (level.isLoaded(packet.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(packet.pos);
-                    if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
-                        proxySpeakerEntity.setMaxRange(packet.maxRange);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
+                return;
+            }
+
+            Level level = player.level();
+            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
+                proxySpeakerEntity.setMaxRange(packet.maxRange);
             }
         });
     }

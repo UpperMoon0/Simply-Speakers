@@ -11,16 +11,6 @@ public class PacketRegistries {
 
     public static void registerC2S() {
         // Client to Server packets
-        CHANNEL.register(LoadAudioCallPacketC2S.class,
-                LoadAudioCallPacketC2S::encode,
-                LoadAudioCallPacketC2S::new,
-                LoadAudioCallPacketC2S::handle
-        );
-        CHANNEL.register(AudioPathPacketC2S.class,
-                AudioPathPacketC2S::encode,
-                AudioPathPacketC2S::new,
-                AudioPathPacketC2S::handle
-        );
         CHANNEL.register(ToggleLoopPacketC2S.class,
                 ToggleLoopPacketC2S::encode,
                 ToggleLoopPacketC2S::new,

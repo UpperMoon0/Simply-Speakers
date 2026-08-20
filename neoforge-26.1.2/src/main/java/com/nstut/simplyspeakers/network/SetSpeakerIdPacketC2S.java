@@ -9,8 +9,8 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
 public class SetSpeakerIdPacketC2S implements CustomPacketPayload {
 
@@ -40,7 +40,11 @@ public class SetSpeakerIdPacketC2S implements CustomPacketPayload {
     public static void handle(SetSpeakerIdPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            ServerLevel level = player.level();
+            if (!SpeakerPacketSecurity.canModify(player, packet.blockPos)) {
+                return;
+            }
+
+            Level level = player.level();
             // Handle both speaker block entity types
             if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.setSpeakerId(packet.speakerId);

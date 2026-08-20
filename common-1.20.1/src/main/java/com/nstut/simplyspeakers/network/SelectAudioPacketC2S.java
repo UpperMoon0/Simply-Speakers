@@ -1,5 +1,9 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.audio.AudioOwnership;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -12,33 +16,51 @@ import java.util.function.Supplier;
 public class SelectAudioPacketC2S {
     private final BlockPos blockPos;
     private final String audioId;
-    private final String filename;
 
-    public SelectAudioPacketC2S(BlockPos blockPos, String audioId, String filename) {
+    public SelectAudioPacketC2S(BlockPos blockPos, String audioId) {
         this.blockPos = blockPos;
-        this.audioId = audioId;
-        this.filename = filename;
+        this.audioId = audioId != null ? audioId : "";
+    }
+
+    public SelectAudioPacketC2S(BlockPos blockPos, String audioId, String ignoredFilename) {
+        this(blockPos, audioId);
     }
 
     public SelectAudioPacketC2S(FriendlyByteBuf buf) {
         this.blockPos = buf.readBlockPos();
         this.audioId = buf.readUtf();
-        this.filename = buf.readUtf();
+        if (buf.readableBytes() > 0) {
+            buf.readUtf(); // consume legacy filename field if present
+        }
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(blockPos);
         buf.writeUtf(audioId);
-        buf.writeUtf(filename);
     }
 
     public static void handle(SelectAudioPacketC2S pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+                return;
+            }
+
             ServerLevel level = player.serverLevel();
             if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
-                speaker.setSelectedAudio(pkt.audioId, pkt.filename);
+                if (pkt.audioId.isEmpty()) {
+                    speaker.setSelectedAudio("", "");
+                    return;
+                }
+
+                AudioFileManager manager = SimplySpeakers.getAudioFileManager();
+                if (manager != null) {
+                    AudioFileMetadata meta = manager.getManifest().get(pkt.audioId);
+                    if (meta != null && AudioOwnership.isOwnedBy(meta.getOwnerUUID(), player.getUUID().toString())) {
+                        speaker.setSelectedAudio(meta.getUuid(), meta.getOriginalFilename());
+                    }
+                }
             }
         });
     }

@@ -6,23 +6,23 @@ import java.util.UUID;
 
 /** Shared, low-noise logging policy for chunked uploads on every game version. */
 public final class UploadProgressLogger {
-    private static final int LOG_INTERVAL_BYTES = 1024 * 1024;
+    private static final long LOG_INTERVAL_BYTES = 1024L * 1024L;
 
     private UploadProgressLogger() {
     }
 
-    public static void logStart(Logger logger, UUID transactionId, int totalBytes) {
+    public static void logStart(Logger logger, UUID transactionId, long totalBytes) {
         if (logger.isDebugEnabled()) {
             logger.debug("Starting audio upload {} ({} bytes)", transactionId, totalBytes);
         }
     }
 
-    public static void logChunk(Logger logger, UUID transactionId, int offset, int length, int totalBytes) {
+    public static void logChunk(Logger logger, UUID transactionId, long offset, int length, long totalBytes) {
         if (!logger.isDebugEnabled()) {
             return;
         }
 
-        int uploadedBytes = offset + length;
+        long uploadedBytes = offset + length;
         if (shouldLogChunk(offset, length, totalBytes)) {
             int percent = totalBytes == 0 ? 100 : (int) Math.min(100L, uploadedBytes * 100L / totalBytes);
             logger.debug("Audio upload {}: {}% ({}/{} bytes)",
@@ -30,8 +30,8 @@ public final class UploadProgressLogger {
         }
     }
 
-    static boolean shouldLogChunk(int offset, int length, int totalBytes) {
-        int uploadedBytes = offset + length;
+    static boolean shouldLogChunk(long offset, int length, long totalBytes) {
+        long uploadedBytes = offset + length;
         return offset == 0
                 || uploadedBytes >= totalBytes
                 || offset / LOG_INTERVAL_BYTES != uploadedBytes / LOG_INTERVAL_BYTES;
