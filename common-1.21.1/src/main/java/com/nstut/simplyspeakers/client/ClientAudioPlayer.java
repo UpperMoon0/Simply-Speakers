@@ -59,12 +59,14 @@ public class ClientAudioPlayer {
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
+    private static final int MISSING_BLOCK_ENTITY_GRACE_TICKS = 40;
 
     private static class EmitterData {
         final BlockPos localPosition;
         volatile int maxRange;
         volatile float maxVolume;
         volatile float audioDropoff;
+        int missingBlockEntityTicks;
 
         EmitterData(BlockPos localPosition, int maxRange, float maxVolume, float audioDropoff) {
             this.localPosition = localPosition.immutable();
@@ -534,26 +536,17 @@ public class ClientAudioPlayer {
         }
     }
 
-    public static void updateSpeakerVolumes() {
+    /** Refreshes block-entity-backed settings and membership at client tick rate. */
+    public static void updateEmitterState() {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null || mc.level == null) {
             return;
         }
-        if (networkResources.isEmpty()) {
-            return;
-        }
-
-        Vec3 listenerPosition = mc.gameRenderer.getMainCamera().getPosition();
-        float masterVolume = mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER);
-        float recordVolume = mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.RECORDS);
 
         for (Map.Entry<String, StreamingAudioResource> entry : new ArrayList<>(networkResources.entrySet())) {
             String networkKey = entry.getKey();
             StreamingAudioResource resource = entry.getValue();
-
-            if (resource == null || resource.stopFlag.get()) {
-                continue;
-            }
+            if (resource == null || resource.stopFlag.get()) continue;
 
             Set<BlockPos> positions = networkToPositions.get(networkKey);
             if (positions == null || positions.isEmpty()) {
@@ -562,42 +555,29 @@ public class ClientAudioPlayer {
                 continue;
             }
 
-            List<SpatialAudioCalculator.SpeakerEmitter> emitters = new ArrayList<>();
             List<BlockPos> deadPositions = new ArrayList<>();
 
             for (BlockPos speakerPos : positions) {
+                EmitterData data = cachedEmitters.get(speakerPos);
                 if (mc.level.hasChunkAt(speakerPos)) {
                     net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
                     if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
-                        EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
+                        data = cachedEmitters.computeIfAbsent(speakerPos, p ->
                                 new EmitterData(p, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = speakerBlockEntity.getMaxVolume();
                         data.maxRange = speakerBlockEntity.getMaxRange();
                         data.audioDropoff = speakerBlockEntity.getAudioDropoff();
+                        data.missingBlockEntityTicks = 0;
                     } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
-                        EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
+                        data = cachedEmitters.computeIfAbsent(speakerPos, p ->
                                 new EmitterData(p, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = proxySpeakerBlockEntity.getMaxVolume();
                         data.maxRange = proxySpeakerBlockEntity.getMaxRange();
                         data.audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
-                    } else {
+                        data.missingBlockEntityTicks = 0;
+                    } else if (data != null && ++data.missingBlockEntityTicks >= MISSING_BLOCK_ENTITY_GRACE_TICKS) {
                         deadPositions.add(speakerPos);
-                        continue;
                     }
-                }
-
-                EmitterData cached = cachedEmitters.get(speakerPos);
-                if (cached != null) {
-                    Vec3 renderPosition = ClientSpeakerSpatialResolver.resolveRender(mc.level, cached.localPosition);
-                    if (renderPosition == null) continue;
-                    emitters.add(new SpatialAudioCalculator.SpeakerEmitter(
-                            renderPosition.x,
-                            renderPosition.y,
-                            renderPosition.z,
-                            cached.maxRange,
-                            cached.maxVolume,
-                            cached.audioDropoff
-                    ));
                 }
             }
 
@@ -606,43 +586,77 @@ public class ClientAudioPlayer {
                 posToNetworkKey.remove(dead);
                 cachedEmitters.remove(dead);
             }
+        }
+    }
 
-            if (emitters.isEmpty()) {
-                if (positions.isEmpty()) {
-                    resource.stopAndCleanup();
-                    networkResources.remove(networkKey);
-                    continue;
-                }
-                mc.tell(() -> {
-                    if (AL10.alIsSource(resource.sourceID)) {
-                        AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, 0.0f);
-                    }
-                });
-                continue;
+    /** Updates only render-pose transforms, blend math, and OpenAL state each world frame. */
+    public static void updateSpatialAudio() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player == null || mc.level == null || networkResources.isEmpty()) return;
+
+        Vec3 listenerPosition = mc.gameRenderer.getMainCamera().getPosition();
+        float masterVolume = mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER);
+        float recordVolume = mc.options.getSoundSourceVolume(net.minecraft.sounds.SoundSource.RECORDS);
+
+        for (Map.Entry<String, StreamingAudioResource> entry : networkResources.entrySet()) {
+            String networkKey = entry.getKey();
+            StreamingAudioResource resource = entry.getValue();
+            if (resource == null || resource.stopFlag.get()) continue;
+
+            Set<BlockPos> positions = networkToPositions.get(networkKey);
+            if (positions == null || positions.isEmpty()) continue;
+
+            double weightedX = 0.0;
+            double weightedY = 0.0;
+            double weightedZ = 0.0;
+            float totalWeight = 0.0f;
+            float maxGain = 0.0f;
+            Vec3 firstResolvedPosition = null;
+
+            for (BlockPos speakerPos : positions) {
+                EmitterData emitter = cachedEmitters.get(speakerPos);
+                if (emitter == null) continue;
+                Vec3 renderPosition = ClientSpeakerSpatialResolver.resolveRender(mc.level, emitter.localPosition);
+                if (renderPosition == null) continue;
+                if (firstResolvedPosition == null) firstResolvedPosition = renderPosition;
+
+                double distance = renderPosition.distanceTo(listenerPosition);
+                float gain = SpatialAudioCalculator.calculateDistanceGain(
+                        distance, emitter.maxRange, emitter.maxVolume, emitter.audioDropoff);
+                if (gain <= 0.0f) continue;
+                weightedX += renderPosition.x * gain;
+                weightedY += renderPosition.y * gain;
+                weightedZ += renderPosition.z * gain;
+                totalWeight += gain;
+                maxGain = Math.max(maxGain, gain);
             }
 
-            SpatialAudioCalculator.VirtualEmitterResult result =
-                    SpatialAudioCalculator.calculateVirtualEmitter(listenerPosition.x, listenerPosition.y, listenerPosition.z, emitters);
-
-            final float finalGain = AudioGain.applyGameVolume(result.maxGain(), masterVolume, recordVolume);
-            final float posX = (float) result.x();
-            final float posY = (float) result.y();
-            final float posZ = (float) result.z();
-
-            mc.tell(() -> {
-                StreamingAudioResource currentResource = networkResources.get(networkKey);
-                if (currentResource != null && currentResource.sourceID == resource.sourceID && !currentResource.stopFlag.get()) {
-                    try {
-                        if (AL10.alIsSource(resource.sourceID)) {
-                            AL10.alSource3f(resource.sourceID, AL10.AL_POSITION, posX, posY, posZ);
-                            AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
-                        }
-                    } catch (Exception e) {
-                        SimplySpeakers.LOGGER.error("Error setting spatial audio for source {}", resource.sourceID, e);
+            float finalGain = AudioGain.applyGameVolume(maxGain, masterVolume, recordVolume);
+            try {
+                if (AL10.alIsSource(resource.sourceID)) {
+                    if (totalWeight > 0.0f) {
+                        AL10.alSource3f(resource.sourceID, AL10.AL_POSITION,
+                                (float) (weightedX / totalWeight),
+                                (float) (weightedY / totalWeight),
+                                (float) (weightedZ / totalWeight));
+                    } else if (firstResolvedPosition != null) {
+                        AL10.alSource3f(resource.sourceID, AL10.AL_POSITION,
+                                (float) firstResolvedPosition.x,
+                                (float) firstResolvedPosition.y,
+                                (float) firstResolvedPosition.z);
                     }
+                    AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
                 }
-            });
+            } catch (Exception e) {
+                SimplySpeakers.LOGGER.error("Error setting spatial audio for source {}", resource.sourceID, e);
+            }
         }
+    }
+
+    /** Retained for packet handlers that need an immediate full refresh. */
+    public static void updateSpeakerVolumes() {
+        updateEmitterState();
+        updateSpatialAudio();
     }
 
     public static UUID startUpload(File file) {

@@ -207,20 +207,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         if (level instanceof ServerLevel serverLevel) {
             StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(worldPosition);
-            for (UUID playerId : new HashSet<>(listeningPlayers)) {
-                ServerPlayer p = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
-                if (p != null) {
-                    NetworkManager.sendToPlayer(p, stopPacket);
-                }
-            }
-
-            int effectiveRange = Math.min(maxRange, Config.speakerRange);
-            double maxRangeSq = (double) effectiveRange * effectiveRange;
-            Vec3 speakerCenterPos = Vec3.atCenterOf(worldPosition);
-            for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
-                if (!listeningPlayers.contains(player.getUUID())) {
-                    NetworkManager.sendToPlayer(player, stopPacket);
-                }
+            for (ServerPlayer player : serverLevel.players()) {
+                NetworkManager.sendToPlayer(player, stopPacket);
             }
         }
         listeningPlayers.clear();

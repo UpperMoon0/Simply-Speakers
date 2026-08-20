@@ -3,7 +3,6 @@ package com.nstut.simplyspeakers.client;
 import dev.architectury.event.events.client.ClientTickEvent;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.event.events.client.ClientLifecycleEvent;
-import dev.architectury.event.events.client.ClientGuiEvent;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
@@ -17,7 +16,6 @@ public class ClientEvents {
     public static void register() {
         SimplySpeakers.LOGGER.info("Registering client events...");
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
-        ClientGuiEvent.RENDER_HUD.register((graphics, deltaTracker) -> ClientAudioPlayer.updateSpeakerVolumes());
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
         ClientLifecycleEvent.CLIENT_STOPPING.register(ClientEvents::onClientStopping);
         PlayAudioPacketS2C.startLiveJoinProbe();
@@ -28,7 +26,7 @@ public class ClientEvents {
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
             finishLiveJoinTest(client);
-            ClientAudioPlayer.updateSpeakerVolumes();
+            ClientAudioPlayer.updateEmitterState();
         }
     }
 
