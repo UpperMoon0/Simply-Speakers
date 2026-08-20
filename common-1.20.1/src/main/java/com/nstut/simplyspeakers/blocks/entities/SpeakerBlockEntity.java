@@ -414,10 +414,6 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @Override
     public void setRemoved() {
-        if (level != null && !level.isClientSide()) {
-            detachEmitterForPowerOff();
-            ServerSpeakerRegistry.unregisterSpeaker(level, worldPosition, getStateKey());
-        }
         super.setRemoved();
     }
 

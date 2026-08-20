@@ -228,13 +228,11 @@ public final class ServerSpeakerRegistry {
         String dimension = getDimension(level);
         String fullKey = getRegistryKey(dimension, stateKey);
         Set<BlockPos> positions = poweredSpeakerPositions.get(fullKey);
-        Set<BlockPos> registered = speakerPositions.get(fullKey);
-        if (registered == null || registered.isEmpty()) return false;
-        for (BlockPos pos : registered) {
+        Set<BlockPos> powered = poweredSpeakerPositions.get(fullKey);
+        if (powered == null || powered.isEmpty()) return false;
+        for (BlockPos pos : powered) {
             if (!pos.equals(currentPos)) {
-                var state = level.getBlockState(pos);
-                if (state.hasProperty(com.nstut.simplyspeakers.blocks.SpeakerBlock.POWERED)
-                        && state.getValue(com.nstut.simplyspeakers.blocks.SpeakerBlock.POWERED)) return true;
+                return true;
             }
         }
         return false;

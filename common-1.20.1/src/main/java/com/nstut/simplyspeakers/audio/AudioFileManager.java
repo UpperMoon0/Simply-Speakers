@@ -396,7 +396,8 @@ public class AudioFileManager {
                 Set<BlockPos> positions = ServerSpeakerRegistry.getSpeakerPositions(level, stateKey);
                 if (positions.isEmpty()) positions = Collections.singleton(BlockPos.ZERO);
                 for (BlockPos pos : positions) {
-                    SpeakerStateUpdatePacketS2C packet = new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, false);
+                    boolean looping = affected.get(fullKey).isLooping();
+                    SpeakerStateUpdatePacketS2C packet = new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, looping);
                     for (ServerPlayer target : level.players()) PacketRegistries.CHANNEL.sendToPlayer(target, packet);
                 }
             }
@@ -413,6 +414,8 @@ public class AudioFileManager {
         String grantKey = playerId + ":" + audioId;
         boolean owner = metadata != null && AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerId);
         Long grantExpiry = playbackGrants.get(grantKey);
+        long now = System.currentTimeMillis();
+        if (grantExpiry != null && grantExpiry < now) playbackGrants.remove(grantKey, grantExpiry);
         if (!owner && (grantExpiry == null || grantExpiry < System.currentTimeMillis())) return;
         String transferKey = player.getUUID() + ":" + audioId;
         activeDownloads.tryStart(transferKey, () -> {

@@ -364,6 +364,10 @@ public class SpeakerScreen extends Screen {
         return this.blockEntityPos;
     }
 
+    public String getSpeakerId() {
+        return this.speaker != null ? this.speaker.getSpeakerId() : "";
+    }
+
     public void refreshFromState(String audioId, String filename, boolean looping) {
         if (this.speaker != null) {
             this.speaker.setAudioIdClient(audioId, filename);

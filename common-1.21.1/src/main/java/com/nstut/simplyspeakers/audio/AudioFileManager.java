@@ -396,7 +396,8 @@ public class AudioFileManager {
                 Set<BlockPos> positions = ServerSpeakerRegistry.getSpeakerPositions(level, stateKey);
                 if (positions.isEmpty()) positions = Collections.singleton(BlockPos.ZERO);
                 for (BlockPos pos : positions) {
-                    NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, false));
+                    boolean looping = affected.get(fullKey).isLooping();
+                    NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, looping));
                 }
             }
         }
@@ -412,6 +413,8 @@ public class AudioFileManager {
         String grantKey = playerId + ":" + audioId;
         boolean owner = metadata != null && AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerId);
         Long grantExpiry = playbackGrants.get(grantKey);
+        long now = System.currentTimeMillis();
+        if (grantExpiry != null && grantExpiry < now) playbackGrants.remove(grantKey, grantExpiry);
         if (!owner && (grantExpiry == null || grantExpiry < System.currentTimeMillis())) {
             SimplySpeakers.LOGGER.warn("Denied unauthorized audio download {} for {}", audioId, playerId);
             return;
