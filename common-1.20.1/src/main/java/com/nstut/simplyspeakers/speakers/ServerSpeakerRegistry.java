@@ -31,8 +31,10 @@ public final class ServerSpeakerRegistry {
 
     private static final Map<String, Set<BlockPos>> speakerPositions = new ConcurrentHashMap<>();
     private static final Map<String, Set<BlockPos>> proxySpeakerPositions = new ConcurrentHashMap<>();
+    private static final Map<String, Set<BlockPos>> poweredSpeakerPositions = new ConcurrentHashMap<>();
     private static final Map<SpeakerLocation, String> posToStateKey = new ConcurrentHashMap<>();
     private static final Map<String, SpeakerState> speakerStates = new ConcurrentHashMap<>();
+    private static SpeakerState legacyDefaultTemplate = null;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Path registryFilePath;
@@ -56,8 +58,10 @@ public final class ServerSpeakerRegistry {
     public static synchronized void resetForWorld() {
         speakerPositions.clear();
         proxySpeakerPositions.clear();
+        poweredSpeakerPositions.clear();
         posToStateKey.clear();
         speakerStates.clear();
+        legacyDefaultTemplate = null;
         registryFilePath = null;
         SimplySpeakers.LOGGER.debug("SERVER: Reset ServerSpeakerRegistry state for world.");
     }
@@ -114,6 +118,14 @@ public final class ServerSpeakerRegistry {
                     Map<String, SpeakerState> loadedStates = GSON.fromJson(reader, type);
                     if (loadedStates != null) {
                         speakerStates.clear();
+                        if (loadedStates.containsKey("")) {
+                            legacyDefaultTemplate = loadedStates.get("").copy();
+                        } else if (loadedStates.containsKey("net_")) {
+                            legacyDefaultTemplate = loadedStates.get("net_").copy();
+                        } else if (loadedStates.containsKey("minecraft:overworld/net_")) {
+                            legacyDefaultTemplate = loadedStates.get("minecraft:overworld/net_").copy();
+                        }
+
                         boolean migratedAny = false;
                         for (Map.Entry<String, SpeakerState> entry : loadedStates.entrySet()) {
                             String key = entry.getKey();
@@ -152,7 +164,20 @@ public final class ServerSpeakerRegistry {
 
     public static SpeakerState getOrCreateSpeakerState(Level level, String stateKey) {
         String fullKey = getRegistryKey(level, stateKey);
-        return speakerStates.computeIfAbsent(fullKey, k -> new SpeakerState());
+        return speakerStates.computeIfAbsent(fullKey, k -> {
+            SpeakerState state = new SpeakerState();
+            if (stateKey != null && stateKey.startsWith("internal_") && legacyDefaultTemplate != null) {
+                if (legacyDefaultTemplate.getAudioId() != null && !legacyDefaultTemplate.getAudioId().isEmpty()) {
+                    state.setAudioId(legacyDefaultTemplate.getAudioId());
+                    state.setAudioFilename(legacyDefaultTemplate.getAudioFilename());
+                    state.setLooping(legacyDefaultTemplate.isLooping());
+                    state.setMaxRange(legacyDefaultTemplate.getMaxRange());
+                    state.setMaxVolume(legacyDefaultTemplate.getMaxVolume());
+                    state.setAudioDropoff(legacyDefaultTemplate.getAudioDropoff());
+                }
+            }
+            return state;
+        });
     }
 
     public static SpeakerState getSpeakerState(Level level, String stateKey) {
@@ -191,10 +216,52 @@ public final class ServerSpeakerRegistry {
         SimplySpeakers.LOGGER.debug("SERVER: Registered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
     }
 
+    public static void setSpeakerPowered(Level level, BlockPos pos, String stateKey, boolean powered) {
+        if (level == null || level.isClientSide()) return;
+        String dimension = getDimension(level);
+        String fullKey = getRegistryKey(dimension, stateKey);
+        Set<BlockPos> poweredSet = poweredSpeakerPositions.computeIfAbsent(fullKey, k -> ConcurrentHashMap.newKeySet());
+        if (powered) {
+            poweredSet.add(pos);
+        } else {
+            poweredSet.remove(pos);
+        }
+    }
+
+    public static boolean hasOtherPoweredMain(Level level, BlockPos currentPos, String stateKey) {
+        if (level == null || level.isClientSide()) return false;
+        String dimension = getDimension(level);
+        String fullKey = getRegistryKey(dimension, stateKey);
+        Set<BlockPos> positions = poweredSpeakerPositions.get(fullKey);
+        if (positions == null || positions.isEmpty()) return false;
+        for (BlockPos pos : positions) {
+            if (!pos.equals(currentPos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean hasAnyPoweredMain(Level level, String stateKey) {
+        if (level == null || level.isClientSide()) return false;
+        String dimension = getDimension(level);
+        String fullKey = getRegistryKey(dimension, stateKey);
+        Set<BlockPos> positions = poweredSpeakerPositions.get(fullKey);
+        return positions != null && !positions.isEmpty();
+    }
+
     public static void unregisterSpeaker(Level level, BlockPos pos, String stateKey) {
         if (level == null || level.isClientSide()) return;
         String dimension = getDimension(level);
         String fullKey = getRegistryKey(dimension, stateKey);
+
+        Set<BlockPos> powered = poweredSpeakerPositions.get(fullKey);
+        if (powered != null) {
+            powered.remove(pos);
+            if (powered.isEmpty()) {
+                poweredSpeakerPositions.remove(fullKey);
+            }
+        }
 
         Set<BlockPos> speakers = speakerPositions.get(fullKey);
         if (speakers != null) {
@@ -244,8 +311,16 @@ public final class ServerSpeakerRegistry {
             speakerStates.put(newFullKey, finalState);
         }
 
+        Set<BlockPos> oldPowered = poweredSpeakerPositions.get(oldFullKey);
+        boolean wasPowered = oldPowered != null && oldPowered.contains(pos);
+
         unregisterSpeaker(level, pos, oldKey);
         registerSpeaker(level, pos, newKey);
+
+        if (wasPowered) {
+            setSpeakerPowered(level, pos, newKey, true);
+        }
+
         saveRegistry();
     }
 

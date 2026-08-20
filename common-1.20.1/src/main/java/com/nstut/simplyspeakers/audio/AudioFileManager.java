@@ -110,7 +110,11 @@ public class AudioFileManager {
             try (Writer writer = Files.newBufferedWriter(tmpPath)) {
                 GSON.toJson(manifest, writer);
             }
-            Files.move(tmpPath, manifestPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            try {
+                Files.move(tmpPath, manifestPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (Exception e) {
+                Files.move(tmpPath, manifestPath, StandardCopyOption.REPLACE_EXISTING);
+            }
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to save audio manifest", e);
             try {
@@ -119,10 +123,31 @@ public class AudioFileManager {
         }
     }
 
+    public synchronized void shutdown() {
+        for (UploadSession session : activeUploads.values()) {
+            session.cleanup();
+        }
+        activeUploads.clear();
+        activeDownloads.clear();
+        AUDIO_FILE_EXECUTOR.shutdownNow();
+        SimplySpeakers.LOGGER.info("AudioFileManager shut down cleanly.");
+    }
+
     public boolean validateFile(String filename) {
         if (filename == null) return false;
         String extension = FilenameUtils.getExtension(filename).toLowerCase();
         return extension.equals("mp3") || extension.equals("wav");
+    }
+
+    public static boolean validateAudioContent(Path filePath) {
+        try (InputStream in = Files.newInputStream(filePath);
+             java.io.BufferedInputStream bin = new java.io.BufferedInputStream(in)) {
+            javax.sound.sampled.AudioFileFormat format = javax.sound.sampled.AudioSystem.getAudioFileFormat(bin);
+            return format != null && format.getFormat() != null && format.getFormat().getSampleRate() > 0;
+        } catch (Exception e) {
+            SimplySpeakers.LOGGER.warn("Audio header validation failed for {}: {}", filePath, e.getMessage());
+            return false;
+        }
     }
 
     public AudioFileMetadata saveFile(InputStream inputStream, String originalFilename, String ownerUUID) throws IOException {
@@ -213,6 +238,7 @@ public class AudioFileManager {
         UploadSession session = activeUploads.get(transactionId);
         if (session == null) {
             SimplySpeakers.LOGGER.warn("Received upload data for unknown/expired transaction ID: {}", transactionId);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Upload session not found or timed out.")));
             return;
         }
 
@@ -244,13 +270,23 @@ public class AudioFileManager {
         if (session.isComplete()) {
             activeUploads.remove(transactionId);
             MinecraftServer server = player.getServer();
-            AUDIO_FILE_EXECUTOR.execute(() -> finishUpload(player, server, transactionId, session));
+            AUDIO_FILE_EXECUTOR.submit(() -> finishUpload(player, server, transactionId, session));
         }
     }
 
     private void finishUpload(ServerPlayer player, MinecraftServer server, UUID transactionId, UploadSession session) {
         try {
             session.close();
+
+            if (!validateAudioContent(session.tempFilePath)) {
+                session.cleanup();
+                SimplySpeakers.LOGGER.warn("Rejecting upload {}: invalid or corrupt audio content", transactionId);
+                if (server != null) {
+                    server.execute(() -> PacketRegistries.CHANNEL.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Uploaded file is corrupt or not a valid audio file."), session.blockPos)));
+                }
+                return;
+            }
+
             String uuid = UUID.randomUUID().toString();
             String extension = FilenameUtils.getExtension(session.fileName);
             Path finalPath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));

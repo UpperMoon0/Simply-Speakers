@@ -21,6 +21,7 @@ class TransferRequestCoordinatorTest {
         AtomicInteger starts = new AtomicInteger();
         int callers = 1_000;
         CountDownLatch fire = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(callers);
         ExecutorService pool = Executors.newFixedThreadPool(16);
         for (int i = 0; i < callers; i++) {
             pool.execute(() -> {
@@ -29,12 +30,14 @@ class TransferRequestCoordinatorTest {
                     coordinator.tryStart("player:audio", starts::incrementAndGet);
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
+                } finally {
+                    done.countDown();
                 }
             });
         }
         fire.countDown();
+        assertTrue(done.await(10, TimeUnit.SECONDS));
         pool.shutdown();
-        assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
         assertEquals(1, starts.get());
     }
 
@@ -49,5 +52,19 @@ class TransferRequestCoordinatorTest {
         coordinator.release("audio");
         coordinator.tryStart("audio", starts::incrementAndGet);
         assertEquals(2, starts.get());
+    }
+
+    @Test
+    void clearAllowsRetryingAllTransfers() {
+        TransferRequestCoordinator<String> coordinator =
+                new TransferRequestCoordinator<>(Duration.ofSeconds(30));
+        AtomicInteger starts = new AtomicInteger();
+        coordinator.tryStart("audio1", starts::incrementAndGet);
+        coordinator.tryStart("audio2", starts::incrementAndGet);
+        assertEquals(2, starts.get());
+        coordinator.clear();
+        coordinator.tryStart("audio1", starts::incrementAndGet);
+        coordinator.tryStart("audio2", starts::incrementAndGet);
+        assertEquals(4, starts.get());
     }
 }

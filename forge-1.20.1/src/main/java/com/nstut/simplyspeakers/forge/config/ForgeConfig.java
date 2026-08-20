@@ -52,6 +52,13 @@ public class ForgeConfig {
             } else {
                 Configurator.setLevel(SimplySpeakers.MOD_ID, Level.INFO);
             }
+
+            if (event instanceof ModConfigEvent.Reloading) {
+                net.minecraft.server.MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+                if (server != null) {
+                    SimplySpeakers.broadcastConfig(server);
+                }
+            }
         }
     }
 }

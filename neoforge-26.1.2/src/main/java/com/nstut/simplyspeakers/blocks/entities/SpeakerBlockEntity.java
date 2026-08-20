@@ -170,6 +170,8 @@ public class SpeakerBlockEntity extends BlockEntity {
         setChanged();
         level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         notifyClientsOfStateChange();
+        ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), true);
+        scanAndStartListeners(level, worldPosition, state);
     }
 
     public void stopAudio() {
@@ -177,11 +179,16 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        SpeakerState state = getSpeakerState();
-        if (state != null) {
-            state.setPlaying(false);
-            state.setPlaybackStartTick(-1);
-            updateSpeakerState(state);
+        ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), false);
+        boolean otherPowered = ServerSpeakerRegistry.hasOtherPoweredMain(level, worldPosition, getStateKey());
+
+        if (!otherPowered) {
+            SpeakerState state = getSpeakerState();
+            if (state != null) {
+                state.setPlaying(false);
+                state.setPlaybackStartTick(-1);
+                updateSpeakerState(state);
+            }
         }
 
         if (level instanceof ServerLevel serverLevel) {
@@ -198,35 +205,37 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     private void notifyClientsOfStateChange(ServerPlayer player) {
-        if (level instanceof ServerLevel serverLevel && SpeakerLink.isLinkableId(speakerId)) {
+        if (level instanceof ServerLevel) {
             SpeakerState state = getSpeakerState();
             if (state != null) {
                 SpeakerStateUpdatePacketS2C updatePacket = new SpeakerStateUpdatePacketS2C(
+                        worldPosition,
                         speakerId,
-                        "update",
+                        state.isPlaying() ? "play" : "stop",
                         state.getAudioId(),
                         state.getAudioFilename(),
                         state.getPlaybackStartTick(),
                         state.isLooping()
                 );
-                NetworkManager.sendToPlayer(player, updatePacket);
+                sendStateUpdatePacket(player, updatePacket);
             }
         }
     }
 
     private void notifyClientsOfStateChange() {
-        if (level instanceof ServerLevel serverLevel && SpeakerLink.isLinkableId(speakerId)) {
+        if (level instanceof ServerLevel serverLevel) {
             SpeakerState state = getSpeakerState();
             if (state != null) {
                 SpeakerStateUpdatePacketS2C updatePacket = new SpeakerStateUpdatePacketS2C(
+                        worldPosition,
                         speakerId,
-                        "update",
+                        state.isPlaying() ? "play" : "stop",
                         state.getAudioId(),
                         state.getAudioFilename(),
                         state.getPlaybackStartTick(),
                         state.isLooping()
                 );
-                NetworkManager.sendToPlayers(serverLevel.players(), updatePacket);
+                sendStateUpdatePacketToAll(serverLevel, updatePacket);
             }
         }
     }
@@ -243,6 +252,8 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         boolean isPowered = currentState.getValue(SpeakerBlock.POWERED);
+        ServerSpeakerRegistry.setSpeakerPowered(currentLevel, currentPos, getStateKey(), isPowered);
+
         if (!isPowered) {
             if (!listeningPlayers.isEmpty()) {
                 if (currentLevel instanceof ServerLevel serverLevel) {
@@ -250,20 +261,24 @@ public class SpeakerBlockEntity extends BlockEntity {
                         ServerPlayer serverPlayer = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
                         if (serverPlayer != null) {
                             StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                            NetworkManager.sendToPlayer(serverPlayer, stopPacket);
+                            sendStopPacket(serverPlayer, stopPacket);
                         }
                     }
                 }
                 listeningPlayers.clear();
             }
 
-            SpeakerState state = getSpeakerState();
-            if (state != null && state.isPlaying()) {
-                state.setPlaying(false);
-                state.setPlaybackStartTick(-1);
-                updateSpeakerState(state);
-                setChanged();
-                currentLevel.sendBlockUpdated(currentPos, currentState, currentState, 3);
+            boolean otherPowered = ServerSpeakerRegistry.hasOtherPoweredMain(currentLevel, currentPos, getStateKey());
+            if (!otherPowered) {
+                SpeakerState state = getSpeakerState();
+                if (state != null && state.isPlaying()) {
+                    state.setPlaying(false);
+                    state.setPlaybackStartTick(-1);
+                    updateSpeakerState(state);
+                    setChanged();
+                    currentLevel.sendBlockUpdated(currentPos, currentState, currentState, 3);
+                    notifyClientsOfStateChange();
+                }
             }
             return;
         }
@@ -278,7 +293,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                         ServerPlayer serverPlayer = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
                         if (serverPlayer != null) {
                             StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                            NetworkManager.sendToPlayer(serverPlayer, stopPacket);
+                            sendStopPacket(serverPlayer, stopPacket);
                         }
                     }
                 }
@@ -300,13 +315,17 @@ public class SpeakerBlockEntity extends BlockEntity {
             }
         }
 
-        if (!(currentLevel instanceof ServerLevel serverLevel)) {
+        // Unconditional 4-tick throttle for listener scanning
+        long gameTime = currentLevel.getGameTime();
+        if ((gameTime + currentPos.hashCode()) % 4 != 0) {
             return;
         }
 
-        // Rate-limit listener scanning across ticks
-        long gameTime = currentLevel.getGameTime();
-        if ((gameTime + currentPos.hashCode()) % 4 != 0 && !listeningPlayers.isEmpty()) {
+        scanAndStartListeners(currentLevel, currentPos, state);
+    }
+
+    private void scanAndStartListeners(Level currentLevel, BlockPos currentPos, SpeakerState state) {
+        if (!(currentLevel instanceof ServerLevel serverLevel)) {
             return;
         }
 
@@ -340,7 +359,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                         state.getMaxVolume(),
                         state.getAudioDropoff()
                 );
-                NetworkManager.sendToPlayer(player, playPacket);
+                sendPlayPacket(player, playPacket);
                 listeningPlayers.add(player.getUUID());
             }
         }
@@ -353,7 +372,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 ServerPlayer serverPlayerInstance = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
                 if (serverPlayerInstance != null) {
                     StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(currentPos);
-                    NetworkManager.sendToPlayer(serverPlayerInstance, stopPacket);
+                    sendStopPacket(serverPlayerInstance, stopPacket);
                 }
             }
             listeningPlayers.removeAll(playersToStop);
@@ -362,6 +381,18 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     private void sendStopPacket(ServerPlayer player, StopAudioPacketS2C packet) {
         NetworkManager.sendToPlayer(player, packet);
+    }
+
+    private void sendPlayPacket(ServerPlayer player, PlayAudioPacketS2C packet) {
+        NetworkManager.sendToPlayer(player, packet);
+    }
+
+    private void sendStateUpdatePacket(ServerPlayer player, SpeakerStateUpdatePacketS2C packet) {
+        NetworkManager.sendToPlayer(player, packet);
+    }
+
+    private void sendStateUpdatePacketToAll(ServerLevel serverLevel, SpeakerStateUpdatePacketS2C packet) {
+        NetworkManager.sendToPlayers(serverLevel.players(), packet);
     }
 
     @Override
@@ -408,6 +439,14 @@ public class SpeakerBlockEntity extends BlockEntity {
         } else {
             SpeakerState clientState = ClientSpeakerRegistry.getOrCreateState(getStateKey());
             SpeakerSettings.read(tag::getFloatOr, tag::getIntOr, SpeakerSettings.from(clientState)).applyTo(clientState);
+            String audioId = tag.getStringOr("AudioId", "");
+            if (!audioId.isEmpty()) {
+                clientState.setAudioId(audioId);
+                clientState.setAudioFilename(tag.getStringOr("AudioFilename", ""));
+                clientState.setPlaying(tag.getBooleanOr("IsPlaying", false));
+                clientState.setLooping(tag.getBooleanOr("IsLooping", false));
+                clientState.setPlaybackStartTick(tag.getLongOr("PlaybackStartTick", -1L));
+            }
         }
 
         listeningPlayers.clear();
@@ -426,6 +465,11 @@ public class SpeakerBlockEntity extends BlockEntity {
         SpeakerState persistedState = getSpeakerState();
         if (persistedState != null) {
             SpeakerSettings.from(persistedState).write(tag::putFloat, tag::putInt);
+            tag.putString("AudioId", persistedState.getAudioId() != null ? persistedState.getAudioId() : "");
+            tag.putString("AudioFilename", persistedState.getAudioFilename() != null ? persistedState.getAudioFilename() : "");
+            tag.putBoolean("IsPlaying", persistedState.isPlaying());
+            tag.putBoolean("IsLooping", persistedState.isLooping());
+            tag.putLong("PlaybackStartTick", persistedState.getPlaybackStartTick());
         }
     }
 
@@ -451,6 +495,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 updateSpeakerState(state);
                 setChanged();
                 level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                notifyClientsOfStateChange();
             }
         }
     }

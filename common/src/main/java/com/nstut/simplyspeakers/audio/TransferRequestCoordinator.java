@@ -30,4 +30,8 @@ public final class TransferRequestCoordinator<K> {
     public void release(K key) {
         requests.release(key);
     }
+
+    public void clear() {
+        requests.clear();
+    }
 }

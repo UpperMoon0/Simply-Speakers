@@ -270,7 +270,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         if (!(currentLevel instanceof ServerLevel serverLevel)) return;
 
         long gameTime = currentLevel.getGameTime();
-        if ((gameTime + currentPos.hashCode()) % 4 != 0 && !listeningPlayers.isEmpty()) {
+        if ((gameTime + currentPos.hashCode()) % 4 != 0) {
             return;
         }
 

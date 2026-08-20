@@ -48,6 +48,7 @@ public final class SimplySpeakersForge {
     
     public void onServerStopping(ServerStoppingEvent event) {
         ServerSpeakerRegistry.saveRegistry();
+        SimplySpeakers.shutdownAudio();
     }
 
     public void onServerStopped(ServerStoppedEvent event) {

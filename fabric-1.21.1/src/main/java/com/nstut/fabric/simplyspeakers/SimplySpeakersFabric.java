@@ -40,6 +40,7 @@ public class SimplySpeakersFabric implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             ServerSpeakerRegistry.saveRegistry();
+            SimplySpeakers.shutdownAudio();
         });
 
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {

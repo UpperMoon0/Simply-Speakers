@@ -96,7 +96,23 @@ public class SimplySpeakers {
     }
 
     public static void initializeAudio(Path worldSavePath) {
+        if (audioFileManager != null) {
+            audioFileManager.shutdown();
+        }
         audioFileManager = new AudioFileManager(worldSavePath);
+    }
+
+    public static void shutdownAudio() {
+        if (audioFileManager != null) {
+            audioFileManager.shutdown();
+            audioFileManager = null;
+        }
+    }
+
+    public static void broadcastConfig(net.minecraft.server.MinecraftServer server) {
+        if (server == null) return;
+        SyncConfigPacketS2C packet = new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+        dev.architectury.networking.NetworkManager.sendToPlayers(server.getPlayerList().getPlayers(), packet);
     }
 
     public static AudioFileManager getAudioFileManager() {
