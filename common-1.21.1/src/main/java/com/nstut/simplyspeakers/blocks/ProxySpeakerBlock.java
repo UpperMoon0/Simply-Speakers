@@ -111,7 +111,7 @@ public class ProxySpeakerBlock extends BaseEntityBlock {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
                 proxySpeakerEntity.stopAudio();
-                SpeakerRegistry.unregisterProxySpeaker(level, pos, proxySpeakerEntity.getSpeakerId());
+                com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.unregisterProxySpeaker(level, pos, proxySpeakerEntity.getSpeakerId());
             }
         }
         super.onRemove(state, level, pos, newState, isMoving);

@@ -32,11 +32,11 @@ class SpeakerLifecycleWiringTest {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             if (module.equals("neoforge-26.1.2")) {
-                assertPreRemoveCleanup(root, module, "SpeakerBlockEntity.java", "unregisterSpeaker");
-                assertPreRemoveCleanup(root, module, "ProxySpeakerBlockEntity.java", "unregisterProxySpeaker");
+                assertPreRemoveCleanup(root, module, "SpeakerBlockEntity.java", "unregisterSpeaker", "detachEmitterForPowerOff()");
+                assertPreRemoveCleanup(root, module, "ProxySpeakerBlockEntity.java", "unregisterProxySpeaker", "stopAudio()");
             } else {
-                assertBlockRemovalCleanup(root, module, "SpeakerBlock.java", "unregisterSpeaker");
-                assertBlockRemovalCleanup(root, module, "ProxySpeakerBlock.java", "unregisterProxySpeaker");
+                assertBlockRemovalCleanup(root, module, "SpeakerBlock.java", "unregisterSpeaker", "detachEmitterForPowerOff()");
+                assertBlockRemovalCleanup(root, module, "ProxySpeakerBlock.java", "unregisterProxySpeaker", "stopAudio()");
             }
         }
     }
@@ -63,14 +63,15 @@ class SpeakerLifecycleWiringTest {
             Path root,
             String module,
             String block,
-            String unregisterCall) throws IOException {
+            String unregisterCall,
+            String cleanupCall) throws IOException {
         Path source = root.resolve(module).resolve(
                 "src/main/java/com/nstut/simplyspeakers/blocks/" + block);
         String code = Files.readString(source);
         assertTrue(code.contains("onRemove"),
                 module + "/" + block + " must clean up during actual block removal");
-        assertTrue(code.contains("stopAudio()"),
-                module + "/" + block + " must stop audio when the block is actually removed");
+        assertTrue(code.contains(cleanupCall),
+                module + "/" + block + " must perform the correct local cleanup when actually removed");
         assertTrue(code.contains(unregisterCall),
                 module + "/" + block + " must unregister when the block is actually removed");
     }
@@ -79,15 +80,16 @@ class SpeakerLifecycleWiringTest {
             Path root,
             String module,
             String blockEntity,
-            String unregisterCall) throws IOException {
+            String unregisterCall,
+            String cleanupCall) throws IOException {
         Path source = root.resolve(module).resolve(
                 "src/main/java/com/nstut/simplyspeakers/blocks/entities/" + blockEntity);
         String code = Files.readString(source);
 
         assertTrue(code.contains("preRemoveSideEffects"),
                 module + "/" + blockEntity + " must use the 26.1.2 pre-removal hook");
-        assertTrue(code.contains("stopAudio()"),
-                module + "/" + blockEntity + " must stop audio when the block is actually removed");
+        assertTrue(code.contains(cleanupCall),
+                module + "/" + blockEntity + " must perform the correct local cleanup when actually removed");
         assertTrue(code.contains(unregisterCall),
                 module + "/" + blockEntity + " must unregister when the block is actually removed");
     }

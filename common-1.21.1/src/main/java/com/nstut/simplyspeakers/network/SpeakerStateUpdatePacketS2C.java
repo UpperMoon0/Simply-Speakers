@@ -2,51 +2,62 @@ package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerLink;
+import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
-import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
+import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.chunk.status.ChunkStatus;
-
-import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 
 /**
  * Packet sent from server to client to update speaker state information.
- * This is used to notify clients about changes to speaker networks.
+ * This is used to notify clients about changes to speaker networks and standalone speakers.
  */
 public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
 
-    public static final CustomPacketPayload.Type<SpeakerStateUpdatePacketS2C> TYPE = 
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "speaker_state_update"));
-    
-    public static final StreamCodec<RegistryFriendlyByteBuf, SpeakerStateUpdatePacketS2C> STREAM_CODEC = 
-        StreamCodec.of(SpeakerStateUpdatePacketS2C::encode, SpeakerStateUpdatePacketS2C::decode);
+    public static final CustomPacketPayload.Type<SpeakerStateUpdatePacketS2C> TYPE =
+            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "speaker_state_update"));
 
+    public static final StreamCodec<RegistryFriendlyByteBuf, SpeakerStateUpdatePacketS2C> STREAM_CODEC =
+            StreamCodec.of(SpeakerStateUpdatePacketS2C::encode, SpeakerStateUpdatePacketS2C::decode);
+
+    private final BlockPos blockPos;
+    private final boolean hasBlockPos;
     private final String speakerId;
-    private final String action; // "play" or "stop"
+    private final String action; // "play", "stop", "update"
     private final String audioId;
     private final String audioFilename;
     private final long playbackStartTick;
     private final boolean isLooping;
-    
-    public SpeakerStateUpdatePacketS2C(String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
-        this.speakerId = speakerId;
-        this.action = action;
-        this.audioId = audioId;
-        this.audioFilename = audioFilename;
+
+    public SpeakerStateUpdatePacketS2C(BlockPos blockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this(blockPos != null ? blockPos : BlockPos.ZERO, blockPos != null, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+    }
+
+    private SpeakerStateUpdatePacketS2C(BlockPos blockPos, boolean hasBlockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this.blockPos = blockPos;
+        this.hasBlockPos = hasBlockPos;
+        this.speakerId = speakerId != null ? speakerId : "";
+        this.action = action != null ? action : "update";
+        this.audioId = audioId != null ? audioId : "";
+        this.audioFilename = audioFilename != null ? audioFilename : "";
         this.playbackStartTick = playbackStartTick;
         this.isLooping = isLooping;
     }
-    
+
+    public SpeakerStateUpdatePacketS2C(String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this(BlockPos.ZERO, false, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+    }
+
     public static void encode(RegistryFriendlyByteBuf buffer, SpeakerStateUpdatePacketS2C packet) {
+        buffer.writeBlockPos(packet.blockPos);
+        buffer.writeBoolean(packet.hasBlockPos);
         buffer.writeUtf(packet.speakerId);
         buffer.writeUtf(packet.action);
         buffer.writeUtf(packet.audioId);
@@ -54,144 +65,106 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
         buffer.writeLong(packet.playbackStartTick);
         buffer.writeBoolean(packet.isLooping);
     }
-    
+
     public static SpeakerStateUpdatePacketS2C decode(RegistryFriendlyByteBuf buffer) {
         return new SpeakerStateUpdatePacketS2C(
-            buffer.readUtf(),
-            buffer.readUtf(),
-            buffer.readUtf(),
-            buffer.readUtf(),
-            buffer.readLong(),
-            buffer.readBoolean()
+                buffer.readBlockPos(),
+                buffer.readBoolean(),
+                buffer.readUtf(),
+                buffer.readUtf(),
+                buffer.readUtf(),
+                buffer.readUtf(),
+                buffer.readLong(),
+                buffer.readBoolean()
         );
     }
-    
+
     public static void handle(SpeakerStateUpdatePacketS2C packet, NetworkManager.PacketContext context) {
-        // Ensure this code runs only on the client side
-        if (Minecraft.getInstance().level != null && Minecraft.getInstance().level.isClientSide) {
-            context.queue(() -> {
-                // Handle the speaker state update on the client
+        context.queue(() -> {
+            if (Minecraft.getInstance().level != null && Minecraft.getInstance().level.isClientSide) {
                 handleSpeakerStateUpdate(packet);
-            });
-        }
-    }
-    
-    private static void handleSpeakerStateUpdate(SpeakerStateUpdatePacketS2C packet) {
-        // Handle proxy speakers
-        handleProxySpeakerStateUpdate(packet);
-        
-        // Handle regular speakers
-        handleRegularSpeakerStateUpdate(packet);
-    }
-    
-    private static void handleProxySpeakerStateUpdate(SpeakerStateUpdatePacketS2C packet) {
-        if (!SpeakerLink.isLinkableId(packet.speakerId)) return;
-        // Find all proxy speakers with the matching speaker ID in the current level
-        if (Minecraft.getInstance().level != null && Minecraft.getInstance().player != null) {
-            // Get player position to limit search area
-            BlockPos playerPos = Minecraft.getInstance().player.blockPosition();
-            int playerChunkX = playerPos.getX() >> 4;
-            int playerChunkZ = playerPos.getZ() >> 4;
-            
-            // Define search radius (in chunks) - using simulation distance
-            int searchRadius = Minecraft.getInstance().level.getServerSimulationDistance();
-            if (searchRadius <= 0) {
-                searchRadius = 8; // Fallback radius
             }
-            
-            ClientChunkCache chunkSource = Minecraft.getInstance().level.getChunkSource();
-            
-            // Iterate through chunks in the search area
-            for (int cx = playerChunkX - searchRadius; cx <= playerChunkX + searchRadius; cx++) {
-                for (int cz = playerChunkZ - searchRadius; cz <= playerChunkZ + searchRadius; cz++) {
-                    LevelChunk chunk = chunkSource.getChunk(cx, cz, ChunkStatus.FULL, false);
-                    if (chunk != null) {
-                        // Process each block entity in the chunk
-                        for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeaker) {
-                                if (packet.speakerId.equals(proxySpeaker.getSpeakerId())) {
-                                    BlockPos pos = proxySpeaker.getBlockPos();
-                                    
-                                    if ("play".equals(packet.action)) {
-                                        AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
-                                        
-                                        // Calculate playback position based on playback start tick
-                                        float playbackPositionSeconds = 0.0f;
-                                        if (packet.playbackStartTick > 0) {
-                                            long currentTick = Minecraft.getInstance().level.getGameTime();
-                                            long ticksElapsed = currentTick - packet.playbackStartTick;
-                                            playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
-                                            if (playbackPositionSeconds < 0) playbackPositionSeconds = 0;
-                                        }
-                                        
-                                        ClientAudioPlayer.play(pos, metadata, playbackPositionSeconds, packet.isLooping);
-                                    } else if ("stop".equals(packet.action)) {
-                                        ClientAudioPlayer.stop(pos);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        });
     }
-    
-    private static void handleRegularSpeakerStateUpdate(SpeakerStateUpdatePacketS2C packet) {
-        SimplySpeakers.LOGGER.debug("[S2C] handleRegularSpeakerStateUpdate - speakerId: '{}', action: '{}', audioId: '{}'", 
-            packet.speakerId, packet.action, packet.audioId);
-        
-        // Update the client-side speaker registry with the new state
-        
-        // Get or create the speaker state in the client registry
-        com.nstut.simplyspeakers.SpeakerState state = com.nstut.simplyspeakers.SpeakerRegistry.getOrCreateSpeakerState(packet.speakerId);
-        if (state != null) {
-            SimplySpeakers.LOGGER.debug("[S2C] BEFORE update - SpeakerState maxVolume: {}, maxRange: {}, audioDropoff: {}", 
-                state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
-            
-            state.setAudioId(packet.audioId);
-            state.setAudioFilename(packet.audioFilename);
-            state.setPlaybackStartTick(packet.playbackStartTick);
-            state.setLooping(packet.isLooping);
-            
-            SimplySpeakers.LOGGER.debug("[S2C] AFTER update - SpeakerState maxVolume: {}, maxRange: {}, audioDropoff: {} (NOTE: settings NOT synced!)", 
-                state.getMaxVolume(), state.getMaxRange(), state.getAudioDropoff());
-        }
-        
-        // Handle specific actions
-        if ("play".equals(packet.action)) {
-            if (state != null) {
+
+    private static void handleSpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
+        boolean linked = SpeakerLink.isLinkableId(pkt.speakerId);
+        String audioKey = linked ? "net_" + pkt.speakerId.trim() : "pos_" + pkt.blockPos.asLong();
+        ClientAudioPlayer.setLooping(audioKey, pkt.isLooping);
+        ClientSpeakerRegistry.setLooping(audioKey, pkt.isLooping);
+
+        if (linked) {
+            String linkKey = "net_" + pkt.speakerId.trim();
+            SpeakerState state = ClientSpeakerRegistry.getOrCreateState(linkKey);
+            state.setAudioId(pkt.audioId);
+            state.setAudioFilename(pkt.audioFilename);
+            state.setPlaybackStartTick(pkt.playbackStartTick);
+            state.setLooping(pkt.isLooping);
+
+            if ("play".equals(pkt.action)) {
                 state.setPlaying(true);
-            }
-        } else if ("stop".equals(packet.action)) {
-            if (state != null) {
+            } else if ("stop".equals(pkt.action)) {
                 state.setPlaying(false);
                 state.setPlaybackStartTick(-1);
+                ClientAudioPlayer.stopNetwork(linkKey);
+            }
+            ClientSpeakerRegistry.updateState(linkKey, state);
+        } else if (pkt.hasBlockPos && Minecraft.getInstance().level != null) {
+            if ("stop".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
+            var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
+            if (be instanceof SpeakerBlockEntity speakerBE) {
+                SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
+                state.setAudioId(pkt.audioId);
+                state.setAudioFilename(pkt.audioFilename);
+                state.setPlaybackStartTick(pkt.playbackStartTick);
+                state.setLooping(pkt.isLooping);
+
+                if ("play".equals(pkt.action)) {
+                    state.setPlaying(true);
+                } else if ("stop".equals(pkt.action)) {
+                    state.setPlaying(false);
+                    state.setPlaybackStartTick(-1);
+                }
+                ClientSpeakerRegistry.updateState(speakerBE.getStateKey(), state);
+            }
+        }
+
+        if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
+            if ((pkt.hasBlockPos && pkt.blockPos.equals(screen.getBlockEntityPos()))
+                    || (linked && pkt.speakerId.trim().equals(screen.getSpeakerId().trim()))) {
+                screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
             }
         }
     }
-    
-    // Getters
+
+    public BlockPos getBlockPos() {
+        return blockPos;
+    }
+
+    public boolean hasBlockPos() {
+        return hasBlockPos;
+    }
+
     public String getSpeakerId() {
         return speakerId;
     }
-    
+
     public String getAction() {
         return action;
     }
-    
+
     public String getAudioId() {
         return audioId;
     }
-    
+
     public String getAudioFilename() {
         return audioFilename;
     }
-    
+
     public long getPlaybackStartTick() {
         return playbackStartTick;
     }
-    
+
     public boolean isLooping() {
         return isLooping;
     }

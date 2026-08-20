@@ -38,9 +38,73 @@ public class Config {
      * The maximum upload size that can be set.
      */
     public static final int MAX_UPLOAD_SIZE = 100 * 1024 * 1024; // 100MB
+    public static final int MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB hard limit
     
     /**
      * Whether to enable debug logging for troubleshooting.
      */
     public static boolean debugLogging = false;
+
+    /**
+     * Maximum client-side audio cache size in bytes before LRU eviction.
+     */
+    public static long clientCacheLimitBytes = 500L * 1024L * 1024L; // 500MB
+
+    // Local configuration cache for client restoration after disconnecting from a server
+    private static int localSpeakerRange = 64;
+    private static boolean localDisableUpload = false;
+    private static int localMaxUploadSize = 5 * 1024 * 1024;
+    private static volatile boolean isRemoteServerActive = false;
+
+    /**
+     * Updates the local configuration values (read from the local config file)
+     * and initializes active values if not connected to a remote server.
+     */
+    public static void setLocalConfig(int range, boolean disableUp, int maxUpSize) {
+        localSpeakerRange = Math.max(MIN_RANGE, Math.min(MAX_RANGE, range));
+        localDisableUpload = disableUp;
+        localMaxUploadSize = Math.max(MIN_UPLOAD_SIZE, Math.min(MAX_UPLOAD_SIZE, maxUpSize));
+
+        if (!isRemoteServerActive) {
+            speakerRange = localSpeakerRange;
+            disableUpload = localDisableUpload;
+            maxUploadSize = localMaxUploadSize;
+        }
+    }
+
+    /**
+     * Applies authoritative configuration received from the server.
+     */
+    public static void applyServerConfig(int range, boolean disableUp, int maxUpSize) {
+        isRemoteServerActive = true;
+        speakerRange = Math.max(MIN_RANGE, Math.min(MAX_RANGE, range));
+        disableUpload = disableUp;
+        maxUploadSize = Math.max(MIN_UPLOAD_SIZE, Math.min(MAX_UPLOAD_SIZE, maxUpSize));
+    }
+
+    /**
+     * Restores configuration back to local settings when disconnecting from a remote server.
+     */
+    public static void restoreLocalConfig() {
+        isRemoteServerActive = false;
+        speakerRange = localSpeakerRange;
+        disableUpload = localDisableUpload;
+        maxUploadSize = localMaxUploadSize;
+    }
+
+    public static boolean isRemoteServerActive() {
+        return isRemoteServerActive;
+    }
+
+    public static int getLocalSpeakerRange() {
+        return localSpeakerRange;
+    }
+
+    public static boolean isLocalDisableUpload() {
+        return localDisableUpload;
+    }
+
+    public static int getLocalMaxUploadSize() {
+        return localMaxUploadSize;
+    }
 }

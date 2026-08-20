@@ -1,42 +1,54 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SpeakerLink;
+import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
-import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
+import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientChunkCache;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.chunk.LevelChunk;
-import net.minecraft.world.level.chunk.ChunkStatus;
 
-import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import java.util.function.Supplier;
 
 /**
  * Packet sent from server to client to update speaker state information.
- * This is used to notify clients about changes to speaker networks.
+ * This is used to notify clients about changes to speaker networks and standalone speakers.
  */
 public class SpeakerStateUpdatePacketS2C {
+    private final BlockPos blockPos;
+    private final boolean hasBlockPos;
     private final String speakerId;
-    private final String action; // "play" or "stop"
+    private final String action; // "play", "stop", "update"
     private final String audioId;
     private final String audioFilename;
     private final long playbackStartTick;
     private final boolean isLooping;
-    
-    public SpeakerStateUpdatePacketS2C(String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
-        this.speakerId = speakerId;
-        this.action = action;
-        this.audioId = audioId;
-        this.audioFilename = audioFilename;
+
+    public SpeakerStateUpdatePacketS2C(BlockPos blockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this(blockPos != null ? blockPos : BlockPos.ZERO, blockPos != null, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+    }
+
+    private SpeakerStateUpdatePacketS2C(BlockPos blockPos, boolean hasBlockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this.blockPos = blockPos;
+        this.hasBlockPos = hasBlockPos;
+        this.speakerId = speakerId != null ? speakerId : "";
+        this.action = action != null ? action : "update";
+        this.audioId = audioId != null ? audioId : "";
+        this.audioFilename = audioFilename != null ? audioFilename : "";
         this.playbackStartTick = playbackStartTick;
         this.isLooping = isLooping;
     }
-    
+
+    public SpeakerStateUpdatePacketS2C(String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this(BlockPos.ZERO, false, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+    }
+
     public SpeakerStateUpdatePacketS2C(FriendlyByteBuf buf) {
+        this.blockPos = buf.readBlockPos();
+        this.hasBlockPos = buf.readBoolean();
         this.speakerId = buf.readUtf();
         this.action = buf.readUtf();
         this.audioId = buf.readUtf();
@@ -44,8 +56,10 @@ public class SpeakerStateUpdatePacketS2C {
         this.playbackStartTick = buf.readLong();
         this.isLooping = buf.readBoolean();
     }
-    
+
     public static void encode(SpeakerStateUpdatePacketS2C pkt, FriendlyByteBuf buf) {
+        buf.writeBlockPos(pkt.blockPos);
+        buf.writeBoolean(pkt.hasBlockPos);
         buf.writeUtf(pkt.speakerId);
         buf.writeUtf(pkt.action);
         buf.writeUtf(pkt.audioId);
@@ -53,125 +67,94 @@ public class SpeakerStateUpdatePacketS2C {
         buf.writeLong(pkt.playbackStartTick);
         buf.writeBoolean(pkt.isLooping);
     }
-    
+
     public static void handle(SpeakerStateUpdatePacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext context = ctxSupplier.get();
-        // Ensure this code runs only on the client side
-        if (Minecraft.getInstance().level != null && Minecraft.getInstance().level.isClientSide) {
-            context.queue(() -> {
-                // Handle the speaker state update on the client
+        context.queue(() -> {
+            if (Minecraft.getInstance().level != null && Minecraft.getInstance().level.isClientSide) {
                 handleSpeakerStateUpdate(pkt);
-            });
-        }
+            }
+        });
     }
-    
+
     private static void handleSpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
-        // Handle proxy speakers
-        handleProxySpeakerStateUpdate(pkt);
-        
-        // Handle regular speakers
-        handleRegularSpeakerStateUpdate(pkt);
-    }
-    
-    private static void handleProxySpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
-        if (!SpeakerLink.isLinkableId(pkt.speakerId)) return;
-        // Find all proxy speakers with the matching speaker ID in the current level
-        if (Minecraft.getInstance().level != null && Minecraft.getInstance().player != null) {
-            // Get player position to limit search area
-            BlockPos playerPos = Minecraft.getInstance().player.blockPosition();
-            int playerChunkX = playerPos.getX() >> 4;
-            int playerChunkZ = playerPos.getZ() >> 4;
-            
-            // Define search radius (in chunks) - using simulation distance
-            int searchRadius = Minecraft.getInstance().level.getServerSimulationDistance();
-            if (searchRadius <= 0) {
-                searchRadius = 8; // Fallback radius
-            }
-            
-            ClientChunkCache chunkSource = Minecraft.getInstance().level.getChunkSource();
-            
-            // Iterate through chunks in the search area
-            for (int cx = playerChunkX - searchRadius; cx <= playerChunkX + searchRadius; cx++) {
-                for (int cz = playerChunkZ - searchRadius; cz <= playerChunkZ + searchRadius; cz++) {
-                    LevelChunk chunk = chunkSource.getChunk(cx, cz, ChunkStatus.FULL, false);
-                    if (chunk != null) {
-                        // Process each block entity in the chunk
-                        for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeaker) {
-                                if (pkt.speakerId.equals(proxySpeaker.getSpeakerId())) {
-                                    BlockPos pos = proxySpeaker.getBlockPos();
-                                    
-                                    if ("play".equals(pkt.action)) {
-                                        AudioFileMetadata metadata = new AudioFileMetadata(pkt.audioId, pkt.audioFilename);
-                                        
-                                        // Calculate playback position based on playback start tick
-                                        float playbackPositionSeconds = 0.0f;
-                                        if (pkt.playbackStartTick > 0) {
-                                            long currentTick = Minecraft.getInstance().level.getGameTime();
-                                            long ticksElapsed = currentTick - pkt.playbackStartTick;
-                                            playbackPositionSeconds = ticksElapsed / 20.0f; // 20 ticks per second
-                                            if (playbackPositionSeconds < 0) playbackPositionSeconds = 0;
-                                        }
-                                        
-                                        ClientAudioPlayer.play(pos, metadata, playbackPositionSeconds, pkt.isLooping);
-                                    } else if ("stop".equals(pkt.action)) {
-                                        ClientAudioPlayer.stop(pos);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private static void handleRegularSpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
-        // Update the client-side speaker registry with the new state
-        
-        // Get or create the speaker state in the client registry
-        com.nstut.simplyspeakers.SpeakerState state = com.nstut.simplyspeakers.SpeakerRegistry.getOrCreateSpeakerState(pkt.speakerId);
-        if (state != null) {
+        boolean linked = SpeakerLink.isLinkableId(pkt.speakerId);
+        String audioKey = linked ? "net_" + pkt.speakerId.trim() : "pos_" + pkt.blockPos.asLong();
+        ClientAudioPlayer.setLooping(audioKey, pkt.isLooping);
+        ClientSpeakerRegistry.setLooping(audioKey, pkt.isLooping);
+
+        if (linked) {
+            String linkKey = "net_" + pkt.speakerId.trim();
+            SpeakerState state = ClientSpeakerRegistry.getOrCreateState(linkKey);
             state.setAudioId(pkt.audioId);
             state.setAudioFilename(pkt.audioFilename);
             state.setPlaybackStartTick(pkt.playbackStartTick);
             state.setLooping(pkt.isLooping);
-        }
-        
-        // Handle specific actions
-        if ("play".equals(pkt.action)) {
-            if (state != null) {
+
+            if ("play".equals(pkt.action)) {
                 state.setPlaying(true);
-            }
-        } else if ("stop".equals(pkt.action)) {
-            if (state != null) {
+            } else if ("stop".equals(pkt.action)) {
                 state.setPlaying(false);
                 state.setPlaybackStartTick(-1);
+                ClientAudioPlayer.stopNetwork(linkKey);
+            }
+            ClientSpeakerRegistry.updateState(linkKey, state);
+        } else if (pkt.hasBlockPos && Minecraft.getInstance().level != null) {
+            if ("stop".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
+            var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
+            if (be instanceof SpeakerBlockEntity speakerBE) {
+                SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
+                state.setAudioId(pkt.audioId);
+                state.setAudioFilename(pkt.audioFilename);
+                state.setPlaybackStartTick(pkt.playbackStartTick);
+                state.setLooping(pkt.isLooping);
+
+                if ("play".equals(pkt.action)) {
+                    state.setPlaying(true);
+                } else if ("stop".equals(pkt.action)) {
+                    state.setPlaying(false);
+                    state.setPlaybackStartTick(-1);
+                }
+                ClientSpeakerRegistry.updateState(speakerBE.getStateKey(), state);
+            }
+        }
+
+        if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
+            if ((pkt.hasBlockPos && pkt.blockPos.equals(screen.getBlockEntityPos()))
+                    || (linked && pkt.speakerId.trim().equals(screen.getSpeakerId().trim()))) {
+                screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
             }
         }
     }
-    
-    // Getters
+
+    public BlockPos getBlockPos() {
+        return blockPos;
+    }
+
+    public boolean hasBlockPos() {
+        return hasBlockPos;
+    }
+
     public String getSpeakerId() {
         return speakerId;
     }
-    
+
     public String getAction() {
         return action;
     }
-    
+
     public String getAudioId() {
         return audioId;
     }
-    
+
     public String getAudioFilename() {
         return audioFilename;
     }
-    
+
     public long getPlaybackStartTick() {
         return playbackStartTick;
     }
-    
+
     public boolean isLooping() {
         return isLooping;
     }

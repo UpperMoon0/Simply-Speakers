@@ -7,6 +7,8 @@ import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.platform.Services;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.client.ClientEvents;
+import dev.architectury.event.events.common.PlayerEvent;
+import com.nstut.simplyspeakers.network.SyncConfigPacketS2C;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import dev.architectury.platform.Platform;
@@ -63,6 +65,13 @@ public class SimplySpeakers {
         ItemRegistries.init();
         PacketRegistries.init();
 
+        // Synchronize server configuration to connecting players
+        PlayerEvent.PLAYER_JOIN.register(player -> {
+            LOGGER.info("Sending server config to joining player: {} (speakerRange={}, disableUpload={}, maxUploadSize={})",
+                    player.getName().getString(), Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+            PacketRegistries.CHANNEL.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
+        });
+
         // Register client-side events only on the client
         if (Platform.getEnv().toString().equals("CLIENT")) {
             ClientEvents.register();
@@ -73,7 +82,23 @@ public class SimplySpeakers {
     }
 
     public static void initializeAudio(Path worldSavePath) {
+        if (audioFileManager != null) {
+            audioFileManager.shutdown();
+        }
         audioFileManager = new AudioFileManager(worldSavePath);
+    }
+
+    public static void shutdownAudio() {
+        if (audioFileManager != null) {
+            audioFileManager.shutdown();
+            audioFileManager = null;
+        }
+    }
+
+    public static void broadcastConfig(net.minecraft.server.MinecraftServer server) {
+        if (server == null) return;
+        SyncConfigPacketS2C packet = new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+        PacketRegistries.CHANNEL.sendToPlayers(server.getPlayerList().getPlayers(), packet);
     }
 
     public static AudioFileManager getAudioFileManager() {

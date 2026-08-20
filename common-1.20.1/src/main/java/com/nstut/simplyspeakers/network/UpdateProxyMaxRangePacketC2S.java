@@ -34,14 +34,14 @@ public class UpdateProxyMaxRangePacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.serverLevel();
-                if (level.isLoaded(pkt.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
-                    if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
-                        proxySpeakerEntity.setMaxRange(pkt.maxRange);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) {
+                return;
+            }
+
+            ServerLevel level = player.serverLevel();
+            BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+            if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
+                proxySpeakerEntity.setMaxRange(pkt.maxRange);
             }
         });
     }

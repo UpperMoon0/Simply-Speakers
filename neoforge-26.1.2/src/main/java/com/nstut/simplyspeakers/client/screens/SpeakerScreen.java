@@ -359,7 +359,28 @@ public class SpeakerScreen extends Screen {
             }
         }
     }
-    
+
+    public BlockPos getBlockEntityPos() {
+        return this.blockEntityPos;
+    }
+
+    public String getSpeakerId() {
+        return this.speaker != null ? this.speaker.getSpeakerId() : "";
+    }
+
+    public void refreshFromState(String audioId, String filename, boolean looping) {
+        if (this.speaker != null) {
+            this.speaker.setAudioIdClient(audioId, filename);
+            this.speaker.setLoopingClient(looping);
+        }
+        if (this.settingsTabContent.loopToggleButton != null) {
+            this.settingsTabContent.loopToggleButton.setMessage(getLoopButtonTextComponent());
+        }
+        if (this.audioTabContent.audioListWidget != null) {
+            this.audioTabContent.audioListWidget.setSelectedAudioId(audioId);
+        }
+    }
+
     private void updateVisibility() {
         boolean isAudioTab = (currentTab == 0);
         boolean isSettingsTab = (currentTab == 1);

@@ -33,6 +33,10 @@ public class SetSpeakerIdPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+                return;
+            }
+
             ServerLevel level = player.serverLevel();
             // Handle both speaker block entity types
             if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {

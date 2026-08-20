@@ -8,9 +8,6 @@ import net.fabricmc.api.EnvType;
 public class PacketRegistries {
     public static void registerC2S() {
         // Client to Server packets - register receivers on server side
-        // Note: registerReceiver also registers the codec for the payload type
-        NetworkManager.registerReceiver(NetworkManager.c2s(), LoadAudioCallPacketC2S.TYPE, LoadAudioCallPacketC2S.STREAM_CODEC, LoadAudioCallPacketC2S::handle);
-        NetworkManager.registerReceiver(NetworkManager.c2s(), AudioPathPacketC2S.TYPE, AudioPathPacketC2S.STREAM_CODEC, AudioPathPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), ToggleLoopPacketC2S.TYPE, ToggleLoopPacketC2S.STREAM_CODEC, ToggleLoopPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), RequestUploadAudioPacketC2S.TYPE, RequestUploadAudioPacketC2S.STREAM_CODEC, RequestUploadAudioPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UploadAudioDataPacketC2S.TYPE, UploadAudioDataPacketC2S.STREAM_CODEC, UploadAudioDataPacketC2S::handle);
@@ -31,7 +28,6 @@ public class PacketRegistries {
     public static void registerS2C() {
         S2CPacketCatalog.registerReceivers();
     }
-    
     public static void init() {
         SimplySpeakers.LOGGER.info("Initializing packet registries...");
         registerC2S();

@@ -101,8 +101,8 @@ public class SpeakerBlock extends BaseEntityBlock {
         if (!state.is(newState.getBlock()) && !level.isClientSide) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                speakerEntity.stopAudio();
-                SpeakerRegistry.unregisterSpeaker(level, pos, speakerEntity.getSpeakerId());
+                speakerEntity.detachEmitterForPowerOff();
+                com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.unregisterSpeaker(level, pos, speakerEntity.getStateKey());
             }
         }
         super.onRemove(state, level, pos, newState, isMoving);
@@ -133,7 +133,7 @@ public class SpeakerBlock extends BaseEntityBlock {
                         speakerEntity.playAudio();
                     } else {
                         LOGGER.info("Triggering stopAudio for speaker at {}", pos);
-                        speakerEntity.stopAudio();
+                        speakerEntity.detachEmitterForPowerOff();
                     }
                 } else {
                     LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);

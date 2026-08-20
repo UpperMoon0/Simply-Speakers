@@ -13,9 +13,6 @@ import com.nstut.simplyspeakers.testing.LiveJoinTestProtocol;
 
 public class ClientEvents {
 
-    private static int volumeUpdateTicks = 0;
-    private static final int VOLUME_UPDATE_INTERVAL = 5; // Update every 5 ticks instead of every tick
-
     public static void register() {
         SimplySpeakers.LOGGER.info("Registering client events...");
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
@@ -26,15 +23,10 @@ public class ClientEvents {
     }
 
     private static void onClientTick(Minecraft client) {
-        // PERFORMANCE FIX: Reduce volume update frequency to prevent excessive OpenAL calls during world operations
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
             finishLiveJoinTest(client);
-            volumeUpdateTicks++;
-            if (volumeUpdateTicks >= VOLUME_UPDATE_INTERVAL) {
-                ClientAudioPlayer.updateSpeakerVolumes();
-                volumeUpdateTicks = 0;
-            }
+            ClientAudioPlayer.updateSpeakerVolumes();
         }
     }
 
@@ -46,13 +38,13 @@ public class ClientEvents {
             LiveJoinTestProtocol.stopClient(client::stop);
         }
     }
-
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
         SimplySpeakers.LOGGER.info("CLIENT_PLAYER_QUIT event fired - Player logging out, initiating fast audio cleanup...");
         ClientAudioPlayer.stopAll();
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
+        com.nstut.simplyspeakers.Config.restoreLocalConfig();
     }
     
     private static void onClientStopping(Minecraft client) {
@@ -61,6 +53,7 @@ public class ClientEvents {
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
+        com.nstut.simplyspeakers.Config.restoreLocalConfig();
     }
 
     public static void openSpeakerScreen(BlockPos pos) {
@@ -71,4 +64,3 @@ public class ClientEvents {
         Minecraft.getInstance().setScreen(new ProxySpeakerScreen(pos));
     }
 }
-

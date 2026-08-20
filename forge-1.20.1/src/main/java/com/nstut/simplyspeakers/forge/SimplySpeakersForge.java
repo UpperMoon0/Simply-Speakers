@@ -1,7 +1,7 @@
 package com.nstut.simplyspeakers.forge;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.SpeakerRegistry;
+import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import dev.architectury.platform.forge.EventBuses;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
@@ -10,6 +10,7 @@ import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.common.MinecraftForge;
 import java.nio.file.Path;
@@ -20,6 +21,7 @@ public final class SimplySpeakersForge {
     public SimplySpeakersForge() {
         // Register Forge config
         ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, ForgeConfig.SPEC);
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(ForgeConfig::onLoad);
 
         // Submit our event bus to let Architectury API register our content at the right time.
         EventBuses.registerModEventBus(SimplySpeakers.MOD_ID, FMLJavaModLoadingContext.get().getModEventBus());
@@ -32,6 +34,7 @@ public final class SimplySpeakersForge {
         
         // Register the server stopping event
         MinecraftForge.EVENT_BUS.addListener(this::onServerStopping);
+        MinecraftForge.EVENT_BUS.addListener(this::onServerStopped);
         
         // Register the server tick event for periodic saving
         MinecraftForge.EVENT_BUS.addListener(this::onServerTick);
@@ -40,11 +43,16 @@ public final class SimplySpeakersForge {
     public void onServerStarting(ServerStartingEvent event) {
         Path worldSavePath = event.getServer().getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);
         SimplySpeakers.initializeAudio(worldSavePath);
-        SpeakerRegistry.init(worldSavePath);
+        ServerSpeakerRegistry.init(worldSavePath);
     }
     
     public void onServerStopping(ServerStoppingEvent event) {
-        SpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.saveRegistry();
+        SimplySpeakers.shutdownAudio();
+    }
+
+    public void onServerStopped(ServerStoppedEvent event) {
+        ServerSpeakerRegistry.resetForWorld();
     }
     
     public void onServerTick(TickEvent.ServerTickEvent event) {
@@ -52,7 +60,7 @@ public final class SimplySpeakersForge {
         if (event.phase == TickEvent.Phase.END) {
             // Save every 6000 ticks (5 minutes at 20 TPS)
             if (event.getServer().getTickCount() % 6000 == 0) {
-                SpeakerRegistry.saveRegistry();
+                ServerSpeakerRegistry.saveRegistry();
             }
         }
     }

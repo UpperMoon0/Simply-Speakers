@@ -11,19 +11,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SpeakerRelinkWiringTest {
     @Test
-    void minecraft1211MovesStateAndStopsOldPlaybackWhenIdChanges() throws IOException {
+    void minecraft1211MovesStateAndDetachesOldEmitterWhenIdChanges() throws IOException {
         Path root = findProjectRoot();
         String registry = Files.readString(root.resolve(
-                "common-1.21.1/src/main/java/com/nstut/simplyspeakers/SpeakerRegistry.java"));
+                "common-1.21.1/src/main/java/com/nstut/simplyspeakers/speakers/ServerSpeakerRegistry.java"));
         String speaker = Files.readString(root.resolve(
                 "common-1.21.1/src/main/java/com/nstut/simplyspeakers/blocks/entities/SpeakerBlockEntity.java"));
 
         assertTrue(registry.contains("SpeakerStateRelinker.stateForNewId"),
                 "1.21.1 registry must transfer state when a main speaker ID changes");
-        assertTrue(speaker.indexOf("stopAudio();") < speaker.indexOf("SpeakerRegistry.updateSpeakerId"),
-                "old-position audio must stop before changing the registry ID");
-        assertTrue(speaker.contains("if (resumePlayback)"),
-                "a playing speaker must resume under its new ID");
+        assertTrue(speaker.indexOf("detachEmitterForPowerOff();") < speaker.indexOf("SpeakerRegistry.updateSpeakerId"),
+                "old physical emitter must detach without force-stopping the shared network");
+        assertTrue(speaker.contains("if (physicallyPowered && !oldKey.equals(newKey))"),
+                "only a physically powered speaker may attach and play under its new ID");
     }
 
     @Test

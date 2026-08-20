@@ -57,6 +57,10 @@ public final class ExpiringRequestSet<K> {
         requests.remove(key);
     }
 
+    public synchronized void clear() {
+        requests.clear();
+    }
+
     synchronized int size() {
         return requests.size();
     }

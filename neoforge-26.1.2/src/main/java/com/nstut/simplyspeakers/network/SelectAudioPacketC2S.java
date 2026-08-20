@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.audio.AudioOwnership;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -8,8 +9,8 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
 public class SelectAudioPacketC2S implements CustomPacketPayload {
 
@@ -21,30 +22,51 @@ public class SelectAudioPacketC2S implements CustomPacketPayload {
 
     private final BlockPos blockPos;
     private final String audioId;
-    private final String filename;
 
-    public SelectAudioPacketC2S(BlockPos blockPos, String audioId, String filename) {
+    public SelectAudioPacketC2S(BlockPos blockPos, String audioId) {
         this.blockPos = blockPos;
-        this.audioId = audioId;
-        this.filename = filename;
+        this.audioId = audioId != null ? audioId : "";
+    }
+
+    public SelectAudioPacketC2S(BlockPos blockPos, String audioId, String ignoredFilename) {
+        this(blockPos, audioId);
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, SelectAudioPacketC2S packet) {
         buffer.writeBlockPos(packet.blockPos);
         buffer.writeUtf(packet.audioId);
-        buffer.writeUtf(packet.filename);
     }
 
     public static SelectAudioPacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new SelectAudioPacketC2S(buffer.readBlockPos(), buffer.readUtf(), buffer.readUtf());
+        BlockPos pos = buffer.readBlockPos();
+        String id = buffer.readUtf();
+        if (buffer.readableBytes() > 0) {
+            buffer.readUtf(); // consume legacy filename if sent by older client
+        }
+        return new SelectAudioPacketC2S(pos, id);
     }
 
     public static void handle(SelectAudioPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            ServerLevel level = player.level();
+            if (!SpeakerPacketSecurity.canModify(player, packet.blockPos)) {
+                return;
+            }
+
+            Level level = player.level();
             if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
-                speaker.setSelectedAudio(packet.audioId, packet.filename);
+                if (packet.audioId.isEmpty()) {
+                    speaker.setSelectedAudio("", "");
+                    return;
+                }
+
+                com.nstut.simplyspeakers.audio.AudioFileManager manager = SimplySpeakers.getAudioFileManager();
+                if (manager != null) {
+                    com.nstut.simplyspeakers.audio.AudioFileMetadata meta = manager.getManifest().get(packet.audioId);
+                    if (meta != null && AudioOwnership.isOwnedBy(meta.getOwnerUUID(), player.getUUID().toString())) {
+                        speaker.setSelectedAudio(meta.getUuid(), meta.getOriginalFilename());
+                    }
+                }
             }
         });
     }

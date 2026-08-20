@@ -1,5 +1,7 @@
 package com.nstut.simplyspeakers;
 
+import com.nstut.simplyspeakers.math.AudioMath;
+
 /**
  * Represents the state of a speaker network.
  * This class holds all the information needed to manage speaker playback.
@@ -30,8 +32,8 @@ public class SpeakerState {
      * @param playbackStartTick The tick when playback started
      */
     public SpeakerState(String audioId, String audioFilename, boolean isPlaying, boolean isLooping, long playbackStartTick) {
-        this.audioId = audioId;
-        this.audioFilename = audioFilename;
+        this.audioId = audioId != null ? audioId : "";
+        this.audioFilename = audioFilename != null ? audioFilename : "";
         this.isPlaying = isPlaying;
         this.isLooping = isLooping;
         this.playbackStartTick = playbackStartTick;
@@ -46,7 +48,7 @@ public class SpeakerState {
     }
     
     public void setAudioId(String audioId) {
-        this.audioId = audioId;
+        this.audioId = audioId != null ? audioId : "";
     }
     
     public String getAudioFilename() {
@@ -54,7 +56,7 @@ public class SpeakerState {
     }
     
     public void setAudioFilename(String audioFilename) {
-        this.audioFilename = audioFilename;
+        this.audioFilename = audioFilename != null ? audioFilename : "";
     }
     
     public boolean isPlaying() {
@@ -90,7 +92,7 @@ public class SpeakerState {
     public float getPlaybackPositionSeconds(long currentTick) {
         if (playbackStartTick >= 0) {
             long ticksElapsed = currentTick - playbackStartTick;
-            return ticksElapsed / 20.0f; // 20 ticks per second
+            return Math.max(0.0f, ticksElapsed / 20.0f); // 20 ticks per second
         }
         return 0.0f;
     }
@@ -128,23 +130,23 @@ public class SpeakerState {
      * @param audioDropoff The audio dropoff factor (0.0 to 1.0)
      */
     public SpeakerState(String audioId, String audioFilename, boolean isPlaying, boolean isLooping, long playbackStartTick, float maxVolume, int maxRange, float audioDropoff) {
-        this.audioId = audioId;
-        this.audioFilename = audioFilename;
+        this.audioId = audioId != null ? audioId : "";
+        this.audioFilename = audioFilename != null ? audioFilename : "";
         this.isPlaying = isPlaying;
         this.isLooping = isLooping;
         this.playbackStartTick = playbackStartTick;
-        this.maxVolume = maxVolume;
-        this.maxRange = maxRange;
-        this.audioDropoff = audioDropoff;
+        this.maxVolume = AudioMath.sanitizeFloat(maxVolume, 0.0f, 1.0f, 1.0f);
+        this.maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange));
+        this.audioDropoff = AudioMath.sanitizeFloat(audioDropoff, 0.0f, 1.0f, 1.0f);
     }
     
-    // Getters and setters for new settings
+    // Getters and setters for settings
     public float getMaxVolume() {
         return maxVolume;
     }
     
     public void setMaxVolume(float maxVolume) {
-        this.maxVolume = Math.max(0.0f, Math.min(1.0f, maxVolume)); // Clamp between 0.0 and 1.0
+        this.maxVolume = AudioMath.sanitizeFloat(maxVolume, 0.0f, 1.0f, 1.0f);
     }
     
     public int getMaxRange() {
@@ -152,7 +154,7 @@ public class SpeakerState {
     }
     
     public void setMaxRange(int maxRange) {
-        this.maxRange = Math.max(1, Math.min(Config.MAX_RANGE, maxRange)); // Clamp between 1 and MAX_RANGE
+        this.maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange));
     }
     
     public float getAudioDropoff() {
@@ -160,6 +162,6 @@ public class SpeakerState {
     }
     
     public void setAudioDropoff(float audioDropoff) {
-        this.audioDropoff = Math.max(0.0f, Math.min(1.0f, audioDropoff)); // Clamp between 0.0 and 1.0
+        this.audioDropoff = AudioMath.sanitizeFloat(audioDropoff, 0.0f, 1.0f, 1.0f);
     }
 }

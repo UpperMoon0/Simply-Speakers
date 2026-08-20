@@ -36,6 +36,10 @@ public class StopPlaybackPacketC2S implements CustomPacketPayload {
     public static void handle(StopPlaybackPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canModify(player, packet.blockPos)) {
+                return;
+            }
+
             ServerLevel level = player.serverLevel();
             if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.stopAudio();

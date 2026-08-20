@@ -34,6 +34,10 @@ public final class ChunkedFileTransfer {
     }
 
     public static void streamFile(Path filePath, int chunkSize, ChunkConsumer consumer) throws IOException {
+        streamFilePaced(filePath, chunkSize, 0, consumer);
+    }
+
+    public static void streamFilePaced(Path filePath, int chunkSize, long delayMs, ChunkConsumer consumer) throws IOException {
         long remaining = Files.size(filePath);
 
         try (InputStream inputStream = Files.newInputStream(filePath)) {
@@ -44,6 +48,14 @@ public final class ChunkedFileTransfer {
                 System.arraycopy(buffer, 0, chunk, 0, read);
                 remaining -= read;
                 consumer.accept(chunk, remaining <= 0);
+                if (delayMs > 0 && remaining > 0) {
+                    try {
+                        Thread.sleep(delayMs);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
 
             if (remaining == 0 && Files.size(filePath) == 0) {

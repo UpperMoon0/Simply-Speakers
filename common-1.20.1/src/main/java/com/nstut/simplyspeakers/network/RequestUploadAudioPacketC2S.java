@@ -4,6 +4,7 @@ import com.nstut.simplyspeakers.SimplySpeakers;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
@@ -40,6 +41,10 @@ public class RequestUploadAudioPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+                PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(pkt.transactionId, false, 0, Component.literal("You do not have permission to upload audio here.")));
+                return;
+            }
             SimplySpeakers.LOGGER.info("Received upload request for file: " + pkt.fileName + " with transaction ID: " + pkt.transactionId);
             SimplySpeakers.getAudioFileManager().handleUploadRequest(player, pkt.blockPos, pkt.transactionId, pkt.fileName, pkt.fileSize);
         });

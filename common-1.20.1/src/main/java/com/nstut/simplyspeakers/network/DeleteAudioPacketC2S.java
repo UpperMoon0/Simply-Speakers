@@ -28,7 +28,7 @@ public class DeleteAudioPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            SimplySpeakers.getAudioFileManager().deleteAudioFile(pkt.audioId, player.getUUID().toString());
+            SimplySpeakers.getAudioFileManager().deleteAudioFile(pkt.audioId, player.getUUID().toString(), player.getServer());
             List<AudioFileMetadata> audioList = SimplySpeakers.getAudioFileManager()
                     .getAudioListForPlayer(player.getUUID().toString());
             PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioListPacketS2C(audioList));

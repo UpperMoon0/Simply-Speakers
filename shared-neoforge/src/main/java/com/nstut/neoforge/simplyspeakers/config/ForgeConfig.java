@@ -37,9 +37,7 @@ public class ForgeConfig {
      */
     public static void onLoad(final ModConfigEvent event) {
         if (event.getConfig().getSpec() == SPEC) {
-            Config.speakerRange = SPEAKER_RANGE.get();
-            Config.disableUpload = DISABLE_UPLOAD.get();
-            Config.maxUploadSize = MAX_UPLOAD_SIZE.get();
+            Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get());
             Config.debugLogging = DEBUG_LOGGING.get();
             
             // Set logger level based on debug config
@@ -49,6 +47,13 @@ public class ForgeConfig {
                 SimplySpeakers.LOGGER.info("Debug logging enabled for Simply Speakers");
             } else {
                 Configurator.setLevel(SimplySpeakers.MOD_ID, Level.INFO);
+            }
+
+            if (event instanceof ModConfigEvent.Reloading) {
+                net.minecraft.server.MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+                if (server != null) {
+                    SimplySpeakers.broadcastConfig(server);
+                }
             }
         }
     }

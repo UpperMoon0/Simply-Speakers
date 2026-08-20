@@ -334,11 +334,30 @@ public class SpeakerScreen extends Screen {
         ClientAudioPlayer.setAudioList(audioList);
         if (this.audioTabContent.audioListWidget != null) {
             this.audioTabContent.audioListWidget.setAudioList(audioList);
-
-            // Set the selected audio in the list based on the speaker's current audio
             if (this.speaker != null) {
                 this.audioTabContent.audioListWidget.setSelectedAudioId(this.speaker.getAudioId());
             }
+        }
+    }
+
+    public BlockPos getBlockEntityPos() {
+        return this.blockEntityPos;
+    }
+
+    public String getSpeakerId() {
+        return this.speaker != null ? this.speaker.getSpeakerId() : "";
+    }
+
+    public void refreshFromState(String audioId, String filename, boolean looping) {
+        if (this.speaker != null) {
+            this.speaker.setAudioIdClient(audioId, filename);
+            this.speaker.setLoopingClient(looping);
+        }
+        if (this.settingsTabContent.loopToggleButton != null) {
+            this.settingsTabContent.loopToggleButton.setMessage(getLoopButtonTextComponent());
+        }
+        if (this.audioTabContent.audioListWidget != null) {
+            this.audioTabContent.audioListWidget.setSelectedAudioId(audioId);
         }
     }
 

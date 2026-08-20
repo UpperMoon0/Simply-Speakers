@@ -8,8 +8,8 @@ import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class ToggleLoopPacketC2S implements CustomPacketPayload {
@@ -20,17 +20,17 @@ public class ToggleLoopPacketC2S implements CustomPacketPayload {
     public static final StreamCodec<RegistryFriendlyByteBuf, ToggleLoopPacketC2S> STREAM_CODEC = 
         StreamCodec.of(ToggleLoopPacketC2S::encode, ToggleLoopPacketC2S::decode);
 
-    private final BlockPos pos;
-    private final boolean isLooping;
+    private final BlockPos blockPos;
+    private final boolean looping;
 
-    public ToggleLoopPacketC2S(BlockPos pos, boolean isLooping) {
-        this.pos = pos;
-        this.isLooping = isLooping;
+    public ToggleLoopPacketC2S(BlockPos blockPos, boolean looping) {
+        this.blockPos = blockPos;
+        this.looping = looping;
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, ToggleLoopPacketC2S packet) {
-        buffer.writeBlockPos(packet.pos);
-        buffer.writeBoolean(packet.isLooping);
+        buffer.writeBlockPos(packet.blockPos);
+        buffer.writeBoolean(packet.looping);
     }
 
     public static ToggleLoopPacketC2S decode(RegistryFriendlyByteBuf buffer) {
@@ -40,14 +40,14 @@ public class ToggleLoopPacketC2S implements CustomPacketPayload {
     public static void handle(ToggleLoopPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (player != null) {
-                ServerLevel level = player.level();
-                if (level.isLoaded(packet.pos)) {
-                    BlockEntity blockEntity = level.getBlockEntity(packet.pos);
-                    if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        speakerEntity.setLooping(packet.isLooping);
-                    }
-                }
+            if (!SpeakerPacketSecurity.canModify(player, packet.blockPos)) {
+                return;
+            }
+
+            Level level = player.level();
+            BlockEntity blockEntity = level.getBlockEntity(packet.blockPos);
+            if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
+                speakerEntity.setLooping(packet.looping);
             }
         });
     }
