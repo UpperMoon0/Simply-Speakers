@@ -397,7 +397,9 @@ public class AudioFileManager {
                 Set<BlockPos> positions = ServerSpeakerRegistry.getSpeakerPositions(level, stateKey);
                 if (positions.isEmpty()) {
                     if (!stateKey.startsWith("net_")) continue;
-                    positions = Collections.singleton(BlockPos.ZERO);
+                    boolean looping = affected.get(fullKey).isLooping();
+                    NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(speakerId, "stop", "", "", -1, looping));
+                    continue;
                 }
                 for (BlockPos pos : positions) {
                     boolean looping = affected.get(fullKey).isLooping();

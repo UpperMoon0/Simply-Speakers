@@ -19,6 +19,7 @@ import java.util.function.Supplier;
  */
 public class SpeakerStateUpdatePacketS2C {
     private final BlockPos blockPos;
+    private final boolean hasBlockPos;
     private final String speakerId;
     private final String action; // "play", "stop", "update"
     private final String audioId;
@@ -27,7 +28,12 @@ public class SpeakerStateUpdatePacketS2C {
     private final boolean isLooping;
 
     public SpeakerStateUpdatePacketS2C(BlockPos blockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
-        this.blockPos = blockPos != null ? blockPos : BlockPos.ZERO;
+        this(blockPos != null ? blockPos : BlockPos.ZERO, blockPos != null, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+    }
+
+    private SpeakerStateUpdatePacketS2C(BlockPos blockPos, boolean hasBlockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+        this.blockPos = blockPos;
+        this.hasBlockPos = hasBlockPos;
         this.speakerId = speakerId != null ? speakerId : "";
         this.action = action != null ? action : "update";
         this.audioId = audioId != null ? audioId : "";
@@ -37,11 +43,12 @@ public class SpeakerStateUpdatePacketS2C {
     }
 
     public SpeakerStateUpdatePacketS2C(String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
-        this(BlockPos.ZERO, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+        this(BlockPos.ZERO, false, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
     }
 
     public SpeakerStateUpdatePacketS2C(FriendlyByteBuf buf) {
         this.blockPos = buf.readBlockPos();
+        this.hasBlockPos = buf.readBoolean();
         this.speakerId = buf.readUtf();
         this.action = buf.readUtf();
         this.audioId = buf.readUtf();
@@ -52,6 +59,7 @@ public class SpeakerStateUpdatePacketS2C {
 
     public static void encode(SpeakerStateUpdatePacketS2C pkt, FriendlyByteBuf buf) {
         buf.writeBlockPos(pkt.blockPos);
+        buf.writeBoolean(pkt.hasBlockPos);
         buf.writeUtf(pkt.speakerId);
         buf.writeUtf(pkt.action);
         buf.writeUtf(pkt.audioId);
@@ -91,7 +99,7 @@ public class SpeakerStateUpdatePacketS2C {
                 ClientAudioPlayer.stopNetwork(linkKey);
             }
             ClientSpeakerRegistry.updateState(linkKey, state);
-        } else if (Minecraft.getInstance().level != null) {
+        } else if (pkt.hasBlockPos && Minecraft.getInstance().level != null) {
             if ("stop".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
             var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
             if (be instanceof SpeakerBlockEntity speakerBE) {
@@ -112,7 +120,7 @@ public class SpeakerStateUpdatePacketS2C {
         }
 
         if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
-            if (pkt.blockPos.equals(screen.getBlockEntityPos())
+            if ((pkt.hasBlockPos && pkt.blockPos.equals(screen.getBlockEntityPos()))
                     || (linked && pkt.speakerId.trim().equals(screen.getSpeakerId().trim()))) {
                 screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
             }
@@ -121,6 +129,10 @@ public class SpeakerStateUpdatePacketS2C {
 
     public BlockPos getBlockPos() {
         return blockPos;
+    }
+
+    public boolean hasBlockPos() {
+        return hasBlockPos;
     }
 
     public String getSpeakerId() {
