@@ -56,6 +56,7 @@ public class AudioFileManager {
     private final Path manifestPath;
     private final Map<String, AudioFileMetadata> manifest = new ConcurrentHashMap<>();
     private final Map<String, Long> playbackGrants = new ConcurrentHashMap<>();
+    private volatile long nextPlaybackGrantCleanupTime;
 
     public AudioFileManager(Path worldSavePath) {
         this.audioDirPath = worldSavePath.resolve(AUDIO_DIR_NAME);
@@ -394,7 +395,10 @@ public class AudioFileManager {
                 String stateKey = fullKey.substring(prefix.length());
                 String speakerId = stateKey.startsWith("net_") ? stateKey.substring(4) : "";
                 Set<BlockPos> positions = ServerSpeakerRegistry.getSpeakerPositions(level, stateKey);
-                if (positions.isEmpty()) positions = Collections.singleton(BlockPos.ZERO);
+                if (positions.isEmpty()) {
+                    if (!stateKey.startsWith("net_")) continue;
+                    positions = Collections.singleton(BlockPos.ZERO);
+                }
                 for (BlockPos pos : positions) {
                     boolean looping = affected.get(fullKey).isLooping();
                     NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, looping));
@@ -432,7 +436,12 @@ public class AudioFileManager {
     }
 
     public void grantPlaybackDownload(ServerPlayer player, String audioId) {
-        playbackGrants.put(player.getUUID() + ":" + audioId, System.currentTimeMillis() + 120_000L);
+        long now = System.currentTimeMillis();
+        if (now >= nextPlaybackGrantCleanupTime) {
+            nextPlaybackGrantCleanupTime = now + 60_000L;
+            playbackGrants.entrySet().removeIf(entry -> entry.getValue() < now);
+        }
+        playbackGrants.put(player.getUUID() + ":" + audioId, now + 120_000L);
     }
 
     private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath, String transferKey) {
