@@ -8,11 +8,36 @@
 
  Added
   - Server Config Synchronization: Server configs (speaker range,
-    upload limits) now automatically synchronize to clients on join
-    and restore client-local values upon disconnecting.
+    upload availability, and upload limits) now synchronize on join
+    and hot reload, then restore client values after disconnecting.
   - Overlapping Speaker Audio Blending: Speakers and proxies sharing
     the same ID blend into a single synchronized virtual multi-point
     emitter, eliminating echoes, comb filtering, and volume doubling.
+  - Incremental MP3/WAV decoding, positional downmixing, bounded client
+    caching, and duration-aware playback.
+
+ Changed
+  - Speaker state is authoritative, dimension-safe, and synchronized
+    between clients, including linked networks and standalone speakers.
+  - Linked mains share playback while keeping independent redstone and
+    emitter lifecycles; chunk unloads preserve their state.
+  - Listener scans are throttled and always obey the live server range.
+  - Audio upload/download workers and temporary resources are scoped to
+    each world and cleaned up safely.
+
+ Fixed
+  - Fixed multi-main removal, relinking, restart, and power-off behavior.
+  - Fixed stale loop, selection, GUI, pending-download, stop, and delete
+    state on clients.
+  - Fixed valid MP3 validation, temporary upload validation, natural EOF,
+    and standalone ghost playback after audio deletion.
+  - Fixed legacy standalone migration, persistent IDs, registry backup,
+    corruption recovery, and chunk-unload state loss.
+
+ Security
+  - Added server-side packet access/range/value validation, upload size
+    and content checks, transfer limits/timeouts, and authorized audio
+    downloads.
 
 -----------------------------------------------------
   Version 0.7.8
