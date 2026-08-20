@@ -33,6 +33,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
+import javazoom.jl.decoder.Bitstream;
+import javazoom.jl.decoder.Decoder;
 
 public class AudioFileManager {
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
@@ -41,16 +43,17 @@ public class AudioFileManager {
     private static final int MAX_CONCURRENT_UPLOADS = 5;
     private static final long UPLOAD_TIMEOUT_MS = 60_000L;
 
-    private static final Map<UUID, UploadSession> activeUploads = new ConcurrentHashMap<>();
-    private static final TransferRequestCoordinator<String> activeDownloads =
+    private final Map<UUID, UploadSession> activeUploads = new ConcurrentHashMap<>();
+    private final TransferRequestCoordinator<String> activeDownloads =
             new TransferRequestCoordinator<>(Duration.ofSeconds(30));
-    private static final ExecutorService AUDIO_FILE_EXECUTOR =
+    private final ExecutorService audioFileExecutor =
             ChunkedFileTransfer.newDaemonFixedThreadPool(2, "Simply Speakers Audio File");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final Path audioDirPath;
     private final Path manifestPath;
     private final Map<String, AudioFileMetadata> manifest = new ConcurrentHashMap<>();
+    private final Map<String, Long> playbackGrants = new ConcurrentHashMap<>();
 
     public AudioFileManager(Path worldSavePath) {
         this.audioDirPath = worldSavePath.resolve(AUDIO_DIR_NAME);
@@ -129,7 +132,7 @@ public class AudioFileManager {
         }
         activeUploads.clear();
         activeDownloads.clear();
-        AUDIO_FILE_EXECUTOR.shutdownNow();
+        audioFileExecutor.shutdownNow();
         SimplySpeakers.LOGGER.info("AudioFileManager shut down cleanly.");
     }
 
@@ -140,6 +143,21 @@ public class AudioFileManager {
     }
 
     public static boolean validateAudioContent(Path filePath) {
+        String extension = FilenameUtils.getExtension(filePath.getFileName().toString()).toLowerCase();
+        if (extension.equals("mp3")) {
+            try (InputStream in = Files.newInputStream(filePath)) {
+                Bitstream bitstream = new Bitstream(in);
+                var header = bitstream.readFrame();
+                if (header == null) return false;
+                new Decoder().decodeFrame(header, bitstream);
+                bitstream.closeFrame();
+                return true;
+            } catch (Exception e) {
+                SimplySpeakers.LOGGER.warn("MP3 frame validation failed for {}: {}", filePath, e.getMessage());
+                return false;
+            }
+        }
+        if (!extension.equals("wav")) return false;
         try (InputStream in = Files.newInputStream(filePath);
              java.io.BufferedInputStream bin = new java.io.BufferedInputStream(in)) {
             javax.sound.sampled.AudioFileFormat format = javax.sound.sampled.AudioSystem.getAudioFileFormat(bin);
@@ -241,6 +259,12 @@ public class AudioFileManager {
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Upload session not found or timed out.")));
             return;
         }
+        if (Config.disableUpload) {
+            activeUploads.remove(transactionId);
+            session.cleanup();
+            NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Audio uploads were disabled by the server.")));
+            return;
+        }
 
         if (!session.ownerUUID.equals(player.getUUID().toString())) {
             SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: player mismatch", transactionId);
@@ -270,7 +294,7 @@ public class AudioFileManager {
         if (session.isComplete()) {
             activeUploads.remove(transactionId);
             MinecraftServer server = player.level().getServer();
-            AUDIO_FILE_EXECUTOR.submit(() -> finishUpload(player, server, transactionId, session));
+            audioFileExecutor.submit(() -> finishUpload(player, server, transactionId, session));
         }
     }
 
@@ -363,6 +387,12 @@ public class AudioFileManager {
     }
 
     public void sendAudioFile(ServerPlayer player, String audioId) {
+        AudioFileMetadata metadata = manifest.get(audioId);
+        String playerId = player.getUUID().toString();
+        String grantKey = playerId + ":" + audioId;
+        boolean owner = metadata != null && AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerId);
+        Long grantExpiry = playbackGrants.remove(grantKey);
+        if (!owner && (grantExpiry == null || grantExpiry < System.currentTimeMillis())) return;
         String transferKey = player.getUUID() + ":" + audioId;
         activeDownloads.tryStart(transferKey, () -> {
             Path filePath = this.getAudioFilePath(audioId);
@@ -371,8 +401,12 @@ public class AudioFileManager {
                 return;
             }
             MinecraftServer server = player.level().getServer();
-            AUDIO_FILE_EXECUTOR.execute(() -> sendAudioFileAsync(player, server, audioId, filePath, transferKey));
+            audioFileExecutor.execute(() -> sendAudioFileAsync(player, server, audioId, filePath, transferKey));
         });
+    }
+
+    public void grantPlaybackDownload(ServerPlayer player, String audioId) {
+        playbackGrants.put(player.getUUID() + ":" + audioId, System.currentTimeMillis() + 120_000L);
     }
 
     private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath, String transferKey) {

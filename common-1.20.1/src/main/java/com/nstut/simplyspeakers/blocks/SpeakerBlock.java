@@ -133,7 +133,7 @@ public class SpeakerBlock extends BaseEntityBlock {
                         speakerEntity.playAudio();
                     } else {
                         LOGGER.info("Triggering stopAudio for speaker at {}", pos);
-                        speakerEntity.stopAudio();
+                        speakerEntity.detachEmitterForPowerOff();
                     }
                 } else {
                     LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);

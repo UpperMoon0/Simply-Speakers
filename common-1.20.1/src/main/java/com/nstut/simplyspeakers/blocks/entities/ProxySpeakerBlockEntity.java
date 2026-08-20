@@ -212,7 +212,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 }
             }
 
-            double maxRangeSq = (double) maxRange * maxRange;
+            int effectiveRange = Math.min(maxRange, Config.speakerRange);
+            double maxRangeSq = (double) effectiveRange * effectiveRange;
             Vec3 speakerCenterPos = Vec3.atCenterOf(worldPosition);
             for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
                 if (!listeningPlayers.contains(player.getUUID())) {
@@ -273,7 +274,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        double maxRangeSq = (double) maxRange * maxRange;
+        int effectiveRange = Math.min(maxRange, Config.speakerRange);
+        double maxRangeSq = (double) effectiveRange * effectiveRange;
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 
@@ -299,10 +301,11 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                         state.getAudioFilename(),
                         playbackPositionSeconds,
                         state.isLooping(),
-                        this.maxRange,
+                        effectiveRange,
                         this.maxVolume,
                         this.audioDropoff
                 );
+                if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
                 PacketRegistries.CHANNEL.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
             }

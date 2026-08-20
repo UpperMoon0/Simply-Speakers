@@ -105,18 +105,16 @@ public final class ServerSpeakerRegistry {
         try {
             File file = registryFilePath.toFile();
             if (file.exists()) {
-                // Back up old registry file before loading/migrating
-                try {
-                    Path backupPath = registryFilePath.resolveSibling("speaker_registry.json.bak");
-                    Files.copy(registryFilePath, backupPath, StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    SimplySpeakers.LOGGER.warn("SERVER: Failed to create backup of speaker_registry.json", e);
-                }
-
                 try (FileReader reader = new FileReader(file)) {
                     Type type = new TypeToken<Map<String, SpeakerState>>() {}.getType();
                     Map<String, SpeakerState> loadedStates = GSON.fromJson(reader, type);
                     if (loadedStates != null) {
+                        try {
+                            Path backupPath = registryFilePath.resolveSibling("speaker_registry.json.bak");
+                            Files.copy(registryFilePath, backupPath, StandardCopyOption.REPLACE_EXISTING);
+                        } catch (IOException e) {
+                            SimplySpeakers.LOGGER.warn("SERVER: Failed to create backup of speaker_registry.json", e);
+                        }
                         speakerStates.clear();
                         if (loadedStates.containsKey("")) {
                             legacyDefaultTemplate = loadedStates.get("").copy();
@@ -164,20 +162,13 @@ public final class ServerSpeakerRegistry {
 
     public static SpeakerState getOrCreateSpeakerState(Level level, String stateKey) {
         String fullKey = getRegistryKey(level, stateKey);
-        return speakerStates.computeIfAbsent(fullKey, k -> {
-            SpeakerState state = new SpeakerState();
-            if (stateKey != null && stateKey.startsWith("internal_") && legacyDefaultTemplate != null) {
-                if (legacyDefaultTemplate.getAudioId() != null && !legacyDefaultTemplate.getAudioId().isEmpty()) {
-                    state.setAudioId(legacyDefaultTemplate.getAudioId());
-                    state.setAudioFilename(legacyDefaultTemplate.getAudioFilename());
-                    state.setLooping(legacyDefaultTemplate.isLooping());
-                    state.setMaxRange(legacyDefaultTemplate.getMaxRange());
-                    state.setMaxVolume(legacyDefaultTemplate.getMaxVolume());
-                    state.setAudioDropoff(legacyDefaultTemplate.getAudioDropoff());
-                }
-            }
-            return state;
-        });
+        return speakerStates.computeIfAbsent(fullKey, k -> new SpeakerState());
+    }
+
+    public static void applyLegacyStandaloneTemplate(Level level, String stateKey) {
+        if (legacyDefaultTemplate == null) return;
+        String fullKey = getRegistryKey(level, stateKey);
+        speakerStates.computeIfAbsent(fullKey, k -> legacyDefaultTemplate.copy());
     }
 
     public static SpeakerState getSpeakerState(Level level, String stateKey) {
@@ -220,11 +211,15 @@ public final class ServerSpeakerRegistry {
         if (level == null || level.isClientSide()) return;
         String dimension = getDimension(level);
         String fullKey = getRegistryKey(dimension, stateKey);
-        Set<BlockPos> poweredSet = poweredSpeakerPositions.computeIfAbsent(fullKey, k -> ConcurrentHashMap.newKeySet());
         if (powered) {
+            Set<BlockPos> poweredSet = poweredSpeakerPositions.computeIfAbsent(fullKey, k -> ConcurrentHashMap.newKeySet());
             poweredSet.add(pos);
         } else {
-            poweredSet.remove(pos);
+            Set<BlockPos> poweredSet = poweredSpeakerPositions.get(fullKey);
+            if (poweredSet != null) {
+                poweredSet.remove(pos);
+                if (poweredSet.isEmpty()) poweredSpeakerPositions.remove(fullKey, poweredSet);
+            }
         }
     }
 
@@ -232,11 +227,13 @@ public final class ServerSpeakerRegistry {
         if (level == null || level.isClientSide()) return false;
         String dimension = getDimension(level);
         String fullKey = getRegistryKey(dimension, stateKey);
-        Set<BlockPos> positions = poweredSpeakerPositions.get(fullKey);
-        if (positions == null || positions.isEmpty()) return false;
-        for (BlockPos pos : positions) {
+        Set<BlockPos> registered = speakerPositions.get(fullKey);
+        if (registered == null || registered.isEmpty()) return false;
+        for (BlockPos pos : registered) {
             if (!pos.equals(currentPos)) {
-                return true;
+                var state = level.getBlockState(pos);
+                if (state.hasProperty(com.nstut.simplyspeakers.blocks.SpeakerBlock.POWERED)
+                        && state.getValue(com.nstut.simplyspeakers.blocks.SpeakerBlock.POWERED)) return true;
             }
         }
         return false;

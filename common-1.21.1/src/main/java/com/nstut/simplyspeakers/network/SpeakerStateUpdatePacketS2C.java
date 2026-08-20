@@ -80,10 +80,12 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
     }
 
     private static void handleSpeakerStateUpdate(SpeakerStateUpdatePacketS2C pkt) {
-        String netKey = SpeakerLink.isLinkableId(pkt.speakerId) ? "net_" + pkt.speakerId.trim() : (pkt.blockPos.equals(BlockPos.ZERO) ? pkt.speakerId : "pos_" + pkt.blockPos);
-        ClientAudioPlayer.setLooping(netKey, pkt.isLooping);
+        boolean linked = SpeakerLink.isLinkableId(pkt.speakerId);
+        String audioKey = linked ? "net_" + pkt.speakerId.trim() : "pos_" + pkt.blockPos.asLong();
+        ClientAudioPlayer.setLooping(audioKey, pkt.isLooping);
+        ClientSpeakerRegistry.setLooping(audioKey, pkt.isLooping);
 
-        if (SpeakerLink.isLinkableId(pkt.speakerId)) {
+        if (linked) {
             String linkKey = "net_" + pkt.speakerId.trim();
             SpeakerState state = ClientSpeakerRegistry.getOrCreateState(linkKey);
             state.setAudioId(pkt.audioId);
@@ -98,7 +100,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
                 state.setPlaybackStartTick(-1);
             }
             ClientSpeakerRegistry.updateState(linkKey, state);
-        } else if (!pkt.blockPos.equals(BlockPos.ZERO) && Minecraft.getInstance().level != null) {
+        } else if (Minecraft.getInstance().level != null) {
             var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
             if (be instanceof SpeakerBlockEntity speakerBE) {
                 SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
@@ -118,7 +120,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
         }
 
         if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
-            if (!pkt.blockPos.equals(BlockPos.ZERO) && pkt.blockPos.equals(screen.getBlockEntityPos())) {
+            if (!linked && pkt.blockPos.equals(screen.getBlockEntityPos())) {
                 screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
             }
         }
