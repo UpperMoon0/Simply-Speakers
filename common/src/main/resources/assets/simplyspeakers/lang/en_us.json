@@ -37,5 +37,23 @@
   
   "gui.simplyspeakers.loop.on": "Loop: ON",
   "gui.simplyspeakers.loop.off": "Loop: OFF",
-  "gui.simplyspeakers.loop.tooltip": "When ON, the audio will restart automatically when it ends."
+  "gui.simplyspeakers.loop.tooltip": "When ON, the audio will restart automatically when it ends.",
+
+  "gui.simplyspeakers.proxy.helper": "This proxy follows the linked speaker's selected audio. Set a matching Speaker ID to link them.",
+  "gui.simplyspeakers.proxy_speaker.not_found": "Speaker not found.",
+
+  "gui.simplyspeakers.now_playing": "Now playing: %s",
+  "gui.simplyspeakers.no_audio": "No audio uploaded",
+  "gui.simplyspeakers.no_search_matches": "No audio matches \"%s\"",
+  "gui.simplyspeakers.clear_search": "Clear search",
+  "gui.simplyspeakers.duration": "Length: %s",
+
+  "gui.simplyspeakers.playing": "Playing",
+  "gui.simplyspeakers.selected": "Selected",
+  "gui.simplyspeakers.select": "Select",
+  "gui.simplyspeakers.delete": "Delete",
+  "gui.simplyspeakers.cancel": "Cancel",
+
+  "gui.simplyspeakers.delete_confirm.title": "Delete audio?",
+  "gui.simplyspeakers.delete_confirm.body": "\"%s\" will be removed from the server."
 }

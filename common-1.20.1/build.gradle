@@ -25,6 +25,10 @@ dependencies {
     annotationProcessor "org.projectlombok:lombok:1.18.30"
 
     implementation "javazoom:jlayer:1.0.1"
+
+    // OpenUI MC — required client-side UI framework.
+    // Compile-only here: each loader project declares its matching OpenUI mod on the runtime classpath.
+    modCompileOnly 'com.nstut:openui-mc-fabric-1.20.1:0.0.1'
 }
 
 import groovy.json.JsonSlurper
@@ -111,4 +115,14 @@ jar {
     from {
         project(':common').sourceSets.main.output
     }
+}
+
+// Unit tests for pure-Java client UI preferences (no Minecraft runtime required).
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+test {
+    useJUnitPlatform()
 }

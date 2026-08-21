@@ -16,6 +16,7 @@ allprojects {
     version = rootProject.mod_version
 
     repositories {
+        mavenLocal()
         maven { url 'https://jitpack.io' }
         exclusiveContent {
             forRepository {
