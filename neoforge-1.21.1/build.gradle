@@ -82,7 +82,11 @@ dependencies {
     // Local integration-test mods. These are attached automatically when the
     // sibling source checkouts have been built and are never bundled in releases.
     def localSableJar = rootProject.file('../sable/neoforge/build/libs/sable-neoforge-1.21.1-2.0.5.jar')
-    def localAeronauticsJar = rootProject.file('../Simulated-Project/aeronautics-bundled/build/libs/create-aeronautics-bundled-1.21.1-1.3.1.jar')
+    def localAeronauticsJars = [
+            rootProject.file('../Simulated-Project/simulated/neoforge/build/libs/simulated-neoforge-1.21.1-1.3.1.jar'),
+            rootProject.file('../Simulated-Project/aeronautics/neoforge/build/libs/aeronautics-neoforge-1.21.1-1.3.1.jar'),
+            rootProject.file('../Simulated-Project/offroad/neoforge/build/libs/offroad-neoforge-1.21.1-1.3.1.jar')
+    ]
     if (localSableJar.exists()) {
         modLocalRuntime files(localSableJar)
         modLocalRuntime("com.simibubi.create:create-1.21.1:6.0.10-280") { transitive = false }
@@ -96,8 +100,10 @@ dependencies {
         forgeRuntimeLibrary "gg.moonflower:molang-compiler:3.1.1.19"
         forgeRuntimeLibrary "io.github.ocelot:glsl-processor:0.2.3"
     }
-    if (localSableJar.exists() && localAeronauticsJar.exists()) {
-        modLocalRuntime files(localAeronauticsJar)
+    // Load the component jars directly. Loom remaps local runtime mods, but
+    // cannot reliably rediscover the JarJar modules nested in the bundled jar.
+    if (localSableJar.exists() && localAeronauticsJars.every { it.exists() }) {
+        modLocalRuntime files(localAeronauticsJars)
     }
 }
 
