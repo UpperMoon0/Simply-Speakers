@@ -32,6 +32,6 @@
     "fabric-api": "*"
   },
   "suggests": {
-    "another-mod": "*"
+    "sable": "=2.0.5"
   }
 }

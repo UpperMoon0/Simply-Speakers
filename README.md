@@ -13,6 +13,7 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 * **Redstone Control**: Power a speaker to play, unpower to stop.
 * **Range-based Audio**: Volume fades with distance; players entering/leaving range automatically start/stop hearing audio.
 * **Loop Playback**: Toggle looping from the speaker GUI.
+* **Moving Speakers (1.21.1)**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
 * **Cross-Platform**: Supports Fabric, Forge, and NeoForge across multiple Minecraft versions.
 
 ## Supported Platforms
@@ -75,6 +76,13 @@ Edit the mod config file to adjust:
 
 - **Architectury API** (matching your Minecraft version and loader)
 - **Fabric API** (for Fabric versions)
+
+### Optional integrations
+
+- **Sable 2.0.5** (Minecraft 1.21.1): Enables correct spatial audio for speakers mounted on Sable physics bodies. Simply Speakers works normally without Sable.
+- **Create Aeronautics** (NeoForge 1.21.1): Required only if you want Aeronautics' blocks and physics-body gameplay. It is not required for Simply Speakers or basic Sable compatibility.
+
+Sable Companion is bundled with Simply Speakers, and Sable's official jar includes its physics backend. Do not install either component separately.
 
 ## Building from Source
 

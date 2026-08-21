@@ -34,3 +34,11 @@ mandatory = true
 versionRange = "[${architectury_api_version},)"
 ordering = "AFTER"
 side = "BOTH"
+
+
+[[dependencies.simplyspeakers]]
+modId = "sable"
+mandatory = false
+versionRange = "[2.0.5]"
+ordering = "AFTER"
+side = "BOTH"

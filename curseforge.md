@@ -1,50 +1,80 @@
-Simply Speakers adds functional speaker blocks to Minecraft that can play your own music files! Build a speaker network, synchronize audio across multiple locations, and control playback with redstone.
+# Simply Speakers
+
+Simply Speakers adds configurable speaker blocks that play your own MP3 and WAV audio in Minecraft. Upload files in game, build synchronized speaker networks across large areas, and control playback with redstone.
+
+![Simply Speakers speaker block](https://media.forgecdn.net/attachments/1856/970/thumbnail-png.png)
 
 ## Features
 
-### Block Types
-- **Speaker**: The main controller that stores and plays audio files. Place it, right-click to open the configuration screen, and start playing music.
-- **Proxy Speaker**: Links to a main Speaker by ID, playing the same audio at the same position in a different location. Perfect for multiple rooms or large areas.
+- **Speaker block:** Select audio, configure playback, and control a linked network from one main speaker.
+- **Proxy speakers:** Link multiple locations with the same Speaker ID and keep playback synchronized.
+- **MP3 and WAV support:** Upload local audio files directly through the speaker interface or install them manually in the world save.
+- **Per-speaker controls:** Configure volume, audible range, distance dropoff, and looping.
+- **Redstone control:** Power speakers to play and remove power to stop.
+- **Multiplayer synchronization:** Nearby players hear the same playback position while the server remains authoritative.
+- **Moving-body audio on 1.21.1:** When Sable is installed, speakers mounted on physics bodies follow their actual moving and rotating positions.
 
-### Audio Playback
-- Supports **MP3** and **WAV** files
-- Upload audio files directly through the in-game UI
-- Redstone control - power to play, unpower to stop
-- Loop playback with toggle support
-- Range-based audio - volume fades with distance from the speaker
+Simply Speakers does not stream arbitrary internet URLs. The upload interface accepts files from your local computer and transfers validated MP3 or WAV audio to the server.
 
-### Audio Settings (per speaker)
-- **Max Volume** (0-100%): How loud the speaker can be at the source
-- **Max Range** (1-512 blocks): How far the audio reaches
-- **Audio Dropoff** (0-100%): Controls how volume decreases over distance - 0% means uniform volume, 100% means linear fade
+## Getting Started
 
-### Manual Audio Installation
-Audio files can also be placed manually:
-1. Drop .mp3/.wav files into `{world}/simply_speakers_audios/`
-2. Add entries to `audio_manifest.json` with a UUID key and original filename
-3. Files appear automatically in the speaker GUI
+1. Craft and place a **Speaker**.
+2. Right-click it to open the interface.
+3. Upload or select an audio file.
+4. Configure its volume, range, dropoff, looping, and Speaker ID.
+5. Add **Proxy Speakers** with the same Speaker ID wherever you want synchronized playback.
+6. Use the interface or redstone to control playback.
+
+## Optional Sable Integration
+
+On Minecraft 1.21.1, installing **Sable 2.0.5** enables correct spatial audio for speakers placed on Sable physics bodies. Audio follows moving, rotating, and scaled bodies without restarting playback. Networks can span multiple moving bodies and ordinary world speakers.
+
+Sable is optional. Simply Speakers works normally without it; only moving-body spatial compatibility is unavailable.
+
+**Create Aeronautics is not required by Simply Speakers.** Install Aeronautics and its dependencies only if you want its physics-body blocks and gameplay. Aeronautics is currently available for NeoForge 1.21.1.
+
+Sable Companion is already bundled with Simply Speakers, and Sable's official jar includes its physics backend. Users should not install those components separately.
+
+## Manual Audio Installation
+
+Audio files are stored in `simply_speakers_audios` inside the world's save directory. To add one manually:
+
+1. Generate a UUID, such as with [uuidgenerator.net](https://www.uuidgenerator.net/).
+2. Rename the file to `<your-uuid>.mp3` or `<your-uuid>.wav` and place it in `simply_speakers_audios`.
+3. Add an entry to `audio_manifest.json`:
+
+```json
+{
+  "your-uuid": {
+    "uuid": "your-uuid",
+    "originalFilename": "your-song.mp3"
+  }
+}
+```
 
 ## Supported Platforms
+
 - Fabric 1.20.1
-- Forge 1.20.1  
+- Forge 1.20.1
 - Fabric 1.21.1
 - NeoForge 1.21.1
 - NeoForge 26.1.2
 
-## Dependencies
-- Architectury API (corresponding version for your Minecraft/loader)
+Sable integration is currently available only on the Minecraft 1.21.1 builds.
 
-## Getting Started
-1. Craft a **Speaker** block
-2. Place it in the world
-3. Right-click to open the GUI
-4. Upload audio files or add them manually
-5. Select an audio file and press Play
-6. Optionally craft **Proxy Speakers** and set the same Speaker ID to sync audio across locations
+## Required Dependencies
+
+- **Architectury API** matching your Minecraft version and loader
+- **Fabric API** on Fabric
 
 ## Configuration
-Edit the mod config file to adjust:
-- `speakerRange`: Default range for new speakers (1-512, default: 64)
-- `disableUpload`: Disable the upload feature entirely
-- `maxUploadSize`: Maximum file size for uploads (bytes)
-- `debugLogging`: Enable verbose logging for troubleshooting
+
+- `speakerRange`: Default range for new speakers, from 1 to 512 blocks (default: 64)
+- `disableUpload`: Disable in-game uploads
+- `maxUploadSize`: Maximum upload size in bytes
+- `debugLogging`: Enable verbose troubleshooting logs
+
+## Support
+
+- [Join the Discord community](https://discord.gg/4vD9WuT2As)
+- [Report bugs on GitHub](https://github.com/UpperMoon0/Simply-Speakers/issues)
