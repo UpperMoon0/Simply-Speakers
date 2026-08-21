@@ -113,7 +113,7 @@ The project is a multi-loader, multi-version project:
 
 ## Changelog
 
-See [changelog/changelog.txt](changelog/changelog.txt) for the full version history.
+See the versioned release notes in the [changelog directory](changelog/).
 
 ## Contributing
 

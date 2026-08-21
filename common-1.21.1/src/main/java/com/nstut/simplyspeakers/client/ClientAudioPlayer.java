@@ -565,14 +565,14 @@ public class ClientAudioPlayer {
                         data = cachedEmitters.computeIfAbsent(speakerPos, p ->
                                 new EmitterData(p, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = speakerBlockEntity.getMaxVolume();
-                        data.maxRange = speakerBlockEntity.getMaxRange();
+                        data.maxRange = Math.min(speakerBlockEntity.getMaxRange(), Config.speakerRange);
                         data.audioDropoff = speakerBlockEntity.getAudioDropoff();
                         data.missingBlockEntityTicks = 0;
                     } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
                         data = cachedEmitters.computeIfAbsent(speakerPos, p ->
                                 new EmitterData(p, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = proxySpeakerBlockEntity.getMaxVolume();
-                        data.maxRange = proxySpeakerBlockEntity.getMaxRange();
+                        data.maxRange = Math.min(proxySpeakerBlockEntity.getMaxRange(), Config.speakerRange);
                         data.audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
                         data.missingBlockEntityTicks = 0;
                     } else if (data != null && ++data.missingBlockEntityTicks >= MISSING_BLOCK_ENTITY_GRACE_TICKS) {
