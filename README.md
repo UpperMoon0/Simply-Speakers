@@ -102,8 +102,8 @@ The project is a multi-loader, multi-version project:
 | `common/`           | Pure Java logic — config, audio ownership, state     |
 | `common-1.20.1/`   | Shared Minecraft code for 1.20.1 (Fabric + Forge)    |
 | `common-1.21.1/`   | Shared Minecraft code for 1.21.1 (Fabric + NeoForge) |
-| `shared-1.21plus/`  | Shared code between 1.21.1 and 26.1.2 NeoForge       |
-| `shared-neoforge/`  | Shared NeoForge platform code                        |
+| `shared/minecraft-1.21plus/` | Shared code between 1.21.1 and 26.1.2 NeoForge |
+| `shared/loader-neoforge/`    | Shared NeoForge platform code                  |
 | `fabric-1.20.1/`   | Fabric 1.20.1 loader entry point                     |
 | `fabric-1.21.1/`   | Fabric 1.21.1 loader entry point                     |
 | `forge-1.20.1/`    | Forge 1.20.1 loader entry point                      |

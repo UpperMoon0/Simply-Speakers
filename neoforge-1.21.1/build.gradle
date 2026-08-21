@@ -28,7 +28,7 @@ loom {
     }
 }
 
-sourceSets.main.java.srcDir('../shared-neoforge/src/main/java')
+sourceSets.main.java.srcDir('../shared/loader-neoforge/src/main/java')
 
 configurations {
     common {

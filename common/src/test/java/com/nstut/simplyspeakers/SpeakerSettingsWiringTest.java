@@ -62,7 +62,7 @@ class SpeakerSettingsWiringTest {
         }
 
         // Verify modern packet catalog registers SyncConfigPacketS2C
-        String catalog = Files.readString(root.resolve("shared-1.21plus/src/main/java/com/nstut/simplyspeakers/network/S2CPacketCatalog.java"));
+        String catalog = Files.readString(root.resolve("shared/minecraft-1.21plus/src/main/java/com/nstut/simplyspeakers/network/S2CPacketCatalog.java"));
         assertContains(catalog, "SyncConfigPacketS2C", "S2CPacketCatalog must register SyncConfigPacketS2C");
 
         // Verify 1.20.1 packet registry registers SyncConfigPacketS2C
