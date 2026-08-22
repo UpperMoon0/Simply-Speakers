@@ -32,7 +32,18 @@ jobs:
         run: chmod +x ./gradlew ./.openui-mc/gradlew
 
       - name: Install required OpenUI MC artifacts
-        run: ./.openui-mc/gradlew -p .openui-mc publishToMavenLocal
+        shell: bash
+        run: |
+          targets=(
+            ":fabric-1.20.1:publishToMavenLocal"
+            ":forge-1.20.1:publishToMavenLocal"
+            ":fabric-1.21.1:publishToMavenLocal"
+            ":neoforge-1.21.1:publishToMavenLocal"
+            ":neoforge-26.1.2:publishToMavenLocal"
+          )
+          for target in "${targets[@]}"; do
+            ./.openui-mc/gradlew -p .openui-mc "$target"
+          done
 
       - name: Run shared and 26.1.2 regression tests
         run: ./gradlew :common:test :neoforge-26.1.2:test
@@ -110,7 +121,9 @@ jobs:
               ":neoforge-1.21.1:publishToMavenLocal"
             )
           fi
-          ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
+          for target in "${targets[@]}"; do
+            ./.openui-mc/gradlew -p .openui-mc "$target"
+          done
 
       - name: Build ${{ matrix.platform }} ${{ matrix.version }}
         run: ./gradlew :${{ matrix.project }}:build

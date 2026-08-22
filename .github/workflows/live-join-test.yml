@@ -72,7 +72,9 @@ jobs:
               ":neoforge-1.21.1:publishToMavenLocal"
             )
           fi
-          ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
+          for target in "${targets[@]}"; do
+            ./.openui-mc/gradlew -p .openui-mc "$target"
+          done
       # Gradle 8.14 cannot run on Java 25. The 26.1.2 project obtains its Java 25
       # compiler/launcher through the declared Foojay toolchain while Gradle stays on 21.
       - name: Set up target Gradle JDK
