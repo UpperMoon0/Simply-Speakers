@@ -32,7 +32,7 @@ jobs:
         run: chmod +x ./gradlew ./.openui-mc/gradlew
 
       - name: Install required OpenUI MC artifacts
-        run: ./.openui-mc/gradlew -p .openui-mc :fabric-1.20.1:publishToMavenLocal :fabric-1.21.1:publishToMavenLocal :neoforge-26.1.2:publishToMavenLocal
+        run: ./.openui-mc/gradlew -p .openui-mc publishToMavenLocal
 
       - name: Run shared and 26.1.2 regression tests
         run: ./gradlew :common:test :neoforge-26.1.2:test
@@ -99,10 +99,16 @@ jobs:
       - name: Install matching OpenUI MC artifact
         shell: bash
         run: |
-          # Simply Speakers configures both shared Minecraft generations for every target.
-          targets=(":fabric-1.20.1:publishToMavenLocal" ":fabric-1.21.1:publishToMavenLocal")
-          if [[ "${{ matrix.project }}" != "fabric-1.20.1" && "${{ matrix.project }}" != "fabric-1.21.1" ]]; then
-            targets+=(":${{ matrix.project }}:publishToMavenLocal")
+          if [[ "${{ matrix.project }}" == "neoforge-26.1.2" ]]; then
+            targets=(":neoforge-26.1.2:publishToMavenLocal")
+          else
+            # Legacy Gradle invocations configure all four legacy loader modules.
+            targets=(
+              ":fabric-1.20.1:publishToMavenLocal"
+              ":forge-1.20.1:publishToMavenLocal"
+              ":fabric-1.21.1:publishToMavenLocal"
+              ":neoforge-1.21.1:publishToMavenLocal"
+            )
           fi
           ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
 

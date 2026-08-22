@@ -61,10 +61,16 @@ jobs:
       - name: Install matching OpenUI MC artifact
         shell: bash
         run: |
-          # Simply Speakers configures both shared Minecraft generations for every target.
-          targets=(":fabric-1.20.1:publishToMavenLocal" ":fabric-1.21.1:publishToMavenLocal")
-          if [[ "${{ matrix.target }}" != "fabric-1.20.1" && "${{ matrix.target }}" != "fabric-1.21.1" ]]; then
-            targets+=(":${{ matrix.target }}:publishToMavenLocal")
+          if [[ "${{ matrix.target }}" == "neoforge-26.1.2" ]]; then
+            targets=(":neoforge-26.1.2:publishToMavenLocal")
+          else
+            # Legacy Gradle invocations configure all four legacy loader modules.
+            targets=(
+              ":fabric-1.20.1:publishToMavenLocal"
+              ":forge-1.20.1:publishToMavenLocal"
+              ":fabric-1.21.1:publishToMavenLocal"
+              ":neoforge-1.21.1:publishToMavenLocal"
+            )
           fi
           ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
       # Gradle 8.14 cannot run on Java 25. The 26.1.2 project obtains its Java 25
