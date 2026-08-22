@@ -64,6 +64,8 @@ dependencies {
     // Architectury API. This is optional, and you can comment it out if you don't need it.
     modImplementation "dev.architectury:architectury-neoforge:$project.architectury_api_version"
 
+    modImplementation 'com.nstut:openui-mc-neoforge-1.21.1:0.0.4'
+
     include(api("dev.ryanhcode.sable-companion:sable-companion-common-1.21.1:$project.sable_companion_version"))
 
     // JLayer (non-MC dependency)

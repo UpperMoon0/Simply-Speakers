@@ -66,7 +66,6 @@ sourceSets.main.resources {
 sourceSets.main.java.srcDir('../common/src/main/java')
 sourceSets.main.java.srcDir('../shared/minecraft-1.21plus/src/main/java')
 sourceSets.main.java.srcDir('../shared/loader-neoforge/src/main/java')
-sourceSets.main.java.exclude('com/nstut/simplyspeakers/client/gui/widgets/AudioListWidget.java')
 sourceSets.test.java.srcDir('../common/src/test/java')
 
 // ModDev supplies Minecraft to main separately from Java's normal dependency graph.
@@ -175,6 +174,10 @@ configurations {
 }
 
 dependencies {
+    // OpenUI is a separate required client mod. The Maven dependency supplies
+    // its API at compile time, and localRuntime makes ModDevGradle load it in dev runs.
+    implementation 'com.nstut:openui-mc-neoforge-26.1.2:0.0.4'
+    localRuntime 'com.nstut:openui-mc-neoforge-26.1.2:0.0.4'
     implementation "com.google.code.gson:gson:2.11.0"
     implementation "javazoom:jlayer:1.0.1"
     jarJar "javazoom:jlayer:1.0.1"

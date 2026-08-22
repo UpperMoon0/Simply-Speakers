@@ -65,7 +65,7 @@ dependencies {
     implementation project(':common')
 
     // OpenUI MC — required client-side UI framework (matching Forge 1.20.1 module)
-    modImplementation 'com.nstut:openui-mc-forge-1.20.1:0.0.1'
+    modImplementation 'com.nstut:openui-mc-forge-1.20.1:0.0.4'
 
     common(project(path: ':common-1.20.1', configuration: 'namedElements')) { transitive false }
     shadowBundle project(path: ':common-1.20.1', configuration: 'transformProductionForge')

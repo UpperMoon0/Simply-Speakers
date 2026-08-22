@@ -12,6 +12,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout OpenUI MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: ddc42fd02b5e3ce9013d1bcca78765ffe9d54814
+          path: .openui-mc
+
       # Gradle 8.14 does not support JDK 25.  The neoforge-26.1.2 module
       # declares its own Java 25 toolchain, so only JDK 21 is needed here.
       - name: Set up JDK 21
@@ -22,10 +29,24 @@ jobs:
           cache: 'gradle'
 
       - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        run: chmod +x ./gradlew ./.openui-mc/gradlew
 
-      - name: Run shared and 26.1.2 regression tests
-        run: ./gradlew :common:test :neoforge-26.1.2:test
+      - name: Install required OpenUI MC artifacts
+        shell: bash
+        run: |
+          targets=(
+            ":fabric-1.20.1:publishToMavenLocal"
+            ":forge-1.20.1:publishToMavenLocal"
+            ":fabric-1.21.1:publishToMavenLocal"
+            ":neoforge-1.21.1:publishToMavenLocal"
+            ":neoforge-26.1.2:publishToMavenLocal"
+          )
+          for target in "${targets[@]}"; do
+            ./.openui-mc/gradlew -p .openui-mc "$target"
+          done
+
+      - name: Run shared and version-specific regression tests
+        run: ./gradlew :common:test :common-1.20.1:test :common-1.21.1:test :neoforge-26.1.2:test
 
   build:
     needs: verify
@@ -58,8 +79,8 @@ jobs:
             platform: 'neoforge'
             project: 'neoforge-1.21.1'
             artifact_pattern: 'simplyspeakers-neoforge-1.21.1-*.jar'
-          # Minecraft 26.1.2 builds (Java 25)
-          - java: 25
+          # Gradle runs on Java 21; ModDevGradle provisions the Java 25 toolchain.
+          - java: 21
             version: '26.1.2'
             platform: 'neoforge'
             project: 'neoforge-26.1.2'
@@ -69,6 +90,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout OpenUI MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: ddc42fd02b5e3ce9013d1bcca78765ffe9d54814
+          path: .openui-mc
+
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
@@ -77,7 +105,25 @@ jobs:
           cache: 'gradle' 
 
       - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        run: chmod +x ./gradlew ./.openui-mc/gradlew
+
+      - name: Install matching OpenUI MC artifact
+        shell: bash
+        run: |
+          if [[ "${{ matrix.project }}" == "neoforge-26.1.2" ]]; then
+            targets=(":neoforge-26.1.2:publishToMavenLocal")
+          else
+            # Legacy Gradle invocations configure all four legacy loader modules.
+            targets=(
+              ":fabric-1.20.1:publishToMavenLocal"
+              ":forge-1.20.1:publishToMavenLocal"
+              ":fabric-1.21.1:publishToMavenLocal"
+              ":neoforge-1.21.1:publishToMavenLocal"
+            )
+          fi
+          for target in "${targets[@]}"; do
+            ./.openui-mc/gradlew -p .openui-mc "$target"
+          done
 
       - name: Build ${{ matrix.platform }} ${{ matrix.version }}
         run: ./gradlew :${{ matrix.project }}:build
