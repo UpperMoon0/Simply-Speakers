@@ -32,6 +32,9 @@ dependencies {
 
     // OpenUI MC — compile against the matching 1.21.1 API; loaders provide the runtime mod.
     modCompileOnly 'com.nstut:openui-mc-fabric-1.21.1:0.0.4'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
 
 // Configure processResources to include common resources directly
@@ -47,11 +50,6 @@ jar {
     from {
         project(':common').sourceSets.main.output
     }
-}
-
-dependencies {
-    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
 
 test {

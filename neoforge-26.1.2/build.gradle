@@ -174,12 +174,10 @@ configurations {
 }
 
 dependencies {
-    // OpenUI 26.1.2 is not on a public Maven repository yet. Its standalone
-    // publication currently uses "neoforge-26.1.2" as the local artifact id.
-    def localMavenRepository = providers.systemProperty('maven.repo.local')
-            .orElse(new File(System.getProperty('user.home'), '.m2/repository').absolutePath)
-            .get()
-    implementation files("${localMavenRepository}/com/nstut/neoforge-26.1.2/0.0.4/neoforge-26.1.2-0.0.4.jar")
+    // OpenUI is a separate required client mod. The Maven dependency supplies
+    // its API at compile time, and localRuntime makes ModDevGradle load it in dev runs.
+    implementation 'com.nstut:openui-mc-neoforge-26.1.2:0.0.4'
+    localRuntime 'com.nstut:openui-mc-neoforge-26.1.2:0.0.4'
     implementation "com.google.code.gson:gson:2.11.0"
     implementation "javazoom:jlayer:1.0.1"
     jarJar "javazoom:jlayer:1.0.1"

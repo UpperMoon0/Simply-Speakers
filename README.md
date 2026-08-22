@@ -76,6 +76,9 @@ Edit the mod config file to adjust:
 
 - **Architectury API** (matching your Minecraft version and loader)
 - **Fabric API** (for Fabric versions)
+- **OpenUI MC 0.0.4 or newer** (matching your Minecraft version and loader)
+
+OpenUI MC is distributed as a separate mod and is not bundled into Simply Speakers. Install the matching OpenUI jar alongside Simply Speakers. Fabric metadata cannot scope a required dependency to the client, so Fabric dedicated servers must also have OpenUI installed; Forge and NeoForge declare it as client-only.
 
 ### Optional integrations
 

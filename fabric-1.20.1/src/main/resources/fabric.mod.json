@@ -26,9 +26,7 @@
     "minecraft": "~${minecraft_version}",
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
-    "fabric-api": "*"
-  },
-  "suggests": {
+    "fabric-api": "*",
     "openui_mc": ">=0.0.4"
   }
 }

@@ -18,13 +18,11 @@ class SimplySpeakersUiPreferencesTest {
 
     @Test
     void missingFileDefaultsToDark(@TempDir Path dir) {
-        System.setProperty("simplyspeakers.ui.config.dir", dir.toString());
         assertEquals(UiThemeMode.DARK, SimplySpeakersUiPreferences.getThemeMode(configFile(dir)));
     }
 
     @Test
     void darkLoadSaveRoundTrip(@TempDir Path dir) {
-        System.setProperty("simplyspeakers.ui.config.dir", dir.toString());
         Path file = configFile(dir);
         SimplySpeakersUiPreferences.setThemeMode(file, UiThemeMode.DARK);
         assertEquals(UiThemeMode.DARK, SimplySpeakersUiPreferences.getThemeMode(file));
@@ -33,7 +31,6 @@ class SimplySpeakersUiPreferencesTest {
 
     @Test
     void lightLoadSaveRoundTrip(@TempDir Path dir) {
-        System.setProperty("simplyspeakers.ui.config.dir", dir.toString());
         Path file = configFile(dir);
         SimplySpeakersUiPreferences.setThemeMode(file, UiThemeMode.LIGHT);
         assertEquals(UiThemeMode.LIGHT, SimplySpeakersUiPreferences.getThemeMode(file));
@@ -41,7 +38,6 @@ class SimplySpeakersUiPreferencesTest {
 
     @Test
     void invalidThemeFallsBackToDark(@TempDir Path dir) throws Exception {
-        System.setProperty("simplyspeakers.ui.config.dir", dir.toString());
         Path file = configFile(dir);
         Files.writeString(file, "ui.theme=banana\n");
         assertEquals(UiThemeMode.DARK, SimplySpeakersUiPreferences.getThemeMode(file));
@@ -49,7 +45,6 @@ class SimplySpeakersUiPreferencesTest {
 
     @Test
     void settingThemePreservesOtherProperties(@TempDir Path dir) throws Exception {
-        System.setProperty("simplyspeakers.ui.config.dir", dir.toString());
         Path file = configFile(dir);
         Files.writeString(file, "other.setting=keepme\nui.theme=dark\n");
         SimplySpeakersUiPreferences.setThemeMode(file, UiThemeMode.LIGHT);

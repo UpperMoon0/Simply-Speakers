@@ -24,7 +24,9 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
     @Override
     protected void init() {
         super.init();
-        uiRuntime().theme(themeMode.get().toOpenUiTheme());
+        if (uiRuntime() != null) {
+            uiRuntime().theme(themeMode.get().toOpenUiTheme());
+        }
     }
 
     /**

@@ -29,10 +29,10 @@
     "minecraft": "~${minecraft_version}",
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
-    "fabric-api": "*"
+    "fabric-api": "*",
+    "openui_mc": ">=${openui_version}"
   },
   "suggests": {
-    "sable": "=2.0.5",
-    "openui_mc": ">=${openui_version}"
+    "sable": "=2.0.5"
   }
 }
