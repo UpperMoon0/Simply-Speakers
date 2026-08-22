@@ -42,7 +42,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -92,7 +91,6 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     });
 
     private final java.util.List<Subscription> subs = new java.util.ArrayList<>();
-    private boolean applyingRemoteState;
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.translatable("gui.simplyspeakers.speaker.title"));
@@ -232,31 +230,23 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_volume"),
                         () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
-                        maxVolume, 0.0, 1.0,
-                        v -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxVolumePacketC2S(blockEntityPos, v.floatValue()))
+                        maxVolume, 0.0, 1.0
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_range"),
                         () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
-                        maxRange, 1.0, Config.speakerRange,
-                        v -> PacketRegistries.CHANNEL.sendToServer(new UpdateMaxRangePacketC2S(blockEntityPos, (int) Math.round(v)))
+                        maxRange, 1.0, Config.speakerRange
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.audio_dropoff"),
                         () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
-                        audioDropoff, 0.0, 1.0,
-                        v -> PacketRegistries.CHANNEL.sendToServer(new UpdateAudioDropoffPacketC2S(blockEntityPos, v.floatValue()))
+                        audioDropoff, 0.0, 1.0
                 ),
                 Ui.row(
                         Ui.text(Component.translatable("gui.simplyspeakers.loop")),
                         Ui.toggle(looping)
                 ).gap(8)
         ).gap(10));
-        subs.add(looping.subscribe(v -> {
-            if (applyingRemoteState) return;
-            if (speaker != null) speaker.setLoopingClient(v);
-            PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(blockEntityPos, v));
-        }));
         return card;
     }
 
@@ -276,14 +266,32 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
-                                   Signal<Double> signal, double min, double max, Consumer<Double> packetSender) {
+                                   Signal<Double> signal, double min, double max) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
-        subs.add(signal.subscribe(packetSender::accept));
         return Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider
         ).gap(4);
+    }
+
+    private void wireControlSubscriptions() {
+        subs.add(maxVolume.subscribe(v -> PacketRegistries.CHANNEL.sendToServer(
+                new UpdateMaxVolumePacketC2S(blockEntityPos, v.floatValue()))));
+        subs.add(maxRange.subscribe(v -> PacketRegistries.CHANNEL.sendToServer(
+                new UpdateMaxRangePacketC2S(blockEntityPos, (int) Math.round(v)))));
+        subs.add(audioDropoff.subscribe(v -> PacketRegistries.CHANNEL.sendToServer(
+                new UpdateAudioDropoffPacketC2S(blockEntityPos, v.floatValue()))));
+        subs.add(looping.subscribe(v -> {
+            if (applyingRemoteState) return;
+            if (speaker != null) speaker.setLoopingClient(v);
+            PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(blockEntityPos, v));
+        }));
+    }
+
+    private void closeControlSubscriptions() {
+        for (Subscription subscription : subs) subscription.close();
+        subs.clear();
     }
 
     private void selectAudio(AudioFileMetadata audio) {
@@ -389,8 +397,9 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     @Override
     public void removed() {
-        for (Subscription s : subs) s.close();
-        subs.clear();
+        closeControlSubscriptions();
+        audioViewState.close();
+        filteredAudio.close();
         super.removed();
     }
 }

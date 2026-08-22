@@ -9,7 +9,7 @@ The result must be a compact premium audio-control interface: clean library brow
 ## Repositories reviewed
 
 - Consuming mod: `UpperMoon0/Simply-Speakers`, current `main`.
-- OpenUI target: `UpperMoon0/OpenUI-MC`, branch `codex/multiloader-build`.
+- OpenUI target: `UpperMoon0/OpenUI-MC`, branch `codex/openui-0.0.4`.
 
 Current UI implementation files:
 
@@ -72,11 +72,11 @@ Do not change audio streaming/playback, server file storage, packet serializatio
 
 ## OpenUI target and hard constraints
 
-**Source of truth:** `UpperMoon0/OpenUI-MC`, branch `codex/multiloader-build`.
+**Source of truth:** `UpperMoon0/OpenUI-MC`, branch `codex/openui-0.0.4`.
 
 Do **not** implement against OpenUI `main`. Do **not** copy the old Economy-extracted UI classes into the target mod. The migration target is the completed multi-loader OpenUI branch.
 
-OpenUI version on the reviewed branch: `0.0.1`.
+OpenUI version on the implemented branch: `0.0.4`.
 
 Supported OpenUI module mapping:
 
@@ -136,7 +136,7 @@ includeBuild('../OpenUI-MC') {
 Each consuming loader project then uses only its matching coordinate, for example:
 
 ```groovy
-modImplementation 'com.nstut:openui-mc-fabric-1.20.1:0.0.1'
+modImplementation 'com.nstut:openui-mc-fabric-1.20.1:0.0.4'
 ```
 
 or the equivalent dependency configuration for that loader/build system.
@@ -309,11 +309,11 @@ Add the loader-specific OpenUI composite substitutions. They may live outside th
 Each loader project needs its matching dependency:
 
 ```text
-fabric-1.20.1  -> com.nstut:openui-mc-fabric-1.20.1:0.0.1
-forge-1.20.1   -> com.nstut:openui-mc-forge-1.20.1:0.0.1
-fabric-1.21.1  -> com.nstut:openui-mc-fabric-1.21.1:0.0.1
-neoforge-1.21.1-> com.nstut:openui-mc-neoforge-1.21.1:0.0.1
-neoforge-26.1.2-> com.nstut:openui-mc-neoforge-26.1.2:0.0.1
+fabric-1.20.1  -> com.nstut:openui-mc-fabric-1.20.1:0.0.4
+forge-1.20.1   -> com.nstut:openui-mc-forge-1.20.1:0.0.4
+fabric-1.21.1  -> com.nstut:openui-mc-fabric-1.21.1:0.0.4
+neoforge-1.21.1-> com.nstut:openui-mc-neoforge-1.21.1:0.0.4
+neoforge-26.1.2-> com.nstut:openui-mc-neoforge-26.1.2:0.0.4
 ```
 
 For Architectury Loom projects, use the normal mod dependency configuration (`modImplementation` or the repository's equivalent) so OpenUI is available to dev runs.

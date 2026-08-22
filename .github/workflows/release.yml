@@ -68,8 +68,8 @@ jobs:
             platform: 'neoforge'
             project: 'neoforge-1.21.1'
             artifact_pattern: 'simplyspeakers-neoforge-1.21.1-*.jar'
-          # Minecraft 26.1.2 builds (Java 25)
-          - java: 25
+          # Gradle runs on Java 21; ModDevGradle provisions the Java 25 toolchain.
+          - java: 21
             version: '26.1.2'
             platform: 'neoforge'
             project: 'neoforge-26.1.2'

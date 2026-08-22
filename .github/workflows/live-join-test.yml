@@ -26,14 +26,19 @@ jobs:
         include:
           - target: fabric-1.20.1
             java: 17
+            gradle_java: 17
           - target: forge-1.20.1
             java: 17
+            gradle_java: 17
           - target: fabric-1.21.1
             java: 21
+            gradle_java: 21
           - target: neoforge-1.21.1
             java: 21
+            gradle_java: 21
           - target: neoforge-26.1.2
             java: 25
+            gradle_java: 21
     steps:
       - uses: actions/checkout@v4
       - name: Checkout OpenUI MC
@@ -42,10 +47,12 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           ref: codex/openui-0.0.4
           path: .openui-mc
-      - uses: actions/setup-java@v4
+      # OpenUI's Gradle plugins require Java 21 even when publishing a Java 17 artifact.
+      - name: Set up OpenUI build JDK
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: ${{ matrix.java }}
+          java-version: 21
           cache: gradle
       - name: Install virtual display
         run: sudo apt-get update && sudo apt-get install -y xvfb
@@ -61,6 +68,14 @@ jobs:
             targets+=(":fabric-1.21.1:publishToMavenLocal")
           fi
           ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
+      # Gradle 8.14 cannot run on Java 25. The 26.1.2 project obtains its Java 25
+      # compiler/launcher through the declared Foojay toolchain while Gradle stays on 21.
+      - name: Set up target Gradle JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.gradle_java }}
+          cache: gradle
       - name: Run automatic real-client join test
         run: python3 tools/live_join_test.py --target "${{ matrix.target }}"
       - name: Upload test logs
