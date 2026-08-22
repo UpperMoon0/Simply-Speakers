@@ -27,7 +27,7 @@
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
-    "openui_mc": { "version": ">=0.0.1", "client": true }
+    "openui_mc": { "version": ">=0.0.4", "client": true }
   },
   "suggests": {
     "another-mod": "*"

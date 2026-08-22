@@ -66,7 +66,6 @@ sourceSets.main.resources {
 sourceSets.main.java.srcDir('../common/src/main/java')
 sourceSets.main.java.srcDir('../shared/minecraft-1.21plus/src/main/java')
 sourceSets.main.java.srcDir('../shared/loader-neoforge/src/main/java')
-sourceSets.main.java.exclude('com/nstut/simplyspeakers/client/gui/widgets/AudioListWidget.java')
 sourceSets.test.java.srcDir('../common/src/test/java')
 
 // ModDev supplies Minecraft to main separately from Java's normal dependency graph.
@@ -175,6 +174,12 @@ configurations {
 }
 
 dependencies {
+    // OpenUI 26.1.2 is not on a public Maven repository yet. Its standalone
+    // publication currently uses "neoforge-26.1.2" as the local artifact id.
+    def localMavenRepository = providers.systemProperty('maven.repo.local')
+            .orElse(new File(System.getProperty('user.home'), '.m2/repository').absolutePath)
+            .get()
+    implementation files("${localMavenRepository}/com/nstut/neoforge-26.1.2/0.0.4/neoforge-26.1.2-0.0.4.jar")
     implementation "com.google.code.gson:gson:2.11.0"
     implementation "javazoom:jlayer:1.0.1"
     jarJar "javazoom:jlayer:1.0.1"

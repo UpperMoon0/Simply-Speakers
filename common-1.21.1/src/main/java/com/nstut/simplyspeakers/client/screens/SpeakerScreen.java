@@ -1,318 +1,357 @@
-// Language: java
 package com.nstut.simplyspeakers.client.screens;
 
-import com.nstut.simplyspeakers.Config;
-import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import com.nstut.openui.api.ButtonWidget;
+import com.nstut.openui.api.HStack;
+import com.nstut.openui.api.Ui;
+import com.nstut.openui.api.UIComponent;
+import com.nstut.openui.api.VStack;
+import com.nstut.openui.controls.Badge;
+import com.nstut.openui.controls.Card;
+import com.nstut.openui.controls.Dialog;
+import com.nstut.openui.controls.EmptyState;
+import com.nstut.openui.controls.Slider;
+import com.nstut.openui.controls.TextField;
+import com.nstut.openui.controls.Toast;
+import com.nstut.openui.layout.Alignment;
+import com.nstut.openui.layout.Justification;
+import com.nstut.openui.overlay.OverlayHandle;
+import com.nstut.openui.state.Computed;
+import com.nstut.openui.state.Signal;
+import com.nstut.openui.state.Signals;
+import com.nstut.openui.state.Subscription;
 import com.nstut.simplyspeakers.client.ClientAudioPlayer;
-import com.nstut.simplyspeakers.client.SpeakerGuiConstants;
-import com.nstut.simplyspeakers.client.gui.widgets.SpeakerAudioList;
-import com.nstut.simplyspeakers.client.gui.widgets.SettingsSlider;
-import com.nstut.simplyspeakers.network.*;
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.platform.Services;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import com.nstut.simplyspeakers.client.ui.SimplySpeakersUiScreen;
+import com.nstut.simplyspeakers.network.DeleteAudioPacketC2S;
 import dev.architectury.networking.NetworkManager;
+import com.nstut.simplyspeakers.network.RequestUploadAudioPacketC2S;
+import com.nstut.simplyspeakers.network.SelectAudioPacketC2S;
+import com.nstut.simplyspeakers.network.SetSpeakerIdPacketC2S;
+import com.nstut.simplyspeakers.network.ToggleLoopPacketC2S;
+import com.nstut.simplyspeakers.network.UpdateAudioDropoffPacketC2S;
+import com.nstut.simplyspeakers.network.UpdateMaxRangePacketC2S;
+import com.nstut.simplyspeakers.network.UpdateMaxVolumePacketC2S;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.resources.ResourceLocation;
-import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
-public class SpeakerScreen extends Screen {
-    private static final int MARQUEE_PAUSE_MS = 1000;
-    private static final int MARQUEE_PIXELS_PER_SECOND = 30;
+/**
+ * Main Speaker screen, migrated to OpenUI.
+ *
+ * <p>Preserves all existing behaviour: requesting the audio list on open, search/filter,
+ * selection, delete (with confirmation), upload, speaker id, volume/range/dropoff sliders and
+ * loop toggle. Network packets and client update entry points ({@link #updateAudioList},
+ * {@link #refreshFromState}, {@link #setStatusMessage}) are unchanged in signature and now write
+ * to reactive signals rather than vanilla widgets.</p>
+ */
+public class SpeakerScreen extends SimplySpeakersUiScreen {
+    private static final int PANEL_WIDTH = 256;
 
-    private static final ResourceLocation BACKGROUND_TEXTURE = ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "textures/gui/speaker.png");
-
-    private static final int SCREEN_WIDTH = SpeakerGuiConstants.SCREEN_WIDTH;
-    private static final int SCREEN_HEIGHT = SpeakerGuiConstants.SPEAKER_SCREEN_HEIGHT;
+    private enum SpeakerTab { AUDIO, SETTINGS }
 
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
-    private SpeakerAudioList audioListWidget;
-    private Button audioTabButton;
-    private Button settingsTabButton;
-    private Component statusMessage;
-    private int currentTab = 0; // 0 = audio tab, 1 = settings tab
-    
-    // Container classes for tab content
-    private class AudioTabContent {
-        EditBox searchBar;
-        SpeakerAudioList audioListWidget;
-        Button uploadButton;
 
-        void setVisible(boolean visible) {
-            if (searchBar != null) searchBar.visible = visible;
-            if (audioListWidget != null) audioListWidget.visible = visible;
-            if (uploadButton != null) uploadButton.visible = visible && !Config.disableUpload;
-        }
-    }
+    private final Signal<SpeakerTab> tab = Signals.of(SpeakerTab.AUDIO);
+    private final Signal<String> search = Signals.of("");
+    private final Signal<List<AudioFileMetadata>> audioFiles = Signals.of(List.of());
+    private final Signal<String> selectedAudioId = Signals.of("");
+    private final Signal<String> playingAudioId = Signals.of("");
+    private final Signal<String> speakerId = Signals.of("");
+    private final Signal<Double> maxVolume = Signals.of(1.0);
+    private final Signal<Double> maxRange = Signals.of(16.0);
+    private final Signal<Double> audioDropoff = Signals.of(1.0);
+    private final Signal<Boolean> looping = Signals.of(false);
+    private final Signal<Component> status = Signals.of(Component.empty());
+    private boolean applyingRemoteState;
 
-    private class SettingsTabContent {
-        EditBox speakerIdField;
-        Button saveIdButton;
-        SettingsSlider maxVolumeSlider;
-        SettingsSlider maxRangeSlider;
-        SettingsSlider audioDropoffSlider;
-        Button loopToggleButton;
+    private final Computed<List<AudioFileMetadata>> filteredAudio = Signals.computed(() -> {
+        String q = search.get().trim().toLowerCase(Locale.ROOT);
+        List<AudioFileMetadata> all = audioFiles.get();
+        // Touch play/select state so row badges refresh when playback selection changes.
+        playingAudioId.get();
+        selectedAudioId.get();
+        if (q.isEmpty()) return List.copyOf(all);
+        return all.stream()
+                .filter(a -> a.getOriginalFilename().toLowerCase(Locale.ROOT).contains(q))
+                .toList();
+    });
 
-        void setVisible(boolean visible) {
-            if (speakerIdField != null) speakerIdField.visible = visible;
-            if (saveIdButton != null) saveIdButton.visible = visible;
-            if (maxVolumeSlider != null) maxVolumeSlider.visible = visible;
-            if (maxRangeSlider != null) maxRangeSlider.visible = visible;
-            if (audioDropoffSlider != null) audioDropoffSlider.visible = visible;
-            if (loopToggleButton != null) loopToggleButton.visible = visible;
-        }
-    }
-    
-    private AudioTabContent audioTabContent = new AudioTabContent();
-    private SettingsTabContent settingsTabContent = new SettingsTabContent();
+    private final java.util.List<Subscription> subs = new java.util.ArrayList<>();
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.translatable("gui.simplyspeakers.speaker.title"));
         this.blockEntityPos = blockEntityPos;
-    }
-
+}
     @Override
     protected void init() {
-        super.init();
-
         fetchDataFromBlockEntity();
-
-        int guiLeft = (this.width - SCREEN_WIDTH) / 2;
-        int guiTop = (this.height - SCREEN_HEIGHT) / 2;
-
-        // Create tab buttons
-        this.audioTabButton = Button.builder(Component.translatable("gui.simplyspeakers.tab.audio"), button -> {
-                    this.currentTab = 0;
-                    updateVisibility();
-                })
-                .pos(guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.TAB_BUTTON_Y)
-                .size(50, SpeakerGuiConstants.TAB_BUTTON_HEIGHT)
-                .build();
-
-        this.settingsTabButton = Button.builder(Component.translatable("gui.simplyspeakers.tab.settings"), button -> {
-                    this.currentTab = 1;
-                    updateVisibility();
-                })
-                .pos(guiLeft + 65, guiTop + SpeakerGuiConstants.TAB_BUTTON_Y)
-                .size(60, SpeakerGuiConstants.TAB_BUTTON_HEIGHT)
-                .build();
-
-        this.addRenderableWidget(this.audioTabButton);
-        this.addRenderableWidget(this.settingsTabButton);
-
-        // Audio tab components
-        this.audioTabContent.audioListWidget = new SpeakerAudioList(guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.AUDIO_LIST_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.AUDIO_LIST_HEIGHT, Component.empty(), (audio) -> {
-            if (this.speaker != null) {
-                this.speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
-            }
-            NetworkManager.sendToServer(new SelectAudioPacketC2S(this.blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
-        }, (audio) -> {
-            NetworkManager.sendToServer(new DeleteAudioPacketC2S(audio.getUuid()));
-        });
-
-        this.audioTabContent.searchBar = new EditBox(this.font, guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.SEARCH_BAR_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT, Component.translatable("gui.simplyspeakers.search.placeholder"));
-        this.audioTabContent.searchBar.setResponder(this.audioTabContent.audioListWidget::filter);
-        this.audioTabContent.searchBar.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.search.tooltip")));
-
-        this.audioTabContent.uploadButton = Button.builder(Component.translatable("gui.simplyspeakers.upload"), button -> {
-                    SimplySpeakers.LOGGER.info("Upload button clicked");
-                    Services.CLIENT.openFileDialog("mp3,wav", (file) -> {
-                        if (file != null) {
-                            SimplySpeakers.LOGGER.info("File selected: " + file.getName());
-                            // Validate file extension before starting upload
-                            String fileName = file.getName().toLowerCase();
-                            if (!fileName.endsWith(".mp3") && !fileName.endsWith(".wav")) {
-                                SimplySpeakers.LOGGER.warn("Invalid file type selected: " + file.getName());
-                                setStatusMessage(Component.translatable("gui.simplyspeakers.upload.invalid_type"));
-                                return;
-                            }
-                            var transactionId = ClientAudioPlayer.startUpload(file);
-                            NetworkManager.sendToServer(new RequestUploadAudioPacketC2S(this.blockEntityPos, transactionId, file.getName(), file.length()));
-                        } else {
-                            SimplySpeakers.LOGGER.info("No file selected");
-                        }
-                    });
-                })
-                .pos(guiLeft + (SCREEN_WIDTH - 100) / 2, guiTop + SpeakerGuiConstants.UPLOAD_BUTTON_Y)
-                .size(100, SpeakerGuiConstants.BUTTON_HEIGHT)
-                .build();
-        this.audioTabContent.uploadButton.visible = !Config.disableUpload;
-
-        // Settings tab components
-        this.settingsTabContent.speakerIdField = new EditBox(this.font, guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.SPEAKER_ID_FIELD_Y, SpeakerGuiConstants.SPEAKER_ID_FIELD_WIDTH, SpeakerGuiConstants.BUTTON_HEIGHT, Component.translatable("gui.simplyspeakers.speaker_id.placeholder"));
-        if (this.speaker != null) {
-            this.settingsTabContent.speakerIdField.setValue(this.speaker.getSpeakerId());
+        if (speaker != null) {
+            speakerId.set(speaker.getSpeakerId());
+            selectedAudioId.set(speaker.getAudioId());
+            playingAudioId.set(speaker.getAudioId());
+            maxVolume.set((double) speaker.getMaxVolume());
+            maxRange.set((double) speaker.getMaxRange());
+            audioDropoff.set((double) speaker.getAudioDropoff());
+            looping.set(speaker.isLooping());
         }
-        this.settingsTabContent.speakerIdField.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.speaker_id.tooltip")));
+        super.init();
+        NetworkManager.sendToServer(new com.nstut.simplyspeakers.network.RequestAudioListPacketC2S(blockEntityPos));
+    }
 
-        this.settingsTabContent.saveIdButton = Button.builder(Component.translatable("gui.simplyspeakers.save"), button -> {
-                    if (this.speaker != null) {
-                        String newId = this.settingsTabContent.speakerIdField.getValue();
-                        this.speaker.setSpeakerId(newId);
-                        NetworkManager.sendToServer(new SetSpeakerIdPacketC2S(this.blockEntityPos, newId));
+    @Override
+    protected UIComponent buildUI() {
+        VStack panel = Ui.column(
+                buildHeader(),
+                Ui.tabs(tab)
+                        .tab(SpeakerTab.AUDIO, Component.translatable("gui.simplyspeakers.tab.audio"))
+                        .tab(SpeakerTab.SETTINGS, Component.translatable("gui.simplyspeakers.tab.settings")),
+                Ui.switcher(tab)
+                        .when(SpeakerTab.AUDIO, this::buildAudioView)
+                        .when(SpeakerTab.SETTINGS, this::buildSettingsView),
+                Ui.text((Supplier<Component>) status::get)
+        ).gap(8);
+        panel.width(PANEL_WIDTH);
+        return Ui.padding(16, Ui.stack(panel).align(Alignment.CENTER, Alignment.CENTER));
+    }
+
+    private UIComponent buildHeader() {
+        return Ui.column(
+                Ui.row(
+                        Ui.heading(Component.translatable("gui.simplyspeakers.speaker.title")),
+                        buildThemeToggle()
+                ).justify(Justification.SPACE_BETWEEN),
+                Ui.text(() -> {
+                    String id = playingAudioId.get();
+                    if (id == null || id.isEmpty()) return Component.empty();
+                    return Component.translatable("gui.simplyspeakers.now_playing", filenameOf(id));
+                })
+        ).gap(4);
+    }
+
+    private UIComponent buildAudioView() {
+        if (audioFiles.get().isEmpty()) {
+            EmptyState es = Ui.emptyState(Component.translatable("gui.simplyspeakers.no_audio"));
+            if (!Config.disableUpload) es.action(Component.translatable("gui.simplyspeakers.upload"), this::openUpload);
+            return es;
+        }
+        if (filteredAudio.get().isEmpty()) {
+            return Ui.column(
+                    Ui.emptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())),
+                    Ui.button(Component.translatable("gui.simplyspeakers.clear_search"), () -> search.set("")).ghost().small()
+            ).gap(8);
+        }
+        return Ui.column(
+                buildAudioToolbar(),
+                Ui.list(filteredAudio, this::buildAudioRow)
+                        .key(AudioFileMetadata::getUuid)
+                        .itemHeight(36)
+                        .gap(6)
+                        .height(176)
+                        .fillWidth()
+        ).gap(8);
+    }
+
+    private UIComponent buildAudioToolbar() {
+        HStack toolbar = Ui.row(
+                Ui.textField(search)
+                        .placeholder(Component.translatable("gui.simplyspeakers.search.placeholder").getString())
+                        .flex()
+        ).gap(6);
+        if (!Config.disableUpload) {
+            toolbar.child(Ui.button(Component.translatable("gui.simplyspeakers.upload"), this::openUpload).primary().small());
+        }
+        return toolbar;
+    }
+
+    private UIComponent buildAudioRow(AudioFileMetadata audio) {
+        boolean playing = audio.getUuid().equals(playingAudioId.get());
+        boolean selected = audio.getUuid().equals(selectedAudioId.get());
+
+        Card card = Ui.card().outlined(true).padding(8).selected(selected);
+        VStack left = Ui.column(
+                Ui.text(Component.literal(audio.getOriginalFilename())),
+                audio.getDurationSeconds() > 0
+                        ? Ui.text(Component.translatable("gui.simplyspeakers.duration", formatDuration(audio.getDurationSeconds())))
+                        : Ui.text(Component.empty())
+        ).gap(2);
+
+        HStack right = Ui.row().gap(6);
+        if (playing) {
+            right.child(Ui.badge(Component.translatable("gui.simplyspeakers.playing"), Badge.Variant.SUCCESS));
+        } else if (selected) {
+            right.child(Ui.badge(Component.translatable("gui.simplyspeakers.selected"), Badge.Variant.NEUTRAL));
+        }
+        if (!selected) {
+            right.child(Ui.button(Component.translatable("gui.simplyspeakers.select"), () -> selectAudio(audio)).secondary().small());
+        }
+        right.child(Ui.button(Component.translatable("gui.simplyspeakers.delete"), () -> confirmDelete(audio)).danger().small());
+
+        card.addChild(Ui.row(left.flex(), right).gap(8));
+        return card;
+    }
+
+    private UIComponent buildSettingsView() {
+        if (speaker == null) {
+            return Ui.card(Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"))).outlined(true).padding(16);
+        }
+        Card card = Ui.card().outlined(true).padding(12);
+        card.addChild(Ui.column(
+                buildSpeakerIdRow(),
+                Ui.divider(),
+                sliderRow(
+                        Component.translatable("gui.simplyspeakers.max_volume"),
+                        () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
+                        maxVolume, 0.0, 1.0,
+                        v -> NetworkManager.sendToServer(new UpdateMaxVolumePacketC2S(blockEntityPos, v.floatValue()))
+                ),
+                sliderRow(
+                        Component.translatable("gui.simplyspeakers.max_range"),
+                        () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
+                        maxRange, 1.0, Config.speakerRange,
+                        v -> NetworkManager.sendToServer(new UpdateMaxRangePacketC2S(blockEntityPos, (int) Math.round(v)))
+                ),
+                sliderRow(
+                        Component.translatable("gui.simplyspeakers.audio_dropoff"),
+                        () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
+                        audioDropoff, 0.0, 1.0,
+                        v -> NetworkManager.sendToServer(new UpdateAudioDropoffPacketC2S(blockEntityPos, v.floatValue()))
+                ),
+                Ui.row(
+                        Ui.text(Component.translatable("gui.simplyspeakers.loop")),
+                        Ui.toggle(looping)
+                ).gap(8)
+        ).gap(10));
+        subs.add(looping.subscribe(v -> {
+            if (applyingRemoteState) return;
+            if (speaker != null) speaker.setLoopingClient(v);
+            NetworkManager.sendToServer(new ToggleLoopPacketC2S(blockEntityPos, v));
+        }));
+        return card;
+    }
+
+    private UIComponent buildSpeakerIdRow() {
+        return Ui.row(
+                Ui.textField(speakerId)
+                        .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
+                        .flex(),
+                Ui.button(Component.translatable("gui.simplyspeakers.save"), () -> {
+                    if (speaker != null) {
+                        String newId = speakerId.get();
+                        speaker.setSpeakerId(newId);
+                        NetworkManager.sendToServer(new SetSpeakerIdPacketC2S(blockEntityPos, newId));
                     }
-                })
-                .pos(guiLeft + SpeakerGuiConstants.SAVE_BUTTON_X, guiTop + SpeakerGuiConstants.SPEAKER_ID_FIELD_Y)
-                .size(45, SpeakerGuiConstants.BUTTON_HEIGHT)
-                .build();
-
-        if (this.speaker != null) {
-            this.settingsTabContent.maxVolumeSlider = new SettingsSlider(
-                    guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.VOLUME_SLIDER_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT,
-                    Component.translatable("gui.simplyspeakers.max_volume.slider"),
-                    this.speaker.getMaxVolume(),
-                    0.0, 1.0,
-                    value -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (value * 100)),
-                    value -> NetworkManager.sendToServer(new UpdateMaxVolumePacketC2S(this.blockEntityPos, (float) value))
-            );
-            this.settingsTabContent.maxVolumeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.max_volume.tooltip")));
-
-            this.settingsTabContent.maxRangeSlider = new SettingsSlider(
-                    guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.RANGE_SLIDER_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT,
-                    Component.translatable("gui.simplyspeakers.max_range.slider"),
-                    this.speaker.getMaxRange(),
-                    1, Config.speakerRange,
-                    value -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) value),
-                    value -> NetworkManager.sendToServer(new UpdateMaxRangePacketC2S(this.blockEntityPos, (int) value))
-            );
-            this.settingsTabContent.maxRangeSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.max_range.tooltip")));
-
-            this.settingsTabContent.audioDropoffSlider = new SettingsSlider(
-                    guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.DROPOFF_SLIDER_Y, SCREEN_WIDTH - 20, SpeakerGuiConstants.BUTTON_HEIGHT,
-                    Component.translatable("gui.simplyspeakers.audio_dropoff.slider"),
-                    this.speaker.getAudioDropoff(),
-                    0.0, 1.0,
-                    value -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (value * 100)),
-                    value -> NetworkManager.sendToServer(new UpdateAudioDropoffPacketC2S(this.blockEntityPos, (float) value))
-            );
-            this.settingsTabContent.audioDropoffSlider.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")));
-            
-            this.settingsTabContent.loopToggleButton = Button.builder(getLoopButtonTextComponent(), button -> {
-                        if (this.speaker == null) return;
-                        boolean newLoopState = !this.speaker.isLooping();
-                        this.speaker.setLoopingClient(newLoopState);
-                        button.setMessage(getLoopButtonTextComponent());
-                        NetworkManager.sendToServer(new ToggleLoopPacketC2S(this.blockEntityPos, newLoopState));
-                    })
-                    .pos(guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.LOOP_BUTTON_Y)
-                    .size(80, SpeakerGuiConstants.BUTTON_HEIGHT)
-                    .build();
-            this.settingsTabContent.loopToggleButton.setTooltip(Tooltip.create(Component.translatable("gui.simplyspeakers.loop.tooltip")));
-        }
-
-        // Add all widgets
-        this.addRenderableWidget(this.audioTabContent.searchBar);
-        this.addRenderableWidget(this.audioTabContent.audioListWidget);
-        this.addRenderableWidget(this.audioTabContent.uploadButton);
-
-        this.addRenderableWidget(this.settingsTabContent.speakerIdField);
-        this.addRenderableWidget(this.settingsTabContent.saveIdButton);
-        if (this.settingsTabContent.maxVolumeSlider != null) {
-            this.addRenderableWidget(this.settingsTabContent.maxVolumeSlider);
-        }
-        if (this.settingsTabContent.maxRangeSlider != null) {
-            this.addRenderableWidget(this.settingsTabContent.maxRangeSlider);
-        }
-        if (this.settingsTabContent.audioDropoffSlider != null) {
-            this.addRenderableWidget(this.settingsTabContent.audioDropoffSlider);
-        }
-        if (this.settingsTabContent.loopToggleButton != null) {
-            this.addRenderableWidget(this.settingsTabContent.loopToggleButton);
-        }
-
-        NetworkManager.sendToServer(new RequestAudioListPacketC2S(this.blockEntityPos));
-        
-        // Set initial visibility
-        updateVisibility();
+                }).primary()
+        ).gap(6);
     }
 
-    private Component getLoopButtonTextComponent() {
-        boolean looping = (this.speaker != null) && this.speaker.isLooping();
-        return Component.translatable(looping ? "gui.simplyspeakers.loop.on" : "gui.simplyspeakers.loop.off");
+    private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
+                                   Signal<Double> signal, double min, double max, Consumer<Double> packetSender) {
+        Slider slider = Ui.slider(signal, min, max);
+        slider.fillWidth();
+        subs.add(signal.subscribe(packetSender::accept));
+        return Ui.column(
+                Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
+                slider
+        ).gap(4);
     }
 
-    @Override
-    public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks) {
-        super.render(guiGraphics, mouseX, mouseY, partialTicks);
-        
-        int guiLeft = (this.width - SCREEN_WIDTH) / 2;
-        int guiTop = (this.height - SCREEN_HEIGHT) / 2;
-        
-        Component title = Component.translatable("gui.simplyspeakers.speaker.title");
-        guiGraphics.drawString(this.font, title, guiLeft + (SCREEN_WIDTH - this.font.width(title)) / 2, guiTop + 10, 4210752, false);
-        
-        // Draw tab-specific content
-        if (currentTab == 0) {
-            // Audio tab labels
-            guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.search"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.SEARCH_LABEL_Y, 4210752, false);
-        } else if (currentTab == 1) {
-            // Settings tab labels
-            guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.speaker_id"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.SPEAKER_ID_LABEL_Y, 4210752, false);
-            if (this.settingsTabContent.maxVolumeSlider != null) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_volume"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.VOLUME_LABEL_Y, 4210752, false);
+    private void selectAudio(AudioFileMetadata audio) {
+        if (speaker != null) speaker.setAudioIdClient(audio.getUuid(), audio.getOriginalFilename());
+        selectedAudioId.set(audio.getUuid());
+        NetworkManager.sendToServer(new SelectAudioPacketC2S(blockEntityPos, audio.getUuid(), audio.getOriginalFilename()));
+    }
+
+    private void confirmDelete(AudioFileMetadata audio) {
+        Card card = Ui.card().elevated(true).outlined(true).padding(14);
+        OverlayHandle[] handle = { null };
+        ButtonWidget cancelBtn = Ui.button(Component.translatable("gui.simplyspeakers.cancel"),
+                () -> { if (handle[0] != null) handle[0].close(); }).ghost();
+        ButtonWidget deleteBtn = Ui.button(Component.translatable("gui.simplyspeakers.delete"), () -> {
+            if (handle[0] != null) handle[0].close();
+            NetworkManager.sendToServer(new DeleteAudioPacketC2S(audio.getUuid()));
+        }).danger();
+        card.addChild(Ui.column(
+                Ui.heading(Component.translatable("gui.simplyspeakers.delete_confirm.title")),
+                Ui.text(Component.translatable("gui.simplyspeakers.delete_confirm.body", audio.getOriginalFilename())),
+                Ui.row(cancelBtn, deleteBtn).gap(6)
+        ).gap(10));
+        card.width(240).minHeight(90);
+        handle[0] = Dialog.show(uiRuntime().overlays(), card);
+    }
+
+    private void openUpload() {
+        Services.CLIENT.openFileDialog("mp3,wav", file -> {
+            if (file == null) return;
+            String name = file.getName().toLowerCase(Locale.ROOT);
+            if (!name.endsWith(".mp3") && !name.endsWith(".wav")) {
+                setStatusMessage(Component.translatable("gui.simplyspeakers.upload.invalid_type"));
+                Toast.show(uiRuntime().overlays(),
+                        Toast.error(Component.translatable("gui.simplyspeakers.upload").getString(),
+                                Component.translatable("gui.simplyspeakers.upload.invalid_type").getString()));
+                return;
             }
-            if (this.settingsTabContent.maxRangeSlider != null) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.max_range", Config.speakerRange), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.RANGE_LABEL_Y, 4210752, false);
+            UUID transactionId = ClientAudioPlayer.startUpload(file);
+            NetworkManager.sendToServer(
+                    new RequestUploadAudioPacketC2S(blockEntityPos, transactionId, file.getName(), file.length()));
+        });
+    }
+
+    private String filenameOf(String uuid) {
+        for (AudioFileMetadata a : audioFiles.get()) {
+            if (a.getUuid().equals(uuid)) return a.getOriginalFilename();
+        }
+        return uuid;
+    }
+
+    private String formatDuration(float seconds) {
+        int total = Math.max(0, Math.round(seconds));
+        int m = total / 60;
+        int s = total % 60;
+        return m + ":" + (s < 10 ? "0" : "") + s;
+    }
+
+    // ---- Public bridge methods called by network handlers / upload callbacks ----
+
+    public void updateAudioList(List<AudioFileMetadata> audioList) {
+        ClientAudioPlayer.setAudioList(audioList);
+        audioFiles.set(List.copyOf(audioList));
+    }
+
+    public void refreshFromState(String audioId, String filename, boolean looping) {
+        applyingRemoteState = true;
+        try {
+            playingAudioId.set(audioId == null ? "" : audioId);
+            this.looping.set(looping);
+            if (speaker != null) {
+                speaker.setAudioIdClient(audioId, filename);
+                speaker.setLoopingClient(looping);
             }
-            if (this.settingsTabContent.audioDropoffSlider != null) {
-                guiGraphics.drawString(this.font, Component.translatable("gui.simplyspeakers.audio_dropoff"), guiLeft + SpeakerGuiConstants.MARGIN_X, guiTop + SpeakerGuiConstants.DROPOFF_LABEL_Y, 4210752, false);
-            }
-        }
-
-        if (this.speaker != null && this.audioTabContent.audioListWidget != null) {
-            this.audioTabContent.audioListWidget.setPlayingAudioId(this.speaker.getAudioId());
-            this.audioTabContent.audioListWidget.setSelectedAudioId(this.speaker.getAudioId());
-        }
-
-        if (currentTab == 0 && statusMessage != null) {
-            renderStatusMessage(guiGraphics, guiLeft, guiTop);
+        } finally {
+            applyingRemoteState = false;
         }
     }
 
-    private void renderStatusMessage(GuiGraphics guiGraphics, int guiLeft, int guiTop) {
-        int left = guiLeft + SpeakerGuiConstants.MARGIN_X;
-        int right = guiLeft + SCREEN_WIDTH - SpeakerGuiConstants.MARGIN_X;
-        int availableWidth = right - left;
-        int textWidth = this.font.width(statusMessage);
-        int overflow = Math.max(0, textWidth - availableWidth);
-        int x = overflow == 0 ? guiLeft + (SCREEN_WIDTH - textWidth) / 2 : left - getMarqueeOffset(overflow);
-        int y = guiTop + SpeakerGuiConstants.STATUS_MESSAGE_Y;
-
-        guiGraphics.enableScissor(left, y, right, y + this.font.lineHeight);
-        guiGraphics.drawString(this.font, statusMessage, x, y, 0xFFFFFF, false);
-        guiGraphics.disableScissor();
+    public void setStatusMessage(Component statusMessage) {
+        status.set(statusMessage);
     }
 
-    private int getMarqueeOffset(int overflow) {
-        long travelMs = Math.max(1L, overflow * 1000L / MARQUEE_PIXELS_PER_SECOND);
-        long cycleMs = MARQUEE_PAUSE_MS * 2L + travelMs * 2L;
-        long elapsed = System.currentTimeMillis() % cycleMs;
-        if (elapsed < MARQUEE_PAUSE_MS) return 0;
-        elapsed -= MARQUEE_PAUSE_MS;
-        if (elapsed < travelMs) return (int) (overflow * elapsed / travelMs);
-        elapsed -= travelMs;
-        if (elapsed < MARQUEE_PAUSE_MS) return overflow;
-        elapsed -= MARQUEE_PAUSE_MS;
-        return overflow - (int) (overflow * elapsed / travelMs);
+    public BlockPos getBlockEntityPos() {
+        return blockEntityPos;
     }
-    
-    @Override
-    public void renderBackground(GuiGraphics guiGraphics, int i, int j, float f) {
-        super.renderBackground(guiGraphics, i, j, f);
-        int guiLeft = (this.width - SCREEN_WIDTH) / 2;
-        int guiTop = (this.height - SCREEN_HEIGHT) / 2;
-        guiGraphics.blit(BACKGROUND_TEXTURE, guiLeft, guiTop, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+    public String getSpeakerId() {
+        return speaker != null ? speaker.getSpeakerId() : "";
     }
 
     private void fetchDataFromBlockEntity() {
@@ -321,80 +360,17 @@ public class SpeakerScreen extends Screen {
             return;
         }
         BlockEntity blockEntity = Minecraft.getInstance().level.getBlockEntity(blockEntityPos);
-        if (blockEntity instanceof SpeakerBlockEntity) {
-            this.speaker = (SpeakerBlockEntity) blockEntity;
+        if (blockEntity instanceof SpeakerBlockEntity s) {
+            this.speaker = s;
         } else {
             this.speaker = null;
         }
     }
 
-    public SpeakerAudioList getAudioListWidget() {
-        return audioListWidget;
-    }
-
-    public void setStatusMessage(Component statusMessage) {
-        this.statusMessage = statusMessage;
-    }
-
-    public void updateAudioList(List<AudioFileMetadata> audioList) {
-        ClientAudioPlayer.setAudioList(audioList);
-        if (this.audioTabContent.audioListWidget != null) {
-            this.audioTabContent.audioListWidget.setAudioList(audioList);
-        
-            // Set the selected audio in the list based on the speaker's current audio
-            if (this.speaker != null) {
-                this.audioTabContent.audioListWidget.setSelectedAudioId(this.speaker.getAudioId());
-            }
-        }
-    }
-
-    public BlockPos getBlockEntityPos() {
-        return this.blockEntityPos;
-    }
-
-    public String getSpeakerId() {
-        return this.speaker != null ? this.speaker.getSpeakerId() : "";
-    }
-
-    public void refreshFromState(String audioId, String filename, boolean looping) {
-        if (this.speaker != null) {
-            this.speaker.setAudioIdClient(audioId, filename);
-            this.speaker.setLoopingClient(looping);
-        }
-        if (this.settingsTabContent.loopToggleButton != null) {
-            this.settingsTabContent.loopToggleButton.setMessage(getLoopButtonTextComponent());
-        }
-        if (this.audioTabContent.audioListWidget != null) {
-            this.audioTabContent.audioListWidget.setSelectedAudioId(audioId);
-        }
-    }
-
-    private void updateVisibility() {
-        boolean isAudioTab = (currentTab == 0);
-        boolean isSettingsTab = (currentTab == 1);
-        
-        // Update visibility of tab content containers
-        this.audioTabContent.setVisible(isAudioTab);
-        this.settingsTabContent.setVisible(isSettingsTab);
-    }
-
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (currentTab == 0 && this.audioTabContent.audioListWidget != null && this.audioTabContent.audioListWidget.visible) {
-            if (this.audioTabContent.audioListWidget.isMouseOver(mouseX, mouseY)) {
-                return this.audioTabContent.audioListWidget.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-            }
-        }
-        return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
-    }
-
-    @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
-        if (currentTab == 0 && this.audioTabContent.audioListWidget != null && this.audioTabContent.audioListWidget.visible) {
-            if (this.audioTabContent.audioListWidget.isMouseOver(mouseX, mouseY)) {
-                return this.audioTabContent.audioListWidget.mouseDragged(mouseX, mouseY, button, dragX, dragY);
-            }
-        }
-        return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+    public void removed() {
+        for (Subscription s : subs) s.close();
+        subs.clear();
+        super.removed();
     }
 }

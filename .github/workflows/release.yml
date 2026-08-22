@@ -12,6 +12,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout OpenUI MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: codex/openui-0.0.4
+          path: .openui-mc
+
       # Gradle 8.14 does not support JDK 25.  The neoforge-26.1.2 module
       # declares its own Java 25 toolchain, so only JDK 21 is needed here.
       - name: Set up JDK 21
@@ -22,7 +29,10 @@ jobs:
           cache: 'gradle'
 
       - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        run: chmod +x ./gradlew ./.openui-mc/gradlew
+
+      - name: Install OpenUI MC 26.1.2 artifact
+        run: ./.openui-mc/gradlew -p .openui-mc :neoforge-26.1.2:publishToMavenLocal
 
       - name: Run shared and 26.1.2 regression tests
         run: ./gradlew :common:test :neoforge-26.1.2:test
@@ -69,6 +79,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Checkout OpenUI MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: codex/openui-0.0.4
+          path: .openui-mc
+
       - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
@@ -77,7 +94,18 @@ jobs:
           cache: 'gradle' 
 
       - name: Make gradlew executable
-        run: chmod +x ./gradlew
+        run: chmod +x ./gradlew ./.openui-mc/gradlew
+
+      - name: Install matching OpenUI MC artifact
+        shell: bash
+        run: |
+          targets=(":${{ matrix.project }}:publishToMavenLocal")
+          if [[ "${{ matrix.project }}" == "forge-1.20.1" ]]; then
+            targets+=(":fabric-1.20.1:publishToMavenLocal")
+          elif [[ "${{ matrix.project }}" == "neoforge-1.21.1" ]]; then
+            targets+=(":fabric-1.21.1:publishToMavenLocal")
+          fi
+          ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
 
       - name: Build ${{ matrix.platform }} ${{ matrix.version }}
         run: ./gradlew :${{ matrix.project }}:build

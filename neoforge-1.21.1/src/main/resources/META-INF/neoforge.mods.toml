@@ -35,6 +35,13 @@ versionRange = "[${architectury_api_version},)"
 ordering = "AFTER"
 side = "BOTH"
 
+[[dependencies.simplyspeakers]]
+modId = "openui_mc"
+mandatory = true
+versionRange = "[0.0.4,)"
+ordering = "AFTER"
+side = "CLIENT"
+
 
 [[dependencies.simplyspeakers]]
 modId = "sable"

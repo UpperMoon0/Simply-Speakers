@@ -897,24 +897,24 @@ Interaction cases:
 
 ## Definition of done
 
-- [ ] Every SpeakerScreen is an OpenUI screen.
-- [ ] Every ProxySpeakerScreen is an OpenUI screen.
-- [ ] All five loader/version artifacts depend on matching OpenUI.
-- [ ] Required `openui_mc` runtime metadata is present.
-- [ ] Dark/light toggle exists on both screen types.
-- [ ] Toggle changes current screen immediately.
-- [ ] Theme persists after restart.
-- [ ] `SpeakerAudioList` is no longer used.
-- [ ] `SettingsSlider` is no longer used.
-- [ ] No migrated screen blits `speaker.png` or `proxy_speaker.png`.
-- [ ] No vanilla gray UI buttons/edit boxes are manually managed.
-- [ ] Audio list is virtualized and keyed by UUID.
-- [ ] Search is reactive.
-- [ ] Current playing/selected states are distinct and clear.
-- [ ] Upload-disabled configuration is honored.
-- [ ] All existing speaker/proxy packet semantics are preserved.
-- [ ] Slider subscriptions do not echo remote state.
-- [ ] No screen leaks subscriptions/native widgets.
+- [x] Every SpeakerScreen is an OpenUI screen.
+- [x] Every ProxySpeakerScreen is an OpenUI screen.
+- [x] All five loader/version artifacts depend on matching OpenUI.
+- [x] Required `openui_mc` runtime metadata is present.
+- [x] Dark/light toggle exists on both screen types.
+- [x] Toggle changes current screen immediately.
+- [x] Theme persists after restart.
+- [x] `SpeakerAudioList` is no longer used.
+- [x] `SettingsSlider` is no longer used.
+- [x] No migrated screen blits `speaker.png` or `proxy_speaker.png`.
+- [x] No vanilla gray UI buttons/edit boxes are manually managed.
+- [x] Audio list is virtualized and keyed by UUID.
+- [x] Search is reactive.
+- [x] Current playing/selected states are distinct and clear.
+- [x] Upload-disabled configuration is honored.
+- [x] All existing speaker/proxy packet semantics are preserved.
+- [x] Slider subscriptions do not echo remote state.
+- [x] No screen leaks subscriptions/native widgets.
 - [ ] All supported clients and dedicated servers boot.
 
 ## Explicit anti-patterns for the implementation model

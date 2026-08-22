@@ -36,6 +36,12 @@ jobs:
             java: 25
     steps:
       - uses: actions/checkout@v4
+      - name: Checkout OpenUI MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: codex/openui-0.0.4
+          path: .openui-mc
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -44,7 +50,17 @@ jobs:
       - name: Install virtual display
         run: sudo apt-get update && sudo apt-get install -y xvfb
       - name: Make Gradle executable
-        run: chmod +x gradlew
+        run: chmod +x gradlew .openui-mc/gradlew
+      - name: Install matching OpenUI MC artifact
+        shell: bash
+        run: |
+          targets=(":${{ matrix.target }}:publishToMavenLocal")
+          if [[ "${{ matrix.target }}" == "forge-1.20.1" ]]; then
+            targets+=(":fabric-1.20.1:publishToMavenLocal")
+          elif [[ "${{ matrix.target }}" == "neoforge-1.21.1" ]]; then
+            targets+=(":fabric-1.21.1:publishToMavenLocal")
+          fi
+          ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
       - name: Run automatic real-client join test
         run: python3 tools/live_join_test.py --target "${{ matrix.target }}"
       - name: Upload test logs

@@ -58,6 +58,8 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     private static final int PANEL_WIDTH = 256;
 
     private enum SpeakerTab { AUDIO, SETTINGS }
+    private enum AudioViewState { EMPTY, NO_MATCHES, RESULTS }
+    private record AudioRowModel(AudioFileMetadata audio, boolean selected, boolean playing) { }
 
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
@@ -73,20 +75,24 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     private final Signal<Double> audioDropoff = Signals.of(1.0);
     private final Signal<Boolean> looping = Signals.of(false);
     private final Signal<Component> status = Signals.of(Component.empty());
+    private boolean applyingRemoteState;
 
-    private final Computed<List<AudioFileMetadata>> filteredAudio = Signals.computed(() -> {
+    private final Computed<List<AudioRowModel>> filteredAudio = Signals.computed(() -> {
         String q = search.get().trim().toLowerCase(Locale.ROOT);
-        List<AudioFileMetadata> all = audioFiles.get();
-        // Touch play/select state so row badges refresh when playback selection changes.
-        playingAudioId.get();
-        selectedAudioId.get();
-        if (q.isEmpty()) return List.copyOf(all);
-        return all.stream()
+        String playing = playingAudioId.get();
+        String selected = selectedAudioId.get();
+        return audioFiles.get().stream()
                 .filter(a -> a.getOriginalFilename().toLowerCase(Locale.ROOT).contains(q))
+                .map(a -> new AudioRowModel(a, a.getUuid().equals(selected), a.getUuid().equals(playing)))
                 .toList();
+    });
+    private final Computed<AudioViewState> audioViewState = Signals.computed(() -> {
+        if (audioFiles.get().isEmpty()) return AudioViewState.EMPTY;
+        return filteredAudio.get().isEmpty() ? AudioViewState.NO_MATCHES : AudioViewState.RESULTS;
     });
 
     private final java.util.List<Subscription> subs = new java.util.ArrayList<>();
+    private boolean applyingRemoteState;
 
     public SpeakerScreen(BlockPos blockEntityPos) {
         super(Component.translatable("gui.simplyspeakers.speaker.title"));
@@ -95,6 +101,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     @Override
     protected void init() {
+        closeControlSubscriptions();
         fetchDataFromBlockEntity();
         if (speaker != null) {
             speakerId.set(speaker.getSpeakerId());
@@ -106,6 +113,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
             looping.set(speaker.isLooping());
         }
         super.init();
+        wireControlSubscriptions();
         PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.RequestAudioListPacketC2S(blockEntityPos));
     }
 
@@ -121,7 +129,8 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         .when(SpeakerTab.SETTINGS, this::buildSettingsView),
                 Ui.text((Supplier<Component>) status::get)
         ).gap(8);
-        panel.width(PANEL_WIDTH);
+        panel.fillWidth();
+        panel.maxWidth(PANEL_WIDTH);
         return Ui.padding(16, Ui.stack(panel).align(Alignment.CENTER, Alignment.CENTER));
     }
 
@@ -140,24 +149,34 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent buildAudioView() {
-        if (audioFiles.get().isEmpty()) {
-            EmptyState es = Ui.emptyState(Component.translatable("gui.simplyspeakers.no_audio"));
-            if (!Config.disableUpload) es.action(Component.translatable("gui.simplyspeakers.upload"), this::openUpload);
-            return es;
-        }
-        if (filteredAudio.get().isEmpty()) {
-            return Ui.column(
-                    Ui.emptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())),
-                    Ui.button(Component.translatable("gui.simplyspeakers.clear_search"), () -> search.set("")).ghost().small()
-            ).gap(8);
-        }
+        return Ui.switcher(audioViewState)
+                .when(AudioViewState.EMPTY, this::buildEmptyAudioView)
+                .when(AudioViewState.NO_MATCHES, this::buildNoMatchesView)
+                .when(AudioViewState.RESULTS, this::buildAudioResultsView);
+    }
+
+    private UIComponent buildEmptyAudioView() {
+        EmptyState empty = Ui.emptyState(Component.translatable("gui.simplyspeakers.no_audio"));
+        if (!Config.disableUpload) empty.action(Component.translatable("gui.simplyspeakers.upload"), this::openUpload);
+        return empty;
+    }
+
+    private UIComponent buildNoMatchesView() {
+        return Ui.column(
+                buildAudioToolbar(),
+                Ui.emptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())),
+                Ui.button(Component.translatable("gui.simplyspeakers.clear_search"), () -> search.set("")).ghost().small()
+        ).gap(8);
+    }
+
+    private UIComponent buildAudioResultsView() {
         return Ui.column(
                 buildAudioToolbar(),
                 Ui.list(filteredAudio, this::buildAudioRow)
-                        .key(AudioFileMetadata::getUuid)
+                        .key(row -> row.audio().getUuid())
                         .itemHeight(36)
                         .gap(6)
-                        .height(176)
+                        .height(Math.max(72, Math.min(176, height - 120)))
                         .fillWidth()
         ).gap(8);
     }
@@ -174,9 +193,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return toolbar;
     }
 
-    private UIComponent buildAudioRow(AudioFileMetadata audio) {
-        boolean playing = audio.getUuid().equals(playingAudioId.get());
-        boolean selected = audio.getUuid().equals(selectedAudioId.get());
+    private UIComponent buildAudioRow(AudioRowModel row) {
+        AudioFileMetadata audio = row.audio();
+        boolean playing = row.playing();
+        boolean selected = row.selected();
 
         Card card = Ui.card().outlined(true).padding(8).selected(selected);
         VStack left = Ui.column(
@@ -233,6 +253,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 ).gap(8)
         ).gap(10));
         subs.add(looping.subscribe(v -> {
+            if (applyingRemoteState) return;
             if (speaker != null) speaker.setLoopingClient(v);
             PacketRegistries.CHANNEL.sendToServer(new ToggleLoopPacketC2S(blockEntityPos, v));
         }));
@@ -328,11 +349,16 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     public void refreshFromState(String audioId, String filename, boolean looping) {
-        playingAudioId.set(audioId == null ? "" : audioId);
-        this.looping.set(looping);
-        if (speaker != null) {
-            speaker.setAudioIdClient(audioId, filename);
-            speaker.setLoopingClient(looping);
+        applyingRemoteState = true;
+        try {
+            playingAudioId.set(audioId == null ? "" : audioId);
+            this.looping.set(looping);
+            if (speaker != null) {
+                speaker.setAudioIdClient(audioId, filename);
+                speaker.setLoopingClient(looping);
+            }
+        } finally {
+            applyingRemoteState = false;
         }
     }
 
