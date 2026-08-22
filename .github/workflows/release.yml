@@ -31,8 +31,8 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew ./.openui-mc/gradlew
 
-      - name: Install OpenUI MC 26.1.2 artifact
-        run: ./.openui-mc/gradlew -p .openui-mc :neoforge-26.1.2:publishToMavenLocal
+      - name: Install required OpenUI MC artifacts
+        run: ./.openui-mc/gradlew -p .openui-mc :fabric-1.20.1:publishToMavenLocal :neoforge-26.1.2:publishToMavenLocal
 
       - name: Run shared and 26.1.2 regression tests
         run: ./gradlew :common:test :neoforge-26.1.2:test
@@ -99,10 +99,12 @@ jobs:
       - name: Install matching OpenUI MC artifact
         shell: bash
         run: |
-          targets=(":${{ matrix.project }}:publishToMavenLocal")
-          if [[ "${{ matrix.project }}" == "forge-1.20.1" ]]; then
-            targets+=(":fabric-1.20.1:publishToMavenLocal")
-          elif [[ "${{ matrix.project }}" == "neoforge-1.21.1" ]]; then
+          # Simply Speakers configures the 1.20.1 common module for every target.
+          targets=(":fabric-1.20.1:publishToMavenLocal")
+          if [[ "${{ matrix.project }}" != "fabric-1.20.1" ]]; then
+            targets+=(":${{ matrix.project }}:publishToMavenLocal")
+          fi
+          if [[ "${{ matrix.project }}" == "neoforge-1.21.1" ]]; then
             targets+=(":fabric-1.21.1:publishToMavenLocal")
           fi
           ./.openui-mc/gradlew -p .openui-mc "${targets[@]}"
