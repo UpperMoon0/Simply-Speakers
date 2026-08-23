@@ -243,7 +243,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         maxVolume, 0.0, 1.0
                 ),
                 sliderRow(
-                        Component.translatable("gui.simplyspeakers.max_range"),
+                        Component.translatable("gui.simplyspeakers.max_range", (int) Config.speakerRange),
                         () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
                         maxRange, 1.0, Config.speakerRange
                 ),

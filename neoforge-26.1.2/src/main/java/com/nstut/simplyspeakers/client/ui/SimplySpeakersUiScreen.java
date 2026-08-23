@@ -83,8 +83,16 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
                 .elevated()
                 .padding(12);
         shell.child(content);
-        shell.maxWidth(Math.min(contentMaxWidth + SHELL_HORIZONTAL_OVERHEAD, Math.max(76, width - 16)));
-        shell.maxHeight(Math.max(80, height - 16));
+        // Pin BOTH dimensions explicitly: centered stacks size children by
+        // their intrinsic preferredWidth/preferredHeight chain, which ignores
+        // requested sizes deeper in the tree (e.g. the audio list reports a
+        // 100px preferred width) and made the window resize per tab.
+        int shellWidth = Math.min(contentMaxWidth + SHELL_HORIZONTAL_OVERHEAD, Math.max(76, width - 16));
+        int shellHeight = Math.max(80, height - 16);
+        shell.width(shellWidth);
+        shell.height(shellHeight);
+        shell.maxWidth(shellWidth);
+        shell.maxHeight(shellHeight);
         return Ui.stack(
                 buildScrim(),
                 Ui.padding(8, Ui.stack(shell).align(Alignment.CENTER, Alignment.CENTER))
