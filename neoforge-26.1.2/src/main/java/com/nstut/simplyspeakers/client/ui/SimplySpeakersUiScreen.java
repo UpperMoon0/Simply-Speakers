@@ -77,9 +77,12 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
      * @param contentMaxWidth  the content's intended maximum width
      */
     protected UIComponent buildWindow(UIComponent content, int contentMaxWidth) {
-        ColorScheme c = colors();
+        // No color overrides here: Panel resolves surface/border from the live
+        // runtime theme on every frame, so toggling light/dark restyles the
+        // shell immediately (frozen ints captured at build time kept the
+        // previous theme's colors after a toggle, like Economy's per-frame
+        // renderBaseShell avoids).
         Panel shell = new Panel()
-                .colors(c.surface(), c.borderSubtle())
                 .elevated()
                 .padding(12);
         shell.child(content);
