@@ -58,14 +58,15 @@ class OutputPump:
 def command(root: Path, task: str) -> list[str]:
     wrapper = root / ("gradlew.bat" if os.name == "nt" else "gradlew")
     # The server and client builds overlap. Keep their supervising Gradle JVMs
-    # small so they do not starve Minecraft's login/registry threads.
+    # bounded so they do not starve Minecraft's login/registry threads, but
+    # large enough that compiling the migrated screens does not OOM (768m did).
     return [
         str(wrapper),
         task,
         "--no-daemon",
         "--console=plain",
         "--max-workers=4",
-        "-Dorg.gradle.jvmargs=-Xmx768m",
+        "-Dorg.gradle.jvmargs=-Xmx2048m",
     ]
 
 
