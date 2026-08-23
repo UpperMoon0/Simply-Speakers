@@ -74,8 +74,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                 buildHeader(),
                 speaker != null ? buildSettingsCard() : buildNotFound()
         ).gap(10);
-        panel.fillWidth();
-        panel.maxWidth(PANEL_WIDTH);
+        panel.width(PANEL_WIDTH);
         return buildWindow(panel, PANEL_WIDTH);
     }
 

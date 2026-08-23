@@ -126,15 +126,14 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 // past the top and bottom of the window.
                 Ui.switcher(tab)
                         .when(SpeakerTab.AUDIO, this::buildAudioView)
-                        // The settings card is taller than the leftover shell
-                        // space on small viewports; scroll it instead of
-                        // letting it overflow past the window.
-                        .when(SpeakerTab.SETTINGS, () -> Ui.scroll(buildSettingsView()).flex())
+                        .when(SpeakerTab.SETTINGS, this::buildSettingsView)
                         .flex(),
                 Ui.text((Supplier<Component>) status::get)
         ).gap(6);
-        panel.fillWidth();
-        panel.maxWidth(PANEL_WIDTH);
+        // Pin the requested width: measured widths of tab views differ (the
+        // audio list reports a small preferred width), which would otherwise
+        // resize the whole window when switching tabs.
+        panel.width(PANEL_WIDTH);
         return buildWindow(panel, PANEL_WIDTH);
     }
 
@@ -233,7 +232,9 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
             return Ui.card(Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"))).outlined(true).padding(16);
         }
         Card card = Ui.card().outlined(true).padding(12);
-        card.addChild(Ui.column(
+        // The card itself stays fully visible and fills the tab area; only the
+        // column of inputs inside it scrolls when the viewport is too short.
+        card.addChild(Ui.scroll(Ui.column(
                 buildSpeakerIdRow(),
                 Ui.divider(),
                 sliderRow(
@@ -255,7 +256,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         Ui.text(Component.translatable("gui.simplyspeakers.loop")),
                         Ui.toggle(looping)
                 ).gap(8)
-        ).gap(10));
+        ).gap(10)).fillHeight());
         return card;
     }
 
