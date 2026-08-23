@@ -1,5 +1,6 @@
 package com.nstut.simplyspeakers.client.gui.widgets;
 
+import com.nstut.openui.api.UiAnimationUtil;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -19,8 +20,6 @@ public class SpeakerAudioList extends AbstractWidget {
     private static final int TEXT_PADDING = 5;
     private static final int ACTION_BUTTON_WIDTH = 45;
     private static final int ACTION_BUTTON_GAP = 2;
-    private static final int MARQUEE_PAUSE_MS = 1000;
-    private static final int MARQUEE_PIXELS_PER_SECOND = 30;
     private List<AudioFileMetadata> audioFiles = new ArrayList<>();
     private List<AudioFileMetadata> filteredAudioFiles = new ArrayList<>();
     private double scrollAmount;
@@ -107,27 +106,11 @@ public class SpeakerAudioList extends AbstractWidget {
     private void renderMarqueeText(GuiGraphics guiGraphics, String text, int left, int y, int right, int color) {
         int availableWidth = Math.max(0, right - left);
         int textWidth = Minecraft.getInstance().font.width(text);
-        int overflow = Math.max(0, textWidth - availableWidth);
-        int offset = getMarqueeOffset(overflow);
+        int offset = UiAnimationUtil.pingPongOffset(textWidth, availableWidth, System.currentTimeMillis());
 
         guiGraphics.enableScissor(left, this.getY(), right, this.getY() + this.height);
         guiGraphics.drawString(Minecraft.getInstance().font, text, left - offset, y, color);
         guiGraphics.disableScissor();
-    }
-
-    private int getMarqueeOffset(int overflow) {
-        if (overflow <= 0) return 0;
-
-        long travelMs = Math.max(1L, overflow * 1000L / MARQUEE_PIXELS_PER_SECOND);
-        long cycleMs = MARQUEE_PAUSE_MS * 2L + travelMs * 2L;
-        long elapsed = System.currentTimeMillis() % cycleMs;
-        if (elapsed < MARQUEE_PAUSE_MS) return 0;
-        elapsed -= MARQUEE_PAUSE_MS;
-        if (elapsed < travelMs) return (int) (overflow * elapsed / travelMs);
-        elapsed -= travelMs;
-        if (elapsed < MARQUEE_PAUSE_MS) return overflow;
-        elapsed -= MARQUEE_PAUSE_MS;
-        return overflow - (int) (overflow * elapsed / travelMs);
     }
 
     @Override
