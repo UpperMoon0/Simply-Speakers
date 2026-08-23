@@ -175,6 +175,9 @@ configurations {
 }
 
 dependencies {
+    // OpenUI MC - required client-side UI framework (matching NeoForge 26.1.2 module)
+    implementation 'com.nstut:openui-mc-neoforge-26.1.2:0.0.5'
+
     implementation "com.google.code.gson:gson:2.11.0"
     implementation "javazoom:jlayer:1.0.1"
     jarJar "javazoom:jlayer:1.0.1"

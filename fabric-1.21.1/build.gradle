@@ -49,6 +49,9 @@ configurations {
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$project.fabric_loader_version"
 
+    // OpenUI MC - required client-side UI framework (matching Fabric 1.21.1 module)
+    modImplementation 'com.nstut:openui-mc-fabric-1.21.1:0.0.5'
+
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:$project.fabric_api_version"
 

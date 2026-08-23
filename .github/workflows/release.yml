@@ -24,6 +24,20 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Checkout OpenUI-MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: main
+          path: OpenUI-MC
+
+      - name: Publish OpenUI-MC 0.0.5 to Maven Local
+        working-directory: OpenUI-MC
+        run: |
+          sed -i "s/^mod_version[[:space:]]*=.*/mod_version = 0.0.5/" gradle.properties
+          chmod +x ./gradlew
+          ./gradlew :neoforge-26.1.2:publishToMavenLocal --no-daemon
+
       - name: Run shared and 26.1.2 regression tests
         run: ./gradlew :common:test :neoforge-26.1.2:test
 
@@ -78,6 +92,20 @@ jobs:
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
+
+      - name: Checkout OpenUI-MC
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: main
+          path: OpenUI-MC
+
+      - name: Publish OpenUI-MC 0.0.5 to Maven Local
+        working-directory: OpenUI-MC
+        run: |
+          sed -i "s/^mod_version[[:space:]]*=.*/mod_version = 0.0.5/" gradle.properties
+          chmod +x ./gradlew
+          ./gradlew :${{ matrix.project }}:publishToMavenLocal --no-daemon
 
       - name: Build ${{ matrix.platform }} ${{ matrix.version }}
         run: ./gradlew :${{ matrix.project }}:build
