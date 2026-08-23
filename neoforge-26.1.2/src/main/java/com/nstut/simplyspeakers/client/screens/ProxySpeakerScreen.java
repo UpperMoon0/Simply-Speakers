@@ -8,7 +8,6 @@ import com.nstut.openui.controls.Card;
 import com.nstut.openui.controls.EmptyState;
 import com.nstut.openui.controls.Slider;
 import com.nstut.openui.controls.TextField;
-import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.layout.Justification;
 import com.nstut.openui.state.Signal;
 import com.nstut.openui.state.Signals;
@@ -38,7 +37,7 @@ import java.util.function.Supplier;
  * proxy packets. No audio list is shown (the proxy follows its linked speaker's selection).</p>
  */
 public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
-    private static final int PANEL_WIDTH = 256;
+    private static final int PANEL_WIDTH = 320;
 
     private final BlockPos blockEntityPos;
     private ProxySpeakerBlockEntity speaker;
@@ -77,7 +76,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
         ).gap(10);
         panel.fillWidth();
         panel.maxWidth(PANEL_WIDTH);
-        return Ui.padding(16, Ui.stack(panel).align(Alignment.CENTER, Alignment.CENTER));
+        return buildWindow(panel, PANEL_WIDTH);
     }
 
     private UIComponent buildHeader() {

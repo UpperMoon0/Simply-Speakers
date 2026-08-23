@@ -12,7 +12,6 @@ import com.nstut.openui.controls.EmptyState;
 import com.nstut.openui.controls.Slider;
 import com.nstut.openui.controls.TextField;
 import com.nstut.openui.controls.Toast;
-import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.layout.Justification;
 import com.nstut.openui.overlay.OverlayHandle;
 import com.nstut.openui.state.Computed;
@@ -54,7 +53,7 @@ import java.util.function.Supplier;
  * to reactive signals rather than vanilla widgets.</p>
  */
 public class SpeakerScreen extends SimplySpeakersUiScreen {
-    private static final int PANEL_WIDTH = 256;
+    private static final int PANEL_WIDTH = 320;
 
     private enum SpeakerTab { AUDIO, SETTINGS }
     private enum AudioViewState { EMPTY, NO_MATCHES, RESULTS }
@@ -122,14 +121,21 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 Ui.tabs(tab)
                         .tab(SpeakerTab.AUDIO, Component.translatable("gui.simplyspeakers.tab.audio"))
                         .tab(SpeakerTab.SETTINGS, Component.translatable("gui.simplyspeakers.tab.settings")),
+                // Flex so the active view absorbs exactly the leftover shell space;
+                // the audio list then scrolls internally instead of pushing content
+                // past the top and bottom of the window.
                 Ui.switcher(tab)
                         .when(SpeakerTab.AUDIO, this::buildAudioView)
-                        .when(SpeakerTab.SETTINGS, this::buildSettingsView),
+                        // The settings card is taller than the leftover shell
+                        // space on small viewports; scroll it instead of
+                        // letting it overflow past the window.
+                        .when(SpeakerTab.SETTINGS, () -> Ui.scroll(buildSettingsView()).flex())
+                        .flex(),
                 Ui.text((Supplier<Component>) status::get)
-        ).gap(8);
+        ).gap(6);
         panel.fillWidth();
         panel.maxWidth(PANEL_WIDTH);
-        return Ui.padding(16, Ui.stack(panel).align(Alignment.CENTER, Alignment.CENTER));
+        return buildWindow(panel, PANEL_WIDTH);
     }
 
     private UIComponent buildHeader() {
@@ -174,9 +180,12 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         .key(row -> row.audio().getUuid())
                         .itemHeight(36)
                         .gap(6)
-                        .height(Math.max(72, Math.min(176, height - 120)))
-                        .fillWidth()
-        ).gap(8);
+                        // Flex so the list takes exactly the space left inside the
+                        // shell instead of a guessed fixed height that overflows
+                        // small viewports; it scrolls internally past that.
+                        .flex()
+                        .minHeight(56)
+        ).gap(6);
     }
 
     private UIComponent buildAudioToolbar() {

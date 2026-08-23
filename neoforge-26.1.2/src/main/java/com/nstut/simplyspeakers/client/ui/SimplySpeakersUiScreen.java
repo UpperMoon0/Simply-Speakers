@@ -1,20 +1,30 @@
 package com.nstut.simplyspeakers.client.ui;
 
 import com.nstut.openui.api.ButtonWidget;
+import com.nstut.openui.api.Panel;
 import com.nstut.openui.api.Ui;
 import com.nstut.openui.api.UIComponent;
+import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.minecraft.UiScreen;
 import com.nstut.openui.state.Signal;
 import com.nstut.openui.state.Signals;
+import com.nstut.openui.theme.ColorScheme;
+import com.nstut.openui.theme.Theme;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 /**
  * Shared base for Simply Speakers OpenUI screens.
  *
- * <p>Owns the persisted theme signal and a consistent header theme toggle. Migrated
- * screens must extend this rather than vanilla {@code Screen}.</p>
+ * <p>Owns the persisted theme signal, a consistent header theme toggle, and the
+ * modal window chrome (dimmed backdrop plus centered surface shell) that every
+ * migrated screen hosts its content in.</p>
  */
 public abstract class SimplySpeakersUiScreen extends UiScreen {
+    /** Extra horizontal room the shell adds around content (padding + border). */
+    private static final int SHELL_HORIZONTAL_OVERHEAD = 24;
+
     protected final Signal<UiThemeMode> themeMode = Signals.of(SimplySpeakersUiPreferences.getThemeMode());
 
     protected SimplySpeakersUiScreen(Component title) {
@@ -24,9 +34,7 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
     @Override
     protected void init() {
         super.init();
-        if (uiRuntime() != null) {
-            uiRuntime().theme(themeMode.get().toOpenUiTheme());
-        }
+        applyTheme();
     }
 
     /**
@@ -44,8 +52,62 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
         UiThemeMode next = themeMode.get().next();
         themeMode.set(next);
         SimplySpeakersUiPreferences.setThemeMode(next);
+        applyTheme();
+    }
+
+    protected final void applyTheme() {
         if (uiRuntime() != null) {
-            uiRuntime().theme(next.toOpenUiTheme());
+            uiRuntime().theme(themeMode.get().toOpenUiTheme());
         }
+    }
+
+    protected final Theme currentTheme() {
+        return uiRuntime() != null ? uiRuntime().theme() : themeMode.get().toOpenUiTheme();
+    }
+
+    protected final ColorScheme colors() {
+        return currentTheme().colors();
+    }
+
+    /**
+     * Root composition for migrated screens: a dimmed backdrop with the content
+     * hosted in a centered window shell that never exceeds the viewport.
+     *
+     * @param content          the panel column (already constrained via {@code maxWidth})
+     * @param contentMaxWidth  the content's intended maximum width
+     */
+    protected UIComponent buildWindow(UIComponent content, int contentMaxWidth) {
+        ColorScheme c = colors();
+        Panel shell = new Panel()
+                .colors(c.surface(), c.borderSubtle())
+                .elevated()
+                .padding(12);
+        shell.child(content);
+        shell.maxWidth(Math.min(contentMaxWidth + SHELL_HORIZONTAL_OVERHEAD, Math.max(76, width - 16)));
+        shell.maxHeight(Math.max(80, height - 16));
+        return Ui.stack(
+                buildScrim(),
+                Ui.padding(8, Ui.stack(shell).align(Alignment.CENTER, Alignment.CENTER))
+        );
+    }
+
+    /** Full-viewport dimming layer behind the shell, kept theme-reactive. */
+    protected UIComponent buildScrim() {
+        return new UIComponent() {
+            @Override
+            public int preferredWidth(Font font) {
+                return 0;
+            }
+
+            @Override
+            public int preferredHeight(Font font) {
+                return 0;
+            }
+
+            @Override
+            public void render(GuiGraphicsExtractor g, Font font, int mx, int my, float pt) {
+                g.fill(x, y, x + width, y + height, colors().backdrop());
+            }
+        };
     }
 }
