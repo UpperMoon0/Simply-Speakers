@@ -128,7 +128,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         .when(SpeakerTab.AUDIO, this::buildAudioView)
                         .when(SpeakerTab.SETTINGS, this::buildSettingsView)
                         .flex(),
-                Ui.text((Supplier<Component>) status::get)
+                Ui.text((Supplier<Component>) status::get).marquee()
         ).gap(6);
         // Pin the requested width: measured widths of tab views differ (the
         // audio list reports a small preferred width), which would otherwise
@@ -191,6 +191,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         HStack toolbar = Ui.row(
                 Ui.textField(search)
                         .placeholder(Component.translatable("gui.simplyspeakers.search.placeholder").getString())
+                        .tooltip(Component.translatable("gui.simplyspeakers.search.tooltip"))
                         .flex()
         ).gap(6);
         if (!Config.disableUpload) {
@@ -206,7 +207,9 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
         Card card = Ui.card().outlined(true).padding(8).selected(selected);
         VStack left = Ui.column(
-                Ui.text(Component.literal(audio.getOriginalFilename())),
+                // Marquee: long filenames ping-pong inside the row like the
+                // pre-migration audio list did.
+                Ui.text(Component.literal(audio.getOriginalFilename())).marquee(),
                 audio.getDurationSeconds() > 0
                         ? Ui.text(Component.translatable("gui.simplyspeakers.duration", formatDuration(audio.getDurationSeconds())))
                         : Ui.text(Component.empty())
@@ -240,21 +243,24 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_volume"),
                         () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
-                        maxVolume, 0.0, 1.0
+                        maxVolume, 0.0, 1.0,
+                        Component.translatable("gui.simplyspeakers.max_volume.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_range", (int) Config.speakerRange),
                         () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
-                        maxRange, 1.0, Config.speakerRange
+                        maxRange, 1.0, Config.speakerRange,
+                        Component.translatable("gui.simplyspeakers.max_range.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.audio_dropoff"),
                         () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
-                        audioDropoff, 0.0, 1.0
+                        audioDropoff, 0.0, 1.0,
+                        Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")
                 ),
                 Ui.row(
                         Ui.text(Component.translatable("gui.simplyspeakers.loop")),
-                        Ui.toggle(looping)
+                        Ui.toggle(looping).tooltip(Component.translatable("gui.simplyspeakers.loop.tooltip"))
                 ).gap(8)
         ).gap(10)).fillHeight());
         return card;
@@ -264,6 +270,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return Ui.row(
                 Ui.textField(speakerId)
                         .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
+                        .tooltip(Component.translatable("gui.simplyspeakers.speaker_id.tooltip"))
                         .flex(),
                 Ui.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
@@ -276,9 +283,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
-                                   Signal<Double> signal, double min, double max) {
+                                   Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
+        if (tooltip != null) slider.tooltip(tooltip);
         return Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider

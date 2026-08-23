@@ -99,17 +99,20 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_volume"),
                         () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
-                        maxVolume, 0.0, 1.0
+                        maxVolume, 0.0, 1.0,
+                        Component.translatable("gui.simplyspeakers.proxy_max_volume.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_range", (int) Config.speakerRange),
                         () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
-                        maxRange, 1.0, Config.speakerRange
+                        maxRange, 1.0, Config.speakerRange,
+                        Component.translatable("gui.simplyspeakers.proxy_max_range.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.audio_dropoff"),
                         () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
-                        audioDropoff, 0.0, 1.0
+                        audioDropoff, 0.0, 1.0,
+                        Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")
                 ),
                 Ui.text(Component.translatable("gui.simplyspeakers.proxy.helper"))
         ).gap(10));
@@ -120,6 +123,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
         return Ui.row(
                 Ui.textField(speakerId)
                         .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
+                        .tooltip(Component.translatable("gui.simplyspeakers.proxy_speaker_id.tooltip"))
                         .flex(),
                 Ui.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
@@ -132,9 +136,10 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
-                                   Signal<Double> signal, double min, double max) {
+                                   Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
+        if (tooltip != null) slider.tooltip(tooltip);
         return Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider
