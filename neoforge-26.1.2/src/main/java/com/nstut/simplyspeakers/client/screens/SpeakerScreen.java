@@ -260,8 +260,8 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 ),
                 Ui.row(
                         Ui.text(Component.translatable("gui.simplyspeakers.loop")),
-                        Ui.toggle(looping).tooltip(Component.translatable("gui.simplyspeakers.loop.tooltip"))
-                ).gap(8)
+                        Ui.toggle(looping)
+                ).gap(8).tooltip(Component.translatable("gui.simplyspeakers.loop.tooltip"))
         ).gap(10)).fillHeight());
         return card;
     }
@@ -286,11 +286,12 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                                    Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
-        if (tooltip != null) slider.tooltip(tooltip);
-        return Ui.column(
+        UIComponent row = Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider
         ).gap(4);
+        if (tooltip != null) row.tooltip(tooltip);
+        return row;
     }
 
     private void wireControlSubscriptions() {

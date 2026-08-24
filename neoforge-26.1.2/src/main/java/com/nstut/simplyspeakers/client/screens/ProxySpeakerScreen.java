@@ -139,11 +139,12 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                                    Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
-        if (tooltip != null) slider.tooltip(tooltip);
-        return Ui.column(
+        UIComponent row = Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider
         ).gap(4);
+        if (tooltip != null) row.tooltip(tooltip);
+        return row;
     }
 
     private void wireControlSubscriptions() {
