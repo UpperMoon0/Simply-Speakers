@@ -16,7 +16,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: UpperMoon0/OpenUI-MC
-          ref: main
+          # Pin the OpenUI revision consumed by this release. Do not rewrite its
+          # version during CI; dependency and artifact versions must agree.
+          ref: d91a71d0b5a7c04f6d0938927d7d1159f960929c
           path: .openui-mc
 
       # Gradle 8.14 does not support JDK 25.  The neoforge-26.1.2 module
@@ -34,7 +36,6 @@ jobs:
       - name: Install required OpenUI MC artifacts
         shell: bash
         run: |
-          sed -i "s/^mod_version[[:space:]]*=.*/mod_version = 0.0.5/" .openui-mc/gradle.properties
           targets=(
             ":fabric-1.20.1:publishToMavenLocal"
             ":forge-1.20.1:publishToMavenLocal"
@@ -95,7 +96,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: UpperMoon0/OpenUI-MC
-          ref: main
+          # Keep release builds reproducible and aligned with the declared
+          # OpenUI 0.0.5 dependency even if repositories merge out of order.
+          ref: d91a71d0b5a7c04f6d0938927d7d1159f960929c
           path: .openui-mc
 
       - name: Set up JDK ${{ matrix.java }}
@@ -111,7 +114,6 @@ jobs:
       - name: Install matching OpenUI MC artifact
         shell: bash
         run: |
-          sed -i "s/^mod_version[[:space:]]*=.*/mod_version = 0.0.5/" .openui-mc/gradle.properties
           if [[ "${{ matrix.project }}" == "neoforge-26.1.2" ]]; then
             targets=(":neoforge-26.1.2:publishToMavenLocal")
           else
@@ -239,9 +241,9 @@ jobs:
           fi
 
           if [[ "$PLATFORM" == "fabric" ]]; then
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"}]}'
           else
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"}]}'
           fi
 
           changelog="$(<"$CHANGELOG_PATH")"
