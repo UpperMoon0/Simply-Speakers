@@ -11,17 +11,20 @@ import com.nstut.openui.state.Signals;
 import com.nstut.openui.theme.ColorScheme;
 import com.nstut.openui.theme.Theme;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 
 /**
  * Shared base for Simply Speakers OpenUI screens.
  *
- * <p>Owns the persisted theme signal and a consistent header theme toggle. Migrated
- * screens must extend this rather than vanilla {@code Screen}.</p>
+ * <p>Owns the persisted theme signal, a consistent header theme toggle, and the
+ * modal window chrome (dimmed backdrop plus centered surface shell) that every
+ * migrated screen hosts its content in.</p>
  */
 public abstract class SimplySpeakersUiScreen extends UiScreen {
+    /** Extra horizontal room the shell adds around content (padding + border). */
     private static final int SHELL_HORIZONTAL_OVERHEAD = 24;
+
     protected final Signal<UiThemeMode> themeMode = Signals.of(SimplySpeakersUiPreferences.getThemeMode());
 
     protected SimplySpeakersUiScreen(Component title) {
@@ -66,9 +69,27 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
         return currentTheme().colors();
     }
 
+    /**
+     * Root composition for migrated screens: a dimmed backdrop with the content
+     * hosted in a centered window shell that never exceeds the viewport.
+     *
+     * @param content          the panel column (already constrained via {@code maxWidth})
+     * @param contentMaxWidth  the content's intended maximum width
+     */
     protected UIComponent buildWindow(UIComponent content, int contentMaxWidth) {
-        Panel shell = new Panel().elevated().padding(12);
+        // No color overrides here: Panel resolves surface/border from the live
+        // runtime theme on every frame, so toggling light/dark restyles the
+        // shell immediately (frozen ints captured at build time kept the
+        // previous theme's colors after a toggle, like Economy's per-frame
+        // renderBaseShell avoids).
+        Panel shell = new Panel()
+                .elevated()
+                .padding(12);
         shell.child(content);
+        // Pin BOTH dimensions explicitly: centered stacks size children by
+        // their intrinsic preferredWidth/preferredHeight chain, which ignores
+        // requested sizes deeper in the tree (e.g. the audio list reports a
+        // 100px preferred width) and made the window resize per tab.
         int shellWidth = Math.min(contentMaxWidth + SHELL_HORIZONTAL_OVERHEAD, Math.max(76, width - 16));
         int shellHeight = Math.max(80, height - 16);
         shell.width(shellWidth);
@@ -81,13 +102,21 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
         );
     }
 
+    /** Full-viewport dimming layer behind the shell, kept theme-reactive. */
     protected UIComponent buildScrim() {
         return new UIComponent() {
-            @Override public int preferredWidth(Font font) { return 0; }
-            @Override public int preferredHeight(Font font) { return 0; }
+            @Override
+            public int preferredWidth(Font font) {
+                return 0;
+            }
 
             @Override
-            public void render(GuiGraphics g, Font font, int mx, int my, float pt) {
+            public int preferredHeight(Font font) {
+                return 0;
+            }
+
+            @Override
+            public void render(GuiGraphicsExtractor g, Font font, int mx, int my, float pt) {
                 g.fill(x, y, x + width, y + height, colors().backdrop());
             }
         };

@@ -30,15 +30,21 @@ side = "BOTH"
 
 [[dependencies.simplyspeakers]]
 modId = "architectury"
-mandatory = true
+type = "required"
 versionRange = "[${architectury_api_version},)"
 ordering = "AFTER"
 side = "BOTH"
 
+[[dependencies.simplyspeakers]]
+modId = "openui_mc"
+type = "required"
+versionRange = "[0.0.5,)"
+ordering = "AFTER"
+side = "CLIENT"
 
 [[dependencies.simplyspeakers]]
 modId = "sable"
-mandatory = false
+type = "optional"
 versionRange = "[2.0.5]"
 ordering = "AFTER"
 side = "BOTH"

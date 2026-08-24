@@ -8,7 +8,6 @@ import com.nstut.openui.controls.Card;
 import com.nstut.openui.controls.EmptyState;
 import com.nstut.openui.controls.Slider;
 import com.nstut.openui.controls.TextField;
-import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.layout.Justification;
 import com.nstut.openui.state.Signal;
 import com.nstut.openui.state.Signals;
@@ -28,7 +27,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -39,7 +37,7 @@ import java.util.function.Supplier;
  * proxy packets. No audio list is shown (the proxy follows its linked speaker's selection).</p>
  */
 public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
-    private static final int PANEL_WIDTH = 256;
+    private static final int PANEL_WIDTH = 320;
 
     private final BlockPos blockEntityPos;
     private ProxySpeakerBlockEntity speaker;
@@ -58,6 +56,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
 
     @Override
     protected void init() {
+        closeControlSubscriptions();
         fetchDataFromBlockEntity();
         if (speaker != null) {
             speakerId.set(speaker.getSpeakerId());
@@ -66,6 +65,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
             audioDropoff.set((double) speaker.getAudioDropoff());
         }
         super.init();
+        wireControlSubscriptions();
     }
 
     @Override
@@ -75,7 +75,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                 speaker != null ? buildSettingsCard() : buildNotFound()
         ).gap(10);
         panel.width(PANEL_WIDTH);
-        return Ui.padding(16, Ui.stack(panel).align(Alignment.CENTER, Alignment.CENTER));
+        return buildWindow(panel, PANEL_WIDTH);
     }
 
     private UIComponent buildHeader() {
@@ -100,19 +100,19 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                         Component.translatable("gui.simplyspeakers.max_volume"),
                         () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
                         maxVolume, 0.0, 1.0,
-                        v -> sendProxyVolume(v)
+                        Component.translatable("gui.simplyspeakers.proxy_max_volume.tooltip")
                 ),
                 sliderRow(
-                        Component.translatable("gui.simplyspeakers.max_range"),
+                        Component.translatable("gui.simplyspeakers.max_range", (int) Config.speakerRange),
                         () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
                         maxRange, 1.0, Config.speakerRange,
-                        v -> sendProxyRange(v)
+                        Component.translatable("gui.simplyspeakers.proxy_max_range.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.audio_dropoff"),
                         () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
                         audioDropoff, 0.0, 1.0,
-                        v -> sendProxyDropoff(v)
+                        Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")
                 ),
                 Ui.text(Component.translatable("gui.simplyspeakers.proxy.helper"))
         ).gap(10));
@@ -123,6 +123,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
         return Ui.row(
                 Ui.textField(speakerId)
                         .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
+                        .tooltip(Component.translatable("gui.simplyspeakers.proxy_speaker_id.tooltip"))
                         .flex(),
                 Ui.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
@@ -135,14 +136,26 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
-                                   Signal<Double> signal, double min, double max, Consumer<Double> packetSender) {
+                                   Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
-        sliderSubs.add(signal.subscribe(packetSender::accept));
-        return Ui.column(
+        UIComponent row = Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider
         ).gap(4);
+        if (tooltip != null) row.tooltip(tooltip);
+        return row;
+    }
+
+    private void wireControlSubscriptions() {
+        sliderSubs.add(maxVolume.subscribe(this::sendProxyVolume));
+        sliderSubs.add(maxRange.subscribe(this::sendProxyRange));
+        sliderSubs.add(audioDropoff.subscribe(this::sendProxyDropoff));
+    }
+
+    private void closeControlSubscriptions() {
+        for (Subscription subscription : sliderSubs) subscription.close();
+        sliderSubs.clear();
     }
 
     private void sendProxyVolume(double v) {
@@ -178,8 +191,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
 
     @Override
     public void removed() {
-        for (Subscription s : sliderSubs) s.close();
-        sliderSubs.clear();
+        closeControlSubscriptions();
         super.removed();
     }
 }

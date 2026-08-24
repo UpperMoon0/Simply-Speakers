@@ -49,11 +49,16 @@ configurations {
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$project.fabric_loader_version"
 
+    // OpenUI MC - required client-side UI framework (matching Fabric 1.21.1 module)
+    modImplementation 'com.nstut:openui-mc-fabric-1.21.1:0.0.5'
+
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:$project.fabric_api_version"
 
     // Architectury API. This is optional, and you can comment it out if you don't need it.
     modImplementation "dev.architectury:architectury-fabric:$project.architectury_api_version"
+
+    modImplementation 'com.nstut:openui-mc-fabric-1.21.1:0.0.5'
 
     include(modApi("dev.ryanhcode.sable-companion:sable-companion-fabric-1.21.1:$project.sable_companion_version"))
 
@@ -78,9 +83,10 @@ processResources {
     inputs.property 'archives_name', project.rootProject.archives_name
     inputs.property 'minecraft_version', project.minecraft_version
     inputs.property 'architectury_api_version', project.architectury_api_version
+    inputs.property 'openui_version', '0.0.5'
 
     filesMatching('fabric.mod.json') {
-        expand version: project.version, mod_name: project.rootProject.mod_name, mod_description: project.rootProject.mod_description, mod_authors: project.rootProject.mod_authors, fabric_loader_version: project.fabric_loader_version, archives_name: project.rootProject.archives_name, minecraft_version: project.minecraft_version, architectury_api_version: project.architectury_api_version
+        expand version: project.version, mod_name: project.rootProject.mod_name, mod_description: project.rootProject.mod_description, mod_authors: project.rootProject.mod_authors, fabric_loader_version: project.fabric_loader_version, archives_name: project.rootProject.archives_name, minecraft_version: project.minecraft_version, architectury_api_version: project.architectury_api_version, openui_version: '0.0.5'
     }
 }
 

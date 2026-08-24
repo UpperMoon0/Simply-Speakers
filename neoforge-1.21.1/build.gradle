@@ -61,6 +61,9 @@ repositories {
 dependencies {
     neoForge "net.neoforged:neoforge:$project.neoforge_version"
 
+    // OpenUI MC - required client-side UI framework (matching NeoForge 1.21.1 module)
+    modImplementation 'com.nstut:openui-mc-neoforge-1.21.1:0.0.5'
+
     // Architectury API. This is optional, and you can comment it out if you don't need it.
     modImplementation "dev.architectury:architectury-neoforge:$project.architectury_api_version"
 

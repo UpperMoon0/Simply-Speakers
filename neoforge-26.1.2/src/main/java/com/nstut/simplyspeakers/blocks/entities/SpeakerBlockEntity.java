@@ -598,7 +598,9 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @Override
     public net.minecraft.nbt.CompoundTag getUpdateTag(net.minecraft.core.HolderLookup.Provider registries) {
-        return super.getUpdateTag(registries);
+        // BlockEntity#getUpdateTag is empty by default in 26.1.x. Serialize our
+        // custom fields so a joining client receives the persisted settings.
+        return saveCustomOnly(registries);
     }
 
     @Nullable

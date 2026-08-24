@@ -35,6 +35,7 @@
   "gui.simplyspeakers.audio_dropoff.slider": "Audio Dropoff: %d%%",
   "gui.simplyspeakers.audio_dropoff.tooltip": "How fast volume fades with distance. 0% = full volume until max range, 100% = gradual fade.",
   
+  "gui.simplyspeakers.loop": "Loop",
   "gui.simplyspeakers.loop.on": "Loop: ON",
   "gui.simplyspeakers.loop.off": "Loop: OFF",
   "gui.simplyspeakers.loop.tooltip": "When ON, the audio will restart automatically when it ends.",
