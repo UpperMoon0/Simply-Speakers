@@ -37,7 +37,7 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           # Pin the reviewed OpenUI PR revision that provides the 0.0.5 API.
           # A commit pin keeps this cross-repository test reproducible after merge.
-          ref: d91a71d0b5a7c04f6d0938927d7d1159f960929c
+          ref: 4bdca8c92ae394e64f633d800948c81d1d903260
           path: .openui-mc
       # OpenUI's Gradle plugins require Java 21 even when publishing a Java 17 artifact.
       - name: Set up OpenUI build JDK

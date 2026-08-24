@@ -18,7 +18,7 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           # Pin the OpenUI revision consumed by this release. Do not rewrite its
           # version during CI; dependency and artifact versions must agree.
-          ref: d91a71d0b5a7c04f6d0938927d7d1159f960929c
+          ref: 4bdca8c92ae394e64f633d800948c81d1d903260
           path: .openui-mc
 
       # Gradle 8.14 does not support JDK 25.  The neoforge-26.1.2 module
@@ -98,7 +98,7 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           # Keep release builds reproducible and aligned with the declared
           # OpenUI 0.0.5 dependency even if repositories merge out of order.
-          ref: d91a71d0b5a7c04f6d0938927d7d1159f960929c
+          ref: 4bdca8c92ae394e64f633d800948c81d1d903260
           path: .openui-mc
 
       - name: Set up JDK ${{ matrix.java }}
