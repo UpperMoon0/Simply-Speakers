@@ -28,6 +28,13 @@ class SpeakerSettingsWiringTest {
                 assertContains(code, "SpeakerSettings.read", module + "/" + blockEntity + " must load settings");
                 assertContains(code, ".write(", module + "/" + blockEntity + " must save settings");
                 assertContains(code, "getUpdateTag", module + "/" + blockEntity + " must send settings to clients");
+                if (module.equals("neoforge-26.1.2")) {
+                    assertContains(code, "return saveCustomOnly(registries);",
+                            module + "/" + blockEntity + " must serialize custom data into its client update tag");
+                } else {
+                    assertContains(code, "saveAdditional(tag",
+                            module + "/" + blockEntity + " must serialize custom data into its client update tag");
+                }
             }
         }
     }
