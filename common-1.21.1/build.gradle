@@ -31,7 +31,7 @@ dependencies {
     compileOnly "javazoom:jlayer:1.0.1"
 
     // OpenUI MC — compile against the matching 1.21.1 API; loaders provide the runtime mod.
-    modCompileOnly 'com.nstut:openui-mc-fabric-1.21.1:0.0.6'
+    modCompileOnly 'com.nstut:openui-mc-fabric-1.21.1:0.0.5'
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'

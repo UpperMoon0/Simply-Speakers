@@ -27,6 +27,6 @@
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
-    "openui_mc": ">=0.0.6"
+    "openui_mc": ">=0.0.5"
   }
 }

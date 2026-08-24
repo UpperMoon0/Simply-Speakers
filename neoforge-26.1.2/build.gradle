@@ -176,8 +176,8 @@ configurations {
 dependencies {
     // OpenUI is a separate required client mod. The Maven dependency supplies
     // its API at compile time, and localRuntime makes ModDevGradle load it in dev runs.
-    implementation 'com.nstut:openui-mc-neoforge-26.1.2:0.0.6'
-    localRuntime 'com.nstut:openui-mc-neoforge-26.1.2:0.0.6'
+    implementation 'com.nstut:openui-mc-neoforge-26.1.2:0.0.5'
+    localRuntime 'com.nstut:openui-mc-neoforge-26.1.2:0.0.5'
 
     implementation "com.google.code.gson:gson:2.11.0"
     implementation "javazoom:jlayer:1.0.1"

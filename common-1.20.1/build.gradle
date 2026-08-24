@@ -28,7 +28,7 @@ dependencies {
 
     // OpenUI MC — required client-side UI framework.
     // Compile-only here: each loader project declares its matching OpenUI mod on the runtime classpath.
-    modCompileOnly 'com.nstut:openui-mc-fabric-1.20.1:0.0.6'
+    modCompileOnly 'com.nstut:openui-mc-fabric-1.20.1:0.0.5'
 }
 
 import groovy.json.JsonSlurper
