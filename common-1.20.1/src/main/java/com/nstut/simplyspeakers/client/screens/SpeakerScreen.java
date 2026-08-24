@@ -12,7 +12,6 @@ import com.nstut.openui.controls.EmptyState;
 import com.nstut.openui.controls.Slider;
 import com.nstut.openui.controls.TextField;
 import com.nstut.openui.controls.Toast;
-import com.nstut.openui.layout.Alignment;
 import com.nstut.openui.layout.Justification;
 import com.nstut.openui.overlay.OverlayHandle;
 import com.nstut.openui.state.Computed;
@@ -54,7 +53,7 @@ import java.util.function.Supplier;
  * to reactive signals rather than vanilla widgets.</p>
  */
 public class SpeakerScreen extends SimplySpeakersUiScreen {
-    private static final int PANEL_WIDTH = 256;
+    private static final int PANEL_WIDTH = 320;
 
     private enum SpeakerTab { AUDIO, SETTINGS }
     private enum AudioViewState { EMPTY, NO_MATCHES, RESULTS }
@@ -124,12 +123,12 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         .tab(SpeakerTab.SETTINGS, Component.translatable("gui.simplyspeakers.tab.settings")),
                 Ui.switcher(tab)
                         .when(SpeakerTab.AUDIO, this::buildAudioView)
-                        .when(SpeakerTab.SETTINGS, this::buildSettingsView),
-                Ui.text((Supplier<Component>) status::get)
-        ).gap(8);
-        panel.fillWidth();
-        panel.maxWidth(PANEL_WIDTH);
-        return Ui.padding(16, Ui.stack(panel).align(Alignment.CENTER, Alignment.CENTER));
+                        .when(SpeakerTab.SETTINGS, this::buildSettingsView)
+                        .flex(),
+                Ui.text((Supplier<Component>) status::get).marquee()
+        ).gap(6);
+        panel.width(PANEL_WIDTH);
+        return buildWindow(panel, PANEL_WIDTH);
     }
 
     private UIComponent buildHeader() {
@@ -174,15 +173,16 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         .key(row -> row.audio().getUuid())
                         .itemHeight(36)
                         .gap(6)
-                        .height(Math.max(72, Math.min(176, height - 120)))
-                        .fillWidth()
-        ).gap(8);
+                        .flex()
+                        .minHeight(56)
+        ).gap(6);
     }
 
     private UIComponent buildAudioToolbar() {
         HStack toolbar = Ui.row(
                 Ui.textField(search)
                         .placeholder(Component.translatable("gui.simplyspeakers.search.placeholder").getString())
+                        .tooltip(Component.translatable("gui.simplyspeakers.search.tooltip"))
                         .flex()
         ).gap(6);
         if (!Config.disableUpload) {
@@ -198,7 +198,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
         Card card = Ui.card().outlined(true).padding(8).selected(selected);
         VStack left = Ui.column(
-                Ui.text(Component.literal(audio.getOriginalFilename())),
+                Ui.text(Component.literal(audio.getOriginalFilename())).marquee(),
                 audio.getDurationSeconds() > 0
                         ? Ui.text(Component.translatable("gui.simplyspeakers.duration", formatDuration(audio.getDurationSeconds())))
                         : Ui.text(Component.empty())
@@ -224,29 +224,32 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
             return Ui.card(Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"))).outlined(true).padding(16);
         }
         Card card = Ui.card().outlined(true).padding(12);
-        card.addChild(Ui.column(
+        card.addChild(Ui.scroll(Ui.column(
                 buildSpeakerIdRow(),
                 Ui.divider(),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_volume"),
                         () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
-                        maxVolume, 0.0, 1.0
+                        maxVolume, 0.0, 1.0,
+                        Component.translatable("gui.simplyspeakers.max_volume.tooltip")
                 ),
                 sliderRow(
-                        Component.translatable("gui.simplyspeakers.max_range"),
+                        Component.translatable("gui.simplyspeakers.max_range", (int) Config.speakerRange),
                         () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
-                        maxRange, 1.0, Config.speakerRange
+                        maxRange, 1.0, Config.speakerRange,
+                        Component.translatable("gui.simplyspeakers.max_range.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.audio_dropoff"),
                         () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
-                        audioDropoff, 0.0, 1.0
+                        audioDropoff, 0.0, 1.0,
+                        Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")
                 ),
                 Ui.row(
                         Ui.text(Component.translatable("gui.simplyspeakers.loop")),
                         Ui.toggle(looping)
-                ).gap(8)
-        ).gap(10));
+                ).gap(8).tooltip(Component.translatable("gui.simplyspeakers.loop.tooltip"))
+        ).gap(10)).fillHeight());
         return card;
     }
 
@@ -254,6 +257,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return Ui.row(
                 Ui.textField(speakerId)
                         .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
+                        .tooltip(Component.translatable("gui.simplyspeakers.speaker_id.tooltip"))
                         .flex(),
                 Ui.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
@@ -266,13 +270,15 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
-                                   Signal<Double> signal, double min, double max) {
+                                   Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
-        return Ui.column(
+        UIComponent row = Ui.column(
                 Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
                 slider
         ).gap(4);
+        if (tooltip != null) row.tooltip(tooltip);
+        return row;
     }
 
     private void wireControlSubscriptions() {

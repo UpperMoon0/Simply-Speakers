@@ -59,7 +59,7 @@ dependencies {
     shadowBundle "javazoom:jlayer:1.0.1"
 
     // OpenUI MC — required client-side UI framework (matching Fabric 1.20.1 module)
-    modImplementation 'com.nstut:openui-mc-fabric-1.20.1:0.0.5'
+    modImplementation 'com.nstut:openui-mc-fabric-1.20.1:0.0.6'
 
     // Shared common module (pure Java, no MC dependencies)
     // implementation for compile-time, shadowBundle NOT needed as it's bundled via transformProductionFabric
