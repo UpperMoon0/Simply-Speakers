@@ -30,4 +30,19 @@ class StreamTracksTest {
         String tooLong = "https://example.com/" + "a".repeat(3000) + ".mp3";
         assertFalse(StreamTracks.isHttpAudioUrl(tooLong));
     }
+
+
+    @Test
+    void acceptsQueryStringsAndCaseInsensitiveSchemes() {
+        assertTrue(StreamTracks.isHttpAudioUrl("https://example.com/live.mp3?token=abc"));
+        assertTrue(StreamTracks.isHttpAudioUrl("HTTPS://EXAMPLE.COM/A.MP3"));
+        assertTrue(StreamTracks.hasSupportedExtension("https://example.com/a.MP3#frag".replace("#frag", "")));
+        assertTrue(StreamTracks.hasSupportedExtension("https://example.com/STREAM.WAV?nocache=1"));
+    }
+
+    @Test
+    void rejectsControlCharacters() {
+        assertFalse(StreamTracks.isHttpAudioUrl("https://example.com/a\u0000.mp3"));
+        assertFalse(StreamTracks.isHttpAudioUrl("https://example.com/a b.mp3"));
+    }
 }

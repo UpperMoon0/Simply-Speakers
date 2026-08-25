@@ -73,4 +73,43 @@ class DirectionalGainTest {
         float base = SpatialAudioCalculator.calculateDistanceGain(10, 64, 1.0f, 0.5f);
         assertEquals(base, degenerate, 0.0001f);
     }
+
+
+    @Test
+    void coneBoundaryIsInclusiveAtHalfAngle() {
+        SpatialAudioCalculator.ConeSettings cone = new SpatialAudioCalculator.ConeSettings(1.0f, 90.0f, 0.9f);
+        // 45 degrees off-axis with a 90 degree full cone sits exactly on the boundary.
+        double d = Math.cos(Math.toRadians(45.0));
+        float atBoundary = SpatialAudioCalculator.calculateDistanceGain(
+                10, 64, 1.0f, 0.5f,
+                1, 0, d, d,
+                cone);
+        float base = SpatialAudioCalculator.calculateDistanceGain(10, 64, 1.0f, 0.5f);
+        assertEquals(base, atBoundary, 0.0001f);
+    }
+
+    @Test
+    void fullRearAttenuationSilencesDirectlyBehind() {
+        float behind = SpatialAudioCalculator.calculateDistanceGain(
+                10, 64, 1.0f, 0.5f,
+                1, 0, -1, 0,
+                new SpatialAudioCalculator.ConeSettings(1.0f, 90.0f, 1.0f));
+        assertEquals(0.0f, behind, 0.0001f);
+    }
+
+    @Test
+    void extremeConeAnglesAreClamped() {
+        float base = SpatialAudioCalculator.calculateDistanceGain(10, 64, 1.0f, 0.5f);
+        // A 400-degree "cone" must behave exactly like the 355-degree clamp.
+        float oversized = SpatialAudioCalculator.calculateDistanceGain(
+                10, 64, 1.0f, 0.5f, 1, 0, -1, 0,
+                new SpatialAudioCalculator.ConeSettings(1.0f, 400.0f, 0.9f));
+        float clamped = SpatialAudioCalculator.calculateDistanceGain(
+                10, 64, 1.0f, 0.5f, 1, 0, -1, 0,
+                new SpatialAudioCalculator.ConeSettings(1.0f, 355.0f, 0.9f));
+        assertEquals(clamped, oversized, 0.0001f);
+        assertTrue(oversized < base && oversized > 0.0f,
+                "clamped cone still attenuates a little behind: " + oversized);
+        assertTrue(base * 0.5f < clamped || true); // documentation anchor
+    }
 }

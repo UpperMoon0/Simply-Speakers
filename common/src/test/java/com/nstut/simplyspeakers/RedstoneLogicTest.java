@@ -98,4 +98,27 @@ class RedstoneLogicTest {
         assertEquals(RedstoneMode.DEFAULT, RedstoneMode.fromIndex(-1));
         assertEquals(RedstoneMode.NEXT, RedstoneMode.fromIndex(3));
     }
+
+
+    @Test
+    void powerModeIgnoresSignalWhenAlreadyOff() {
+        assertEquals(RedstoneLogic.Action.NONE,
+                RedstoneLogic.evaluate(RedstoneMode.POWER, 0, 0, 0).action());
+    }
+
+    @Test
+    void comparatorLevelClampsNegativePositionsIntoFirstBand() {
+        assertEquals(1, RedstoneLogic.comparatorLevel(true, -5.0f, 100.0f));
+    }
+
+    @Test
+    void analogVolumeFullScaleSweeps() {
+        for (int signal = 0; signal <= 15; signal++) {
+            RedstoneLogic.RedstoneResult result =
+                    RedstoneLogic.evaluate(RedstoneMode.ANALOG_VOLUME, (signal + 1) % 16, signal, 0);
+            if ((signal + 1) % 16 == signal) continue;
+            assertEquals(RedstoneLogic.Action.SET_VOLUME, result.action());
+            assertEquals(signal, result.payload());
+        }
+    }
 }

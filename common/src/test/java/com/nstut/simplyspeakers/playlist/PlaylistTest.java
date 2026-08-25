@@ -183,4 +183,76 @@ class PlaylistTest {
         assertEquals("b", playlist.current().getAudioId());
         assertEquals(1, playlist.getCurrentIndex());
     }
+
+
+    @Test
+    void queueTakesPrecedenceEvenUnderShuffle() {
+        playlist.setShuffle(true, 9L);
+        playlist.next();
+        playlist.queueNext("a");
+        Playlist.Advance advance = playlist.next();
+        assertEquals("a", advance.track().getAudioId());
+    }
+
+    @Test
+    void removeByAudioIdRemovesEveryDuplicate() {
+        playlist.add("b", "b-copy.mp3");
+        assertTrue(playlist.removeByAudioId("b"));
+        assertEquals(2, playlist.size());
+        assertFalse(playlist.removeByAudioId("missing"));
+    }
+
+    @Test
+    void clearResetsQueueSelectionAndTracks() {
+        playlist.next();
+        playlist.queueNext("c");
+        playlist.clear();
+        assertEquals(0, playlist.size());
+        assertNull(playlist.current());
+        assertFalse(playlist.hasQueuedTracks());
+        assertEquals(Playlist.AdvanceResult.EXHAUSTED, playlist.next().result());
+    }
+
+    @Test
+    void singleTrackWithoutRepeatExhaustsAfterFirstPlay() {
+        Playlist single = new Playlist();
+        single.add("only", "only.mp3");
+        single.next();
+        Playlist.Advance advance = single.next();
+        assertEquals(Playlist.AdvanceResult.EXHAUSTED, advance.result());
+        assertFalse(advance.hasTrack());
+    }
+
+    @Test
+    void trackRepeatRestartsSingleTrack() {
+        Playlist single = new Playlist();
+        single.add("only", "only.mp3");
+        single.setRepeatMode(RepeatMode.TRACK);
+        single.next();
+        Playlist.Advance advance = single.next();
+        assertEquals(Playlist.AdvanceResult.ADVANCED, advance.result());
+        assertEquals("only", advance.track().getAudioId());
+    }
+
+    @Test
+    void singleTrackWithPlaylistRepeatKeepsLooping() {
+        Playlist single = new Playlist();
+        single.add("only", "only.mp3");
+        single.setRepeatMode(RepeatMode.PLAYLIST);
+        single.next();
+        for (int i = 0; i < 3; i++) {
+            Playlist.Advance advance = single.next();
+            assertEquals(Playlist.AdvanceResult.WRAPPED, advance.result());
+            assertEquals("only", advance.track().getAudioId());
+        }
+    }
+
+    @Test
+    void selectIndexOutOfBoundsReturnsNull() {
+        assertNull(playlist.selectIndex(-5));
+        assertNull(playlist.selectIndex(99));
+        // setCurrentIndex clamps instead of throwing.
+        playlist.setCurrentIndex(50);
+        assertEquals(2, playlist.getCurrentIndex());
+    }
 }
