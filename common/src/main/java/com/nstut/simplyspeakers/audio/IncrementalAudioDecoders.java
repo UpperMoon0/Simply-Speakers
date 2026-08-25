@@ -40,6 +40,23 @@ public final class IncrementalAudioDecoders {
         return createMonoPcmStream(audioFile);
     }
 
+    /**
+     * Opens an incremental mono PCM stream directly from a network connection.
+     *
+     * @param rawStream live HTTP(S) body stream; closed by the returned stream
+     * @param url       stream URL, used only to pick the decoder
+     */
+    public static AudioInputStream openPcmStreamFromUrl(java.io.InputStream rawStream, String url)
+            throws UnsupportedAudioFileException, IOException {
+        String lower = url.toLowerCase();
+        if (lower.endsWith(".mp3")) {
+            return new IncrementalMp3AudioInputStream(rawStream);
+        }
+        java.io.InputStream buffered = new BufferedInputStream(rawStream);
+        AudioInputStream source = AudioSystem.getAudioInputStream(buffered);
+        return createIncrementalMonoWavStream(source);
+    }
+
     private static AudioInputStream createIncrementalMonoWavStream(AudioInputStream sourceStream) throws UnsupportedAudioFileException, IOException {
         AudioFormat srcFormat = sourceStream.getFormat();
         float sampleRate = srcFormat.getSampleRate();
@@ -106,6 +123,11 @@ public final class IncrementalAudioDecoders {
         private boolean eof = false;
 
         public IncrementalMp3AudioInputStream(File file) throws IOException {
+            this(new BufferedInputStream(new FileInputStream(file)));
+        }
+
+        /** Streams MP3 frames incrementally from any source, including HTTP. */
+        public IncrementalMp3AudioInputStream(InputStream sourceStream) throws IOException {
             super(new InputStream() {
                 @Override
                 public int read() {
@@ -113,14 +135,14 @@ public final class IncrementalAudioDecoders {
                 }
             }, new AudioFormat(44100, 16, 1, true, false), AudioSystem.NOT_SPECIFIED);
 
-            this.fileInputStream = new BufferedInputStream(new FileInputStream(file));
+            this.fileInputStream = sourceStream;
             this.bitstream = new Bitstream(fileInputStream);
             this.decoder = new Decoder();
 
             try {
                 Header firstHeader = bitstream.readFrame();
                 if (firstHeader == null) {
-                    throw new IOException("Empty or invalid MP3 file: " + file.getName());
+                    throw new IOException("Empty or invalid MP3 stream");
                 }
                 int sampleRate = firstHeader.frequency();
                 this.channels = (firstHeader.mode() == Header.SINGLE_CHANNEL) ? 1 : 2;
@@ -134,7 +156,7 @@ public final class IncrementalAudioDecoders {
                 try {
                     bitstream.close();
                 } catch (Exception ignored) {}
-                throw new IOException("Failed to initialize MP3 decoder for: " + file.getName(), e);
+                throw new IOException("Failed to initialize MP3 decoder", e);
             }
         }
 
