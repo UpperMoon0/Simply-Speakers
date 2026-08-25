@@ -23,6 +23,11 @@ public class PacketRegistries {
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateProxyMaxVolumePacketC2S.TYPE, UpdateProxyMaxVolumePacketC2S.STREAM_CODEC, UpdateProxyMaxVolumePacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateProxyMaxRangePacketC2S.TYPE, UpdateProxyMaxRangePacketC2S.STREAM_CODEC, UpdateProxyMaxRangePacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateProxyAudioDropoffPacketC2S.TYPE, UpdateProxyAudioDropoffPacketC2S.STREAM_CODEC, UpdateProxyAudioDropoffPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), TransportControlPacketC2S.TYPE, TransportControlPacketC2S.STREAM_CODEC, TransportControlPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), PlaylistControlPacketC2S.TYPE, PlaylistControlPacketC2S.STREAM_CODEC, PlaylistControlPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), SpeakerPolicyPacketC2S.TYPE, SpeakerPolicyPacketC2S.STREAM_CODEC, SpeakerPolicyPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateAudioMetaPacketC2S.TYPE, UpdateAudioMetaPacketC2S.STREAM_CODEC, UpdateAudioMetaPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), RequestPlaylistPacketC2S.TYPE, RequestPlaylistPacketC2S.STREAM_CODEC, RequestPlaylistPacketC2S::handle);
     }
 
     public static void registerS2C() {
