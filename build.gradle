@@ -18,6 +18,11 @@ allprojects {
     repositories {
         mavenLocal()
         maven { url 'https://jitpack.io' }
+        // CC:Tweaked API (optional integration; compile-only)
+        maven {
+            url 'https://maven.squiddev.cc'
+            content { includeGroup 'cc.tweaked' }
+        }
         exclusiveContent {
             forRepository {
                 maven { url 'https://maven.ryanhcode.dev/releases' }

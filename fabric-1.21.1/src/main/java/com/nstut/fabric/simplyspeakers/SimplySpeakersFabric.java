@@ -8,6 +8,10 @@ import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.fabric.simplyspeakers.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
+import com.nstut.fabric.simplyspeakers.compat.computercraft.SimplySpeakersPeripheral;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import java.nio.file.Path;
@@ -18,6 +22,17 @@ import java.nio.file.Path;
 public class SimplySpeakersFabric implements ModInitializer {
     @Override
     public void onInitialize() {
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(dispatcher));
+
+        // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        if (FabricLoader.getInstance().isModLoaded("computercraft")) {
+            dan200.computercraft.api.peripheral.PeripheralLookup.get().registerForBlockEntity(
+                    (be, side) -> new SimplySpeakersPeripheral(be),
+                    BlockEntityRegistries.SPEAKER.get());
+        }
+
         // Load config
         FabricConfig.init();
 

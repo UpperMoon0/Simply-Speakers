@@ -30,6 +30,15 @@ public final class SimplySpeakersForge {
         SimplySpeakers.init();
 
         // Register the server starting event
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.RegisterCommandsEvent event) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
+
+        // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        if (net.minecraftforge.fml.ModList.get().isLoaded("computercraft")) {
+            com.nstut.simplyspeakers.forge.compat.computercraft.SimplySpeakersPeripheral.registerProvider();
+        }
+
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarting);
         
         // Register the server stopping event

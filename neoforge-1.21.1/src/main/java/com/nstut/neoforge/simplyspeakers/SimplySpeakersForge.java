@@ -16,6 +16,7 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import com.nstut.neoforge.simplyspeakers.compat.computercraft.SimplySpeakersPeripheral;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 import java.nio.file.Path;
@@ -28,6 +29,20 @@ public final class SimplySpeakersForge {
 
         // Register config event listener manually
         modEventBus.addListener(ForgeConfig::onLoad);
+
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.RegisterCommandsEvent event) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
+
+        // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        if (net.neoforged.fml.ModList.get().isLoaded("computercraft")) {
+            modEventBus.addListener((net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent event) -> {
+                event.registerBlockEntity(
+                        dan200.computercraft.api.peripheral.PeripheralCapability.get(),
+                        BlockEntityRegistries.SPEAKER.get(),
+                        (be, side) -> new SimplySpeakersPeripheral(be));
+            });
+        }
 
         SimplySpeakers.SOUND_EVENTS.register();
         SimplySpeakers.CREATIVE_TABS.register();

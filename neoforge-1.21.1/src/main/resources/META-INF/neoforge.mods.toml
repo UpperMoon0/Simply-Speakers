@@ -48,3 +48,10 @@ type = "optional"
 versionRange = "[2.0.5]"
 ordering = "AFTER"
 side = "BOTH"
+
+
+[[dependencies.simplyspeakers]]
+modId = "computercraft"
+type = "optional"
+ordering = "AFTER"
+side = "BOTH"

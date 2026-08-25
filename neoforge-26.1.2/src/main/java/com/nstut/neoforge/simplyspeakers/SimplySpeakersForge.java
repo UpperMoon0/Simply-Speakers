@@ -45,6 +45,10 @@ public final class SimplySpeakersForge {
         SimplySpeakers.init();
 
         // Register the server starting event
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.RegisterCommandsEvent event) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
+
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         
         // Register the server stopping event

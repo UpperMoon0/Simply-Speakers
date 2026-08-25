@@ -33,6 +33,7 @@
     "openui_mc": ">=${openui_version}"
   },
   "suggests": {
+    "computercraft": "*",
     "sable": "=2.0.5"
   }
 }

@@ -42,3 +42,10 @@ mandatory = true
 versionRange = "[0.0.5,)"
 ordering = "NONE"
 side = "CLIENT"
+
+# Optional integrations
+[[dependencies.simplyspeakers]]
+    modId = "computercraft"
+    type = "optional"
+    ordering = "AFTER"
+    side = "BOTH"
