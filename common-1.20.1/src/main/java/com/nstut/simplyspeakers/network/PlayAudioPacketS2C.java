@@ -25,6 +25,10 @@ public class PlayAudioPacketS2C {
     private final float maxVolume;
     private final float audioDropoff;
 
+    /** Optional directional cone settings; null keeps omnidirectional behaviour. */
+    private com.nstut.simplyspeakers.audio.DirectionalAudio.Extras extras;
+
+
     public PlayAudioPacketS2C(BlockPos pos, String speakerId, String audioId, String audioFilename, float playbackPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff) {
         this.pos = pos;
         this.speakerId = speakerId != null ? speakerId : "";
@@ -55,6 +59,11 @@ public class PlayAudioPacketS2C {
         this.maxRange = buf.readVarInt();
         this.maxVolume = buf.readFloat();
         this.audioDropoff = buf.readFloat();
+
+        if (buf.readableBytes() >= 1 && buf.readBoolean()) {
+            this.extras = new com.nstut.simplyspeakers.audio.DirectionalAudio.Extras(
+                    buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readByte());
+        }
     }
 
     public static void encode(PlayAudioPacketS2C pkt, FriendlyByteBuf buf) {
@@ -67,6 +76,14 @@ public class PlayAudioPacketS2C {
         buf.writeVarInt(pkt.maxRange);
         buf.writeFloat(pkt.maxVolume);
         buf.writeFloat(pkt.audioDropoff);
+        boolean hasExtras = this.extras != null;
+        buf.writeBoolean(hasExtras);
+        if (hasExtras) {
+            buf.writeFloat(this.extras.directionality());
+            buf.writeFloat(this.extras.coneAngleDegrees());
+            buf.writeFloat(this.extras.rearAttenuation());
+            buf.writeByte(this.extras.facingOrdinal());
+        }
     }
 
     public static void handle(PlayAudioPacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
@@ -95,7 +112,7 @@ public class PlayAudioPacketS2C {
         SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, speakerId: '{}', audioId: {}, filename: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
                 packet.pos, packet.speakerId, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff);
         AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
-        ClientAudioPlayer.play(packet.pos, packet.speakerId, metadata, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff);
+        ClientAudioPlayer.play(packet.pos, packet.speakerId, metadata, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff, packet.getExtras());
     }
 
     public static void processPendingPlays() {
@@ -154,4 +171,12 @@ public class PlayAudioPacketS2C {
     public float getAudioDropoff() {
         return audioDropoff;
     }
+    public void attachExtras(com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directionalExtras) {
+        this.extras = directionalExtras;
+    }
+
+    public com.nstut.simplyspeakers.audio.DirectionalAudio.Extras getExtras() {
+        return extras;
+    }
+
 }

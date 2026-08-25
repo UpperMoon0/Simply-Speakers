@@ -787,6 +787,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                         state.getMaxVolume(),
                         state.getAudioDropoff()
                 );
+                playPacket.attachExtras(directionalExtras(currentLevel, currentPos, state));
                 if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
                 sendPlayPacket(player, playPacket);
                 listeningPlayers.add(player.getUUID());
