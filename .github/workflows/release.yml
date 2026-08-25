@@ -18,8 +18,18 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           # Pin the OpenUI revision consumed by this release. Do not rewrite its
           # version during CI; dependency and artifact versions must agree.
-          ref: 4bdca8c92ae394e64f633d800948c81d1d903260
+          ref: main
           path: .openui-mc
+      - name: Verify OpenUI-MC version alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected="$(sed -n 's/^openui_version[[:space:]]*=[[:space:]]*//p' gradle.properties | head -n1 | tr -d '\r' | xargs)"
+          actual="$(sed -n 's/^mod_version[[:space:]]*=[[:space:]]*//p' .openui-mc/gradle.properties | head -n1 | tr -d '\r' | xargs)"
+          if [[ -z "$expected" || -z "$actual" || "$actual" != "$expected" ]]; then
+            echo "OpenUI version mismatch: Simply Speakers requires '$expected' but the checked-out source publishes '$actual'." >&2
+            exit 1
+          fi
 
       # Gradle 8.14 does not support JDK 25.  The neoforge-26.1.2 module
       # declares its own Java 25 toolchain, so only JDK 21 is needed here.
@@ -98,7 +108,7 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           # Keep release builds reproducible and aligned with the declared
           # OpenUI 0.0.5 dependency even if repositories merge out of order.
-          ref: 4bdca8c92ae394e64f633d800948c81d1d903260
+          ref: main
           path: .openui-mc
 
       - name: Set up JDK ${{ matrix.java }}
