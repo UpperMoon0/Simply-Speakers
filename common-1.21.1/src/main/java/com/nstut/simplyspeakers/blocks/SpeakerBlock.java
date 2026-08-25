@@ -118,6 +118,19 @@ public class SpeakerBlock extends BaseEntityBlock {
     }
 
     @Override
+    public boolean hasAnalogOutputSignal(@NotNull BlockState state) {
+        return true;
+    }
+
+    @Override
+    public int getAnalogOutputSignal(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos) {
+        if (level.getBlockEntity(pos) instanceof SpeakerBlockEntity speakerEntity) {
+            return speakerEntity.getComparatorOutput();
+        }
+        return 0;
+    }
+
+    @Override
     public void neighborChanged(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, 
                                 @NotNull Block block, @NotNull BlockPos fromPos, boolean isMoving) {
         super.neighborChanged(state, level, pos, block, fromPos, isMoving);
@@ -136,13 +149,10 @@ public class SpeakerBlock extends BaseEntityBlock {
                 // Then trigger audio based on the new state
                 BlockEntity blockEntity = level.getBlockEntity(pos);
                 if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                    if (hasSignal) {
-                        LOGGER.info("Triggering playAudio for speaker at {}", pos);
-                        speakerEntity.playAudio();
-                    } else {
-                        LOGGER.info("Triggering stopAudio for speaker at {}", pos);
-                        speakerEntity.detachEmitterForPowerOff();
-                    }
+                    // 0.8.x: route raw signal strength through the configured redstone mode.
+                    int signalStrength = level.getBestNeighborSignal(pos);
+                    LOGGER.info("Redstone signal {} at {}", signalStrength, pos);
+                    speakerEntity.handleRedstoneChange(signalStrength);
                 } else {
                     LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);
                 }

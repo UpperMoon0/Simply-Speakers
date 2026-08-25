@@ -1,5 +1,6 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioOwnership;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
@@ -60,6 +61,12 @@ public class SelectAudioPacketC2S implements CustomPacketPayload {
                     return;
                 }
 
+                if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(packet.audioId)) {
+                    if (!Config.disableUpload || player.hasPermissions(2)) {
+                        speaker.setSelectedAudio(packet.audioId, packet.audioId);
+                    }
+                    return;
+                }
                 com.nstut.simplyspeakers.audio.AudioFileManager manager = SimplySpeakers.getAudioFileManager();
                 if (manager != null) {
                     com.nstut.simplyspeakers.audio.AudioFileMetadata meta = manager.getManifest().get(packet.audioId);

@@ -299,6 +299,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                         this.maxVolume,
                         this.audioDropoff
                 );
+                playPacket.attachExtras(directionalExtras(currentLevel, currentPos, state));
                 if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
                 NetworkManager.sendToPlayer(player, playPacket);
                 listeningPlayers.add(player.getUUID());
@@ -318,6 +319,18 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 listeningPlayers.remove(playerId);
             }
         }
+    }
+
+
+    private com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directionalExtras(Level lvl, BlockPos pos, SpeakerState st) {
+        if (st == null || st.getDirectionality() <= 0.0f) return null;
+        BlockState bs = lvl.getBlockState(pos);
+        byte facingOrdinal = 2; // NORTH fallback
+        if (bs.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING)) {
+            facingOrdinal = (byte) bs.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING).ordinal();
+        }
+        return new com.nstut.simplyspeakers.audio.DirectionalAudio.Extras(
+                st.getDirectionality(), st.getConeAngleDegrees(), st.getRearAttenuation(), facingOrdinal);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
@@ -54,6 +55,12 @@ public class SelectAudioPacketC2S {
                     return;
                 }
 
+                if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(pkt.audioId)) {
+                    if (!Config.disableUpload || player.hasPermissions(2)) {
+                        speaker.setSelectedAudio(pkt.audioId, pkt.audioId);
+                    }
+                    return;
+                }
                 AudioFileManager manager = SimplySpeakers.getAudioFileManager();
                 if (manager != null) {
                     AudioFileMetadata meta = manager.getManifest().get(pkt.audioId);

@@ -8,6 +8,16 @@ import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.RedstoneLogic;
+import com.nstut.simplyspeakers.RedstoneMode;
+import com.nstut.simplyspeakers.SpeakerAccess;
+import com.nstut.simplyspeakers.api.SpeakerEvents;
+import com.nstut.simplyspeakers.network.PlaylistControlPacketC2S;
+import com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C;
+import com.nstut.simplyspeakers.network.TransportControlPacketC2S;
+import com.nstut.simplyspeakers.playlist.Playlist;
+import com.nstut.simplyspeakers.playlist.PlaylistTrack;
+import com.nstut.simplyspeakers.playlist.RepeatMode;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PacketRegistries;
@@ -47,6 +57,9 @@ public class SpeakerBlockEntity extends BlockEntity {
     private UUID internalStateId = UUID.randomUUID();
     private String speakerId = "";
     private String registeredKey = "";
+
+    /** Last observed redstone strength for edge-triggered modes (not persisted). */
+    private int lastRedstoneSignal = 0;
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityRegistries.SPEAKER.get(), pos, state);
@@ -153,6 +166,394 @@ public class SpeakerBlockEntity extends BlockEntity {
     public static void serverTick(Level level, BlockPos pos, BlockState state, SpeakerBlockEntity blockEntity) {
         blockEntity.ensureServerRegistration();
         blockEntity.tick(level, pos, state);
+    }
+
+
+    private com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directionalExtras(Level lvl, BlockPos pos, SpeakerState st) {
+        if (st == null || st.getDirectionality() <= 0.0f) return null;
+        BlockState bs = lvl.getBlockState(pos);
+        byte facingOrdinal = 2; // NORTH fallback
+        if (bs.hasProperty(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING)) {
+            facingOrdinal = (byte) bs.getValue(net.minecraft.world.level.block.state.properties.BlockStateProperties.HORIZONTAL_FACING).ordinal();
+        }
+        return new com.nstut.simplyspeakers.audio.DirectionalAudio.Extras(
+                st.getDirectionality(), st.getConeAngleDegrees(), st.getRearAttenuation(), facingOrdinal);
+    }
+
+    private void sendPlaylistSyncTo(ServerPlayer player, PlaylistSyncPacketS2C packet) {
+        PacketRegistries.CHANNEL.sendToPlayer(player, packet);
+    }
+
+    private void sendPlaylistSyncToAll(ServerLevel serverLevel, PlaylistSyncPacketS2C packet) {
+        PacketRegistries.CHANNEL.sendToPlayers(serverLevel.players(), packet);
+    }
+
+    // ==================================================================
+    // 0.8.x transport, playlists, redstone automation, and policy
+    // ==================================================================
+
+    /** Applies a transport action (see TransportControlPacketC2S constants). */
+    public void transportAction(Level currentLevel, byte action, float seekSeconds) {
+        switch (action) {
+            case TransportControlPacketC2S.ACTION_PLAY -> {
+                SpeakerState state = getSpeakerState();
+                if (state != null && state.isPaused()) resumeAudio();
+                else playAudio();
+            }
+            case TransportControlPacketC2S.ACTION_PAUSE -> pauseAudio();
+            case TransportControlPacketC2S.ACTION_TOGGLE -> togglePause();
+            case TransportControlPacketC2S.ACTION_STOP -> stopAudio();
+            case TransportControlPacketC2S.ACTION_RESTART -> seekTo(0.0f);
+            case TransportControlPacketC2S.ACTION_NEXT -> nextTrack();
+            case TransportControlPacketC2S.ACTION_PREVIOUS -> previousTrack();
+            case TransportControlPacketC2S.ACTION_SEEK -> seekTo(seekSeconds);
+            default -> { }
+        }
+    }
+
+    /** Suspends playback while preserving the current position. */
+    public void pauseAudio() {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.isPlaying() || state.isPaused()) return;
+        state.pauseAt(level.getGameTime());
+        updateSpeakerState(state);
+        sendStopToListeners(level);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        broadcastPlaylistSync();
+        SpeakerEvents.fire(SpeakerEvents.Type.PAUSED, getStateKey(), state.getNetworkName(), state.getAudioId());
+    }
+
+    /** Resumes previously paused playback from the preserved position. */
+    public void resumeAudio() {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.isPaused()) return;
+        state.resumeAt(level.getGameTime());
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        if (level instanceof ServerLevel serverLevel) resyncListeners(serverLevel);
+        broadcastPlaylistSync();
+        SpeakerEvents.fire(SpeakerEvents.Type.RESUMED, getStateKey(), state.getNetworkName(), state.getAudioId());
+    }
+
+    public void togglePause() {
+        SpeakerState state = getSpeakerState();
+        if (state != null && state.isPlaying()) {
+            if (state.isPaused()) resumeAudio();
+            else pauseAudio();
+        } else {
+            playAudio();
+        }
+    }
+
+    /** Seeks to an absolute position; live networks re-issue streams at the offset. */
+    public void seekTo(float seconds) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.hasAudio()) return;
+        boolean wasPlaying = state.isPlaying() && !state.isPaused();
+        state.seekTo(seconds, level.getGameTime(), trackDurationSeconds(state));
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        if (wasPlaying && level instanceof ServerLevel serverLevel) resyncListeners(serverLevel);
+    }
+
+    public void nextTrack() {
+        advanceTrack(1);
+    }
+
+    public void previousTrack() {
+        advanceTrack(-1);
+    }
+
+    private void advanceTrack(int direction) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.hasPlaylist()) return;
+        Playlist playlist = state.getPlaylist();
+        Playlist.Advance advance = direction >= 0 ? playlist.next() : playlist.previous();
+        if (advance.hasTrack()) {
+            startTrackPlayback(state, advance.track().getAudioId(), advance.track().getFilename());
+        } else {
+            stopAudio();
+            SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, getStateKey(), state.getNetworkName(), state.getAudioId());
+        }
+        broadcastPlaylistSync();
+    }
+
+    /** Selects a track and immediately plays it from the start. */
+    public void selectAndPlay(String audioId, String filename) {
+        if (level == null || level.isClientSide() || audioId == null || audioId.isEmpty()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        Playlist playlist = state.hasPlaylist() ? state.getPlaylist() : null;
+        PlaylistTrack track = playlist != null ? playlist.selectAudioId(audioId) : null;
+        String resolvedFilename = filename != null ? filename
+                : (track != null ? track.getFilename() : "");
+        startTrackPlayback(state, audioId, resolvedFilename);
+        broadcastPlaylistSync();
+    }
+
+    private void startTrackPlayback(SpeakerState state, String audioId, String filename) {
+        if (level == null || level.isClientSide()) return;
+        state.setAudioId(audioId);
+        state.setAudioFilename(filename);
+        state.startPlaybackAt(level.getGameTime(), 0.0f);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        if (level instanceof ServerLevel serverLevel) resyncListeners(serverLevel);
+        SpeakerEvents.fire(SpeakerEvents.Type.TRACK_CHANGED, getStateKey(), state.getNetworkName(), audioId);
+    }
+
+    private float trackDurationSeconds(SpeakerState state) {
+        AudioFileManager fileManager = SimplySpeakers.getAudioFileManager();
+        if (fileManager == null) return 0.0f;
+        AudioFileMetadata meta = fileManager.getManifest().get(state.getAudioId());
+        return meta != null ? meta.getDurationSeconds() : 0.0f;
+    }
+
+    private void sendStopToListeners(Level currentLevel) {
+        if (!(currentLevel instanceof ServerLevel serverLevel)) return;
+        StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(worldPosition);
+        for (UUID playerId : listeningPlayers) {
+            ServerPlayer player = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
+            if (player != null) sendStopPacket(player, stopPacket);
+        }
+        listeningPlayers.clear();
+    }
+
+    /** Forces every listener to restart its stream at the current position. */
+    private void resyncListeners(ServerLevel serverLevel) {
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.isPlaying() || !state.hasAudio()) return;
+        StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(worldPosition);
+        for (UUID playerId : listeningPlayers) {
+            ServerPlayer player = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
+            if (player != null) sendStopPacket(player, stopPacket);
+        }
+        listeningPlayers.clear();
+        scanAndStartListeners(serverLevel, worldPosition, state);
+    }
+
+    // ------------------------------------------------------------------
+    // Playlist mutations
+    // ------------------------------------------------------------------
+
+    /** Handles a playlist mutation op (see PlaylistControlPacketC2S constants). */
+    public void playlistControl(Level currentLevel, byte op, int index, boolean flagValue,
+                                String audioId, String filename) {
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        Playlist playlist = state.getPlaylist();
+        switch (op) {
+            case PlaylistControlPacketC2S.OP_ADD -> {
+                if (audioId != null && !audioId.isEmpty()) playlist.add(audioId, filename);
+            }
+            case PlaylistControlPacketC2S.OP_REMOVE_AUDIO -> playlist.removeByAudioId(audioId);
+            case PlaylistControlPacketC2S.OP_SELECT_INDEX -> {
+                PlaylistTrack track = playlist.selectIndex(index);
+                if (track != null && flagValue && state.isPlaying()) {
+                    startTrackPlayback(state, track.getAudioId(), track.getFilename());
+                }
+            }
+            case PlaylistControlPacketC2S.OP_MOVE_UP -> playlist.moveUp(index);
+            case PlaylistControlPacketC2S.OP_MOVE_DOWN -> playlist.moveDown(index);
+            case PlaylistControlPacketC2S.OP_CLEAR -> playlist.clear();
+            case PlaylistControlPacketC2S.OP_QUEUE_NEXT -> playlist.queueNext(audioId);
+            case PlaylistControlPacketC2S.OP_SET_SHUFFLE -> playlist.setShuffle(flagValue);
+            case PlaylistControlPacketC2S.OP_SET_REPEAT -> playlist.setRepeatMode(RepeatMode.fromIndex(index));
+            default -> { }
+        }
+        updateSpeakerState(state);
+        broadcastPlaylistSync();
+    }
+
+    /** Updates shuffle and repeat mode together. */
+    public void setPlaylistModes(Level currentLevel, boolean shuffle, RepeatMode repeatMode) {
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        Playlist playlist = state.getPlaylist();
+        playlist.setShuffle(shuffle);
+        playlist.setRepeatMode(repeatMode);
+        updateSpeakerState(state);
+        broadcastPlaylistSync();
+    }
+
+    /** Sends the current playlist snapshot to one player. */
+    public void sendPlaylistSync(ServerPlayer player) {
+        PlaylistSyncPacketS2C packet = buildPlaylistSync();
+        if (packet != null) sendPlaylistSyncTo(player, packet);
+    }
+
+    private void broadcastPlaylistSync() {
+        if (!(level instanceof ServerLevel serverLevel)) return;
+        PlaylistSyncPacketS2C packet = buildPlaylistSync();
+        if (packet != null) sendPlaylistSyncToAll(serverLevel, packet);
+    }
+
+    private PlaylistSyncPacketS2C buildPlaylistSync() {
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.hasPlaylist()) return null;
+        Playlist playlist = state.getPlaylist();
+        List<String> ids = new ArrayList<>();
+        List<String> names = new ArrayList<>();
+        for (PlaylistTrack track : playlist.getTracks()) {
+            ids.add(track.getAudioId());
+            names.add(track.getFilename());
+        }
+        int playingIndex = state.isPlaying() ? playlist.getCurrentIndex() : -1;
+        return new PlaylistSyncPacketS2C(worldPosition, ids, names,
+                playlist.getCurrentIndex(), playlist.isShuffle(),
+                playlist.getRepeatMode().ordinal(), playingIndex, state.isPaused());
+    }
+
+    // ------------------------------------------------------------------
+    // Redstone automation
+    // ------------------------------------------------------------------
+
+    /**
+     * Handles a redstone signal change according to the configured mode.
+     * Called from the block's neighbour-changed hook with the strongest signal.
+     */
+    public void handleRedstoneChange(int newSignal) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        int previous = lastRedstoneSignal;
+        lastRedstoneSignal = newSignal;
+        RedstoneMode mode = state.getRedstoneMode();
+        int trackCount = state.hasPlaylist() ? state.getPlaylist().size() : 0;
+        RedstoneLogic.RedstoneResult result = RedstoneLogic.evaluate(mode, previous, newSignal, trackCount);
+        switch (result.action()) {
+            case PLAY -> {
+                if (state.isPaused()) resumeAudio();
+                else playAudio();
+            }
+            case STOP -> detachEmitterForPowerOff();
+            case RESTART -> seekTo(0.0f);
+            case TOGGLE_PAUSE -> togglePause();
+            case NEXT_TRACK -> nextTrack();
+            case SET_VOLUME -> setMaxVolume(result.payload() / (float) RedstoneMode.MAX_ANALOG_SLOTS);
+            case SELECT_TRACK -> {
+                PlaylistTrack track = state.getPlaylist().selectIndex(result.payload());
+                if (track != null) startTrackPlayback(state, track.getAudioId(), track.getFilename());
+            }
+            default -> { }
+        }
+    }
+
+    /** Comparator output exposing playback progress (0 stopped .. 15 finished). */
+    public int getComparatorOutput() {
+        SpeakerState state = getSpeakerState();
+        if (state == null || level == null) return 0;
+        return RedstoneLogic.comparatorLevel(state.isPlaying(),
+                state.getPlaybackPositionSeconds(level.getGameTime()),
+                trackDurationSeconds(state));
+    }
+
+    // ------------------------------------------------------------------
+    // Policy: network naming, ownership, access, directionality
+    // ------------------------------------------------------------------
+
+    public void setNetworkName(String networkName) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        state.setNetworkName(networkName);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    public void setRedstoneMode(RedstoneMode mode) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        state.setRedstoneMode(mode);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    public void setAccessMode(SpeakerAccess access) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        state.setAccessMode(access);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    public void modifyTrust(UUID playerUuid, boolean add) {
+        if (level == null || level.isClientSide() || playerUuid == null) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        if (add) state.trustPlayer(playerUuid);
+        else state.distrustPlayer(playerUuid);
+        updateSpeakerState(state);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    /** Claims ownership on behalf of the given player when unowned. */
+    public void claimOwnership(UUID playerUuid) {
+        if (level == null || level.isClientSide() || playerUuid == null) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null || state.getOwnerUuid() != null) return;
+        state.setOwnerUuid(playerUuid);
+        updateSpeakerState(state);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    public void setDirectionality(float directionality) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        state.setDirectionality(directionality);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    public void setConeAngleDegrees(int coneAngleDegrees) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        state.setConeAngleDegrees(coneAngleDegrees);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+    }
+
+    public void setRearAttenuation(float rearAttenuation) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        state.setRearAttenuation(rearAttenuation);
+        updateSpeakerState(state);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        notifyClientsOfStateChange();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
     }
 
     public void playAudio() {
@@ -319,12 +720,17 @@ public class SpeakerBlockEntity extends BlockEntity {
 
         // Natural EOF check for non-looping audio
         if (!state.isLooping() && state.getPlaybackStartTick() > 0) {
-            float elapsedSeconds = (currentLevel.getGameTime() - state.getPlaybackStartTick()) / 20.0f;
+            float elapsedSeconds = state.getPlaybackPositionSeconds(currentLevel.getGameTime());
             AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
             if (audioFileManager != null) {
                 AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
                 if (meta != null && meta.getDurationSeconds() > 0.0f && elapsedSeconds >= meta.getDurationSeconds()) {
-                    stopAudio();
+                    if (state.hasPlaylist()) {
+                        advanceTrack(1);
+                    } else {
+                        stopAudio();
+                        SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, getStateKey(), "", state.getAudioId());
+                    }
                     return;
                 }
             }
