@@ -38,7 +38,7 @@ side = "BOTH"
 [[dependencies.simplyspeakers]]
 modId = "openui_mc"
 type = "required"
-versionRange = "[0.0.5,)"
+versionRange = "[0.0.6,)"
 ordering = "AFTER"
 side = "CLIENT"
 
