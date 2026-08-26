@@ -59,14 +59,12 @@ public class ClientAudioPlayer {
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
-    private static final int MISSING_BLOCK_ENTITY_GRACE_TICKS = 40;
 
     private static class EmitterData {
         final double x, y, z;
         volatile int maxRange;
         volatile float maxVolume;
         volatile float audioDropoff;
-        int missingBlockEntityTicks;
 
         EmitterData(double x, double y, double z, int maxRange, float maxVolume, float audioDropoff) {
             this.x = x;
@@ -568,7 +566,6 @@ public class ClientAudioPlayer {
             }
 
             List<SpatialAudioCalculator.SpeakerEmitter> emitters = new ArrayList<>();
-            List<BlockPos> deadPositions = new ArrayList<>();
 
             for (BlockPos speakerPos : positions) {
                 if (mc.level.hasChunkAt(speakerPos)) {
@@ -577,22 +574,14 @@ public class ClientAudioPlayer {
                         EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
                                 new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = speakerBlockEntity.getMaxVolume();
-                        data.maxRange = speakerBlockEntity.getMaxRange();
+                        data.maxRange = Math.min(speakerBlockEntity.getMaxRange(), Config.speakerRange);
                         data.audioDropoff = speakerBlockEntity.getAudioDropoff();
-                        data.missingBlockEntityTicks = 0;
                     } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
                         EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
                                 new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
                         data.maxVolume = proxySpeakerBlockEntity.getMaxVolume();
-                        data.maxRange = proxySpeakerBlockEntity.getMaxRange();
+                        data.maxRange = Math.min(proxySpeakerBlockEntity.getMaxRange(), Config.speakerRange);
                         data.audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
-                        data.missingBlockEntityTicks = 0;
-                    } else {
-                        EmitterData data = cachedEmitters.get(speakerPos);
-                        if (data == null || ++data.missingBlockEntityTicks >= MISSING_BLOCK_ENTITY_GRACE_TICKS) {
-                            deadPositions.add(speakerPos);
-                            continue;
-                        }
                     }
                 }
 
@@ -607,12 +596,6 @@ public class ClientAudioPlayer {
                             cached.audioDropoff
                     ));
                 }
-            }
-
-            for (BlockPos dead : deadPositions) {
-                positions.remove(dead);
-                posToNetworkKey.remove(dead);
-                cachedEmitters.remove(dead);
             }
 
             if (emitters.isEmpty()) {

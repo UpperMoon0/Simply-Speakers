@@ -7,6 +7,7 @@ import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
@@ -40,7 +41,6 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_PROXY_PLAYING = "ProxyPlaying";
-    private static final double LISTENER_EXIT_HYSTERESIS = 2.0;
 
     private final Set<UUID> listeningPlayers = new HashSet<>();
     private String speakerId = "";
@@ -222,15 +222,6 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                     NetworkManager.sendToPlayer(p, stopPacket);
                 }
             }
-
-            int effectiveRange = Math.min(maxRange, Config.speakerRange);
-            double maxRangeSq = (double) effectiveRange * effectiveRange;
-            Vec3 speakerCenterPos = Vec3.atCenterOf(worldPosition);
-            for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
-                if (!listeningPlayers.contains(player.getUUID())) {
-                    NetworkManager.sendToPlayer(player, stopPacket);
-                }
-            }
         }
         listeningPlayers.clear();
     }
@@ -291,7 +282,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         for (ServerPlayer player : serverLevel.players()) {
             double listenerRange = listeningPlayers.contains(player.getUUID())
-                    ? effectiveRange + LISTENER_EXIT_HYSTERESIS
+                    ? effectiveRange + SpatialAudioCalculator.LISTENER_EXIT_HYSTERESIS
                     : effectiveRange;
             if (player.position().distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
             playersInRange.add(player.getUUID());
