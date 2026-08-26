@@ -63,20 +63,7 @@ jobs:
       - name: Install matching OpenUI MC artifact
         shell: bash
         run: |
-          if [[ "${{ matrix.target }}" == "neoforge-26.1.2" ]]; then
-            targets=(":neoforge-26.1.2:publishToMavenLocal")
-          else
-            # Legacy Gradle invocations configure all four legacy loader modules.
-            targets=(
-              ":fabric-1.20.1:publishToMavenLocal"
-              ":forge-1.20.1:publishToMavenLocal"
-              ":fabric-1.21.1:publishToMavenLocal"
-              ":neoforge-1.21.1:publishToMavenLocal"
-            )
-          fi
-          for target in "${targets[@]}"; do
-            ./.openui-mc/gradlew -p .openui-mc "$target"
-          done
+          ./.openui-mc/gradlew -p .openui-mc publishToMavenLocal
       - name: Run common unit and wiring tests
         run: ./gradlew :common:test
       - name: Run automatic real-client join test

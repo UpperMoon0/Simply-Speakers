@@ -95,6 +95,26 @@ class PlaybackContinuityWiringTest {
         }
     }
 
+    @Test
+    void modMetadataTemplatesUseOpenUiVersionProperty() throws IOException {
+        Path root = findProjectRoot();
+        List<Path> metadataTemplates = List.of(
+                root.resolve("forge-1.20.1/src/main/resources/META-INF/mods.toml"),
+                root.resolve("neoforge-1.21.1/src/main/resources/META-INF/neoforge.mods.toml"),
+                root.resolve("neoforge-26.1.2/src/main/templates/META-INF/neoforge.mods.toml"),
+                root.resolve("fabric-1.20.1/src/main/resources/fabric.mod.json"),
+                root.resolve("fabric-1.21.1/src/main/resources/fabric.mod.json")
+        );
+
+        for (Path template : metadataTemplates) {
+            String content = Files.readString(template);
+            assertTrue(content.contains("${openui_version}"),
+                    template + " must use dynamic ${openui_version} property");
+            assertFalse(content.contains("0.0.6"),
+                    template + " must not contain hardcoded legacy 0.0.6 version");
+        }
+    }
+
     private static Path findProjectRoot() {
         Path candidate = Path.of("").toAbsolutePath();
         while (candidate != null) {
