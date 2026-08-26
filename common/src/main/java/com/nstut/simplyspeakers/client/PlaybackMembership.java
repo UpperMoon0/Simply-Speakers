@@ -44,7 +44,7 @@ public class PlaybackMembership<P> {
         }
 
         posToNetworkKey.put(pos, networkKey);
-        networkToPositions.computeIfAbsent(networkKey, k -> Collections.synchronizedSet(new HashSet<>())).add(pos);
+        networkToPositions.computeIfAbsent(networkKey, k -> ConcurrentHashMap.newKeySet()).add(pos);
         if (settings != null) {
             cachedSettings.put(pos, settings);
         }
