@@ -37,7 +37,7 @@ jobs:
           repository: UpperMoon0/OpenUI-MC
           # Pin the reviewed OpenUI PR revision that provides the 0.0.7 API.
           # A commit pin keeps this cross-repository test reproducible after merge.
-          ref: d1c6c9ee174befd6cfb93eebfd769a1b3bfa5f69
+          ref: 7d9072f48211b92c2a4a827fe3070917b8ab0caf
           path: .openui-mc
       - name: Verify OpenUI-MC version alignment
         shell: bash
