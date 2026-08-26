@@ -355,10 +355,10 @@ public class SpeakerBlockEntity extends BlockEntity {
         for (ServerPlayer player : serverLevel.players()) {
             Vec3 playerPosition = SpeakerSpatialResolver.resolveLogical(currentLevel, player.position());
             if (playerPosition == null) continue;
-            double listenerRange = listeningPlayers.contains(player.getUUID())
-                    ? effectiveRange + SpatialAudioCalculator.LISTENER_EXIT_HYSTERESIS
-                    : effectiveRange;
-            if (playerPosition.distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
+            double distanceSq = playerPosition.distanceToSqr(speakerCenterPos);
+            if (!com.nstut.simplyspeakers.audio.ListenerRangePolicy.shouldListen(distanceSq, effectiveRange, listeningPlayers.contains(player.getUUID()))) {
+                continue;
+            }
             playersInRange.add(player.getUUID());
 
             if (!listeningPlayers.contains(player.getUUID())) {

@@ -34,7 +34,7 @@ class PlaybackContinuityWiringTest {
     }
 
     @Test
-    void serverBlockEntitiesUseListenerExitHysteresisAcrossAllVersions() throws IOException {
+    void serverBlockEntitiesUseListenerRangePolicyAcrossAllVersions() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String speakerCode = Files.readString(root.resolve(module).resolve(
@@ -42,10 +42,22 @@ class PlaybackContinuityWiringTest {
             String proxyCode = Files.readString(root.resolve(module).resolve(
                     "src/main/java/com/nstut/simplyspeakers/blocks/entities/ProxySpeakerBlockEntity.java"));
 
-            assertTrue(speakerCode.contains("LISTENER_EXIT_HYSTERESIS"),
-                    module + " SpeakerBlockEntity must use LISTENER_EXIT_HYSTERESIS for range checks");
-            assertTrue(proxyCode.contains("LISTENER_EXIT_HYSTERESIS"),
-                    module + " ProxySpeakerBlockEntity must use LISTENER_EXIT_HYSTERESIS for range checks");
+            assertTrue(speakerCode.contains("ListenerRangePolicy"),
+                    module + " SpeakerBlockEntity must use ListenerRangePolicy for range checks");
+            assertTrue(proxyCode.contains("ListenerRangePolicy"),
+                    module + " ProxySpeakerBlockEntity must use ListenerRangePolicy for range checks");
+        }
+    }
+
+    @Test
+    void clientAudioPlayerUsesSharedPlaybackMembershipAcrossAllVersions() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String playerCode = Files.readString(root.resolve(module).resolve(
+                    "src/main/java/com/nstut/simplyspeakers/client/ClientAudioPlayer.java"));
+
+            assertTrue(playerCode.contains("PlaybackMembership"),
+                    module + " ClientAudioPlayer must use shared PlaybackMembership for emitter tracking");
         }
     }
 

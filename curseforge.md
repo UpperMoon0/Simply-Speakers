@@ -65,6 +65,7 @@ Sable integration is currently available only on the Minecraft 1.21.1 builds.
 ## Required Dependencies
 
 - **Architectury API** matching your Minecraft version and loader
+- **OpenUI MC 0.0.6 or newer** matching your Minecraft version and loader
 - **Fabric API** on Fabric
 
 ## Configuration

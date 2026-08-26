@@ -351,10 +351,10 @@ public class SpeakerBlockEntity extends BlockEntity {
         Set<UUID> playersInRange = new HashSet<>();
 
         for (ServerPlayer player : serverLevel.players()) {
-            double listenerRange = listeningPlayers.contains(player.getUUID())
-                    ? effectiveRange + SpatialAudioCalculator.LISTENER_EXIT_HYSTERESIS
-                    : effectiveRange;
-            if (player.position().distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
+            double distanceSq = player.position().distanceToSqr(speakerCenterPos);
+            if (!com.nstut.simplyspeakers.audio.ListenerRangePolicy.shouldListen(distanceSq, effectiveRange, listeningPlayers.contains(player.getUUID()))) {
+                continue;
+            }
             playersInRange.add(player.getUUID());
 
             if (!listeningPlayers.contains(player.getUUID())) {
