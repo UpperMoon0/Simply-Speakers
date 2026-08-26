@@ -65,6 +65,24 @@ class PlaybackContinuityWiringTest {
         }
     }
 
+    @Test
+    void clientEventsRegistersRespawnWithDimensionCheckAcrossAllVersions() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String eventsCode = Files.readString(root.resolve(module).resolve(
+                    "src/main/java/com/nstut/simplyspeakers/client/ClientEvents.java"));
+
+            assertTrue(eventsCode.contains("CLIENT_PLAYER_RESPAWN.register"),
+                    module + " ClientEvents must register CLIENT_PLAYER_RESPAWN");
+            assertTrue(eventsCode.contains("onPlayerRespawn"),
+                    module + " ClientEvents must define onPlayerRespawn handler");
+            assertTrue(eventsCode.contains("dimension()"),
+                    module + " onPlayerRespawn must check level dimension");
+            assertTrue(eventsCode.contains("ClientAudioPlayer.stopAll()"),
+                    module + " onPlayerRespawn must clear playback on dimension change");
+        }
+    }
+
     private static Path findProjectRoot() {
         Path candidate = Path.of("").toAbsolutePath();
         while (candidate != null) {
