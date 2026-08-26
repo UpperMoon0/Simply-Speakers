@@ -216,11 +216,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
         if (level instanceof ServerLevel serverLevel) {
             StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(worldPosition);
-            for (UUID playerId : new HashSet<>(listeningPlayers)) {
-                ServerPlayer p = (ServerPlayer) serverLevel.getPlayerByUUID(playerId);
-                if (p != null) {
-                    NetworkManager.sendToPlayer(p, stopPacket);
-                }
+            for (ServerPlayer player : serverLevel.players()) {
+                NetworkManager.sendToPlayer(player, stopPacket);
             }
         }
         listeningPlayers.clear();

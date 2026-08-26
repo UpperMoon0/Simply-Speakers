@@ -49,6 +49,22 @@ class PlaybackContinuityWiringTest {
         }
     }
 
+    @Test
+    void proxySpeakerStopAudioBroadcastsToAllPlayersAcrossAllVersions() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String proxyCode = Files.readString(root.resolve(module).resolve(
+                    "src/main/java/com/nstut/simplyspeakers/blocks/entities/ProxySpeakerBlockEntity.java"));
+
+            int stopMethodStart = proxyCode.indexOf("public void stopAudio()");
+            int stopMethodEnd = proxyCode.indexOf("private void tick(", stopMethodStart);
+            String stopMethod = proxyCode.substring(stopMethodStart, stopMethodEnd);
+
+            assertTrue(stopMethod.contains("serverLevel.players()"),
+                    module + " ProxySpeakerBlockEntity.stopAudio must broadcast stop packets to all players in serverLevel");
+        }
+    }
+
     private static Path findProjectRoot() {
         Path candidate = Path.of("").toAbsolutePath();
         while (candidate != null) {
