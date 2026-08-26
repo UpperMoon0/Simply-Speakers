@@ -44,6 +44,7 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_INTERNAL_ID = "InternalStateId";
+    private static final double LISTENER_EXIT_HYSTERESIS = 2.0;
 
     private final Set<UUID> listeningPlayers = new HashSet<>();
     private UUID internalStateId = UUID.randomUUID();
@@ -354,7 +355,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         for (ServerPlayer player : serverLevel.players()) {
             Vec3 playerPosition = SpeakerSpatialResolver.resolveLogical(currentLevel, player.position());
             if (playerPosition == null) continue;
-            double listenerRange = listeningPlayers.contains(player.getUUID()) ? effectiveRange + 2.0 : effectiveRange;
+            double listenerRange = listeningPlayers.contains(player.getUUID()) ? effectiveRange + LISTENER_EXIT_HYSTERESIS : effectiveRange;
             if (playerPosition.distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
             playersInRange.add(player.getUUID());
 

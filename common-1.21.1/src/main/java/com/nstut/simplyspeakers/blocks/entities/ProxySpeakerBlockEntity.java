@@ -41,6 +41,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_PROXY_PLAYING = "ProxyPlaying";
+    private static final double LISTENER_EXIT_HYSTERESIS = 2.0;
 
     private final Set<UUID> listeningPlayers = new HashSet<>();
     private String speakerId = "";
@@ -272,7 +273,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         for (ServerPlayer player : serverLevel.players()) {
             Vec3 playerPosition = SpeakerSpatialResolver.resolveLogical(currentLevel, player.position());
             if (playerPosition == null) continue;
-            double listenerRange = listeningPlayers.contains(player.getUUID()) ? effectiveRange + 2.0 : effectiveRange;
+            double listenerRange = listeningPlayers.contains(player.getUUID()) ? effectiveRange + LISTENER_EXIT_HYSTERESIS : effectiveRange;
             if (playerPosition.distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
             playersInRange.add(player.getUUID());
 

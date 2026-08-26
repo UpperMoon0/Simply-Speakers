@@ -39,6 +39,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_PROXY_PLAYING = "ProxyPlaying";
+    private static final double LISTENER_EXIT_HYSTERESIS = 2.0;
 
     private final Set<UUID> listeningPlayers = new HashSet<>();
     private String speakerId = "";
@@ -275,11 +276,14 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         }
 
         int effectiveRange = Math.min(maxRange, Config.speakerRange);
-        double maxRangeSq = (double) effectiveRange * effectiveRange;
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 
-        for (ServerPlayer player : serverLevel.getPlayers(p -> p.position().distanceToSqr(speakerCenterPos) <= maxRangeSq)) {
+        for (ServerPlayer player : serverLevel.players()) {
+            double listenerRange = listeningPlayers.contains(player.getUUID())
+                    ? effectiveRange + LISTENER_EXIT_HYSTERESIS
+                    : effectiveRange;
+            if (player.position().distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
             playersInRange.add(player.getUUID());
 
             if (!listeningPlayers.contains(player.getUUID())) {
