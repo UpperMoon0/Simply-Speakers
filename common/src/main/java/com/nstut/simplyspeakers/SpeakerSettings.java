@@ -10,8 +10,12 @@ public record SpeakerSettings(float maxVolume, int maxRange, float audioDropoff)
 
     public SpeakerSettings {
         maxVolume = AudioMath.sanitizeFloat(maxVolume, 0.0f, 1.0f, 1.0f);
-        maxRange = Math.max(1, Math.min(Config.speakerRange, maxRange));
+        maxRange = effectiveRange(maxRange);
         audioDropoff = AudioMath.sanitizeFloat(audioDropoff, 0.0f, 1.0f, 1.0f);
+    }
+
+    public static int effectiveRange(int maxRange) {
+        return Math.max(1, Math.min(Config.speakerRange, maxRange));
     }
 
     public static SpeakerSettings from(SpeakerState state) {

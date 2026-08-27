@@ -114,7 +114,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                         audioDropoff, 0.0, 1.0,
                         Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")
                 ),
-                Ui.text(Component.translatable("gui.simplyspeakers.proxy.helper"))
+                Ui.text(Component.translatable("gui.simplyspeakers.proxy.helper")).wrap()
         ).gap(10));
         return card;
     }
