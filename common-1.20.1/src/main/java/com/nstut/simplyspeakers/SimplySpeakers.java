@@ -5,6 +5,7 @@ import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.platform.Services;
+import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.client.ClientEvents;
 import dev.architectury.event.events.common.PlayerEvent;
@@ -71,6 +72,9 @@ public class SimplySpeakers {
                     player.getName().getString(), Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
             PacketRegistries.CHANNEL.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
         });
+
+        // Drop centralized playback subscriptions when a player disconnects
+        PlayerEvent.PLAYER_QUIT.register(player -> ServerPlaybackManager.handlePlayerQuit(player.getUUID()));
 
         // Register client-side events only on the client
         if (Platform.getEnv().toString().equals("CLIENT")) {
