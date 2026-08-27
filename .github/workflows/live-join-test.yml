@@ -17,6 +17,19 @@ on:
       - ".github/workflows/live-join-test.yml"
 
 jobs:
+  test-shared:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: chmod +x gradlew
+      - name: Run shared unit and wiring tests
+        run: ./gradlew :common:test :common-1.20.1:test :common-1.21.1:test
+
   prepare-openui:
     runs-on: ubuntu-latest
     steps:
@@ -25,7 +38,7 @@ jobs:
         id: cache-openui
         uses: actions/cache@v4
         with:
-          path: ~/.m2/repository/com/nstut/openui-mc
+          path: ~/.m2/repository/com/nstut
           key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
       - name: Checkout OpenUI MC
         if: steps.cache-openui.outputs.cache-hit != 'true'
@@ -36,7 +49,7 @@ jobs:
           path: .openui-mc
       - name: Set up OpenUI build JDK
         if: steps.cache-openui.outputs.cache-hit != 'true'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
@@ -59,7 +72,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: openui-m2
-          path: ~/.m2/repository/com/nstut/openui-mc
+          path: ~/.m2/repository/com/nstut
           if-no-files-found: error
 
   live-join:
@@ -86,16 +99,16 @@ jobs:
         id: cache-openui
         uses: actions/cache@v4
         with:
-          path: ~/.m2/repository/com/nstut/openui-mc
+          path: ~/.m2/repository/com/nstut
           key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
       - name: Download OpenUI Maven Artifacts Fallback
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
           name: openui-m2
-          path: ~/.m2/repository/com/nstut/openui-mc
+          path: ~/.m2/repository/com/nstut
       - name: Set up target JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
