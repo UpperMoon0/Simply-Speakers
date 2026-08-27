@@ -265,7 +265,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        int effectiveRange = Math.min(maxRange, Config.speakerRange);
+        int effectiveRange = SpeakerSettings.effectiveRange(maxRange);
         Vec3 speakerCenterPos = SpeakerSpatialResolver.resolveLogical(currentLevel, currentPos);
         if (speakerCenterPos == null) return;
         Set<UUID> playersInRange = new HashSet<>();

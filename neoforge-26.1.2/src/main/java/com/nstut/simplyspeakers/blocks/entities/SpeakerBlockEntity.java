@@ -346,7 +346,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        int effectiveRange = Math.min(state.getMaxRange(), Config.speakerRange);
+        int effectiveRange = SpeakerSettings.effectiveRange(state.getMaxRange());
         Vec3 speakerCenterPos = Vec3.atCenterOf(currentPos);
         Set<UUID> playersInRange = new HashSet<>();
 

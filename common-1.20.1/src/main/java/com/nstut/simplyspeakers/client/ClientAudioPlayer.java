@@ -534,12 +534,12 @@ public class ClientAudioPlayer {
                     if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
                         membership.updateSettings(speakerPos, new com.nstut.simplyspeakers.SpeakerSettings(
                                 speakerBlockEntity.getMaxVolume(),
-                                speakerBlockEntity.getMaxRange(),
+                                Math.min(speakerBlockEntity.getMaxRange(), Config.speakerRange),
                                 speakerBlockEntity.getAudioDropoff()));
                     } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
                         membership.updateSettings(speakerPos, new com.nstut.simplyspeakers.SpeakerSettings(
                                 proxySpeakerBlockEntity.getMaxVolume(),
-                                proxySpeakerBlockEntity.getMaxRange(),
+                                Math.min(proxySpeakerBlockEntity.getMaxRange(), Config.speakerRange),
                                 proxySpeakerBlockEntity.getAudioDropoff()));
                     }
                 }
