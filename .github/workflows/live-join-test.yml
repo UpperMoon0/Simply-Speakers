@@ -54,7 +54,7 @@ jobs:
             :fabric-1.21.1:publishToMavenLocal \
             :neoforge-1.21.1:publishToMavenLocal \
             :neoforge-26.1.2:publishToMavenLocal \
-            --parallel --no-daemon
+            --no-parallel --no-daemon
       - name: Upload OpenUI Maven Artifacts
         uses: actions/upload-artifact@v4
         with:
