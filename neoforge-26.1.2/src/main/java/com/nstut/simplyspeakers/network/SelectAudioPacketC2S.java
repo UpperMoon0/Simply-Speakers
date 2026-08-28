@@ -62,7 +62,8 @@ public class SelectAudioPacketC2S implements CustomPacketPayload {
                 }
 
                 if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(packet.audioId)) {
-                    if (!Config.disableUpload || player.hasPermissions(2)) {
+                    boolean isOp = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(player.nameAndId());
+                    if (!Config.disableUpload || isOp) {
                         speaker.setSelectedAudio(packet.audioId, packet.audioId);
                     }
                     return;

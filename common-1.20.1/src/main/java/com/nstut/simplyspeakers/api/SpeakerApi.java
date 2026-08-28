@@ -62,68 +62,152 @@ public final class SpeakerApi {
     }
 
     public static boolean seek(Level level, BlockPos pos, float seconds) {
-        return withSpeaker(level, pos, speaker -> {
-            speaker.transportAction(level, ACTION_SEEK, Math.max(0.0f, seconds));
-            return true;
-        });
+        return applyTransport(level, pos, ACTION_SEEK, Math.max(0.0f, seconds));
     }
 
     /** Applies a raw transport action byte. */
     public static boolean applyTransport(Level level, BlockPos pos, byte action) {
-        return withSpeaker(level, pos, speaker -> {
-            speaker.transportAction(level, action, 0.0f);
+        return applyTransport(level, pos, action, 0.0f);
+    }
+
+    public static boolean applyTransport(Level level, BlockPos pos, byte action, float seekSeconds) {
+        if (level == null || level.isClientSide() || pos == null) return false;
+        if (level.getBlockEntity(pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker) {
+            speaker.transportAction(level, action, seekSeconds);
             return true;
-        });
+        }
+        String fullKey = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getStateKey(level, pos);
+        if (fullKey == null) return false;
+        SpeakerState state = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getSpeakerStateByFullKey(fullKey);
+        if (state == null) return false;
+
+        long gameTime = level.getGameTime();
+        float duration = trackDuration(state);
+        switch (action) {
+            case ACTION_PLAY -> {
+                if (state.isPaused()) state.resumeAt(gameTime);
+                else state.startPlaybackAt(gameTime, 0.0f);
+                state.setPlaying(true);
+            }
+            case ACTION_PAUSE -> {
+                if (state.isPlaying() && !state.isPaused()) state.pauseAt(gameTime);
+            }
+            case ACTION_TOGGLE -> {
+                if (state.isPlaying()) {
+                    if (state.isPaused()) state.resumeAt(gameTime);
+                    else state.pauseAt(gameTime);
+                } else {
+                    state.startPlaybackAt(gameTime, 0.0f);
+                    state.setPlaying(true);
+                }
+            }
+            case ACTION_STOP -> {
+                state.setPlaying(false);
+                state.setPlaybackStartTick(-1);
+                state.setPauseOffsetSeconds(0.0f);
+            }
+            case ACTION_RESTART -> {
+                state.seekTo(0.0f, gameTime, duration);
+                if (state.isPlaying() && !state.isPaused()) state.startPlaybackAt(gameTime, 0.0f);
+            }
+            case ACTION_NEXT -> {
+                if (state.hasPlaylist()) {
+                    var adv = state.getPlaylist().next();
+                    if (adv.hasTrack()) {
+                        state.setAudioId(adv.track().getAudioId());
+                        state.setAudioFilename(adv.track().getFilename());
+                        state.startPlaybackAt(gameTime, 0.0f);
+                    } else {
+                        state.setPlaying(false);
+                        state.setPlaybackStartTick(-1);
+                        state.setPauseOffsetSeconds(0.0f);
+                    }
+                }
+            }
+            case ACTION_PREVIOUS -> {
+                if (state.hasPlaylist()) {
+                    var adv = state.getPlaylist().previous();
+                    if (adv.hasTrack()) {
+                        state.setAudioId(adv.track().getAudioId());
+                        state.setAudioFilename(adv.track().getFilename());
+                        state.startPlaybackAt(gameTime, 0.0f);
+                    } else {
+                        state.setPlaying(false);
+                        state.setPlaybackStartTick(-1);
+                        state.setPauseOffsetSeconds(0.0f);
+                    }
+                }
+            }
+            case ACTION_SEEK -> state.seekTo(seekSeconds, gameTime, duration);
+            default -> { return false; }
+        }
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.updateSpeakerStateByFullKey(fullKey, state);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+        broadcastStateChange(level, pos, state);
+        return true;
     }
 
     /** Selects a track by audio id and starts it immediately. */
     public static boolean setTrack(Level level, BlockPos pos, String audioId, String filename) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.selectAndPlay(audioId, filename);
             return true;
+        })) return true;
+
+        return mutateUnloadedState(level, pos, state -> {
+            state.setAudioId(audioId != null ? audioId : "");
+            state.setAudioFilename(filename != null ? filename : "");
+            state.startPlaybackAt(level.getGameTime(), 0.0f);
+            state.setPlaying(true);
         });
     }
 
     public static boolean setLooping(Level level, BlockPos pos, boolean looping) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.setLooping(looping);
             return true;
-        });
+        })) return true;
+        return mutateUnloadedState(level, pos, state -> state.setLooping(looping));
     }
 
     public static boolean setVolume(Level level, BlockPos pos, float volume0to1) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.setMaxVolume(volume0to1);
             return true;
-        });
+        })) return true;
+        return mutateUnloadedState(level, pos, state -> state.setMaxVolume(volume0to1));
     }
 
     public static boolean setRange(Level level, BlockPos pos, int blocks) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.setMaxRange(blocks);
             return true;
-        });
+        })) return true;
+        return mutateUnloadedState(level, pos, state -> state.setMaxRange(blocks));
     }
 
     public static boolean setRedstoneMode(Level level, BlockPos pos, RedstoneMode mode) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.setRedstoneMode(mode);
             return true;
-        });
+        })) return true;
+        return mutateUnloadedState(level, pos, state -> state.setRedstoneMode(mode));
     }
 
     public static boolean setAccessMode(Level level, BlockPos pos, SpeakerAccess access) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.setAccessMode(access);
             return true;
-        });
+        })) return true;
+        return mutateUnloadedState(level, pos, state -> state.setAccessMode(access));
     }
 
     public static boolean setNetworkName(Level level, BlockPos pos, String name) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.setNetworkName(name);
             return true;
-        });
+        })) return true;
+        return mutateUnloadedState(level, pos, state -> state.setNetworkName(name));
     }
 
     public static boolean playlistAdd(Level level, BlockPos pos, String audioId, String filename) {
@@ -153,10 +237,71 @@ public final class SpeakerApi {
     // Playlist op ordinals mirror PlaylistControlPacketC2S OP_* constants.
     private static boolean playlistOp(Level level, BlockPos pos, int op, int index,
                                       boolean flag, String audioId, String filename) {
-        return withSpeaker(level, pos, speaker -> {
+        if (withSpeaker(level, pos, speaker -> {
             speaker.playlistControl(level, (byte) op, index, flag, audioId, filename);
             return true;
+        })) return true;
+
+        return mutateUnloadedState(level, pos, state -> {
+            var playlist = state.getPlaylist();
+            switch (op) {
+                case 0 -> { if (audioId != null && !audioId.isEmpty()) playlist.add(audioId, filename); }
+                case 1 -> { if (audioId != null && !audioId.isEmpty()) playlist.removeByAudioId(audioId); }
+                case 5 -> playlist.clear();
+                case 6 -> { if (audioId != null && !audioId.isEmpty()) playlist.queueNext(audioId); }
+                case 7 -> playlist.setShuffle(flag);
+                case 8 -> playlist.setRepeatMode(RepeatMode.values()[Math.max(0, Math.min(RepeatMode.values().length - 1, index))]);
+                default -> { }
+            }
         });
+    }
+
+    private interface StateMutator {
+        void mutate(SpeakerState state);
+    }
+
+    private static boolean mutateUnloadedState(Level level, BlockPos pos, StateMutator mutator) {
+        if (level == null || level.isClientSide() || pos == null) return false;
+        String fullKey = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getStateKey(level, pos);
+        if (fullKey == null) return false;
+        SpeakerState state = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getSpeakerStateByFullKey(fullKey);
+        if (state == null) return false;
+        mutator.mutate(state);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.updateSpeakerStateByFullKey(fullKey, state);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.saveRegistry();
+        broadcastStateChange(level, pos, state);
+        return true;
+    }
+
+    private static float trackDuration(SpeakerState state) {
+        var fm = com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager();
+        if (fm == null) return 0.0f;
+        var meta = fm.getManifest().get(state.getAudioId());
+        return meta != null ? meta.getDurationSeconds() : 0.0f;
+    }
+
+    private static void broadcastStateChange(Level level, BlockPos pos, SpeakerState state) {
+        if (!(level instanceof ServerLevel serverLevel)) return;
+        String action = (state.isPlaying() && !state.isPaused()) ? "play" : "stop";
+        String stateKey = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getStateKey(level, pos);
+        String speakerId = "";
+        if (stateKey != null && stateKey.contains("/")) {
+            String sub = stateKey.substring(stateKey.indexOf('/') + 1);
+            if (sub.startsWith("net_")) speakerId = sub.substring("net_".length());
+        }
+        com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C packet =
+                new com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C(
+                        pos, speakerId, action, state.getAudioId(), state.getAudioFilename(),
+                        state.getPlaybackStartTick(), state.isLooping());
+        com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayers(serverLevel.players(), packet);
+
+        if (!state.isPlaying() || state.isPaused()) {
+            com.nstut.simplyspeakers.network.StopAudioPacketS2C stopPacket =
+                    new com.nstut.simplyspeakers.network.StopAudioPacketS2C(pos);
+            for (net.minecraft.server.level.ServerPlayer player : serverLevel.players()) {
+                com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, stopPacket);
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -164,10 +309,19 @@ public final class SpeakerApi {
     // ------------------------------------------------------------------
 
     public static @Nullable SpeakerState getState(Level level, BlockPos pos) {
-        if (!(level.getBlockEntity(pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker)) {
+        if (level == null || pos == null) return null;
+        if (level.isClientSide()) {
+            if (level.getBlockEntity(pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker) {
+                return speaker.getSpeakerState();
+            }
             return null;
         }
-        return speaker.getSpeakerState();
+        SpeakerState state = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getSpeakerStateByPos(level, pos);
+        if (state != null) return state;
+        if (level.getBlockEntity(pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker) {
+            return speaker.getSpeakerState();
+        }
+        return null;
     }
 
     public static boolean isPlaying(Level level, BlockPos pos) {

@@ -109,7 +109,7 @@ public class SpeakerBlock extends BaseEntityBlock {
     }
 
     @Override
-    public int getAnalogOutputSignal(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos) {
+    public int getAnalogOutputSignal(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, @NotNull net.minecraft.core.Direction direction) {
         if (level.getBlockEntity(pos) instanceof SpeakerBlockEntity speakerEntity) {
             return speakerEntity.getComparatorOutput();
         }

@@ -1,4 +1,4 @@
-package package com.nstut.fabric.simplyspeakers.compat.computercraft;
+package com.nstut.fabric.simplyspeakers.compat.computercraft;
 
 import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;

@@ -43,7 +43,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_PROXY_PLAYING = "ProxyPlaying";
 
-    private final Set<UUID> listeningPlayers = new HashSet<>();
+    final Set<UUID> listeningPlayers = new HashSet<>();
     private String speakerId = "";
     private String registeredId = "";
     private boolean isProxyPlaying = false;
@@ -242,7 +242,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         boolean isPowered = currentState.getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED);
         SpeakerState state = getSpeakerState();
 
-        if (!isPowered || state == null || !state.isPlaying() || state.getAudioId() == null || state.getAudioId().isEmpty()) {
+        if (!isPowered || state == null || !state.isPlaying() || state.isPaused() || state.getAudioId() == null || state.getAudioId().isEmpty()) {
             if (!listeningPlayers.isEmpty()) {
                 if (currentLevel instanceof ServerLevel serverLevel) {
                     for (UUID playerId : listeningPlayers) {

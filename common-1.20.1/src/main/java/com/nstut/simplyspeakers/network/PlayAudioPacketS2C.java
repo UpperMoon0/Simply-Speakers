@@ -76,13 +76,13 @@ public class PlayAudioPacketS2C {
         buf.writeVarInt(pkt.maxRange);
         buf.writeFloat(pkt.maxVolume);
         buf.writeFloat(pkt.audioDropoff);
-        boolean hasExtras = this.extras != null;
+        boolean hasExtras = pkt.extras != null;
         buf.writeBoolean(hasExtras);
         if (hasExtras) {
-            buf.writeFloat(this.extras.directionality());
-            buf.writeFloat(this.extras.coneAngleDegrees());
-            buf.writeFloat(this.extras.rearAttenuation());
-            buf.writeByte(this.extras.facingOrdinal());
+            buf.writeFloat(pkt.extras.directionality());
+            buf.writeFloat(pkt.extras.coneAngleDegrees());
+            buf.writeFloat(pkt.extras.rearAttenuation());
+            buf.writeByte(pkt.extras.facingOrdinal());
         }
     }
 

@@ -1,4 +1,4 @@
-package package com.nstut.neoforge.simplyspeakers.compat.computercraft;
+package com.nstut.neoforge.simplyspeakers.compat.computercraft;
 
 import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
@@ -72,19 +72,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
 
-    /**
-     * Registers this peripheral with CC:Tweaked's Forge provider API.
-     * Called from the mod constructor only when CC:Tweaked is present.
-     */
-    public static void registerProvider() {
-        dan200.computercraft.api.ForgeComputerCraftAPI.registerPeripheralProvider((level, pos, side) -> {
-            if (level.getBlockEntity(pos) instanceof SpeakerBlockEntity speaker) {
-                SimplySpeakersPeripheral peripheral = new SimplySpeakersPeripheral(speaker);
-                return net.minecraftforge.common.util.LazyOptional.of(() -> peripheral);
-            }
-            return net.minecraftforge.common.util.LazyOptional.empty();
-        });
-    }
+
 
     @Override
     public String getType() {

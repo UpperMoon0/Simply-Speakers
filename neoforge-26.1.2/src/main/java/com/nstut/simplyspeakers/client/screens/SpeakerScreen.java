@@ -203,8 +203,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         // shell instead of a guessed fixed height that overflows
                         // small viewports; it scrolls internally past that.
                         .flex()
-                        .minHeight(56)
-                ),
+                        .minHeight(56),
                 buildPlaylistCard()
         ).gap(6);
     }
@@ -342,35 +341,37 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     /** Local estimate of the playback position in seconds for seek buttons. */
     private volatile float estimatedPositionSeconds;
 
-    private void sendToServer(Object packet) {
+    private void sendToServer(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet) {
         NetworkManager.sendToServer(packet);
     }
 
     private UIComponent buildTransportCard() {
-        return Ui.card().outlined(true).padding(10).addChild(Ui.column(
-                Ui.text(Component.translatable("gui.simplyspeakers.transport.title")),
-                Ui.row(
-                        transportButton("gui.simplyspeakers.transport.previous",
-                                () -> sendTransport(TransportControlPacketC2S.ACTION_PREVIOUS)),
-                        playPauseButton(),
-                        transportButton("gui.simplyspeakers.transport.stop",
-                                () -> sendTransport(TransportControlPacketC2S.ACTION_STOP)),
-                        transportButton("gui.simplyspeakers.transport.restart",
-                                () -> sendTransport(TransportControlPacketC2S.ACTION_RESTART)),
-                        transportButton("gui.simplyspeakers.transport.next",
-                                () -> sendTransport(TransportControlPacketC2S.ACTION_NEXT))
-                ).gap(4),
-                Ui.row(
-                        Ui.button(Component.translatable("gui.simplyspeakers.transport.back30"), () -> {
-                            estimatedPositionSeconds = Math.max(0.0f, estimatedPositionSeconds - 30.0f);
-                            sendTransport(TransportControlPacketC2S.ACTION_SEEK, estimatedPositionSeconds);
-                        }).small(),
-                        Ui.button(Component.translatable("gui.simplyspeakers.transport.fwd30"), () -> {
-                            estimatedPositionSeconds += 30.0f;
-                            sendTransport(TransportControlPacketC2S.ACTION_SEEK, estimatedPositionSeconds);
-                        }).small()
+        return Ui.card(
+                Ui.column(
+                        Ui.text(Component.translatable("gui.simplyspeakers.transport.title")),
+                        Ui.row(
+                                transportButton("gui.simplyspeakers.transport.previous",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_PREVIOUS)),
+                                playPauseButton(),
+                                transportButton("gui.simplyspeakers.transport.stop",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_STOP)),
+                                transportButton("gui.simplyspeakers.transport.restart",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_RESTART)),
+                                transportButton("gui.simplyspeakers.transport.next",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_NEXT))
+                        ).gap(4),
+                        Ui.row(
+                                Ui.button(Component.translatable("gui.simplyspeakers.transport.back30"), () -> {
+                                    estimatedPositionSeconds = Math.max(0.0f, estimatedPositionSeconds - 30.0f);
+                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK, estimatedPositionSeconds);
+                                }).small(),
+                                Ui.button(Component.translatable("gui.simplyspeakers.transport.fwd30"), () -> {
+                                    estimatedPositionSeconds += 30.0f;
+                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK, estimatedPositionSeconds);
+                                }).small()
+                        ).gap(6)
                 ).gap(6)
-        ).gap(6));
+        ).outlined(true).padding(10);
     }
 
     private ButtonWidget transportButton(String key, Runnable action) {
@@ -404,16 +405,18 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_CLEAR, -1, false, "", "")).danger().small()
         ).gap(4);
 
-        return Ui.card().outlined(true).padding(10).addChild(Ui.column(
-                header,
-                playlistRows.get().isEmpty()
-                        ? Ui.text(Component.translatable("gui.simplyspeakers.playlist.empty"))
-                        : Ui.list(playlistRows, this::buildPlaylistRow)
-                                .key(row -> row.audioId() + ":" + row.index())
-                                .itemHeight(24)
-                                .flex()
-                                .minHeight(40)
-        ).gap(6));
+        return Ui.card(
+                Ui.column(
+                        header,
+                        playlistRows.get().isEmpty()
+                                ? Ui.text(Component.translatable("gui.simplyspeakers.playlist.empty"))
+                                : Ui.list(playlistRows, this::buildPlaylistRow)
+                                        .key(row -> row.audioId() + ":" + row.index())
+                                        .itemHeight(24)
+                                        .flex()
+                                        .minHeight(40)
+                ).gap(6)
+        ).outlined(true).padding(10);
     }
 
     private ButtonWidget shuffleButton() {
@@ -472,42 +475,44 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         right.child(Ui.button(Component.translatable("gui.simplyspeakers.playlist.remove"),
                 () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_REMOVE_AUDIO, -1, false, row.audioId(), "")).danger().small());
 
-        Card card = Ui.card().outlined(true).padding(6);
-        card.addChild(Ui.row(
-                Ui.text(Component.literal((row.index() + 1) + ". " + row.filename())).marquee().flex(),
-                right
-        ).gap(6));
-        return card;
+        return Ui.card(
+                Ui.row(
+                        Ui.text(Component.literal((row.index() + 1) + ". " + row.filename())).marquee().flex(),
+                        right
+                ).gap(6)
+        ).outlined(true).padding(6);
     }
 
     private UIComponent buildPolicyCard() {
-        return Ui.card().outlined(true).padding(10).addChild(Ui.column(
-                Ui.row(
-                        Ui.textField(networkName)
-                                .placeholder(Component.translatable("gui.simplyspeakers.network_name.placeholder").getString())
-                                .flex(),
-                        Ui.button(Component.translatable("gui.simplyspeakers.save"), () ->
-                                sendToServer(SpeakerPolicyPacketC2S.networkName(blockEntityPos, networkName.get()))).primary()
-                ).gap(6),
-                Ui.row(
-                        Ui.text(Component.translatable("gui.simplyspeakers.redstone")).flex(),
-                        Ui.button((Supplier<Component>) () -> {
-                                    RedstoneMode mode = RedstoneMode.fromIndex(redstoneModeIndex.get());
-                                    return Component.translatable("gui.simplyspeakers.redstone.mode", mode.id());
-                                },
-                                () -> {
-                                    int next = (redstoneModeIndex.get() + 1) % RedstoneMode.values().length;
-                                    redstoneModeIndex.set(next);
-                                    sendToServer(SpeakerPolicyPacketC2S.redstoneMode(blockEntityPos, RedstoneMode.fromIndex(next)));
-                                })
-                ).gap(6),
-                directionalSliderRow(Component.translatable("gui.simplyspeakers.directionality"), directionality, 0.0, 1.0,
-                        () -> sendToServer(SpeakerPolicyPacketC2S.directionality(blockEntityPos, directionality.get().floatValue()))),
-                directionalSliderRow(Component.translatable("gui.simplyspeakers.cone_angle"), coneAngle, 5.0, 355.0,
-                        () -> sendToServer(SpeakerPolicyPacketC2S.coneAngle(blockEntityPos, (int) Math.round(coneAngle.get())))),
-                directionalSliderRow(Component.translatable("gui.simplyspeakers.rear_attenuation"), rearAttenuation, 0.0, 1.0,
-                        () -> sendToServer(SpeakerPolicyPacketC2S.rearAttenuation(blockEntityPos, rearAttenuation.get().floatValue())))
-        ).gap(8));
+        return Ui.card(
+                Ui.column(
+                        Ui.row(
+                                Ui.textField(networkName)
+                                        .placeholder(Component.translatable("gui.simplyspeakers.network_name.placeholder").getString())
+                                        .flex(),
+                                Ui.button(Component.translatable("gui.simplyspeakers.save"), () ->
+                                        sendToServer(SpeakerPolicyPacketC2S.networkName(blockEntityPos, networkName.get()))).primary()
+                        ).gap(6),
+                        Ui.row(
+                                Ui.text(Component.translatable("gui.simplyspeakers.redstone")).flex(),
+                                Ui.button((Supplier<Component>) () -> {
+                                            RedstoneMode mode = RedstoneMode.fromIndex(redstoneModeIndex.get());
+                                            return Component.translatable("gui.simplyspeakers.redstone.mode", mode.id());
+                                        },
+                                        () -> {
+                                            int next = (redstoneModeIndex.get() + 1) % RedstoneMode.values().length;
+                                            redstoneModeIndex.set(next);
+                                            sendToServer(SpeakerPolicyPacketC2S.redstoneMode(blockEntityPos, RedstoneMode.fromIndex(next)));
+                                        })
+                        ).gap(6),
+                        directionalSliderRow(Component.translatable("gui.simplyspeakers.directionality"), directionality, 0.0, 1.0,
+                                () -> sendToServer(SpeakerPolicyPacketC2S.directionality(blockEntityPos, directionality.get().floatValue()))),
+                        directionalSliderRow(Component.translatable("gui.simplyspeakers.cone_angle"), coneAngle, 5.0, 355.0,
+                                () -> sendToServer(SpeakerPolicyPacketC2S.coneAngle(blockEntityPos, (int) Math.round(coneAngle.get())))),
+                        directionalSliderRow(Component.translatable("gui.simplyspeakers.rear_attenuation"), rearAttenuation, 0.0, 1.0,
+                                () -> sendToServer(SpeakerPolicyPacketC2S.rearAttenuation(blockEntityPos, rearAttenuation.get().floatValue())))
+                ).gap(8)
+        ).outlined(true).padding(10);
     }
 
     private final Signal<Double> directionality = Signals.of(0.0);

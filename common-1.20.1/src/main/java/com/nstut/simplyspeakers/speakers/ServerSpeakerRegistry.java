@@ -176,6 +176,29 @@ public final class ServerSpeakerRegistry {
         return speakerStates.get(fullKey);
     }
 
+    public static String getStateKey(Level level, BlockPos pos) {
+        if (level == null || pos == null) return null;
+        String dimension = getDimension(level);
+        return posToStateKey.get(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
+    }
+
+    public static SpeakerState getSpeakerStateByPos(Level level, BlockPos pos) {
+        if (level == null || pos == null) return null;
+        String fullKey = getStateKey(level, pos);
+        if (fullKey == null) return null;
+        return speakerStates.get(fullKey);
+    }
+
+    public static SpeakerState getSpeakerStateByFullKey(String fullKey) {
+        if (fullKey == null) return null;
+        return speakerStates.get(fullKey);
+    }
+
+    public static void updateSpeakerStateByFullKey(String fullKey, SpeakerState state) {
+        if (fullKey == null || state == null) return;
+        speakerStates.put(fullKey, state.copy());
+    }
+
     public static void updateSpeakerState(Level level, String stateKey, SpeakerState state) {
         if (state == null) return;
         String fullKey = getRegistryKey(level, stateKey);

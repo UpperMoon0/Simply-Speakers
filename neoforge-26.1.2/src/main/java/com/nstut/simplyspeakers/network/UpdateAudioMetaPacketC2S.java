@@ -6,7 +6,7 @@ import dev.architectury.networking.NetworkManager;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.ArrayList;
@@ -16,7 +16,7 @@ import java.util.List;
 public class UpdateAudioMetaPacketC2S implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<UpdateAudioMetaPacketC2S> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "update_audio_meta"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "update_audio_meta"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, UpdateAudioMetaPacketC2S> STREAM_CODEC =
         StreamCodec.of(UpdateAudioMetaPacketC2S::encode, UpdateAudioMetaPacketC2S::decode);
@@ -53,7 +53,7 @@ public class UpdateAudioMetaPacketC2S implements CustomPacketPayload {
                 return;
             }
             AudioFileMetadata meta = fileManager.getManifest().get(packet.audioId);
-            boolean isOp = player.hasPermissions(2);
+            boolean isOp = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(player.nameAndId());
             String owner = meta != null ? meta.getOwnerUUID() : null;
             if (!isOp && (owner == null || !owner.equals(player.getUUID().toString()))) {
                 return;

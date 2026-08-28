@@ -15,6 +15,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
 
@@ -24,9 +25,17 @@ public final class SpeakerCommands {
     private SpeakerCommands() {
     }
 
+    private static boolean hasAdminPermission(CommandSourceStack source) {
+        if (source.getServer() == null) return true;
+        if (source.getEntity() instanceof ServerPlayer player) {
+            return source.getServer().getPlayerList().isOp(player.nameAndId());
+        }
+        return true;
+    }
+
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(net.minecraft.commands.Commands.literal("simplyspeakers")
-                .requires(source -> source.hasPermission(2))
+                .requires(SpeakerCommands::hasAdminPermission)
                 .then(net.minecraft.commands.Commands.literal("networks")
                         .executes(SpeakerCommands::listNetworks))
                 .then(net.minecraft.commands.Commands.literal("network")
@@ -78,7 +87,7 @@ public final class SpeakerCommands {
                                                 .executes(SpeakerCommands::renameAudio))))));
         // Alias
         dispatcher.register(net.minecraft.commands.Commands.literal("ss")
-                .requires(source -> source.hasPermission(2))
+                .requires(SpeakerCommands::hasAdminPermission)
                 .redirect(dispatcher.getRoot().getChild("simplyspeakers")));
     }
 
@@ -146,14 +155,14 @@ public final class SpeakerCommands {
         return speakerInfoAt(ctx, resolveNetwork(ctx));
     }
 
-    private static int speakerInfo(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        return speakerInfoAt(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"));
+    private static int speakerInfo(CommandContext<CommandSourceStack> ctx) {
+        return speakerInfoAt(ctx, BlockPosArgument.getBlockPos(ctx, "pos"));
     }
 
     private static int speakerInfoAt(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
         var state = SpeakerApi.getState(ctx.getSource().getLevel(), pos);
         if (state == null) {
-            ctx.getSource().sendFailure(Component.literal("No speaker block entity at " + pos.toShortString()));
+            ctx.getSource().sendFailure(Component.literal("No speaker registered or block entity at " + pos.toShortString()));
             return 0;
         }
         float position = SpeakerApi.getPositionSeconds(ctx.getSource().getLevel(), pos);
@@ -187,13 +196,13 @@ public final class SpeakerCommands {
         return 1;
     }
 
-    private static int speakerTransport(CommandContext<CommandSourceStack> ctx, byte action) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        SpeakerApi.applyTransport(ctx.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(ctx, "pos"), action);
+    private static int speakerTransport(CommandContext<CommandSourceStack> ctx, byte action) {
+        SpeakerApi.applyTransport(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), action);
         return 1;
     }
 
-    private static int speakerSeek(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        SpeakerApi.seek(ctx.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+    private static int speakerSeek(CommandContext<CommandSourceStack> ctx) {
+        SpeakerApi.seek(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"),
                 FloatArgumentType.getFloat(ctx, "seconds"));
         return 1;
     }
@@ -242,9 +251,9 @@ public final class SpeakerCommands {
         return 1;
     }
 
-    private static int setAccessMode(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int setAccessMode(CommandContext<CommandSourceStack> ctx) {
         SpeakerAccess access = SpeakerAccess.byId(StringArgumentType.getString(ctx, "mode"));
-        SpeakerApi.setAccessMode(ctx.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(ctx, "pos"), access);
+        SpeakerApi.setAccessMode(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), access);
         ctx.getSource().sendSuccess(() -> Component.literal("Access mode: " + access.id()), false);
         return 1;
     }

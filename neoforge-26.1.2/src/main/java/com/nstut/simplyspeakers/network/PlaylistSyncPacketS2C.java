@@ -8,7 +8,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +17,7 @@ import java.util.List;
 public class PlaylistSyncPacketS2C implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<PlaylistSyncPacketS2C> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "playlist_sync"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "playlist_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PlaylistSyncPacketS2C> STREAM_CODEC =
         StreamCodec.of(PlaylistSyncPacketS2C::encode, PlaylistSyncPacketS2C::decode);

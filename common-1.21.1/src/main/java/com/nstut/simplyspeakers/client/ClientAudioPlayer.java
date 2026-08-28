@@ -725,8 +725,7 @@ public class ClientAudioPlayer {
                 if (emitter == null) continue;
                 Vec3 renderPosition = ClientSpeakerSpatialResolver.resolveRender(mc.level, speakerPos);
                 if (renderPosition == null) continue;
-                if (firstResolvedPosition == null) firstResolvedPosition = renderPosition;
-
+                double distance = listenerPosition.distanceTo(renderPosition);
                 float gain;
                 com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);
                 if (cone != null && cone.directionality() > 0.0f) {

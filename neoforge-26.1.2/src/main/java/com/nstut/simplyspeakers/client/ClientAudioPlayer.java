@@ -461,7 +461,7 @@ public class ClientAudioPlayer {
 
     private static void playFromUrl(String networkKey, BlockPos pos, String url,
                                     float startPositionSeconds, boolean isLooping) {
-        Minecraft.getInstance().tell(() -> {
+        Minecraft.getInstance().execute(() -> {
             StreamingAudioResource existing = networkResources.get(networkKey);
             if (existing != null && !existing.stopFlag.get()
                     && existing.streamingThread != null && existing.streamingThread.isAlive()) {

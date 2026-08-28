@@ -9,7 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Client -> server playlist mutations: add/remove/select/reorder/clear/queue plus shuffle and repeat. */
@@ -26,7 +26,7 @@ public class PlaylistControlPacketC2S implements CustomPacketPayload {
     public static final byte OP_SET_REPEAT = 8;
 
     public static final CustomPacketPayload.Type<PlaylistControlPacketC2S> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "playlist_control"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "playlist_control"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PlaylistControlPacketC2S> STREAM_CODEC =
         StreamCodec.of(PlaylistControlPacketC2S::encode, PlaylistControlPacketC2S::decode);
@@ -69,7 +69,8 @@ public class PlaylistControlPacketC2S implements CustomPacketPayload {
             }
             if (player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
-                if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), player.hasPermissions(2))) {
+                boolean isOp = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(player.nameAndId());
+                if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), isOp)) {
                     return;
                 }
                 speaker.playlistControl(player.level(), packet.op, packet.index, packet.flag,

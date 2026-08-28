@@ -7,14 +7,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
-/** Client -> server request for a speaker's current playlist snapshot. */
+/** Client -> server request to fetch a speaker block's current playlist. */
 public class RequestPlaylistPacketC2S implements CustomPacketPayload {
 
     public static final CustomPacketPayload.Type<RequestPlaylistPacketC2S> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "request_playlist"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "request_playlist"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, RequestPlaylistPacketC2S> STREAM_CODEC =
         StreamCodec.of(RequestPlaylistPacketC2S::encode, RequestPlaylistPacketC2S::decode);

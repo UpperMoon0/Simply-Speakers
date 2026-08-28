@@ -58,7 +58,8 @@ dependencies {
     implementation "javazoom:jlayer:1.0.1"
 
     // CC:Tweaked API (optional integration; compile-only)
-    compileOnly "cc.tweaked:cc-tweaked-1.20.1-forge-api:1.120.2"
+    compileOnly "cc.tweaked:cc-tweaked-1.20.1-common-api:1.109.2"
+    compileOnly "cc.tweaked:cc-tweaked-1.20.1-forge-api:1.109.2"
     forgeRuntimeLibrary "javazoom:jlayer:1.0.1"
     shadowBundle "javazoom:jlayer:1.0.1" 
 

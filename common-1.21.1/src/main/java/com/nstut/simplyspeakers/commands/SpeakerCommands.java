@@ -146,14 +146,14 @@ public final class SpeakerCommands {
         return speakerInfoAt(ctx, resolveNetwork(ctx));
     }
 
-    private static int speakerInfo(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        return speakerInfoAt(ctx, BlockPosArgument.getLoadedBlockPos(ctx, "pos"));
+    private static int speakerInfo(CommandContext<CommandSourceStack> ctx) {
+        return speakerInfoAt(ctx, BlockPosArgument.getBlockPos(ctx, "pos"));
     }
 
     private static int speakerInfoAt(CommandContext<CommandSourceStack> ctx, BlockPos pos) {
         var state = SpeakerApi.getState(ctx.getSource().getLevel(), pos);
         if (state == null) {
-            ctx.getSource().sendFailure(Component.literal("No speaker block entity at " + pos.toShortString()));
+            ctx.getSource().sendFailure(Component.literal("No speaker registered or block entity at " + pos.toShortString()));
             return 0;
         }
         float position = SpeakerApi.getPositionSeconds(ctx.getSource().getLevel(), pos);
@@ -187,13 +187,13 @@ public final class SpeakerCommands {
         return 1;
     }
 
-    private static int speakerTransport(CommandContext<CommandSourceStack> ctx, byte action) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        SpeakerApi.applyTransport(ctx.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(ctx, "pos"), action);
+    private static int speakerTransport(CommandContext<CommandSourceStack> ctx, byte action) {
+        SpeakerApi.applyTransport(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), action);
         return 1;
     }
 
-    private static int speakerSeek(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        SpeakerApi.seek(ctx.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(ctx, "pos"),
+    private static int speakerSeek(CommandContext<CommandSourceStack> ctx) {
+        SpeakerApi.seek(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"),
                 FloatArgumentType.getFloat(ctx, "seconds"));
         return 1;
     }
@@ -242,9 +242,9 @@ public final class SpeakerCommands {
         return 1;
     }
 
-    private static int setAccessMode(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int setAccessMode(CommandContext<CommandSourceStack> ctx) {
         SpeakerAccess access = SpeakerAccess.byId(StringArgumentType.getString(ctx, "mode"));
-        SpeakerApi.setAccessMode(ctx.getSource().getLevel(), BlockPosArgument.getLoadedBlockPos(ctx, "pos"), access);
+        SpeakerApi.setAccessMode(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), access);
         ctx.getSource().sendSuccess(() -> Component.literal("Access mode: " + access.id()), false);
         return 1;
     }

@@ -9,7 +9,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 
 /** Client -> server transport commands: the backbone of the 0.8.x transport bar, CC:T bridge, and command API. */
@@ -25,7 +25,7 @@ public class TransportControlPacketC2S implements CustomPacketPayload {
     public static final byte ACTION_SEEK = 7;
 
     public static final CustomPacketPayload.Type<TransportControlPacketC2S> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "transport_control"));
+        new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "transport_control"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, TransportControlPacketC2S> STREAM_CODEC =
         StreamCodec.of(TransportControlPacketC2S::encode, TransportControlPacketC2S::decode);
@@ -62,7 +62,8 @@ public class TransportControlPacketC2S implements CustomPacketPayload {
             }
             if (player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
-                if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), player.hasPermissions(2))) {
+                boolean isOp = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(player.nameAndId());
+                if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), isOp)) {
                     return;
                 }
                 speaker.transportAction(player.level(), packet.action, packet.seekSeconds);
