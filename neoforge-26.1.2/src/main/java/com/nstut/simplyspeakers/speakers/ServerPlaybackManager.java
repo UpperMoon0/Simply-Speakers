@@ -17,10 +17,8 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Centralized server playback and listener management. Owns player-to-emitter
@@ -33,18 +31,14 @@ public final class ServerPlaybackManager {
 
     private static final int SCAN_INTERVAL_TICKS = 4;
 
-    /** player UUID -> emitter locations that player is currently listening to. */
-    private static final Map<UUID, Set<SpeakerLocation>> playerToEmitters = new ConcurrentHashMap<>();
-    /** emitter location -> player UUIDs currently listening to that emitter. */
-    private static final Map<SpeakerLocation, Set<UUID>> emitterToPlayers = new ConcurrentHashMap<>();
+    private static final PlaybackSubscriptions subscriptions = new PlaybackSubscriptions();
 
     private ServerPlaybackManager() {
     }
 
     /** Clears all subscription state; called when the server stops. */
     public static synchronized void resetForWorld() {
-        playerToEmitters.clear();
-        emitterToPlayers.clear();
+        subscriptions.clear();
     }
 
     // ------------------------------------------------------------------
@@ -57,16 +51,7 @@ public final class ServerPlaybackManager {
      * reconnecting player starts with a clean subscription slate.
      */
     public static void handlePlayerQuit(UUID playerId) {
-        if (playerId == null) return;
-        Set<SpeakerLocation> locations = playerToEmitters.remove(playerId);
-        if (locations == null) return;
-        for (SpeakerLocation location : locations) {
-            Set<UUID> players = emitterToPlayers.get(location);
-            if (players != null) {
-                players.remove(playerId);
-                if (players.isEmpty()) emitterToPlayers.remove(location, players);
-            }
-        }
+        subscriptions.removePlayer(playerId);
     }
 
     /**
@@ -76,16 +61,7 @@ public final class ServerPlaybackManager {
      * with a clean slate and immediately send replacement Play packets when in range.
      */
     public static void handlePlayerDimensionChange(UUID playerId) {
-        if (playerId == null) return;
-        Set<SpeakerLocation> locations = playerToEmitters.remove(playerId);
-        if (locations == null) return;
-        for (SpeakerLocation location : locations) {
-            Set<UUID> players = emitterToPlayers.get(location);
-            if (players != null) {
-                players.remove(playerId);
-                if (players.isEmpty()) emitterToPlayers.remove(location, players);
-            }
-        }
+        subscriptions.removePlayer(playerId);
     }
 
     // ------------------------------------------------------------------
@@ -98,18 +74,13 @@ public final class ServerPlaybackManager {
      */
     public static void stopEmitter(MinecraftServer server, SpeakerLocation location) {
         if (server == null || location == null) return;
-        Set<UUID> players = emitterToPlayers.remove(location);
+        Set<UUID> players = subscriptions.removeEmitter(location);
         if (players == null || players.isEmpty()) return;
         StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(new BlockPos(location.getX(), location.getY(), location.getZ()));
         for (UUID playerId : players) {
             ServerPlayer player = server.getPlayerList().getPlayer(playerId);
             if (player != null) {
                 PacketSenders.sendStop(player, stopPacket);
-            }
-            Set<SpeakerLocation> locations = playerToEmitters.get(playerId);
-            if (locations != null) {
-                locations.remove(location);
-                if (locations.isEmpty()) playerToEmitters.remove(playerId, locations);
             }
         }
     }
@@ -217,7 +188,7 @@ public final class ServerPlaybackManager {
         }
 
         // Natural EOF for non-looping audio, even while the speaker's chunk is unloaded.
-        if (!state.isLooping() && state.getPlaybackStartTick() > 0) {
+        if (!state.isLooping() && state.getPlaybackStartTick() >= 0) {
             float elapsedSeconds = (level.getGameTime() - state.getPlaybackStartTick()) / 20.0f;
             AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
             if (audioFileManager != null) {
@@ -237,7 +208,7 @@ public final class ServerPlaybackManager {
         double effectiveRange = SpeakerSettings.effectiveRange(maxRange);
         Vec3 emitterPos = Vec3.atCenterOf(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()));
 
-        Set<UUID> subscribed = emitterToPlayers.getOrDefault(emitter.location(), Set.of());
+        Set<UUID> subscribed = subscriptions.getSubscribers(emitter.location());
         List<ServerPlaybackPlanner.ListenerObservation> observations = new ArrayList<>();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             boolean sameDimension = ServerSpeakerRegistry.getDimension(player.level()).equals(emitter.location().dimension());
@@ -258,7 +229,7 @@ public final class ServerPlaybackManager {
             if (player == null) continue;
             if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
             PacketSenders.sendPlay(player, buildPlayPacket(emitter, state, level, effectiveRange, maxVolume, dropoff));
-            subscribe(startId, emitter.location());
+            subscriptions.subscribe(startId, emitter.location());
         }
 
         for (UUID stopId : plan.stopListeners()) {
@@ -266,7 +237,7 @@ public final class ServerPlaybackManager {
             if (player != null) {
                 PacketSenders.sendStop(player, new StopAudioPacketS2C(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ())));
             }
-            unsubscribe(stopId, emitter.location());
+            subscriptions.unsubscribe(stopId, emitter.location());
         }
     }
 
@@ -300,35 +271,15 @@ public final class ServerPlaybackManager {
     }
 
     // ------------------------------------------------------------------
-    // Subscription indexes
+    // Subscription queries
     // ------------------------------------------------------------------
 
-    private static void subscribe(UUID playerId, SpeakerLocation location) {
-        emitterToPlayers.computeIfAbsent(location, k -> ConcurrentHashMap.newKeySet()).add(playerId);
-        playerToEmitters.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet()).add(location);
-    }
-
-    private static void unsubscribe(UUID playerId, SpeakerLocation location) {
-        Set<UUID> players = emitterToPlayers.get(location);
-        if (players != null) {
-            players.remove(playerId);
-            if (players.isEmpty()) emitterToPlayers.remove(location, players);
-        }
-        Set<SpeakerLocation> locations = playerToEmitters.get(playerId);
-        if (locations != null) {
-            locations.remove(location);
-            if (locations.isEmpty()) playerToEmitters.remove(playerId, locations);
-        }
-    }
-
     public static Set<SpeakerLocation> getEmitterLocationsForPlayer(UUID playerId) {
-        Set<SpeakerLocation> locations = playerToEmitters.get(playerId);
-        return locations != null ? Set.copyOf(locations) : Set.of();
+        return subscriptions.getEmitterLocationsForPlayer(playerId);
     }
 
     public static Set<UUID> getSubscribers(SpeakerLocation location) {
-        Set<UUID> players = emitterToPlayers.get(location);
-        return players != null ? Set.copyOf(players) : Set.of();
+        return subscriptions.getSubscribers(location);
     }
 
     /**

@@ -41,7 +41,7 @@ jobs:
           cache: gradle
       - run: chmod +x gradlew
       - name: Run shared unit and wiring tests
-        run: ./gradlew :common:test :common-1.20.1:test :common-1.21.1:test
+        run: ./gradlew :common:test :common-1.20.1:test :common-1.21.1:test :neoforge-26.1.2:test
 
   prepare-openui:
     runs-on: ubuntu-latest

@@ -22,10 +22,8 @@ class ServerPlaybackManagerWiringTest {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String code = read(root, module, "speakers/ServerPlaybackManager.java");
-            assertTrue(code.contains("Map<UUID, Set<SpeakerLocation>> playerToEmitters"),
-                    module + " ServerPlaybackManager must keep a player-to-emitter index");
-            assertTrue(code.contains("Map<SpeakerLocation, Set<UUID>> emitterToPlayers"),
-                    module + " ServerPlaybackManager must keep an emitter-to-player index");
+            assertTrue(code.contains("PlaybackSubscriptions subscriptions") || code.contains("playerToEmitters"),
+                    module + " ServerPlaybackManager must keep a subscription index");
             assertTrue(code.contains("handlePlayerQuit"),
                     module + " ServerPlaybackManager must handle player disconnects");
             assertTrue(code.contains("handlePlayerDimensionChange"),
@@ -110,6 +108,8 @@ class ServerPlaybackManagerWiringTest {
                     module + " ServerPlaybackManager must expose stopPlaybackForState helper");
             assertTrue(code.contains("SpeakerStateUpdatePacketS2C"),
                     module + " ServerPlaybackManager must broadcast SpeakerStateUpdatePacketS2C on EOF");
+            assertTrue(code.contains("getPlaybackStartTick() >= 0"),
+                    module + " ServerPlaybackManager must handle natural EOF for tracks started at tick 0");
         }
     }
 
@@ -118,9 +118,19 @@ class ServerPlaybackManagerWiringTest {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String code = read(root, module, "speakers/ServerSpeakerRegistry.java");
-            assertTrue(code.contains("ServerPlaybackManager.stopEmitter(level.getServer(), loc);"),
+            assertTrue(code.contains("ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);") ||
+                            code.contains("ServerPlaybackManager.stopEmitter(level.getServer(), loc);"),
                     module + " ServerSpeakerRegistry must tear down subscriptions when unregistering speakers");
         }
+    }
+
+    @Test
+    void sableNullEmitterStopsSubscriptions() throws IOException {
+        Path root = findProjectRoot();
+        String code = read(root, "common-1.21.1", "speakers/ServerPlaybackManager.java");
+        assertTrue(code.contains("if (emitterPos == null) {\n            stopEmitter(server, emitter.location());\n            return;\n        }") ||
+                        code.contains("if (emitterPos == null) {\r\n            stopEmitter(server, emitter.location());\r\n            return;\r\n        }"),
+                "common-1.21.1 ServerPlaybackManager must stop emitter subscriptions when Sable resolver returns null");
     }
 
     private static String read(Path root, String module, String relativePath) throws IOException {
