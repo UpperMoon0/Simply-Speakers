@@ -6,26 +6,27 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Thread-safe bidirectional player <-> emitter subscription index.
- * Maintains consistent pairing between listening players and active emitters.
+ * Thread-safe bidirectional player &lt;-&gt; emitter subscription index.
+ * Compound mutations are synchronized to guarantee strict atomic pairing across both
+ * indexes, while snapshot reads remain lock-free and defensive for safe iteration.
  */
 public final class PlaybackSubscriptions {
 
     private final Map<UUID, Set<SpeakerLocation>> playerToEmitters = new ConcurrentHashMap<>();
     private final Map<SpeakerLocation, Set<UUID>> emitterToPlayers = new ConcurrentHashMap<>();
 
-    public void clear() {
+    public synchronized void clear() {
         playerToEmitters.clear();
         emitterToPlayers.clear();
     }
 
-    public void subscribe(UUID playerId, SpeakerLocation location) {
+    public synchronized void subscribe(UUID playerId, SpeakerLocation location) {
         if (playerId == null || location == null) return;
         emitterToPlayers.computeIfAbsent(location, k -> ConcurrentHashMap.newKeySet()).add(playerId);
         playerToEmitters.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet()).add(location);
     }
 
-    public void unsubscribe(UUID playerId, SpeakerLocation location) {
+    public synchronized void unsubscribe(UUID playerId, SpeakerLocation location) {
         if (playerId == null || location == null) return;
         Set<UUID> players = emitterToPlayers.get(location);
         if (players != null) {
@@ -39,7 +40,7 @@ public final class PlaybackSubscriptions {
         }
     }
 
-    public Set<SpeakerLocation> removePlayer(UUID playerId) {
+    public synchronized Set<SpeakerLocation> removePlayer(UUID playerId) {
         if (playerId == null) return Set.of();
         Set<SpeakerLocation> locations = playerToEmitters.remove(playerId);
         if (locations == null) return Set.of();
@@ -53,7 +54,7 @@ public final class PlaybackSubscriptions {
         return locations;
     }
 
-    public Set<UUID> removeEmitter(SpeakerLocation location) {
+    public synchronized Set<UUID> removeEmitter(SpeakerLocation location) {
         if (location == null) return Set.of();
         Set<UUID> players = emitterToPlayers.remove(location);
         if (players == null) return Set.of();
