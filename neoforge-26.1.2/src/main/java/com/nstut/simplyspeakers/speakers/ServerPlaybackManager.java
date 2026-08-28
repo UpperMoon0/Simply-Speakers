@@ -7,6 +7,7 @@ import com.nstut.simplyspeakers.SpeakerState;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
+import com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C;
 import com.nstut.simplyspeakers.network.StopAudioPacketS2C;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -15,7 +16,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +69,25 @@ public final class ServerPlaybackManager {
         }
     }
 
+    /**
+     * Drops all subscriptions for a player changing dimensions. No stop packets are
+     * sent because the client already clears its playback state on dimension change;
+     * clearing the server subscriptions ensures that subsequent range scans start
+     * with a clean slate and immediately send replacement Play packets when in range.
+     */
+    public static void handlePlayerDimensionChange(UUID playerId) {
+        if (playerId == null) return;
+        Set<SpeakerLocation> locations = playerToEmitters.remove(playerId);
+        if (locations == null) return;
+        for (SpeakerLocation location : locations) {
+            Set<UUID> players = emitterToPlayers.get(location);
+            if (players != null) {
+                players.remove(playerId);
+                if (players.isEmpty()) emitterToPlayers.remove(location, players);
+            }
+        }
+    }
+
     // ------------------------------------------------------------------
     // Emitter lifecycle
     // ------------------------------------------------------------------
@@ -96,6 +115,17 @@ public final class ServerPlaybackManager {
     }
 
     /**
+     * Unregisters an emitter snapshot and tears down its active subscriptions atomically.
+     */
+    public static void unregisterEmitter(MinecraftServer server, SpeakerLocation location) {
+        if (location == null) return;
+        if (server != null) {
+            stopEmitter(server, location);
+        }
+        ServerSpeakerRegistry.removeEmitter(location);
+    }
+
+    /**
      * Immediately scans a single emitter, used so playback starts on activation without
      * waiting for the next periodic pass.
      */
@@ -104,6 +134,37 @@ public final class ServerPlaybackManager {
         ServerLevel level = findLevel(server, emitter.location().dimension());
         if (level == null) return;
         scanEmitter(server, level, emitter);
+    }
+
+    /**
+     * Handles authoritative termination of a playback stream (e.g. natural EOF).
+     * Updates the server state in {@link ServerSpeakerRegistry}, broadcasts
+     * {@link SpeakerStateUpdatePacketS2C} to notify client registries and UI,
+     * and stops all emitter subscriptions sharing this state.
+     */
+    public static void stopPlaybackForState(MinecraftServer server, ServerLevel level, ServerEmitter sourceEmitter, SpeakerState state) {
+        if (server == null || sourceEmitter == null || state == null) return;
+        state.setPlaying(false);
+        state.setPlaybackStartTick(-1);
+        ServerSpeakerRegistry.updateSpeakerStateByFullKey(sourceEmitter.fullStateKey(), state);
+
+        BlockPos pos = new BlockPos(sourceEmitter.location().getX(), sourceEmitter.location().getY(), sourceEmitter.location().getZ());
+        SpeakerStateUpdatePacketS2C statePacket = new SpeakerStateUpdatePacketS2C(
+                pos,
+                sourceEmitter.speakerIdForPacket(),
+                "stop",
+                state.getAudioId(),
+                state.getAudioFilename(),
+                -1,
+                state.isLooping()
+        );
+        PacketSenders.sendStateUpdateToAll(level, statePacket);
+
+        for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
+            if (sourceEmitter.fullStateKey().equals(emitter.fullStateKey())) {
+                stopEmitter(server, emitter.location());
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -139,6 +200,11 @@ public final class ServerPlaybackManager {
     }
 
     private static void scanEmitter(MinecraftServer server, ServerLevel level, ServerEmitter emitter) {
+        if (!emitter.active()) {
+            stopEmitter(server, emitter.location());
+            return;
+        }
+
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(emitter.fullStateKey());
         boolean playing = state != null
                 && state.isPlaying()
@@ -157,16 +223,18 @@ public final class ServerPlaybackManager {
             if (audioFileManager != null) {
                 AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
                 if (meta != null && meta.getDurationSeconds() > 0.0f && elapsedSeconds >= meta.getDurationSeconds()) {
-                    state.setPlaying(false);
-                    state.setPlaybackStartTick(-1);
-                    ServerSpeakerRegistry.updateSpeakerStateByFullKey(emitter.fullStateKey(), state);
-                    stopEmitter(server, emitter.location());
+                    stopPlaybackForState(server, level, emitter, state);
                     return;
                 }
             }
         }
 
-        double effectiveRange = SpeakerSettings.effectiveRange(emitter.maxRange());
+        // For non-proxy speakers, derive settings from live SpeakerState to prevent stale values when unloaded
+        int maxRange = emitter.proxy() ? emitter.maxRange() : state.getMaxRange();
+        float maxVolume = emitter.proxy() ? emitter.maxVolume() : state.getMaxVolume();
+        float dropoff = emitter.proxy() ? emitter.dropoff() : state.getAudioDropoff();
+
+        double effectiveRange = SpeakerSettings.effectiveRange(maxRange);
         Vec3 emitterPos = Vec3.atCenterOf(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()));
 
         Set<UUID> subscribed = emitterToPlayers.getOrDefault(emitter.location(), Set.of());
@@ -189,7 +257,7 @@ public final class ServerPlaybackManager {
             ServerPlayer player = server.getPlayerList().getPlayer(startId);
             if (player == null) continue;
             if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
-            PacketSenders.sendPlay(player, buildPlayPacket(emitter, state, level, effectiveRange));
+            PacketSenders.sendPlay(player, buildPlayPacket(emitter, state, level, effectiveRange, maxVolume, dropoff));
             subscribe(startId, emitter.location());
         }
 
@@ -202,7 +270,13 @@ public final class ServerPlaybackManager {
         }
     }
 
-    private static PlayAudioPacketS2C buildPlayPacket(ServerEmitter emitter, SpeakerState state, ServerLevel level, double effectiveRange) {
+    private static PlayAudioPacketS2C buildPlayPacket(
+            ServerEmitter emitter,
+            SpeakerState state,
+            ServerLevel level,
+            double effectiveRange,
+            float maxVolume,
+            float dropoff) {
         float elapsedSeconds = state.getPlaybackPositionSeconds(level.getGameTime());
         if (elapsedSeconds < 0) elapsedSeconds = 0;
         float playbackPositionSeconds = elapsedSeconds;
@@ -221,8 +295,8 @@ public final class ServerPlaybackManager {
                 playbackPositionSeconds,
                 state.isLooping(),
                 (int) effectiveRange,
-                emitter.maxVolume(),
-                emitter.dropoff());
+                maxVolume,
+                dropoff);
     }
 
     // ------------------------------------------------------------------
@@ -271,6 +345,10 @@ public final class ServerPlaybackManager {
 
         static void sendStop(ServerPlayer player, StopAudioPacketS2C packet) {
             NetworkManager.sendToPlayer(player, packet);
+        }
+
+        static void sendStateUpdateToAll(ServerLevel level, SpeakerStateUpdatePacketS2C packet) {
+            NetworkManager.sendToPlayers(level.players(), packet);
         }
     }
 }

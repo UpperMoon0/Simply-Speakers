@@ -304,7 +304,11 @@ public final class ServerSpeakerRegistry {
             }
         }
         posToStateKey.remove(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
-        removeEmitter(locationOf(dimension, pos));
+        SpeakerLocation loc = locationOf(dimension, pos);
+        if (level.getServer() != null) {
+            ServerPlaybackManager.stopEmitter(level.getServer(), loc);
+        }
+        removeEmitter(loc);
         SimplySpeakers.LOGGER.debug("SERVER: Unregistered speaker at {} in {} with key {}", pos, dimension, stateKey);
     }
 
@@ -321,7 +325,11 @@ public final class ServerSpeakerRegistry {
             }
         }
         posToStateKey.remove(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
-        removeEmitter(locationOf(dimension, pos));
+        SpeakerLocation loc = locationOf(dimension, pos);
+        if (level.getServer() != null) {
+            ServerPlaybackManager.stopEmitter(level.getServer(), loc);
+        }
+        removeEmitter(loc);
         SimplySpeakers.LOGGER.debug("SERVER: Unregistered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
     }
 

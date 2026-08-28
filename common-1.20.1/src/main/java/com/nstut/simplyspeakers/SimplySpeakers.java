@@ -73,8 +73,10 @@ public class SimplySpeakers {
             PacketRegistries.CHANNEL.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
         });
 
-        // Drop centralized playback subscriptions when a player disconnects
+        // Drop centralized playback subscriptions when a player disconnects or changes dimension
         PlayerEvent.PLAYER_QUIT.register(player -> ServerPlaybackManager.handlePlayerQuit(player.getUUID()));
+        PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getUUID()));
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getUUID()));
 
         // Register client-side events only on the client
         if (Platform.getEnv().toString().equals("CLIENT")) {

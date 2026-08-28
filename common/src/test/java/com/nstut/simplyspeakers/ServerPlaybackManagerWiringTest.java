@@ -28,6 +28,8 @@ class ServerPlaybackManagerWiringTest {
                     module + " ServerPlaybackManager must keep an emitter-to-player index");
             assertTrue(code.contains("handlePlayerQuit"),
                     module + " ServerPlaybackManager must handle player disconnects");
+            assertTrue(code.contains("handlePlayerDimensionChange"),
+                    module + " ServerPlaybackManager must handle player dimension changes");
             assertTrue(code.contains("serverTick"),
                     module + " ServerPlaybackManager must expose a server-tick entry point");
             assertTrue(code.contains("stopEmitter"),
@@ -68,7 +70,7 @@ class ServerPlaybackManagerWiringTest {
     }
 
     @Test
-    void commonMainsPurgeSubscriptionsOnPlayerQuit() throws IOException {
+    void commonMainsPurgeSubscriptionsOnPlayerQuitAndDimensionTransitions() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String code = read(root, module, "SimplySpeakers.java");
@@ -76,6 +78,48 @@ class ServerPlaybackManagerWiringTest {
                     module + " common main must register the Architectury quit event");
             assertTrue(code.contains("ServerPlaybackManager.handlePlayerQuit"),
                     module + " common main must purge playback subscriptions on quit");
+            assertTrue(code.contains("PlayerEvent.CHANGE_DIMENSION.register"),
+                    module + " common main must register the Architectury change dimension event");
+            assertTrue(code.contains("PlayerEvent.PLAYER_RESPAWN.register"),
+                    module + " common main must register the Architectury player respawn event");
+            assertTrue(code.contains("ServerPlaybackManager.handlePlayerDimensionChange"),
+                    module + " common main must purge playback subscriptions on dimension transition");
+        }
+    }
+
+    @Test
+    void serverPlaybackManagerDerivesSettingsFromLiveSpeakerStateForMainSpeakers() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerPlaybackManager.java");
+            assertTrue(code.contains("emitter.proxy() ? emitter.maxRange() : state.getMaxRange()"),
+                    module + " ServerPlaybackManager must derive range from live SpeakerState for main speakers");
+            assertTrue(code.contains("emitter.proxy() ? emitter.maxVolume() : state.getMaxVolume()"),
+                    module + " ServerPlaybackManager must derive volume from live SpeakerState for main speakers");
+            assertTrue(code.contains("emitter.proxy() ? emitter.dropoff() : state.getAudioDropoff()"),
+                    module + " ServerPlaybackManager must derive dropoff from live SpeakerState for main speakers");
+        }
+    }
+
+    @Test
+    void serverPlaybackManagerPropagatesEofStateUpdateToClients() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerPlaybackManager.java");
+            assertTrue(code.contains("stopPlaybackForState"),
+                    module + " ServerPlaybackManager must expose stopPlaybackForState helper");
+            assertTrue(code.contains("SpeakerStateUpdatePacketS2C"),
+                    module + " ServerPlaybackManager must broadcast SpeakerStateUpdatePacketS2C on EOF");
+        }
+    }
+
+    @Test
+    void serverSpeakerRegistryPerformsAtomicEmitterUnregistration() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerSpeakerRegistry.java");
+            assertTrue(code.contains("ServerPlaybackManager.stopEmitter(level.getServer(), loc);"),
+                    module + " ServerSpeakerRegistry must tear down subscriptions when unregistering speakers");
         }
     }
 
