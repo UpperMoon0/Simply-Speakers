@@ -376,6 +376,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         int playingIndex = state.isPlaying() ? pl.getCurrentIndex() : -1;
         PlaylistSyncPacketS2C sync = new PlaylistSyncPacketS2C(
                 worldPosition,
+                getFullStateKey(),
                 audioIds,
                 filenames,
                 pl.getCurrentIndex(),
@@ -474,7 +475,8 @@ public class SpeakerBlockEntity extends BlockEntity {
                         state.getAudioId(),
                         state.getAudioFilename(),
                         state.getPlaybackStartTick(),
-                        state.isLooping()
+                        state.isLooping(),
+                        getFullStateKey()
                 );
                 NetworkManager.sendToPlayers(serverLevel.players(), updatePacket);
             }

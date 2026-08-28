@@ -647,6 +647,11 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return speaker != null ? speaker.getSpeakerId() : "";
     }
 
+    /** Dimension-qualified registry key of this screen's speaker; used to match network-wide sync packets. */
+    public String getFullStateKey() {
+        return speaker != null ? speaker.getFullStateKey() : "";
+    }
+
     private void fetchDataFromBlockEntity() {
         if (Minecraft.getInstance().level == null) {
             this.speaker = null;

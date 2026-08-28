@@ -23,6 +23,8 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
         StreamCodec.of(PlaylistSyncPacketS2C::encode, PlaylistSyncPacketS2C::decode);
 
     private final BlockPos pos;
+    /** Dimension-qualified registry key identifying the shared state; may be empty. */
+    private final String fullStateKey;
     private final List<String> audioIds;
     private final List<String> filenames;
     private final int currentIndex;
@@ -31,10 +33,11 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
     private final int playingIndex;
     private final boolean paused;
 
-    public PlaylistSyncPacketS2C(BlockPos pos, List<String> audioIds, List<String> filenames,
+    public PlaylistSyncPacketS2C(BlockPos pos, String fullStateKey, List<String> audioIds, List<String> filenames,
                                  int currentIndex, boolean shuffle, int repeatOrdinal,
                                  int playingIndex, boolean paused) {
         this.pos = pos;
+        this.fullStateKey = fullStateKey != null ? fullStateKey : "";
         this.audioIds = audioIds != null ? audioIds : List.of();
         this.filenames = filenames != null ? filenames : List.of();
         this.currentIndex = currentIndex;
@@ -46,6 +49,7 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
 
     public static void encode(RegistryFriendlyByteBuf buffer, PlaylistSyncPacketS2C packet) {
         buffer.writeBlockPos(packet.pos);
+        buffer.writeUtf(packet.fullStateKey, 256);
         buffer.writeVarInt(packet.audioIds.size());
         for (int i = 0; i < packet.audioIds.size(); i++) {
             buffer.writeUtf(packet.audioIds.get(i), 256);
@@ -60,6 +64,7 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
 
     public static PlaylistSyncPacketS2C decode(RegistryFriendlyByteBuf buffer) {
         BlockPos pos = buffer.readBlockPos();
+        String fullStateKey = buffer.readUtf(256);
         int count = Math.min(buffer.readVarInt(), 512);
         List<String> ids = new ArrayList<>();
         List<String> names = new ArrayList<>();
@@ -67,21 +72,35 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
             ids.add(buffer.readUtf(256));
             names.add(buffer.readUtf(256));
         }
-        return new PlaylistSyncPacketS2C(pos, ids, names, buffer.readVarInt(),
+        return new PlaylistSyncPacketS2C(pos, fullStateKey, ids, names, buffer.readVarInt(),
                 buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt(), buffer.readBoolean());
     }
 
     public static void handle(PlaylistSyncPacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
             if (Minecraft.getInstance().screen instanceof SpeakerScreen screen
-                    && screen.getBlockEntityPos().equals(packet.pos)) {
+                    && matchesScreen(packet, screen)) {
                 screen.updatePlaylistModel(packet);
             }
         });
     }
 
+    /**
+     * A playlist sync reaches the open GUI when it targets the GUI's physical position or
+     * the GUI speaker's authoritative full state key. The key match keeps linked-speaker
+     * GUIs (and both mains of one network) updated by centralized broadcasts.
+     */
+    private static boolean matchesScreen(PlaylistSyncPacketS2C packet, SpeakerScreen screen) {
+        if (screen.getBlockEntityPos().equals(packet.pos)) return true;
+        return !packet.fullStateKey.isEmpty() && packet.fullStateKey.equals(screen.getFullStateKey());
+    }
+
     public BlockPos getPos() {
         return pos;
+    }
+
+    public String getFullStateKey() {
+        return fullStateKey;
     }
 
     public List<String> getAudioIds() {

@@ -127,7 +127,8 @@ public final class ServerPlaybackManager {
                 state.getAudioId(),
                 state.getAudioFilename(),
                 -1,
-                state.isLooping()
+                state.isLooping(),
+                sourceEmitter.fullStateKey()
         );
         PacketSenders.sendStateUpdateToAll(level, statePacket);
 
@@ -290,7 +291,8 @@ public final class ServerPlaybackManager {
                 state.getAudioId(),
                 state.getAudioFilename(),
                 state.getPlaybackStartTick(),
-                state.isLooping()
+                state.isLooping(),
+                emitter.fullStateKey()
         );
         PacketSenders.sendStateUpdateToAll(level, statePacket);
     }
@@ -307,6 +309,7 @@ public final class ServerPlaybackManager {
         int playingIndex = state.isPlaying() ? pl.getCurrentIndex() : -1;
         com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C packet = new com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C(
                 new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()),
+                emitter.fullStateKey(),
                 audioIds,
                 filenames,
                 pl.getCurrentIndex(),
@@ -345,11 +348,16 @@ public final class ServerPlaybackManager {
                 (int) effectiveRange,
                 maxVolume,
                 dropoff);
-        if (emitter.directionalExtras() != null) {
-            packet.withExtras(emitter.directionalExtras());
-        } else if (state.getDirectionality() > 0.001f) {
+        if (state.getDirectionality() > 0.001f) {
+            // Directionality parameters always come from the live shared state so policy
+            // changes reach existing listeners on resync; only the physical facing is
+            // per-emitter snapshot data. This also prevents stale emitter snapshots from
+            // overriding the network's current directionality (proxy fallback fix).
+            byte facing = emitter.directionalExtras() != null
+                    ? emitter.directionalExtras().facingOrdinal()
+                    : (byte) 2; // NORTH
             packet.withExtras(new com.nstut.simplyspeakers.audio.DirectionalAudio.Extras(
-                    state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) 2));
+                    state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), facing));
         }
         return packet;
     }

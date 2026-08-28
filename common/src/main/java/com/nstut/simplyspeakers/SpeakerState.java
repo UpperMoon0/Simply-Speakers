@@ -292,6 +292,16 @@ public class SpeakerState {
         this.ownerUuid = ownerUuid;
     }
 
+    /**
+     * First-come ownership claim: assigns {@code playerUuid} as owner only when the
+     * speaker is currently unowned. Returns true when the claim was applied.
+     */
+    public boolean claimOwnershipIfAbsent(UUID playerUuid) {
+        if (playerUuid == null || ownerUuid != null) return false;
+        ownerUuid = playerUuid;
+        return true;
+    }
+
     public SpeakerAccess getAccessMode() {
         return accessMode != null ? accessMode : SpeakerAccess.DEFAULT;
     }

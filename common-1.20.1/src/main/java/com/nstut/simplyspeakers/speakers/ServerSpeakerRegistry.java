@@ -179,7 +179,14 @@ public final class ServerSpeakerRegistry {
         return speakerStates.get(fullKey);
     }
 
-    public static String getStateKey(Level level, BlockPos pos) {
+    /**
+     * Resolves the dimension-qualified full state key ("dim/stateKey") registered for a
+     * physical speaker position, or null when nothing is registered there.
+     * The returned value is already dimension-prefixed and can be used directly against
+     * {@link #getSpeakerStateByFullKey(String)} — never pass it through
+     * {@link #getRegistryKey(Level, String)} again or the dimension gets double-prefixed.
+     */
+    public static String getFullStateKeyAt(Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
         String dimension = getDimension(level);
         return posToStateKey.get(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
@@ -187,9 +194,21 @@ public final class ServerSpeakerRegistry {
 
     public static SpeakerState getSpeakerStateByPos(Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
-        String fullKey = getStateKey(level, pos);
+        String fullKey = getFullStateKeyAt(level, pos);
         if (fullKey == null) return null;
         return speakerStates.get(fullKey);
+    }
+
+    /**
+     * Finds any registered main-speaker position for a dimension-qualified full state key.
+     * Used to give network-wide broadcasts a concrete physical identity for standalone
+     * ("internal_...") states whose packets would otherwise carry no usable position.
+     */
+    public static BlockPos findFirstSpeakerPosition(String fullStateKey) {
+        if (fullStateKey == null) return null;
+        Set<BlockPos> positions = speakerPositions.get(fullStateKey);
+        if (positions == null || positions.isEmpty()) return null;
+        return positions.iterator().next();
     }
 
     public static SpeakerState getSpeakerStateByFullKey(String fullKey) {

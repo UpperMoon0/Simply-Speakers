@@ -202,7 +202,13 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         Direction facing = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
                 ? getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
                 : Direction.NORTH;
-        DirectionalAudio.Extras extras = new DirectionalAudio.Extras(0.0f, 355.0f, 0.0f, (byte) facing.ordinal());
+        // Directional parameters mirror the shared network state instead of forcing
+        // omnidirectional (0 directionality) extras, which previously prevented the
+        // playback manager from applying the network's real directional settings.
+        SpeakerState state = getSpeakerState();
+        DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
+                ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
+                : null;
         ServerSpeakerRegistry.upsertEmitter(new ServerEmitter(
                 emitterLocation(),
                 "net_" + speakerId.trim(),

@@ -34,21 +34,35 @@ public final class ServerSpeakerControlService {
     private ServerSpeakerControlService() {
     }
 
+    /**
+     * Resolves the dimension-qualified full state key for a physical speaker position.
+     * {@link ServerSpeakerRegistry#getFullStateKeyAt(Level, BlockPos)} already returns the
+     * dimension-prefixed key, so it must not be run through {@code getRegistryKey} again.
+     */
     public static String resolveFullStateKey(Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
-        String stateKey = ServerSpeakerRegistry.getStateKey(level, pos);
-        if (stateKey == null || stateKey.isEmpty()) return null;
-        return ServerSpeakerRegistry.getRegistryKey(level, stateKey);
+        return ServerSpeakerRegistry.getFullStateKeyAt(level, pos);
     }
 
-    public static String resolveFullStateKeyByNetwork(Level level, String networkNameOrId) {
-        if (level == null || networkNameOrId == null || networkNameOrId.trim().isEmpty()) return null;
-        String trimmed = networkNameOrId.trim();
+    /**
+     * Resolves a network reference to a full state key. Accepts, in priority order:
+     * an exact full key ("dim/net_x" or "dim/internal_uuid"), a raw net id ("net_x"),
+     * a bare id ("x"), or a human network name ("Lobby"). Returns null when nothing matches.
+     */
+    public static String resolveFullStateKeyByNetwork(Level level, String networkOrFullKey) {
+        if (level == null || networkOrFullKey == null || networkOrFullKey.trim().isEmpty()) return null;
+        String trimmed = networkOrFullKey.trim();
         String dimension = ServerSpeakerRegistry.getDimension(level);
+
+        // 0. Exact full key (dimension-qualified registry key)
+        if (trimmed.contains("/") && ServerSpeakerRegistry.getSpeakerStateByFullKey(trimmed) != null) {
+            return trimmed;
+        }
 
         // 1. Direct net key
         if (trimmed.startsWith("net_")) {
-            return dimension + "/" + trimmed;
+            String fullKey = dimension + "/" + trimmed;
+            return ServerSpeakerRegistry.getSpeakerStateByFullKey(fullKey) != null ? fullKey : null;
         }
 
         // 2. Network ID without prefix
@@ -66,32 +80,44 @@ public final class ServerSpeakerControlService {
                 }
             }
         }
-        return netKey;
+        return null;
     }
 
-    public static void play(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    /**
+     * Starts or resumes playback. Idempotent by design: when the network is already
+     * playing this is a no-op that never touches transport time — use
+     * {@link #restart(MinecraftServer, ServerLevel, String)} to force a restart.
+     * Linked speakers powering on mid-song therefore do not reset everyone's position.
+     */
+    public static boolean play(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
+        if (state.isPlaying() && !state.isPaused()) {
+            // Already playing: keep transport position untouched (play != restart).
+            return true;
+        }
+        long now = level != null ? level.getGameTime() : 0;
         if (state.isPlaying() && state.isPaused()) {
-            state.resumeAt(level != null ? level.getGameTime() : 0);
+            state.resumeAt(now);
             broadcastStateUpdate(level, fullStateKey, state, "play");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.RESUMED, fullStateKey, state.getNetworkName(), state.getAudioId());
         } else {
-            state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
+            state.startPlaybackAt(now, 0.0f);
             broadcastStateUpdate(level, fullStateKey, state, "play");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.STARTED, fullStateKey, state.getNetworkName(), state.getAudioId());
         }
         ServerSpeakerRegistry.saveRegistry();
+        return true;
     }
 
-    public static void pause(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    public static boolean pause(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
         if (state.isPlaying() && !state.isPaused()) {
             state.pauseAt(level != null ? level.getGameTime() : 0);
@@ -99,27 +125,26 @@ public final class ServerSpeakerControlService {
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.PAUSED, fullStateKey, state.getNetworkName(), state.getAudioId());
             ServerSpeakerRegistry.saveRegistry();
+            return true;
         }
+        return false;
     }
 
-    public static void togglePause(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    public static boolean togglePause(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
-        if (!state.isPlaying()) {
-            play(server, level, fullStateKey);
-        } else if (state.isPaused()) {
-            play(server, level, fullStateKey);
-        } else {
-            pause(server, level, fullStateKey);
+        if (!state.isPlaying() || state.isPaused()) {
+            return play(server, level, fullStateKey);
         }
+        return pause(server, level, fullStateKey);
     }
 
-    public static void stop(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    public static boolean stop(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
         if (state.isPlaying() || state.isPaused()) {
             state.stopPlayback();
@@ -128,24 +153,26 @@ public final class ServerSpeakerControlService {
             SpeakerEvents.fire(SpeakerEvents.Type.STOPPED, fullStateKey, state.getNetworkName(), state.getAudioId());
             ServerSpeakerRegistry.saveRegistry();
         }
+        return true;
     }
 
-    public static void restart(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    public static boolean restart(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
         state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
         broadcastStateUpdate(level, fullStateKey, state, "play");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
         SpeakerEvents.fire(SpeakerEvents.Type.STARTED, fullStateKey, state.getNetworkName(), state.getAudioId());
         ServerSpeakerRegistry.saveRegistry();
+        return true;
     }
 
-    public static void seek(MinecraftServer server, ServerLevel level, String fullStateKey, float seconds) {
-        if (fullStateKey == null) return;
+    public static boolean seek(MinecraftServer server, ServerLevel level, String fullStateKey, float seconds) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
         float duration = 0.0f;
         AudioFileManager afm = SimplySpeakers.getAudioFileManager();
@@ -157,12 +184,13 @@ public final class ServerSpeakerControlService {
         broadcastStateUpdate(level, fullStateKey, state, state.isPaused() ? "pause" : "play");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
         ServerSpeakerRegistry.saveRegistry();
+        return true;
     }
 
-    public static void next(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    public static boolean next(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
         if (state.hasPlaylist()) {
             Playlist.Advance adv = state.getPlaylist().next();
@@ -181,14 +209,16 @@ public final class ServerSpeakerControlService {
                 ServerPlaybackManager.resyncState(server, level, fullStateKey);
                 SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, fullStateKey, state.getNetworkName(), state.getAudioId());
             }
+            ServerSpeakerRegistry.saveRegistry();
+            return true;
         }
-        ServerSpeakerRegistry.saveRegistry();
+        return false;
     }
 
-    public static void previous(MinecraftServer server, ServerLevel level, String fullStateKey) {
-        if (fullStateKey == null) return;
+    public static boolean previous(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return;
+        if (state == null) return false;
 
         if (state.hasPlaylist()) {
             Playlist.Advance adv = state.getPlaylist().previous();
@@ -207,8 +237,10 @@ public final class ServerSpeakerControlService {
                 ServerPlaybackManager.resyncState(server, level, fullStateKey);
                 SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, fullStateKey, state.getNetworkName(), state.getAudioId());
             }
+            ServerSpeakerRegistry.saveRegistry();
+            return true;
         }
-        ServerSpeakerRegistry.saveRegistry();
+        return false;
     }
 
     public static boolean selectAudio(MinecraftServer server, ServerLevel level, String fullStateKey, String audioId, String filename) {
@@ -292,12 +324,24 @@ public final class ServerSpeakerControlService {
         return true;
     }
 
+    /**
+     * Applies a policy mutation. Directional audio parameters additionally resync active
+     * playback so existing listeners hear the change immediately instead of only after the
+     * next restart/re-entry.
+     */
     public static boolean policyControl(MinecraftServer server, ServerLevel level, String fullStateKey, byte op, String strValue, int intValue, float floatValue, UUID playerUuid) {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
 
+        boolean directional = false;
         switch (op) {
+            case SpeakerPolicyPacketC2S.OP_CLAIM_OWNER -> {
+                // First-come ownership: only an unowned speaker can be claimed.
+                if (state.getOwnerUuid() == null && playerUuid != null) {
+                    state.claimOwnershipIfAbsent(playerUuid);
+                }
+            }
             case SpeakerPolicyPacketC2S.OP_NETWORK_NAME -> {
                 state.setNetworkName(strValue != null ? strValue.trim() : "");
             }
@@ -315,21 +359,32 @@ public final class ServerSpeakerControlService {
             }
             case SpeakerPolicyPacketC2S.OP_DIRECTIONALITY -> {
                 state.setDirectionality(Math.max(0.0f, Math.min(1.0f, floatValue)));
+                directional = true;
             }
             case SpeakerPolicyPacketC2S.OP_CONE_ANGLE -> {
                 state.setConeAngleDegrees(Math.max(5, Math.min(350, intValue)));
+                directional = true;
             }
             case SpeakerPolicyPacketC2S.OP_REAR_ATTENUATION -> {
                 state.setRearAttenuation(Math.max(0.0f, Math.min(1.0f, floatValue)));
+                directional = true;
             }
         }
         broadcastStateUpdate(level, fullStateKey, state, "update");
+        if (directional) {
+            ServerPlaybackManager.resyncState(server, level, fullStateKey);
+        }
         ServerSpeakerRegistry.saveRegistry();
         return true;
     }
 
+    /**
+     * Applies a transport action to a resolved full state key. Returns true only when the
+     * state exists and the action was applied (or was already satisfied), so API callers
+     * can distinguish an accepted command from a no-op against a missing network.
+     */
     public static boolean applyTransport(MinecraftServer server, ServerLevel level, String fullStateKey, byte action, float seekSeconds) {
-        switch (action) {
+        return switch (action) {
             case 0 -> play(server, level, fullStateKey);        // ACTION_PLAY
             case 1 -> pause(server, level, fullStateKey);       // ACTION_PAUSE
             case 2 -> togglePause(server, level, fullStateKey); // ACTION_TOGGLE
@@ -338,9 +393,8 @@ public final class ServerSpeakerControlService {
             case 5 -> next(server, level, fullStateKey);        // ACTION_NEXT
             case 6 -> previous(server, level, fullStateKey);    // ACTION_PREVIOUS
             case 7 -> seek(server, level, fullStateKey, seekSeconds); // ACTION_SEEK
-            default -> { return false; }
-        }
-        return true;
+            default -> false;
+        };
     }
 
     public static boolean setVolume(MinecraftServer server, ServerLevel level, String fullStateKey, float volume) {
@@ -385,17 +439,26 @@ public final class ServerSpeakerControlService {
         }
     }
 
+    /**
+     * Broadcasts a transport-state update to all players in the level.
+     * The packet carries the authoritative full state key so open GUIs can match their
+     * network even when the packet's physical position is not the GUI's speaker.
+     * For standalone states a concrete position is resolved from the registry so the
+     * client can update the correct block's client-side state.
+     */
     private static void broadcastStateUpdate(ServerLevel level, String fullStateKey, SpeakerState state, String action) {
         if (level == null || fullStateKey == null || state == null) return;
         String speakerId = fullStateKey.contains("/net_") ? fullStateKey.substring(fullStateKey.indexOf("/net_") + 5) : "";
+        BlockPos pos = speakerId.isEmpty() ? ServerSpeakerRegistry.findFirstSpeakerPosition(fullStateKey) : null;
         SpeakerStateUpdatePacketS2C packet = new SpeakerStateUpdatePacketS2C(
-                BlockPos.ZERO,
+                pos,
                 speakerId,
                 action,
                 state.getAudioId(),
                 state.getAudioFilename(),
                 state.getPlaybackStartTick(),
-                state.isLooping()
+                state.isLooping(),
+                fullStateKey
         );
         dev.architectury.networking.NetworkManager.sendToPlayers(level.players(), packet);
     }
@@ -412,6 +475,7 @@ public final class ServerSpeakerControlService {
         int playingIndex = state.isPlaying() ? pl.getCurrentIndex() : -1;
         PlaylistSyncPacketS2C packet = new PlaylistSyncPacketS2C(
                 BlockPos.ZERO,
+                fullStateKey,
                 audioIds,
                 filenames,
                 pl.getCurrentIndex(),
