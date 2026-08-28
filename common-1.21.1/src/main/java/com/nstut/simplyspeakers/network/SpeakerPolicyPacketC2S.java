@@ -24,6 +24,7 @@ public class SpeakerPolicyPacketC2S implements CustomPacketPayload {
     public static final byte OP_DIRECTIONALITY = 4;
     public static final byte OP_CONE_ANGLE = 5;
     public static final byte OP_REAR_ATTENUATION = 6;
+    public static final byte OP_CLAIM_OWNER = 7;
 
     public static final CustomPacketPayload.Type<SpeakerPolicyPacketC2S> TYPE =
         new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "speaker_policy"));

@@ -15,6 +15,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
+
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.Map;
@@ -23,14 +24,6 @@ import java.util.Map;
 public final class SpeakerCommands {
 
     private SpeakerCommands() {
-    }
-
-    private static boolean hasAdminPermission(CommandSourceStack source) {
-        if (source.getServer() == null) return true;
-        if (source.getEntity() instanceof ServerPlayer player) {
-            return source.getServer().getPlayerList().isOp(player.nameAndId());
-        }
-        return true;
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
@@ -91,6 +84,13 @@ public final class SpeakerCommands {
                 .redirect(dispatcher.getRoot().getChild("simplyspeakers")));
     }
 
+    private static boolean hasAdminPermission(CommandSourceStack source) {
+        if (source.getServer() == null) return true;
+        ServerPlayer player = source.getPlayer();
+        if (player == null) return true;
+        return source.getServer().getPlayerList().isOp(player.nameAndId());
+    }
+
     private static com.mojang.brigadier.builder.RequiredArgumentBuilder<CommandSourceStack, String> boolArg() {
         return wordArg("true", "false");
     }
@@ -125,14 +125,14 @@ public final class SpeakerCommands {
 
     // ------------------------------------------------------------------
 
-    private static BlockPos resolveNetwork(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static String resolveNetworkKey(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         String name = StringArgumentType.getString(ctx, "name");
-        BlockPos pos = SpeakerApi.findNamedNetwork(ctx.getSource().getLevel(), name);
-        if (pos == null) {
+        String fullKey = com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.resolveFullStateKeyByNetwork(ctx.getSource().getLevel(), name);
+        if (fullKey == null) {
             throw new com.mojang.brigadier.exceptions.SimpleCommandExceptionType(
                     Component.literal("No named network '" + name + "' found in this dimension")).create();
         }
-        return pos;
+        return fullKey;
     }
 
     private static int listNetworks(CommandContext<CommandSourceStack> ctx) {
@@ -152,7 +152,31 @@ public final class SpeakerCommands {
     }
 
     private static int networkInfo(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        return speakerInfoAt(ctx, resolveNetwork(ctx));
+        String fullKey = resolveNetworkKey(ctx);
+        var state = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getSpeakerStateByFullKey(fullKey);
+        if (state == null) {
+            ctx.getSource().sendFailure(Component.literal("No network state found for " + fullKey));
+            return 0;
+        }
+        float position = state.getPlaybackPositionSeconds(ctx.getSource().getLevel().getGameTime());
+        String status = state.isPaused() ? "paused at " + position + "s"
+                : state.isPlaying() ? "playing at " + position + "s" : "stopped";
+        ctx.getSource().sendSuccess(() -> Component.literal(
+                "Network [" + fullKey + "]"
+                        + "\n  name: " + (state.hasNetworkName() ? state.getNetworkName() : "(unnamed)")
+                        + "\n  track: " + state.getAudioFilename() + " (" + state.getAudioId() + ")"
+                        + "\n  status: " + status
+                        + "\n  loop: " + state.isLooping()
+                        + ", volume: " + Math.round(state.getMaxVolume() * 100) + "%"
+                        + ", range: " + state.getMaxRange()
+                        + ", redstone: " + state.getRedstoneMode().id()
+                        + ", access: " + state.getAccessMode().id()
+                        + "\n  playlist: " + (state.hasPlaylist()
+                            ? state.getPlaylist().size() + " track(s)"
+                              + (state.getPlaylist().isShuffle() ? ", shuffle" : "")
+                              + ", repeat=" + state.getPlaylist().getRepeatMode().id()
+                            : "(none)")), false);
+        return 1;
     }
 
     private static int speakerInfo(CommandContext<CommandSourceStack> ctx) {
@@ -187,12 +211,16 @@ public final class SpeakerCommands {
     }
 
     private static int transport(CommandContext<CommandSourceStack> ctx, byte action) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        SpeakerApi.applyTransport(ctx.getSource().getLevel(), resolveNetwork(ctx), action);
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.applyTransport(level.getServer(), level, fullKey, action, 0.0f);
         return 1;
     }
 
     private static int networkSeek(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        SpeakerApi.seek(ctx.getSource().getLevel(), resolveNetwork(ctx), FloatArgumentType.getFloat(ctx, "seconds"));
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.seek(level.getServer(), level, fullKey, FloatArgumentType.getFloat(ctx, "seconds"));
         return 1;
     }
 
@@ -208,53 +236,65 @@ public final class SpeakerCommands {
     }
 
     private static int setVolumePercent(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        BlockPos pos = resolveNetwork(ctx);
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
         int percent = IntegerArgumentType.getInteger(ctx, "percent");
-        SpeakerApi.setVolume(ctx.getSource().getLevel(), pos, percent / 100.0f);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.setVolume(level.getServer(), level, fullKey, percent / 100.0f);
         ctx.getSource().sendSuccess(() -> Component.literal("Volume set to " + percent + "%"), false);
         return 1;
     }
 
     private static int setRange(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        BlockPos pos = resolveNetwork(ctx);
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
         int blocks = IntegerArgumentType.getInteger(ctx, "blocks");
-        SpeakerApi.setRange(ctx.getSource().getLevel(), pos, blocks);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.setRange(level.getServer(), level, fullKey, blocks);
         ctx.getSource().sendSuccess(() -> Component.literal("Range set to " + blocks), false);
         return 1;
     }
 
     private static int setLoop(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
         boolean enabled = boolValue(ctx);
-        SpeakerApi.setLooping(ctx.getSource().getLevel(), resolveNetwork(ctx), enabled);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.setLooping(level.getServer(), level, fullKey, enabled);
         ctx.getSource().sendSuccess(() -> Component.literal("Looping " + (enabled ? "on" : "off")), false);
         return 1;
     }
 
     private static int setShuffle(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
         boolean enabled = boolValue(ctx);
-        SpeakerApi.playlistSetShuffle(ctx.getSource().getLevel(), resolveNetwork(ctx), enabled);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.playlistControl(level.getServer(), level, fullKey, (byte) 7, -1, enabled, "", "");
         ctx.getSource().sendSuccess(() -> Component.literal("Shuffle " + (enabled ? "on" : "off")), false);
         return 1;
     }
 
     private static int setRepeat(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
         RepeatMode mode = RepeatMode.parse(StringArgumentType.getString(ctx, "value"));
-        SpeakerApi.playlistSetRepeat(ctx.getSource().getLevel(), resolveNetwork(ctx), mode);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.playlistControl(level.getServer(), level, fullKey, (byte) 8, mode.ordinal(), false, "", "");
         ctx.getSource().sendSuccess(() -> Component.literal("Repeat mode: " + mode.id()), false);
         return 1;
     }
 
     private static int setRedstoneMode(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        String fullKey = resolveNetworkKey(ctx);
+        var level = ctx.getSource().getLevel();
         RedstoneMode mode = RedstoneMode.byId(StringArgumentType.getString(ctx, "mode"));
-        SpeakerApi.setRedstoneMode(ctx.getSource().getLevel(), resolveNetwork(ctx), mode);
-        ctx.getSource().sendSuccess(() -> Component.literal("Redstone mode: " + mode.id()), false);
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.policyControl(level.getServer(), level, fullKey,
+                com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_REDSTONE_MODE,
+                "", mode != null ? mode.ordinal() : 0, 0.0f, null);
+        ctx.getSource().sendSuccess(() -> Component.literal("Redstone mode: " + (mode != null ? mode.id() : "default")), false);
         return 1;
     }
 
     private static int setAccessMode(CommandContext<CommandSourceStack> ctx) {
         SpeakerAccess access = SpeakerAccess.byId(StringArgumentType.getString(ctx, "mode"));
         SpeakerApi.setAccessMode(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), access);
-        ctx.getSource().sendSuccess(() -> Component.literal("Access mode: " + access.id()), false);
+        ctx.getSource().sendSuccess(() -> Component.literal("Access mode: " + (access != null ? access.id() : "public")), false);
         return 1;
     }
 

@@ -16,6 +16,7 @@ import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -34,6 +35,7 @@ public final class ServerSpeakerRegistry {
     private static final Map<String, Set<BlockPos>> poweredSpeakerPositions = new ConcurrentHashMap<>();
     private static final Map<SpeakerLocation, String> posToStateKey = new ConcurrentHashMap<>();
     private static final Map<String, SpeakerState> speakerStates = new ConcurrentHashMap<>();
+    private static final Map<SpeakerLocation, ServerEmitter> emitters = new ConcurrentHashMap<>();
     private static SpeakerState legacyDefaultTemplate = null;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -61,6 +63,7 @@ public final class ServerSpeakerRegistry {
         poweredSpeakerPositions.clear();
         posToStateKey.clear();
         speakerStates.clear();
+        emitters.clear();
         legacyDefaultTemplate = null;
         registryFilePath = null;
         SimplySpeakers.LOGGER.debug("SERVER: Reset ServerSpeakerRegistry state for world.");
@@ -210,6 +213,32 @@ public final class ServerSpeakerRegistry {
         speakerStates.remove(fullKey);
     }
 
+
+    /**
+     * Persists an emitter snapshot. Snapshots survive chunk unloads so that centralized
+     * playback management is independent of block entity ticking.
+     */
+    public static void upsertEmitter(ServerEmitter emitter) {
+        if (emitter == null || emitter.location() == null) return;
+        emitters.put(emitter.location(), emitter);
+    }
+
+    public static ServerEmitter getEmitter(SpeakerLocation location) {
+        return location != null ? emitters.get(location) : null;
+    }
+
+    public static void removeEmitter(SpeakerLocation location) {
+        if (location != null) emitters.remove(location);
+    }
+
+    public static Collection<ServerEmitter> getEmitters() {
+        return Collections.unmodifiableCollection(emitters.values());
+    }
+
+    private static SpeakerLocation locationOf(String dimension, BlockPos pos) {
+        return new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ());
+    }
+
     public static void registerSpeaker(Level level, BlockPos pos, String stateKey) {
         if (level == null || level.isClientSide()) return;
         String dimension = getDimension(level);
@@ -250,7 +279,6 @@ public final class ServerSpeakerRegistry {
         if (level == null || level.isClientSide()) return false;
         String dimension = getDimension(level);
         String fullKey = getRegistryKey(dimension, stateKey);
-        Set<BlockPos> positions = poweredSpeakerPositions.get(fullKey);
         Set<BlockPos> powered = poweredSpeakerPositions.get(fullKey);
         if (powered == null || powered.isEmpty()) return false;
         for (BlockPos pos : powered) {
@@ -291,7 +319,51 @@ public final class ServerSpeakerRegistry {
             }
         }
         posToStateKey.remove(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
-        SimplySpeakers.LOGGER.debug("SERVER: Unregistered speaker at {} in {} with key {}", pos, dimension, stateKey);
+        SpeakerLocation loc = locationOf(dimension, pos);
+        ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
+    }
+
+    public static void unregisterSpeaker(Level level, BlockPos pos) {
+        if (level == null || level.isClientSide()) return;
+        String dimension = getDimension(level);
+        SpeakerLocation loc = locationOf(dimension, pos);
+        String fullKey = posToStateKey.remove(loc);
+        if (fullKey != null) {
+            Set<BlockPos> speakers = speakerPositions.get(fullKey);
+            if (speakers != null) {
+                speakers.remove(pos);
+                if (speakers.isEmpty()) {
+                    speakerPositions.remove(fullKey);
+                }
+            }
+            Set<BlockPos> powered = poweredSpeakerPositions.get(fullKey);
+            if (powered != null) {
+                powered.remove(pos);
+                if (powered.isEmpty()) {
+                    poweredSpeakerPositions.remove(fullKey);
+                }
+            }
+        }
+        removeEmitter(loc);
+        ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
+    }
+
+    public static void unregisterProxySpeaker(Level level, BlockPos pos) {
+        if (level == null || level.isClientSide()) return;
+        String dimension = getDimension(level);
+        SpeakerLocation loc = locationOf(dimension, pos);
+        String fullKey = posToStateKey.remove(loc);
+        if (fullKey != null) {
+            Set<BlockPos> proxies = proxySpeakerPositions.get(fullKey);
+            if (proxies != null) {
+                proxies.remove(pos);
+                if (proxies.isEmpty()) {
+                    proxySpeakerPositions.remove(fullKey);
+                }
+            }
+        }
+        removeEmitter(loc);
+        ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
     }
 
     public static void unregisterProxySpeaker(Level level, BlockPos pos, String speakerId) {
@@ -307,7 +379,13 @@ public final class ServerSpeakerRegistry {
             }
         }
         posToStateKey.remove(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
+        SpeakerLocation loc = locationOf(dimension, pos);
+        ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
         SimplySpeakers.LOGGER.debug("SERVER: Unregistered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
+    }
+
+    public static void updateSpeakerId(Level level, BlockPos pos, String oldKey, String newKey) {
+        updateSpeakerKey(level, pos, oldKey, newKey);
     }
 
     public static void updateSpeakerKey(Level level, BlockPos pos, String oldKey, String newKey) {

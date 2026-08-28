@@ -15,7 +15,7 @@ class ClientPendingPlayWiringTest {
             List.of("common-1.20.1", "common-1.21.1", "neoforge-26.1.2");
 
     @Test
-    void everyVersionPreservesNetworkKeyAndCancelsPendingPlaysOnStop() throws IOException {
+    void everyVersionCentralizesUnpoweredStopHandling() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String playerCode = read(root, module, "client/ClientAudioPlayer.java");
@@ -29,22 +29,16 @@ class ClientPendingPlayWiringTest {
                     module + " must not re-resolve network key from client block entity after download");
 
             String speakerCode = read(root, module, "blocks/entities/SpeakerBlockEntity.java");
-            int unpoweredBlockStart = speakerCode.indexOf("if (!isPowered)");
-            int unpoweredBlockEnd = speakerCode.indexOf("return;", unpoweredBlockStart);
-            String unpoweredSection = speakerCode.substring(unpoweredBlockStart, unpoweredBlockEnd);
-            assertFalse(unpoweredSection.contains("serverLevel.getPlayers"),
+            assertFalse(speakerCode.contains("listeningPlayers"),
+                    module + " speaker must delegate listener tracking to ServerPlaybackManager");
+            assertFalse(speakerCode.contains("serverLevel.getPlayers"),
                     module + " speaker must not broadcast stop packets every tick when unpowered");
-            assertTrue(unpoweredSection.contains("for (UUID playerId : listeningPlayers)"),
-                    module + " speaker must only send stops to listeningPlayers when unpowered");
 
             String proxyCode = read(root, module, "blocks/entities/ProxySpeakerBlockEntity.java");
-            int proxyUnpoweredStart = proxyCode.indexOf("if (!isProxyPlaying)");
-            int proxyUnpoweredEnd = proxyCode.indexOf("return;", proxyUnpoweredStart);
-            String proxyUnpoweredSection = proxyCode.substring(proxyUnpoweredStart, proxyUnpoweredEnd);
-            assertFalse(proxyUnpoweredSection.contains("serverLevel.getPlayers"),
+            assertFalse(proxyCode.contains("listeningPlayers"),
+                    module + " proxy must delegate listener tracking to ServerPlaybackManager");
+            assertFalse(proxyCode.contains("serverLevel.getPlayers"),
                     module + " proxy must not broadcast stop packets every tick when unpowered");
-            assertTrue(proxyUnpoweredSection.contains("for (UUID playerId : listeningPlayers)"),
-                    module + " proxy must only send stops to listeningPlayers when unpowered");
         }
     }
 

@@ -1,0 +1,163 @@
+package com.nstut.simplyspeakers;
+
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ServerPlaybackManagerWiringTest {
+
+    private static final List<String> VERSION_MODULES =
+            List.of("common-1.20.1", "common-1.21.1", "neoforge-26.1.2");
+    private static final List<String> LOADER_MODULES =
+            List.of("fabric-1.20.1", "forge-1.20.1", "fabric-1.21.1", "neoforge-1.21.1", "neoforge-26.1.2");
+
+    @Test
+    void everyVersionHasCentralManagerWithSubscriptionIndexes() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerPlaybackManager.java");
+            assertTrue(code.contains("PlaybackSubscriptions subscriptions") || code.contains("playerToEmitters"),
+                    module + " ServerPlaybackManager must keep a subscription index");
+            assertTrue(code.contains("handlePlayerQuit"),
+                    module + " ServerPlaybackManager must handle player disconnects");
+            assertTrue(code.contains("handlePlayerDimensionChange"),
+                    module + " ServerPlaybackManager must handle player dimension changes");
+            assertTrue(code.contains("serverTick"),
+                    module + " ServerPlaybackManager must expose a server-tick entry point");
+            assertTrue(code.contains("stopEmitter"),
+                    module + " ServerPlaybackManager must support explicit emitter stops");
+            assertTrue(code.contains("ListenerRangePolicy") || code.contains("ServerPlaybackPlanner"),
+                    module + " ServerPlaybackManager must reuse the shared range policy stack");
+        }
+    }
+
+    @Test
+    void registryRetainsEmitterSnapshotsAcrossAllVersions() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerSpeakerRegistry.java");
+            assertTrue(code.contains("Map<SpeakerLocation, ServerEmitter> emitters"),
+                    module + " ServerSpeakerRegistry must retain emitter snapshots");
+            assertTrue(code.contains("upsertEmitter"),
+                    module + " ServerSpeakerRegistry must expose emitter upserts");
+            assertTrue(code.contains("getEmitters"),
+                    module + " ServerSpeakerRegistry must expose emitter enumeration");
+            assertTrue(code.contains("emitters.clear()"),
+                    module + " ServerSpeakerRegistry must clear emitter snapshots on world reset");
+            assertFalse(code.contains("private final Set<UUID> listeningPlayers"),
+                    module + " registry must never reintroduce per-BE listener sets");
+        }
+    }
+
+    @Test
+    void loaderMainsDriveCentralManagerLifecycle() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : LOADER_MODULES) {
+            String code = readLoader(root, module);
+            assertTrue(code.contains("ServerPlaybackManager.serverTick("),
+                    module + " loader must tick ServerPlaybackManager on server ticks");
+            assertTrue(code.contains("ServerPlaybackManager.resetForWorld()"),
+                    module + " loader must reset ServerPlaybackManager when the server stops");
+        }
+    }
+
+    @Test
+    void commonMainsPurgeSubscriptionsOnPlayerQuitAndDimensionTransitions() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "SimplySpeakers.java");
+            assertTrue(code.contains("PlayerEvent.PLAYER_QUIT.register"),
+                    module + " common main must register the Architectury quit event");
+            assertTrue(code.contains("ServerPlaybackManager.handlePlayerQuit"),
+                    module + " common main must purge playback subscriptions on quit");
+            assertTrue(code.contains("PlayerEvent.CHANGE_DIMENSION.register"),
+                    module + " common main must register the Architectury change dimension event");
+            assertTrue(code.contains("PlayerEvent.PLAYER_RESPAWN.register"),
+                    module + " common main must register the Architectury player respawn event");
+            assertTrue(code.contains("ServerPlaybackManager.handlePlayerDimensionChange"),
+                    module + " common main must purge playback subscriptions on dimension transition");
+        }
+    }
+
+    @Test
+    void serverPlaybackManagerDerivesSettingsFromLiveSpeakerStateForMainSpeakers() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerPlaybackManager.java");
+            assertTrue(code.contains("emitter.proxy() ? emitter.maxRange() : state.getMaxRange()"),
+                    module + " ServerPlaybackManager must derive range from live SpeakerState for main speakers");
+            assertTrue(code.contains("emitter.proxy() ? emitter.maxVolume() : state.getMaxVolume()"),
+                    module + " ServerPlaybackManager must derive volume from live SpeakerState for main speakers");
+            assertTrue(code.contains("emitter.proxy() ? emitter.dropoff() : state.getAudioDropoff()"),
+                    module + " ServerPlaybackManager must derive dropoff from live SpeakerState for main speakers");
+        }
+    }
+
+    @Test
+    void serverPlaybackManagerPropagatesEofStateUpdateToClients() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerPlaybackManager.java");
+            assertTrue(code.contains("stopPlaybackForState"),
+                    module + " ServerPlaybackManager must expose stopPlaybackForState helper");
+            assertTrue(code.contains("SpeakerStateUpdatePacketS2C"),
+                    module + " ServerPlaybackManager must broadcast SpeakerStateUpdatePacketS2C on EOF");
+            assertTrue(code.contains("getPlaybackStartTick() >= 0"),
+                    module + " ServerPlaybackManager must handle natural EOF for tracks started at tick 0");
+        }
+    }
+
+    @Test
+    void serverSpeakerRegistryPerformsAtomicEmitterUnregistration() throws IOException {
+        Path root = findProjectRoot();
+        for (String module : VERSION_MODULES) {
+            String code = read(root, module, "speakers/ServerSpeakerRegistry.java");
+            assertTrue(code.contains("ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);") ||
+                            code.contains("ServerPlaybackManager.stopEmitter(level.getServer(), loc);"),
+                    module + " ServerSpeakerRegistry must tear down subscriptions when unregistering speakers");
+        }
+    }
+
+    @Test
+    void sableNullEmitterStopsSubscriptions() throws IOException {
+        Path root = findProjectRoot();
+        String code = read(root, "common-1.21.1", "speakers/ServerPlaybackManager.java");
+        assertTrue(code.contains("if (emitterPos == null) {\n            stopEmitter(server, emitter.location());\n            return;\n        }") ||
+                        code.contains("if (emitterPos == null) {\r\n            stopEmitter(server, emitter.location());\r\n            return;\r\n        }"),
+                "common-1.21.1 ServerPlaybackManager must stop emitter subscriptions when Sable resolver returns null");
+    }
+
+    private static String read(Path root, String module, String relativePath) throws IOException {
+        return Files.readString(root.resolve(module).resolve(
+                "src/main/java/com/nstut/simplyspeakers/" + relativePath));
+    }
+
+    private static String readLoader(Path root, String module) throws IOException {
+        String relative;
+        switch (module) {
+            case "fabric-1.20.1" -> relative = "com/nstut/simplyspeakers/fabric/SimplySpeakersFabric.java";
+            case "fabric-1.21.1" -> relative = "com/nstut/fabric/simplyspeakers/SimplySpeakersFabric.java";
+            case "forge-1.20.1" -> relative = "com/nstut/simplyspeakers/forge/SimplySpeakersForge.java";
+            default -> relative = "com/nstut/neoforge/simplyspeakers/SimplySpeakersForge.java";
+        }
+        return Files.readString(root.resolve(module).resolve("src/main/java/" + relative));
+    }
+
+    private static Path findProjectRoot() {
+        Path candidate = Path.of("").toAbsolutePath();
+        while (candidate != null) {
+            if (Files.exists(candidate.resolve("settings.gradle"))
+                    && Files.isDirectory(candidate.resolve("common-1.20.1"))) {
+                return candidate;
+            }
+            candidate = candidate.getParent();
+        }
+        throw new IllegalStateException("Could not locate Simply-Speakers project root");
+    }
+}

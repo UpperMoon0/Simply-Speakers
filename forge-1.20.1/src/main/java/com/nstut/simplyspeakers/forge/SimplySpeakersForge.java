@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.forge;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import dev.architectury.platform.forge.EventBuses;
 import net.minecraftforge.fml.common.Mod;
@@ -61,12 +62,13 @@ public final class SimplySpeakersForge {
     }
 
     public void onServerStopped(ServerStoppedEvent event) {
+        ServerPlaybackManager.resetForWorld();
         ServerSpeakerRegistry.resetForWorld();
     }
-    
+
     public void onServerTick(TickEvent.ServerTickEvent event) {
-        // We only want to save periodically, not every tick
         if (event.phase == TickEvent.Phase.END) {
+            ServerPlaybackManager.serverTick(event.getServer());
             // Save every 6000 ticks (5 minutes at 20 TPS)
             if (event.getServer().getTickCount() % 6000 == 0) {
                 ServerSpeakerRegistry.saveRegistry();

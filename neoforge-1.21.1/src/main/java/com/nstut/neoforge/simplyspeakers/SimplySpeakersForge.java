@@ -5,6 +5,7 @@ import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.ModContainer;
@@ -88,10 +89,12 @@ public final class SimplySpeakersForge {
     }
 
     public void onServerStopped(ServerStoppedEvent event) {
+        ServerPlaybackManager.resetForWorld();
         ServerSpeakerRegistry.resetForWorld();
     }
-    
+
     public void onServerTick(ServerTickEvent.Post event) {
+        ServerPlaybackManager.serverTick(event.getServer());
         // We only want to save periodically, not every tick
         // Save every 6000 ticks (5 minutes at 20 TPS)
         if (event.getServer().getTickCount() % 6000 == 0) {

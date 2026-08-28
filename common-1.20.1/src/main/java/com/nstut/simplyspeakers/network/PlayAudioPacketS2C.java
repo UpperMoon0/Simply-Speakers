@@ -175,6 +175,11 @@ public class PlayAudioPacketS2C {
         this.extras = directionalExtras;
     }
 
+    public PlayAudioPacketS2C withExtras(com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directionalExtras) {
+        this.extras = directionalExtras;
+        return this;
+    }
+
     public com.nstut.simplyspeakers.audio.DirectionalAudio.Extras getExtras() {
         return extras;
     }

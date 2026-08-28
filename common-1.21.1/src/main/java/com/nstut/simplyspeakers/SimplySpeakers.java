@@ -3,6 +3,7 @@ package com.nstut.simplyspeakers;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.platform.Services;
+import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
 import com.nstut.simplyspeakers.client.ClientEvents;
 import dev.architectury.event.events.common.PlayerEvent;
 import dev.architectury.networking.NetworkManager;
@@ -81,6 +82,11 @@ public class SimplySpeakers {
                     player.getName().getString(), Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
             NetworkManager.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
         });
+
+        // Drop centralized playback subscriptions when a player disconnects or changes dimension
+        PlayerEvent.PLAYER_QUIT.register(player -> ServerPlaybackManager.handlePlayerQuit(player.getUUID()));
+        PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getUUID()));
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd, removalReason) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getUUID()));
 
         // Register client-side events only on the client
         LOGGER.info("Platform.getEnv() = '{}', checking if CLIENT...", Platform.getEnv().toString());

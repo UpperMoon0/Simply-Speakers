@@ -5,6 +5,7 @@ import com.nstut.simplyspeakers.blocks.BlockRegistries;
 import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.network.PacketRegistries;
+import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.fabric.simplyspeakers.config.FabricConfig;
 import net.fabricmc.api.ModInitializer;
@@ -59,11 +60,13 @@ public class SimplySpeakersFabric implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+            ServerPlaybackManager.resetForWorld();
             ServerSpeakerRegistry.resetForWorld();
         });
 
-        // Add periodic saving every 6000 ticks (5 minutes)
+        // Centralized playback scanning (throttled internally) plus periodic registry saving
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            ServerPlaybackManager.serverTick(server);
             if (server.getTickCount() % 6000 == 0) {
                 ServerSpeakerRegistry.saveRegistry();
             }

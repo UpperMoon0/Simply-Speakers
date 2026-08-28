@@ -53,7 +53,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
                 };
                 for (SimplySpeakersPeripheral peripheral : LIVE) {
                     if (peripheral.attachedComputers.isEmpty()) continue;
-                    if (!peripheral.speaker.getStateKey().equals(stateKey)) continue;
+                    if (!peripheral.speaker.getStateKey().equals(stateKey) && !peripheral.speaker.getFullStateKey().equals(stateKey)) continue;
                     for (IComputerAccess computer : peripheral.attachedComputers) {
                         computer.queueEvent(eventName, computer.getAttachmentName(), audioId, networkName);
                     }

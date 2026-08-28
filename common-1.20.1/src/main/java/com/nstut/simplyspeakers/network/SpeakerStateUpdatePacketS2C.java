@@ -93,14 +93,20 @@ public class SpeakerStateUpdatePacketS2C {
 
             if ("play".equals(pkt.action)) {
                 state.setPlaying(true);
+                state.setPaused(false);
+            } else if ("pause".equals(pkt.action)) {
+                state.setPlaying(true);
+                state.setPaused(true);
+                ClientAudioPlayer.stopNetwork(linkKey);
             } else if ("stop".equals(pkt.action)) {
                 state.setPlaying(false);
+                state.setPaused(false);
                 state.setPlaybackStartTick(-1);
                 ClientAudioPlayer.stopNetwork(linkKey);
             }
             ClientSpeakerRegistry.updateState(linkKey, state);
         } else if (pkt.hasBlockPos && Minecraft.getInstance().level != null) {
-            if ("stop".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
+            if ("stop".equals(pkt.action) || "pause".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
             var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
             if (be instanceof SpeakerBlockEntity speakerBE) {
                 SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
@@ -111,8 +117,13 @@ public class SpeakerStateUpdatePacketS2C {
 
                 if ("play".equals(pkt.action)) {
                     state.setPlaying(true);
+                    state.setPaused(false);
+                } else if ("pause".equals(pkt.action)) {
+                    state.setPlaying(true);
+                    state.setPaused(true);
                 } else if ("stop".equals(pkt.action)) {
                     state.setPlaying(false);
+                    state.setPaused(false);
                     state.setPlaybackStartTick(-1);
                 }
                 ClientSpeakerRegistry.updateState(speakerBE.getStateKey(), state);

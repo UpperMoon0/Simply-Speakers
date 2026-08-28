@@ -22,6 +22,7 @@ public class SpeakerPolicyPacketC2S {
     public static final byte OP_DIRECTIONALITY = 4;
     public static final byte OP_CONE_ANGLE = 5;
     public static final byte OP_REAR_ATTENUATION = 6;
+    public static final byte OP_CLAIM_OWNER = 7;
 
     private final BlockPos pos;
     private final byte op;
