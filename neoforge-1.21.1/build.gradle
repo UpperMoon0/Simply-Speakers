@@ -127,6 +127,7 @@ processResources {
     inputs.property 'mod_description', project.rootProject.mod_description
     inputs.property 'minecraft_version', project.minecraft_version
     inputs.property 'architectury_api_version', project.architectury_api_version
+    inputs.property 'openui_version', project.rootProject.openui_version
 
     filesMatching('META-INF/neoforge.mods.toml') {
         expand inputs.properties

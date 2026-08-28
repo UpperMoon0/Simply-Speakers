@@ -92,7 +92,7 @@ ${mod_description}
 [[dependencies.${mod_id}]]
     modId="openui_mc"
     type="required"
-    versionRange="[0.0.6,)"
+    versionRange="[${openui_version},)"
     ordering="AFTER"
     side="CLIENT"
 

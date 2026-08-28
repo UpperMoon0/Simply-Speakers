@@ -14,6 +14,7 @@ public class ClientEvents {
     public static void register() {
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
+        ClientPlayerEvent.CLIENT_PLAYER_RESPAWN.register(ClientEvents::onPlayerRespawn);
         PlayAudioPacketS2C.startLiveJoinProbe();
     }
 
@@ -41,6 +42,19 @@ public class ClientEvents {
         ClientAudioPlayer.clearAudioList();
         ClientSpeakerRegistry.clear();
         com.nstut.simplyspeakers.Config.restoreLocalConfig();
+    }
+
+    private static void onPlayerRespawn(net.minecraft.client.player.LocalPlayer oldPlayer, net.minecraft.client.player.LocalPlayer newPlayer) {
+        if (oldPlayer == null || newPlayer == null || oldPlayer.level() == null || newPlayer.level() == null) return;
+
+        if (!oldPlayer.level().dimension().equals(newPlayer.level().dimension())) {
+            System.out.println("[SimplySpeakers] Player changed dimension ("
+                    + oldPlayer.level().dimension() + " -> "
+                    + newPlayer.level().dimension() + "), clearing client audio playback...");
+            ClientAudioPlayer.stopAll();
+            PlayAudioPacketS2C.clearPendingPlays();
+            ClientSpeakerRegistry.clear();
+        }
     }
 
     public static void openSpeakerScreen(BlockPos pos) {

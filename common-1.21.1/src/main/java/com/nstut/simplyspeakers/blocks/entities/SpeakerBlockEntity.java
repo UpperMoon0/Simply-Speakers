@@ -12,6 +12,7 @@ import com.nstut.simplyspeakers.RedstoneLogic;
 import com.nstut.simplyspeakers.RedstoneMode;
 import com.nstut.simplyspeakers.SpeakerAccess;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
+import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.network.PlaylistControlPacketC2S;
 import com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C;
 import com.nstut.simplyspeakers.network.TransportControlPacketC2S;
@@ -752,7 +753,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             return;
         }
 
-        int effectiveRange = Math.min(state.getMaxRange(), Config.speakerRange);
+        int effectiveRange = SpeakerSettings.effectiveRange(state.getMaxRange());
         Vec3 speakerCenterPos = SpeakerSpatialResolver.resolveLogical(currentLevel, currentPos);
         if (speakerCenterPos == null) return;
         Set<UUID> playersInRange = new HashSet<>();
@@ -760,8 +761,10 @@ public class SpeakerBlockEntity extends BlockEntity {
         for (ServerPlayer player : serverLevel.players()) {
             Vec3 playerPosition = SpeakerSpatialResolver.resolveLogical(currentLevel, player.position());
             if (playerPosition == null) continue;
-            double listenerRange = listeningPlayers.contains(player.getUUID()) ? effectiveRange + 2.0 : effectiveRange;
-            if (playerPosition.distanceToSqr(speakerCenterPos) > listenerRange * listenerRange) continue;
+            double distanceSq = playerPosition.distanceToSqr(speakerCenterPos);
+            if (!com.nstut.simplyspeakers.audio.ListenerRangePolicy.shouldListen(distanceSq, effectiveRange, listeningPlayers.contains(player.getUUID()))) {
+                continue;
+            }
             playersInRange.add(player.getUUID());
 
             if (!listeningPlayers.contains(player.getUUID())) {

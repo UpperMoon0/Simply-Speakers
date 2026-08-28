@@ -7,6 +7,8 @@ import java.util.List;
  */
 public class SpatialAudioCalculator {
 
+    public static final double LISTENER_EXIT_HYSTERESIS = 2.0;
+
     public record SpeakerEmitter(
             double x, double y, double z,
             int maxRange, float maxVolume, float audioDropoff

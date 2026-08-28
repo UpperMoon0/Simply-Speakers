@@ -47,11 +47,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientAudioPlayer {
 
+    private static final PlaybackMembership<BlockPos> membership = new PlaybackMembership<>();
     private static final File CACHE_DIR = new File(Minecraft.getInstance().gameDirectory, "simply_speakers_cache");
     private static final Map<String, StreamingAudioResource> networkResources = new ConcurrentHashMap<>();
-    private static final Map<BlockPos, String> posToNetworkKey = new ConcurrentHashMap<>();
-    private static final Map<String, Set<BlockPos>> networkToPositions = new ConcurrentHashMap<>();
-    private static final Map<BlockPos, EmitterData> cachedEmitters = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
     private static final Map<UUID, Thread> activeUploadWorkers = new ConcurrentHashMap<>();
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
@@ -60,22 +58,7 @@ public class ClientAudioPlayer {
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
 
-    private static class EmitterData {
-        final double x, y, z;
-        volatile int maxRange;
-        volatile float maxVolume;
-        volatile float audioDropoff;
-        volatile com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directional;
-
-        EmitterData(double x, double y, double z, int maxRange, float maxVolume, float audioDropoff) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.maxRange = maxRange;
-            this.maxVolume = maxVolume;
-            this.audioDropoff = audioDropoff;
-        }
-    }
+    private static final Map<BlockPos, com.nstut.simplyspeakers.audio.DirectionalAudio.Extras> directionalExtras = new ConcurrentHashMap<>();
 
     private static class StreamingAudioResource {
         final String networkKey;
@@ -159,25 +142,22 @@ public class ClientAudioPlayer {
         SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, speakerId: '{}', networkKey: {}, audioId: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
                 pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff);
 
-        cachedEmitters.put(pos, new EmitterData(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, maxRange, maxVolume, audioDropoff));
-        cachedEmitters.get(pos).directional = directional;
+        String oldKey = membership.getNetworkKey(pos);
+        membership.track(pos, networkKey, new com.nstut.simplyspeakers.SpeakerSettings(maxVolume, maxRange, audioDropoff));
+        if (directional != null) {
+            directionalExtras.put(pos, directional);
+        } else {
+            directionalExtras.remove(pos);
+        }
 
-        String oldKey = posToNetworkKey.put(pos, networkKey);
         if (oldKey != null && !oldKey.equals(networkKey)) {
-            Set<BlockPos> oldPositions = networkToPositions.get(oldKey);
-            if (oldPositions != null) {
-                oldPositions.remove(pos);
-                if (oldPositions.isEmpty()) {
-                    networkToPositions.remove(oldKey);
-                    StreamingAudioResource oldRes = networkResources.remove(oldKey);
-                    if (oldRes != null) {
-                        oldRes.stopAndCleanup();
-                    }
+            if (membership.getPositions(oldKey).isEmpty()) {
+                StreamingAudioResource oldRes = networkResources.remove(oldKey);
+                if (oldRes != null) {
+                    oldRes.stopAndCleanup();
                 }
             }
         }
-
-        networkToPositions.computeIfAbsent(networkKey, k -> ConcurrentHashMap.newKeySet()).add(pos);
 
         StreamingAudioResource existing = networkResources.get(networkKey);
         if (existing != null && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
@@ -623,21 +603,15 @@ public class ClientAudioPlayer {
             requests.removeIf(req -> req.pos.equals(pos));
         }
 
-        cachedEmitters.remove(pos);
-        String networkKey = posToNetworkKey.remove(pos);
-        if (networkKey != null) {
-            Set<BlockPos> positions = networkToPositions.get(networkKey);
-            if (positions != null) {
-                positions.remove(pos);
-                if (positions.isEmpty()) {
-                    networkToPositions.remove(networkKey);
-                    StreamingAudioResource resource = networkResources.remove(networkKey);
-                    if (resource != null) {
-                        resource.stopAndCleanup();
-                    }
-                } else {
-                    updateSpeakerVolumes();
+        PlaybackMembership.DetachResult result = membership.detach(pos);
+        if (result.wasTracked()) {
+            if (result.networkEmpty()) {
+                StreamingAudioResource resource = networkResources.remove(result.networkKey());
+                if (resource != null) {
+                    resource.stopAndCleanup();
                 }
+            } else {
+                updateSpeakerVolumes();
             }
         }
     }
@@ -646,13 +620,7 @@ public class ClientAudioPlayer {
         for (List<PlayRequest> requests : pendingPlays.values()) {
             requests.removeIf(req -> networkKey.equals(req.networkKey));
         }
-        Set<BlockPos> positions = networkToPositions.remove(networkKey);
-        if (positions != null) {
-            for (BlockPos pos : positions) {
-                posToNetworkKey.remove(pos, networkKey);
-                cachedEmitters.remove(pos);
-            }
-        }
+        membership.detachNetwork(networkKey);
         StreamingAudioResource resource = networkResources.remove(networkKey);
         if (resource != null) resource.stopAndCleanup();
     }
@@ -672,9 +640,7 @@ public class ClientAudioPlayer {
         activeUploads.clear();
 
         List<StreamingAudioResource> resourcesToStop = new ArrayList<>(networkResources.values());
-        cachedEmitters.clear();
-        posToNetworkKey.clear();
-        networkToPositions.clear();
+        membership.clear();
         networkResources.clear();
 
         if (!resourcesToStop.isEmpty()) {
@@ -714,67 +680,55 @@ public class ClientAudioPlayer {
                 continue;
             }
 
-            Set<BlockPos> positions = networkToPositions.get(networkKey);
-            if (positions == null || positions.isEmpty()) {
+            Set<BlockPos> positions = membership.getPositions(networkKey);
+            if (positions.isEmpty()) {
                 resource.stopAndCleanup();
                 networkResources.remove(networkKey);
                 continue;
             }
 
             List<SpatialAudioCalculator.SpeakerEmitter> emitters = new ArrayList<>();
-            List<BlockPos> deadPositions = new ArrayList<>();
 
             for (BlockPos speakerPos : positions) {
                 if (mc.level.hasChunkAt(speakerPos)) {
                     net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
                     if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
-                        EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
-                                new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, speakerBlockEntity.getMaxRange(), speakerBlockEntity.getMaxVolume(), speakerBlockEntity.getAudioDropoff()));
-                        data.maxVolume = speakerBlockEntity.getMaxVolume();
-                        data.maxRange = speakerBlockEntity.getMaxRange();
-                        data.audioDropoff = speakerBlockEntity.getAudioDropoff();
+                        membership.updateSettings(speakerPos, new com.nstut.simplyspeakers.SpeakerSettings(
+                                speakerBlockEntity.getMaxVolume(),
+                                Math.min(speakerBlockEntity.getMaxRange(), Config.speakerRange),
+                                speakerBlockEntity.getAudioDropoff()));
                     } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
-                        EmitterData data = cachedEmitters.computeIfAbsent(speakerPos, p ->
-                                new EmitterData(p.getX() + 0.5, p.getY() + 0.5, p.getZ() + 0.5, proxySpeakerBlockEntity.getMaxRange(), proxySpeakerBlockEntity.getMaxVolume(), proxySpeakerBlockEntity.getAudioDropoff()));
-                        data.maxVolume = proxySpeakerBlockEntity.getMaxVolume();
-                        data.maxRange = proxySpeakerBlockEntity.getMaxRange();
-                        data.audioDropoff = proxySpeakerBlockEntity.getAudioDropoff();
-                    } else {
-                        deadPositions.add(speakerPos);
-                        continue;
+                        membership.updateSettings(speakerPos, new com.nstut.simplyspeakers.SpeakerSettings(
+                                proxySpeakerBlockEntity.getMaxVolume(),
+                                Math.min(proxySpeakerBlockEntity.getMaxRange(), Config.speakerRange),
+                                proxySpeakerBlockEntity.getAudioDropoff()));
                     }
                 }
 
-                EmitterData cached = cachedEmitters.get(speakerPos);
+                com.nstut.simplyspeakers.SpeakerSettings cached = membership.getSettings(speakerPos);
                 if (cached != null) {
-                    com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = cached.directional;
-                    float effectiveVolume = cached.maxVolume;
+                    com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);
+                    float effectiveVolume = cached.maxVolume();
                     if (cone != null && cone.directionality() > 0.0f) {
                         double[] facing = com.nstut.simplyspeakers.audio.DirectionalAudio.facingFromOrdinal(cone.facingOrdinal());
                         double[] toListener = com.nstut.simplyspeakers.audio.DirectionalAudio.normalize(
-                                playerPos.x - cached.x, playerPos.z - cached.z);
+                                playerPos.x - (speakerPos.getX() + 0.5), playerPos.z - (speakerPos.getZ() + 0.5));
                         float adjusted = SpatialAudioCalculator.calculateDistanceGain(
-                                0, 64, cached.maxVolume, 0.0f,
+                                0, 64, cached.maxVolume(), 0.0f,
                                 facing[0], facing[1], toListener[0], toListener[1],
                                 new SpatialAudioCalculator.ConeSettings(
                                         cone.directionality(), cone.coneAngleDegrees(), cone.rearAttenuation()));
-                        effectiveVolume = cached.maxVolume > 1.0E-6f ? adjusted : 0.0f;
+                        effectiveVolume = cached.maxVolume() > 1.0E-6f ? adjusted : 0.0f;
                     }
                     emitters.add(new SpatialAudioCalculator.SpeakerEmitter(
-                            cached.x,
-                            cached.y,
-                            cached.z,
-                            cached.maxRange,
+                            speakerPos.getX() + 0.5,
+                            speakerPos.getY() + 0.5,
+                            speakerPos.getZ() + 0.5,
+                            cached.maxRange(),
                             effectiveVolume,
-                            cached.audioDropoff
+                            cached.audioDropoff()
                     ));
                 }
-            }
-
-            for (BlockPos dead : deadPositions) {
-                positions.remove(dead);
-                posToNetworkKey.remove(dead);
-                cachedEmitters.remove(dead);
             }
 
             if (emitters.isEmpty()) {
@@ -988,7 +942,7 @@ public class ClientAudioPlayer {
                 if (requests != null && !requests.isEmpty()) {
                     Map<String, PlayRequest> requestsByNetwork = new LinkedHashMap<>();
                     for (PlayRequest req : requests) {
-                        String currentNetworkKey = posToNetworkKey.get(req.pos);
+                        String currentNetworkKey = membership.getNetworkKey(req.pos);
                         if (req.networkKey != null && req.networkKey.equals(currentNetworkKey)) {
                             requestsByNetwork.putIfAbsent(req.networkKey, req);
                         }

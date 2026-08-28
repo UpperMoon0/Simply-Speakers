@@ -96,9 +96,10 @@ processResources {
     inputs.property 'archives_name', project.rootProject.archives_name
     inputs.property 'minecraft_version', project.minecraft_version
     inputs.property 'architectury_api_version', project.architectury_api_version
+    inputs.property 'openui_version', project.rootProject.openui_version
 
     filesMatching('fabric.mod.json') {
-        expand version: project.version, mod_name: project.rootProject.mod_name, mod_description: project.rootProject.mod_description, mod_authors: project.rootProject.mod_authors, fabric_loader_version: project.fabric_loader_version, archives_name: project.rootProject.archives_name, minecraft_version: project.minecraft_version, architectury_api_version: project.architectury_api_version
+        expand version: project.version, mod_name: project.rootProject.mod_name, mod_description: project.rootProject.mod_description, mod_authors: project.rootProject.mod_authors, fabric_loader_version: project.fabric_loader_version, archives_name: project.rootProject.archives_name, minecraft_version: project.minecraft_version, architectury_api_version: project.architectury_api_version, openui_version: project.rootProject.openui_version
     }
 }
 

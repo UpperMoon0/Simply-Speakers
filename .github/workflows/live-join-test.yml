@@ -7,7 +7,7 @@ on:
       - "common/**"
       - "common-1.20.1/**"
       - "common-1.21.1/**"
-      - "shared-1.21plus/**"
+      - "shared/**"
       - "fabric-1.20.1/**"
       - "forge-1.20.1/**"
       - "fabric-1.21.1/**"
@@ -17,7 +17,79 @@ on:
       - ".github/workflows/live-join-test.yml"
 
 jobs:
+  test-shared:
+    needs: prepare-openui
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore OpenUI Maven Local Cache
+        id: cache-openui
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/com/nstut
+          key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+      - name: Download OpenUI Maven Artifacts Fallback
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: openui-m2
+          path: ~/.m2/repository/com/nstut
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: chmod +x gradlew
+      - name: Run shared unit and wiring tests
+        run: ./gradlew :common:test :common-1.20.1:test :common-1.21.1:test
+
+  prepare-openui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache OpenUI Maven Local
+        id: cache-openui
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/com/nstut
+          key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+      - name: Checkout OpenUI MC
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: 82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+          path: .openui-mc
+      - name: Set up OpenUI build JDK
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Make OpenUI Gradle executable
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        run: chmod +x .openui-mc/gradlew
+      - name: Install OpenUI MC artifacts
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          ./.openui-mc/gradlew -p .openui-mc \
+            :fabric-1.20.1:publishToMavenLocal \
+            :forge-1.20.1:publishToMavenLocal \
+            :fabric-1.21.1:publishToMavenLocal \
+            :neoforge-1.21.1:publishToMavenLocal \
+            :neoforge-26.1.2:publishToMavenLocal \
+            --no-parallel --no-daemon
+      - name: Upload OpenUI Maven Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: openui-m2
+          path: ~/.m2/repository/com/nstut
+          if-no-files-found: error
+
   live-join:
+    needs: prepare-openui
     timeout-minutes: 25
     runs-on: ubuntu-24.04
     strategy:
@@ -25,62 +97,43 @@ jobs:
       matrix:
         include:
           - target: fabric-1.20.1
+            java: 21
           - target: forge-1.20.1
+            java: 21
           - target: fabric-1.21.1
+            java: 21
           - target: neoforge-1.21.1
+            java: 21
           - target: neoforge-26.1.2
+            java: 21
     steps:
       - uses: actions/checkout@v4
-      - name: Checkout OpenUI MC
-        uses: actions/checkout@v4
+      - name: Restore OpenUI Maven Local Cache
+        id: cache-openui
+        uses: actions/cache@v4
         with:
-          repository: UpperMoon0/OpenUI-MC
-          # Build against OpenUI main; the alignment guard below enforces the
-          # openui_version this repo declares.
-          ref: main
-          path: .openui-mc
-      - name: Verify OpenUI-MC version alignment
-        shell: bash
-        run: |
-          set -euo pipefail
-          expected="$(sed -n 's/^openui_version[[:space:]]*=[[:space:]]*//p' gradle.properties | head -n1 | tr -d '\r' | xargs)"
-          actual="$(sed -n 's/^mod_version[[:space:]]*=[[:space:]]*//p' .openui-mc/gradle.properties | head -n1 | tr -d '\r' | xargs)"
-          if [[ -z "$expected" || -z "$actual" || "$actual" != "$expected" ]]; then
-            echo "OpenUI version mismatch: Simply Speakers requires '$expected' but the checked-out source publishes '$actual'." >&2
-            exit 1
-          fi
-      # OpenUI's Gradle plugins require Java 21 even when publishing a Java 17 artifact.
-      - name: Set up OpenUI build JDK
-        uses: actions/setup-java@v4
+          path: ~/.m2/repository/com/nstut
+          key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+      - name: Download OpenUI Maven Artifacts Fallback
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: openui-m2
+          path: ~/.m2/repository/com/nstut
+      - name: Set up target JDK
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: ${{ matrix.java }}
           cache: gradle
       - name: Install virtual display
-        run: sudo apt-get update && sudo apt-get install -y xvfb
+        run: sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y --no-install-recommends xvfb
       - name: Make Gradle executable
-        run: chmod +x gradlew .openui-mc/gradlew
-      - name: Install matching OpenUI MC artifact
-        shell: bash
-        run: |
-          if [[ "${{ matrix.target }}" == "neoforge-26.1.2" ]]; then
-            targets=(":neoforge-26.1.2:publishToMavenLocal")
-          else
-            # Legacy Gradle invocations configure all four legacy loader modules.
-            targets=(
-              ":fabric-1.20.1:publishToMavenLocal"
-              ":forge-1.20.1:publishToMavenLocal"
-              ":fabric-1.21.1:publishToMavenLocal"
-              ":neoforge-1.21.1:publishToMavenLocal"
-            )
-          fi
-          for target in "${targets[@]}"; do
-            ./.openui-mc/gradlew -p .openui-mc "$target"
-          done
+        run: chmod +x gradlew
       - name: Run automatic real-client join test
         run: python3 tools/live_join_test.py --target "${{ matrix.target }}"
-      - name: Upload test logs
-        if: always()
+      - name: Upload test logs on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: live-join-${{ matrix.target }}

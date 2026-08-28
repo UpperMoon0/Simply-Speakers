@@ -82,6 +82,7 @@ processResources {
     inputs.property 'mod_authors', rootProject.mod_authors
     inputs.property 'minecraft_version', project.minecraft_version
     inputs.property 'architectury_api_version', project.architectury_api_version
+    inputs.property 'openui_version', rootProject.openui_version
 
     filesMatching('META-INF/mods.toml') {
         expand(
@@ -91,7 +92,8 @@ processResources {
             mod_description: rootProject.mod_description,
             mod_authors: rootProject.mod_authors,
             minecraft_version: project.minecraft_version,
-            architectury_api_version: project.architectury_api_version
+            architectury_api_version: project.architectury_api_version,
+            openui_version: rootProject.openui_version
         )
     }
 }
