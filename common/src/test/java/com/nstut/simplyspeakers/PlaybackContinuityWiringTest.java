@@ -34,7 +34,7 @@ class PlaybackContinuityWiringTest {
     }
 
     @Test
-    void serverBlockEntitiesUseListenerRangePolicyAcrossAllVersions() throws IOException {
+    void serverBlockEntitiesDelegateListenerTrackingToPlaybackManager() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String speakerCode = Files.readString(root.resolve(module).resolve(
@@ -42,10 +42,19 @@ class PlaybackContinuityWiringTest {
             String proxyCode = Files.readString(root.resolve(module).resolve(
                     "src/main/java/com/nstut/simplyspeakers/blocks/entities/ProxySpeakerBlockEntity.java"));
 
-            assertTrue(speakerCode.contains("ListenerRangePolicy"),
-                    module + " SpeakerBlockEntity must use ListenerRangePolicy for range checks");
-            assertTrue(proxyCode.contains("ListenerRangePolicy"),
-                    module + " ProxySpeakerBlockEntity must use ListenerRangePolicy for range checks");
+            assertFalse(speakerCode.contains("listeningPlayers"),
+                    module + " SpeakerBlockEntity must not track listeners locally anymore");
+            assertFalse(proxyCode.contains("listeningPlayers"),
+                    module + " ProxySpeakerBlockEntity must not track listeners locally anymore");
+            assertTrue(speakerCode.contains("ServerPlaybackManager"),
+                    module + " SpeakerBlockEntity must delegate stop dispatch to ServerPlaybackManager");
+            assertTrue(proxyCode.contains("ServerPlaybackManager"),
+                    module + " ProxySpeakerBlockEntity must delegate stop dispatch to ServerPlaybackManager");
+
+            String managerCode = Files.readString(root.resolve(module).resolve(
+                    "src/main/java/com/nstut/simplyspeakers/speakers/ServerPlaybackManager.java"));
+            assertTrue(managerCode.contains("ServerPlaybackPlanner"),
+                    module + " ServerPlaybackManager must plan scans through the shared ServerPlaybackPlanner");
         }
     }
 
@@ -62,7 +71,7 @@ class PlaybackContinuityWiringTest {
     }
 
     @Test
-    void proxySpeakerStopAudioBroadcastsToAllPlayersAcrossAllVersions() throws IOException {
+    void proxySpeakerStopAudioDelegatesToCentralManagerAcrossAllVersions() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String proxyCode = Files.readString(root.resolve(module).resolve(
@@ -72,8 +81,8 @@ class PlaybackContinuityWiringTest {
             int stopMethodEnd = proxyCode.indexOf("private void tick(", stopMethodStart);
             String stopMethod = proxyCode.substring(stopMethodStart, stopMethodEnd);
 
-            assertTrue(stopMethod.contains("serverLevel.players()"),
-                    module + " ProxySpeakerBlockEntity.stopAudio must broadcast stop packets to all players in serverLevel");
+            assertTrue(stopMethod.contains("ServerPlaybackManager.stopEmitter"),
+                    module + " ProxySpeakerBlockEntity.stopAudio must route through ServerPlaybackManager.stopEmitter");
         }
     }
 
