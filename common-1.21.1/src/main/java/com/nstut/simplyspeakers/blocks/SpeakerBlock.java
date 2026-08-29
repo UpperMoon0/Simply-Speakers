@@ -143,19 +143,24 @@ public class SpeakerBlock extends BaseEntityBlock {
 
             if (currentPower != hasSignal) {
                 LOGGER.info("Power state changed at {}: {} -> {}", pos, currentPower, hasSignal);
-                // Update the block state first
+                // Update the block state first (boolean on/off visuals and POWER-mode gating).
                 level.setBlock(pos, state.setValue(POWERED, hasSignal), 3);
+            }
 
-                // Then trigger audio based on the new state
-                BlockEntity blockEntity = level.getBlockEntity(pos);
-                if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                    // 0.8.x: route raw signal strength through the configured redstone mode.
-                    int signalStrength = level.getBestNeighborSignal(pos);
+            // 0.8.x: analog redstone modes must observe every raw signal change, independent
+            // of the boolean POWERED property (e.g. 3 -> 8 -> 14 keeps POWERED=true). Feed the
+            // raw strength into the redstone logic whenever it differs from the last observed
+            // value; RedstoneLogic ignores no-op transitions, so boolean-only modes behave
+            // unchanged and no extra block updates (hence no update loops) are scheduled.
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
+                int signalStrength = level.getBestNeighborSignal(pos);
+                if (signalStrength != speakerEntity.getLastRedstoneSignal()) {
                     LOGGER.info("Redstone signal {} at {}", signalStrength, pos);
                     speakerEntity.handleRedstoneChange(signalStrength);
-                } else {
-                    LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);
                 }
+            } else {
+                LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);
             }
         }
     }

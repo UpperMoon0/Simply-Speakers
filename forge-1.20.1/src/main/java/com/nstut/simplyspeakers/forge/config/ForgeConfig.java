@@ -28,6 +28,10 @@ public class ForgeConfig {
             .comment("The maximum upload size in bytes")
             .defineInRange("maxUploadSize", Config.maxUploadSize, Config.MIN_UPLOAD_SIZE, Config.MAX_UPLOAD_SIZE);
 
+    public static final ForgeConfigSpec.BooleanValue ALLOW_REMOTE_STREAMS = BUILDER
+            .comment("Whether clients may stream remote HTTP(S) audio URLs through this server")
+            .define("allowRemoteStreams", Config.allowRemoteStreams);
+
     public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
             .comment("Enable debug logging for troubleshooting audio/settings issues")
             .define("debugLogging", Config.debugLogging);
@@ -41,7 +45,7 @@ public class ForgeConfig {
     @SubscribeEvent
     public static void onLoad(final ModConfigEvent event) {
         if (event.getConfig().getSpec() == SPEC) {
-            Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get());
+            Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get(), ALLOW_REMOTE_STREAMS.get());
             Config.debugLogging = DEBUG_LOGGING.get();
             
             // Set logger level based on debug config

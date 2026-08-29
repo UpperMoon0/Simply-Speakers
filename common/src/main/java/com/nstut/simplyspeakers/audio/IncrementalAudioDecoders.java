@@ -48,8 +48,7 @@ public final class IncrementalAudioDecoders {
      */
     public static AudioInputStream openPcmStreamFromUrl(java.io.InputStream rawStream, String url)
             throws UnsupportedAudioFileException, IOException {
-        String lower = url.toLowerCase();
-        if (lower.endsWith(".mp3")) {
+        if (StreamTracks.isMp3Url(url)) {
             return new IncrementalMp3AudioInputStream(rawStream);
         }
         java.io.InputStream buffered = new BufferedInputStream(rawStream);

@@ -96,7 +96,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         String playing = playingAudioId.get();
         String selected = selectedAudioId.get();
         return audioFiles.get().stream()
-                .filter(a -> a.getOriginalFilename().toLowerCase(Locale.ROOT).contains(q))
+                .filter(a -> q.isEmpty() || a.hasTag(q))
                 .map(a -> new AudioRowModel(a, a.getUuid().equals(selected), a.getUuid().equals(playing)))
                 .toList();
     });
@@ -219,7 +219,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
         Card card = Ui.card().outlined(true).padding(8).selected(selected);
         VStack left = Ui.column(
-                Ui.text(Component.literal(audio.getOriginalFilename())).marquee(),
+                Ui.text(Component.literal(audio.effectiveDisplayName())).marquee(),
                 audio.getDurationSeconds() > 0
                         ? Ui.text(Component.translatable("gui.simplyspeakers.duration", formatDuration(audio.getDurationSeconds())))
                         : Ui.text(Component.empty())
@@ -599,7 +599,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private String filenameOf(String uuid) {
         for (AudioFileMetadata a : audioFiles.get()) {
-            if (a.getUuid().equals(uuid)) return a.getOriginalFilename();
+            if (a.getUuid().equals(uuid)) return a.effectiveDisplayName();
         }
         return uuid;
     }

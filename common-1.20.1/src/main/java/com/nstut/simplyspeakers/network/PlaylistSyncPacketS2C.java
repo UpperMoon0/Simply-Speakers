@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
+import com.nstut.simplyspeakers.playlist.Playlist;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -40,12 +41,16 @@ public class PlaylistSyncPacketS2C {
     public PlaylistSyncPacketS2C(FriendlyByteBuf buf) {
         this.pos = buf.readBlockPos();
         this.fullStateKey = buf.readUtf(256);
-        int count = Math.min(buf.readVarInt(), 512);
+        int count = buf.readVarInt();
         this.audioIds = new ArrayList<>();
         this.filenames = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            this.audioIds.add(buf.readUtf(256));
-            this.filenames.add(buf.readUtf(256));
+            String id = buf.readUtf(256);
+            String name = buf.readUtf(256);
+            if (this.audioIds.size() < Playlist.MAX_ENTRIES) {
+                this.audioIds.add(id);
+                this.filenames.add(name);
+            }
         }
         this.currentIndex = buf.readVarInt();
         this.shuffle = buf.readBoolean();
@@ -57,8 +62,9 @@ public class PlaylistSyncPacketS2C {
     public void encode(FriendlyByteBuf buf) {
         buf.writeBlockPos(this.pos);
         buf.writeUtf(this.fullStateKey, 256);
-        buf.writeVarInt(this.audioIds.size());
-        for (int i = 0; i < this.audioIds.size(); i++) {
+        int entryCount = Math.min(this.audioIds.size(), Playlist.MAX_ENTRIES);
+        buf.writeVarInt(entryCount);
+        for (int i = 0; i < entryCount; i++) {
             buf.writeUtf(this.audioIds.get(i), 256);
             buf.writeUtf(i < this.filenames.size() ? this.filenames.get(i) : "", 256);
         }

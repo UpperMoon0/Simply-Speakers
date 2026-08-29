@@ -2,6 +2,7 @@ package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
+import com.nstut.simplyspeakers.playlist.Playlist;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
@@ -50,8 +51,9 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
     public static void encode(RegistryFriendlyByteBuf buffer, PlaylistSyncPacketS2C packet) {
         buffer.writeBlockPos(packet.pos);
         buffer.writeUtf(packet.fullStateKey, 256);
-        buffer.writeVarInt(packet.audioIds.size());
-        for (int i = 0; i < packet.audioIds.size(); i++) {
+        int entryCount = Math.min(packet.audioIds.size(), Playlist.MAX_ENTRIES);
+        buffer.writeVarInt(entryCount);
+        for (int i = 0; i < entryCount; i++) {
             buffer.writeUtf(packet.audioIds.get(i), 256);
             buffer.writeUtf(i < packet.filenames.size() ? packet.filenames.get(i) : "", 256);
         }
@@ -65,12 +67,16 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
     public static PlaylistSyncPacketS2C decode(RegistryFriendlyByteBuf buffer) {
         BlockPos pos = buffer.readBlockPos();
         String fullStateKey = buffer.readUtf(256);
-        int count = Math.min(buffer.readVarInt(), 512);
+        int count = buffer.readVarInt();
         List<String> ids = new ArrayList<>();
         List<String> names = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            ids.add(buffer.readUtf(256));
-            names.add(buffer.readUtf(256));
+            String id = buffer.readUtf(256);
+            String name = buffer.readUtf(256);
+            if (ids.size() < Playlist.MAX_ENTRIES) {
+                ids.add(id);
+                names.add(name);
+            }
         }
         return new PlaylistSyncPacketS2C(pos, fullStateKey, ids, names, buffer.readVarInt(),
                 buffer.readBoolean(), buffer.readVarInt(), buffer.readVarInt(), buffer.readBoolean());

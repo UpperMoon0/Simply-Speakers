@@ -44,7 +44,7 @@ public class SelectAudioPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.blockPos)) {
                 return;
             }
 
@@ -56,6 +56,11 @@ public class SelectAudioPacketC2S {
                 }
 
                 if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(pkt.audioId)) {
+                    if (!com.nstut.simplyspeakers.Config.isRemoteStreamingAllowed()
+                            || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(pkt.audioId)
+                            || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(pkt.audioId, false)) {
+                        return;
+                    }
                     if (!Config.disableUpload || player.hasPermissions(2)) {
                         speaker.setSelectedAudio(pkt.audioId, pkt.audioId);
                     }

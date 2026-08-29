@@ -50,7 +50,7 @@ public class SelectAudioPacketC2S implements CustomPacketPayload {
     public static void handle(SelectAudioPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, packet.blockPos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.blockPos)) {
                 return;
             }
 
@@ -62,6 +62,11 @@ public class SelectAudioPacketC2S implements CustomPacketPayload {
                 }
 
                 if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(packet.audioId)) {
+                    if (!com.nstut.simplyspeakers.Config.isRemoteStreamingAllowed()
+                            || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(packet.audioId)
+                            || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(packet.audioId, false)) {
+                        return;
+                    }
                     if (!Config.disableUpload || player.hasPermissions(2)) {
                         speaker.setSelectedAudio(packet.audioId, packet.audioId);
                     }

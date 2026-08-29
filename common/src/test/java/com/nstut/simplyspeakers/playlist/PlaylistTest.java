@@ -115,6 +115,42 @@ class PlaylistTest {
     }
 
     @Test
+    void queueNextResumesCanonicalWalkAfterQueuedTrack() {
+        playlist.next();
+        playlist.next();
+        assertEquals("b", playlist.current().getAudioId());
+        playlist.queueNext("a");
+        Playlist.Advance advance = playlist.next();
+        assertEquals("a", advance.track().getAudioId());
+        Playlist.Advance resume = playlist.next();
+        assertEquals("c", resume.track().getAudioId());
+        Playlist.Advance after = playlist.next();
+        assertEquals(Playlist.AdvanceResult.EXHAUSTED, after.result());
+    }
+
+    @Test
+    void queueNextInShuffleResumesCanonicalWalk() {
+        Playlist walk = new Playlist();
+        walk.add("a", "a.mp3");
+        walk.add("b", "b.mp3");
+        walk.add("c", "c.mp3");
+        walk.setShuffle(true, 42L);
+        walk.next();
+
+        playlist.setShuffle(true, 42L);
+        playlist.next();
+        assertEquals(walk.getCurrentIndex(), playlist.getCurrentIndex());
+        playlist.queueNext("a");
+        Playlist.Advance advance = playlist.next();
+        assertEquals("a", advance.track().getAudioId());
+        Playlist.Advance resume = playlist.next();
+        Playlist.Advance expected = walk.next();
+        assertEquals(expected.result(), resume.result());
+        assertEquals(expected.hasTrack() ? expected.track().getAudioId() : null,
+                resume.hasTrack() ? resume.track().getAudioId() : null);
+    }
+
+    @Test
     void shuffleOrderCoversAllTracksBeforeRepeating() {
         playlist.setShuffle(true, 42L);
         java.util.Set<String> visited = new java.util.HashSet<>();
@@ -254,5 +290,37 @@ class PlaylistTest {
         // setCurrentIndex clamps instead of throwing.
         playlist.setCurrentIndex(50);
         assertEquals(2, playlist.getCurrentIndex());
+    }
+
+    @Test
+    void addIgnoresTracksBeyondTheCap() {
+        Playlist full = new Playlist();
+        for (int i = 0; i < Playlist.MAX_ENTRIES; i++) {
+            full.add("id-" + i, "name-" + i + ".mp3");
+        }
+        assertEquals(Playlist.MAX_ENTRIES, full.size());
+        full.add("overflow", "overflow.mp3");
+        assertEquals(Playlist.MAX_ENTRIES, full.size());
+    }
+
+    @Test
+    void constructorTruncatesToTheCap() {
+        java.util.List<PlaylistTrack> tooMany = new java.util.ArrayList<>();
+        for (int i = 0; i < Playlist.MAX_ENTRIES + 10; i++) {
+            tooMany.add(PlaylistTrack.of("id-" + i, "name-" + i + ".mp3"));
+        }
+        Playlist playlist = new Playlist(tooMany);
+        assertEquals(Playlist.MAX_ENTRIES, playlist.size());
+    }
+
+    @Test
+    void setTracksTruncatesToTheCap() {
+        java.util.List<PlaylistTrack> tooMany = new java.util.ArrayList<>();
+        for (int i = 0; i < Playlist.MAX_ENTRIES + 1; i++) {
+            tooMany.add(PlaylistTrack.of("id-" + i, "name-" + i + ".mp3"));
+        }
+        playlist.setTracks(tooMany);
+        assertEquals(Playlist.MAX_ENTRIES, playlist.size());
+        assertNull(playlist.current());
     }
 }

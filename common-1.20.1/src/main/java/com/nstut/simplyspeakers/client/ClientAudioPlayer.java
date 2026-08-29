@@ -11,6 +11,7 @@ import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
+import com.nstut.simplyspeakers.network.RemoteStreamEofPacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
 import net.minecraft.client.Minecraft;
@@ -57,6 +58,7 @@ public class ClientAudioPlayer {
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
+    private static final int MAX_REDIRECTS = 3;
 
     private static final Map<BlockPos, com.nstut.simplyspeakers.audio.DirectionalAudio.Extras> directionalExtras = new ConcurrentHashMap<>();
 
@@ -167,7 +169,16 @@ public class ClientAudioPlayer {
         }
 
         if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(metadata.getUuid())) {
-            playFromUrl(networkKey, pos, metadata.getUuid(), startPositionSeconds, isLooping);
+            if (!Config.isRemoteStreamingAllowed()) {
+                SimplySpeakers.LOGGER.warn("CLIENT: Remote audio streams are disabled by server config; ignoring URL track {}", metadata.getUuid());
+                return;
+            }
+            if (!com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(metadata.getUuid(), false)) {
+                SimplySpeakers.LOGGER.warn("CLIENT: URL host is not allowed: {}", metadata.getUuid());
+                return;
+            }
+            playFromUrl(networkKey, pos, metadata.getUuid(),
+                    com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds), isLooping);
             return;
         }
 
@@ -494,20 +505,56 @@ public class ClientAudioPlayer {
 
     private static AudioInputStream openUrlStream(String url) throws IOException {
         try {
-            java.net.URLConnection connection = new java.net.URL(url).openConnection();
-            connection.setConnectTimeout(8000);
-            connection.setReadTimeout(15000);
-            if (connection instanceof java.net.HttpURLConnection http) {
-                http.setRequestProperty("Icy-MetaData", "1");
-                http.setRequestProperty("User-Agent", SimplySpeakers.MOD_ID + "/0.8.2");
-                int code = http.getResponseCode();
-                if (code / 100 != 2 && code != 302) {
-                    throw new IOException("HTTP " + code + " for stream " + url);
+            String currentUrl = url;
+            int redirects = 0;
+            while (true) {
+                if (!com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(currentUrl)) {
+                    throw new IOException("Stream URL host is not allowed: " + currentUrl);
                 }
+                java.net.URLConnection connection = new java.net.URL(currentUrl).openConnection();
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(15000);
+                if (connection instanceof java.net.HttpURLConnection http) {
+                    http.setRequestProperty("Icy-MetaData", "1");
+                    http.setRequestProperty("User-Agent", SimplySpeakers.MOD_ID + "/0.8.2");
+                    http.setInstanceFollowRedirects(false);
+                    int code = http.getResponseCode();
+                    if (code >= 300 && code < 400) {
+                        String location = http.getHeaderField("Location");
+                        http.disconnect();
+                        if (location == null || location.isBlank()) {
+                            throw new IOException("HTTP " + code + " redirect without Location for stream " + currentUrl);
+                        }
+                        if (redirects >= MAX_REDIRECTS) {
+                            throw new IOException("Too many redirects for stream " + url);
+                        }
+                        redirects++;
+                        java.net.URI base;
+                        try {
+                            base = new java.net.URI(currentUrl).resolve(location.trim());
+                        } catch (Exception e) {
+                            throw new IOException("Invalid redirect location for stream " + currentUrl, e);
+                        }
+                        currentUrl = base.toString();
+                        continue;
+                    }
+                    if (code / 100 != 2) {
+                        throw new IOException("HTTP " + code + " for stream " + currentUrl);
+                    }
+                    return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), currentUrl);
+                }
+                return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), currentUrl);
             }
-            return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), url);
         } catch (javax.sound.sampled.UnsupportedAudioFileException e) {
             throw new IOException("Unsupported internet stream format: " + url, e);
+        }
+    }
+
+    private static void sendRemoteStreamEofReport(String audioId) {
+        try {
+            PacketRegistries.CHANNEL.sendToServer(new RemoteStreamEofPacketC2S(audioId));
+        } catch (Exception e) {
+            SimplySpeakers.LOGGER.debug("CLIENT: Failed to report remote stream EOF", e);
         }
     }
 
@@ -521,6 +568,18 @@ public class ClientAudioPlayer {
             try {
                 pcm = openUrlStream(url);
                 AudioFormat format = pcm.getFormat();
+                float startSeconds = com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds);
+                if (startSeconds > 0.0f) {
+                    long framesToSkip = PlaybackOffset.frameOffset(
+                            startSeconds,
+                            resource.isLooping.get(),
+                            pcm.getFrameLength(),
+                            format.getFrameRate());
+                    long bytesToSkip = framesToSkip * format.getFrameSize();
+                    if (bytesToSkip > 0) {
+                        skipFully(pcm, bytesToSkip);
+                    }
+                }
                 int alFormat = AL10.AL_FORMAT_MONO16;
                 int bufferSizeBytes = Math.max(4096, (int) (format.getFrameRate() * format.getFrameSize() * BUFFER_SIZE_SECONDS));
                 byte[] bufferData = new byte[bufferSizeBytes];
@@ -585,6 +644,9 @@ public class ClientAudioPlayer {
                 }
             }
 
+            if (completed && !resource.stopFlag.get() && !resource.isLooping.get()) {
+                sendRemoteStreamEofReport(url);
+            }
             if (completed && resource.isLooping.get() && !resource.stopFlag.get()) {
                 startPositionSeconds = 0.0f;
                 continue;

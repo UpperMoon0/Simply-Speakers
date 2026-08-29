@@ -339,8 +339,11 @@ public final class ServerSpeakerControlService {
 
         broadcastPlaylistSync(level, fullStateKey, state);
         if (trackChanged) {
-            broadcastStateUpdate(level, fullStateKey, state, "play");
-            ServerPlaybackManager.resyncState(server, level, fullStateKey);
+            boolean activelyPlaying = state.isPlaying() && !state.isPaused();
+            broadcastStateUpdate(level, fullStateKey, state, activelyPlaying ? "play" : "update");
+            if (activelyPlaying) {
+                ServerPlaybackManager.resyncState(server, level, fullStateKey);
+            }
             SpeakerEvents.fire(SpeakerEvents.Type.TRACK_CHANGED, fullStateKey, state.getNetworkName(), state.getAudioId());
         }
         ServerSpeakerRegistry.markDirty();
@@ -427,7 +430,6 @@ public final class ServerSpeakerControlService {
         if (state == null) return false;
         state.setMaxVolume(Math.max(0.0f, Math.min(1.0f, volume)));
         broadcastStateUpdate(level, fullStateKey, state, "update");
-        ServerPlaybackManager.resyncState(server, level, fullStateKey);
         ServerSpeakerRegistry.markDirty();
         return true;
     }
@@ -438,7 +440,6 @@ public final class ServerSpeakerControlService {
         if (state == null) return false;
         state.setMaxRange(Math.max(1, range));
         broadcastStateUpdate(level, fullStateKey, state, "update");
-        ServerPlaybackManager.resyncState(server, level, fullStateKey);
         ServerSpeakerRegistry.markDirty();
         return true;
     }
@@ -449,7 +450,6 @@ public final class ServerSpeakerControlService {
         if (state == null) return false;
         state.setLooping(looping);
         broadcastStateUpdate(level, fullStateKey, state, "update");
-        ServerPlaybackManager.resyncState(server, level, fullStateKey);
         ServerSpeakerRegistry.markDirty();
         return true;
     }

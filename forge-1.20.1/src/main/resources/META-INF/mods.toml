@@ -46,6 +46,6 @@ side = "CLIENT"
 # Optional integrations
 [[dependencies.simplyspeakers]]
     modId = "computercraft"
-    type = "optional"
+    mandatory = false
     ordering = "AFTER"
     side = "BOTH"

@@ -4,7 +4,10 @@ import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
 import com.nstut.simplyspeakers.SpeakerPermissions;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import dan200.computercraft.api.lua.ILuaCallback;
+import dan200.computercraft.api.lua.LuaException;
 import dan200.computercraft.api.lua.LuaFunction;
+import dan200.computercraft.api.lua.MethodResult;
 import dan200.computercraft.api.peripheral.IComputerAccess;
 import dan200.computercraft.api.peripheral.IPeripheral;
 import net.minecraft.core.BlockPos;
@@ -16,7 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 
 /**
  * CC:Tweaked peripheral exposed by every main Speaker block entity. Methods run
@@ -27,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SimplySpeakersPeripheral implements IPeripheral {
 
     private static final Set<SimplySpeakersPeripheral> LIVE = ConcurrentHashMap.newKeySet();
+    private static volatile SpeakerEvents.Listener eventListener = null;
     private static volatile boolean listenerRegistered = false;
 
     private final SpeakerBlockEntity speaker;
@@ -37,20 +44,25 @@ public class SimplySpeakersPeripheral implements IPeripheral {
         registerListenerOnce();
     }
 
-    /** Clears all peripheral instances and the shared event listener registration. Call on
-     *  server/world shutdown so a long-running, automation-heavy server does not accumulate
-     *  stale peripheral references across speaker reloads. */
+    /** Clears all peripheral instances and unregisters the shared event listener. Call on
+     *  server/world shutdown so the listener is not registered twice on top of the previous
+     *  one (SpeakerEvents keeps listeners in a list, so re-registering without unregistering
+     *  would duplicate every event after each world/server reset). */
     public static void reset() {
-        LIVE.clear();
+        SpeakerEvents.Listener listener = eventListener;
+        if (listener != null) {
+            SpeakerEvents.unregister(listener);
+            eventListener = null;
+        }
         listenerRegistered = false;
+        LIVE.clear();
     }
 
     private static void registerListenerOnce() {
         if (listenerRegistered) return;
         synchronized (SimplySpeakersPeripheral.class) {
             if (listenerRegistered) return;
-            listenerRegistered = true;
-            SpeakerEvents.register((type, stateKey, networkName, audioId) -> {
+            SpeakerEvents.Listener listener = (type, stateKey, networkName, audioId) -> {
                 String eventName = switch (type) {
                     case STARTED -> "speaker_started";
                     case PAUSED -> "speaker_paused";
@@ -66,7 +78,10 @@ public class SimplySpeakersPeripheral implements IPeripheral {
                         computer.queueEvent(eventName, computer.getAttachmentName(), audioId, networkName);
                     }
                 }
-            });
+            };
+            SpeakerEvents.register(listener);
+            eventListener = listener;
+            listenerRegistered = true;
         }
     }
 
@@ -77,6 +92,34 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     private BlockPos pos() {
         return speaker.getBlockPos();
+    }
+
+    /**
+     * Runs a read-only snapshot on the main server thread and resumes the Lua caller
+     * with the result, keeping mutable server state off the Lua thread. The Lua method
+     * yields until the snapshot completes (interruptible by "terminate").
+     */
+    private MethodResult readOnServerThread(@Nullable ServerLevel level, Supplier<Object> snapshot) {
+        if (level == null) return MethodResult.of(snapshot.get());
+        CompletableFuture<Object> future = new CompletableFuture<>();
+        level.getServer().execute(() -> {
+            try {
+                future.complete(snapshot.get());
+            } catch (Exception e) {
+                future.completeExceptionally(e);
+            }
+        });
+        return MethodResult.pullEvent(null, new ILuaCallback() {
+            @Override
+            public MethodResult resume(Object[] args) throws LuaException {
+                if (!future.isDone()) return MethodResult.pullEvent(null, this);
+                try {
+                    return MethodResult.of(future.join());
+                } catch (CompletionException e) {
+                    throw new LuaException("Failed to read speaker state");
+                }
+            }
+        });
     }
 
     /** Whether untrusted automation (this CC peripheral) may drive transport/settings. */
@@ -192,8 +235,12 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     /** Lua-friendly playback status snapshot. */
     @LuaFunction
-    public final Map<String, Object> getStatus() {
+    public final MethodResult getStatus(IComputerAccess computer) {
         ServerLevel level = serverLevel();
+        return readOnServerThread(level, () -> buildStatus(level));
+    }
+
+    private Map<String, Object> buildStatus(@Nullable ServerLevel level) {
         Map<String, Object> result = new HashMap<>();
         var state = level != null ? SpeakerApi.getState(level, pos()) : null;
         result.put("playing", state != null && state.isPlaying() && !state.isPaused());
@@ -218,9 +265,12 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     @LuaFunction
-    public final double getVolume() {
-        var state = serverLevel() != null ? SpeakerApi.getState(serverLevel(), pos()) : null;
-        return state != null ? state.getMaxVolume() : 1.0;
+    public final MethodResult getVolume(IComputerAccess computer) {
+        ServerLevel level = serverLevel();
+        return readOnServerThread(level, () -> {
+            var state = level != null ? SpeakerApi.getState(level, pos()) : null;
+            return (Object) (state != null ? state.getMaxVolume() : 1.0);
+        });
     }
 
     @LuaFunction(mainThread = true)
@@ -230,9 +280,12 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     @LuaFunction
-    public final int getRange() {
-        var state = serverLevel() != null ? SpeakerApi.getState(serverLevel(), pos()) : null;
-        return state != null ? state.getMaxRange() : 16;
+    public final MethodResult getRange(IComputerAccess computer) {
+        ServerLevel level = serverLevel();
+        return readOnServerThread(level, () -> {
+            var state = level != null ? SpeakerApi.getState(level, pos()) : null;
+            return (Object) (state != null ? state.getMaxRange() : 16);
+        });
     }
 
     @LuaFunction(mainThread = true)
@@ -242,9 +295,12 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     @LuaFunction
-    public final boolean isLooping() {
-        var state = serverLevel() != null ? SpeakerApi.getState(serverLevel(), pos()) : null;
-        return state != null && state.isLooping();
+    public final MethodResult isLooping(IComputerAccess computer) {
+        ServerLevel level = serverLevel();
+        return readOnServerThread(level, () -> {
+            var state = level != null ? SpeakerApi.getState(level, pos()) : null;
+            return (Object) (state != null && state.isLooping());
+        });
     }
 
     // ------------------------------------------------------------------
@@ -272,21 +328,24 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     /** Returns playlist tracks with 1-based slot numbers. */
     @LuaFunction
-    public final List<Object> getPlaylist() {
-        List<Object> result = new ArrayList<>();
-        var state = serverLevel() != null ? SpeakerApi.getState(serverLevel(), pos()) : null;
-        if (state != null && state.hasPlaylist()) {
-            var playlist = state.getPlaylist();
-            int slot = 1;
-            for (var track : playlist.getTracks()) {
-                Map<String, Object> entry = new HashMap<>();
-                entry.put("slot", slot++);
-                entry.put("name", track.getFilename());
-                entry.put("id", track.getAudioId());
-                result.add(entry);
+    public final MethodResult getPlaylist(IComputerAccess computer) {
+        ServerLevel level = serverLevel();
+        return readOnServerThread(level, () -> {
+            List<Object> result = new ArrayList<>();
+            var state = level != null ? SpeakerApi.getState(level, pos()) : null;
+            if (state != null && state.hasPlaylist()) {
+                var playlist = state.getPlaylist();
+                int slot = 1;
+                for (var track : playlist.getTracks()) {
+                    Map<String, Object> entry = new HashMap<>();
+                    entry.put("slot", slot++);
+                    entry.put("name", track.getFilename());
+                    entry.put("id", track.getAudioId());
+                    result.add(entry);
+                }
             }
-        }
-        return result;
+            return (Object) result;
+        });
     }
 
     // ------------------------------------------------------------------
@@ -294,9 +353,12 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     // ------------------------------------------------------------------
 
     @LuaFunction
-    public final String getNetworkName() {
-        var state = serverLevel() != null ? SpeakerApi.getState(serverLevel(), pos()) : null;
-        return state != null ? state.getNetworkName() : "";
+    public final MethodResult getNetworkName(IComputerAccess computer) {
+        ServerLevel level = serverLevel();
+        return readOnServerThread(level, () -> {
+            var state = level != null ? SpeakerApi.getState(level, pos()) : null;
+            return (Object) (state != null ? state.getNetworkName() : "");
+        });
     }
 
     @LuaFunction(mainThread = true)

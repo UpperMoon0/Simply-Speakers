@@ -28,6 +28,7 @@ public class PacketRegistries {
         NetworkManager.registerReceiver(NetworkManager.c2s(), SpeakerPolicyPacketC2S.TYPE, SpeakerPolicyPacketC2S.STREAM_CODEC, SpeakerPolicyPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), UpdateAudioMetaPacketC2S.TYPE, UpdateAudioMetaPacketC2S.STREAM_CODEC, UpdateAudioMetaPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), RequestPlaylistPacketC2S.TYPE, RequestPlaylistPacketC2S.STREAM_CODEC, RequestPlaylistPacketC2S::handle);
+        NetworkManager.registerReceiver(NetworkManager.c2s(), RemoteStreamEofPacketC2S.TYPE, RemoteStreamEofPacketC2S.STREAM_CODEC, RemoteStreamEofPacketC2S::handle);
     }
 
     public static void registerS2C() {

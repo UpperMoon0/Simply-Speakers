@@ -90,8 +90,11 @@ public final class ServerSpeakerRegistry {
         if (!dirty) return;
         synchronized (ServerSpeakerRegistry.class) {
             if (!dirty) return;
-            dirty = false;
-            saveRegistry();
+            // Only clear the dirty flag after a successful write, so an I/O failure keeps
+            // the retry pending for the next flush instead of losing the mutation.
+            if (saveRegistry()) {
+                dirty = false;
+            }
         }
     }
 
@@ -101,8 +104,14 @@ public final class ServerSpeakerRegistry {
         loadRegistry();
     }
 
-    public static synchronized void saveRegistry() {
-        if (registryFilePath == null) return;
+    /**
+     * Writes the registry to disk atomically.
+     *
+     * @return true when the file was written successfully (or there is no file target);
+     *         false when the write failed so {@link #flushDirty()} keeps the dirty flag set.
+     */
+    public static synchronized boolean saveRegistry() {
+        if (registryFilePath == null) return true;
 
         Path tmpPath = registryFilePath.resolveSibling("speaker_registry.json.tmp");
         try {
@@ -120,11 +129,13 @@ public final class ServerSpeakerRegistry {
                 Files.move(tmpPath, registryFilePath, StandardCopyOption.REPLACE_EXISTING);
             }
             SimplySpeakers.LOGGER.debug("SERVER: Saved speaker registry to {}", registryFilePath);
+            return true;
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("SERVER: Failed to save speaker registry", e);
             try {
                 Files.deleteIfExists(tmpPath);
             } catch (IOException ignored) {}
+            return false;
         }
     }
 
@@ -191,13 +202,19 @@ public final class ServerSpeakerRegistry {
 
     public static SpeakerState getOrCreateSpeakerState(Level level, String stateKey) {
         String fullKey = getRegistryKey(level, stateKey);
-        return speakerStates.computeIfAbsent(fullKey, k -> new SpeakerState());
+        SpeakerState existing = speakerStates.get(fullKey);
+        if (existing != null) return existing;
+        SpeakerState created = speakerStates.computeIfAbsent(fullKey, k -> new SpeakerState());
+        markDirty();
+        return created;
     }
 
     public static void applyLegacyStandaloneTemplate(Level level, String stateKey) {
         if (legacyDefaultTemplate == null) return;
         String fullKey = getRegistryKey(level, stateKey);
-        speakerStates.computeIfAbsent(fullKey, k -> legacyDefaultTemplate.copy());
+        if (speakerStates.containsKey(fullKey)) return;
+        speakerStates.put(fullKey, legacyDefaultTemplate.copy());
+        markDirty();
     }
 
     public static SpeakerState getSpeakerState(Level level, String stateKey) {
@@ -245,17 +262,21 @@ public final class ServerSpeakerRegistry {
     public static void updateSpeakerStateByFullKey(String fullKey, SpeakerState state) {
         if (fullKey == null || state == null) return;
         speakerStates.put(fullKey, state.copy());
+        markDirty();
     }
 
     public static void updateSpeakerState(Level level, String stateKey, SpeakerState state) {
         if (state == null) return;
         String fullKey = getRegistryKey(level, stateKey);
         speakerStates.put(fullKey, state.copy());
+        markDirty();
     }
 
     public static void removeSpeakerState(Level level, String stateKey) {
         String fullKey = getRegistryKey(level, stateKey);
-        speakerStates.remove(fullKey);
+        if (speakerStates.remove(fullKey) != null) {
+            markDirty();
+        }
     }
 
 

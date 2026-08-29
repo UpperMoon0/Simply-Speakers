@@ -4,6 +4,11 @@ import net.minecraft.network.FriendlyByteBuf;
 
 /** Metadata for one audio library entry, including 0.8.x organization fields. */
 public class AudioFileMetadata {
+    /** Maximum number of tags stored or sent on the wire; shared with the audio-list packet framing. */
+    public static final int MAX_TAGS = 32;
+    /** Maximum character length of a single tag. */
+    public static final int MAX_TAG_LENGTH = 32;
+
     private final String uuid;
     private final String originalFilename;
     private final String ownerUUID;
@@ -50,8 +55,23 @@ public class AudioFileMetadata {
     public java.util.List<String> getTags() { return library().getTags(); }
     public AudioFileMetadata withTags(java.util.List<String> newTags) {
         AudioFileMetadata copy = copy();
-        copy.library().setTags(newTags);
+        copy.library().setTags(normalizeTags(newTags));
         return copy;
+    }
+
+    private static java.util.List<String> normalizeTags(java.util.List<String> tags) {
+        if (tags == null) return null;
+        int limit = Math.min(tags.size(), MAX_TAGS);
+        java.util.List<String> result = new java.util.ArrayList<>(limit);
+        for (int i = 0; i < limit; i++) {
+            result.add(truncateTag(tags.get(i)));
+        }
+        return result;
+    }
+
+    private static String truncateTag(String tag) {
+        if (tag == null) return null;
+        return tag.length() > MAX_TAG_LENGTH ? tag.substring(0, MAX_TAG_LENGTH) : tag;
     }
 
     public boolean hasTag(String needle) { return library().matchesQuery(needle, originalFilename); }
@@ -101,9 +121,11 @@ public class AudioFileMetadata {
         if (hasLibraryData) {
             buf.writeUtf(getDisplayName());
             buf.writeUtf(getCategory());
-            buf.writeVarInt(getTags().size());
-            for (String tag : getTags()) {
-                buf.writeUtf(tag);
+            java.util.List<String> tags = getTags();
+            int tagCount = Math.min(tags.size(), MAX_TAGS);
+            buf.writeVarInt(tagCount);
+            for (int i = 0; i < tagCount; i++) {
+                buf.writeUtf(truncateTag(tags.get(i)));
             }
             buf.writeLong(getUploadedAt());
             buf.writeUtf(getUploaderName());
@@ -120,10 +142,13 @@ public class AudioFileMetadata {
         if (buf.readableBytes() >= 1 && buf.readBoolean()) {
             metadata.library().setDisplayName(buf.readUtf(256));
             metadata.library().setCategory(buf.readUtf(64));
-            int tagCount = Math.min(buf.readVarInt(), 32);
+            int tagCount = buf.readVarInt();
             java.util.List<String> parsedTags = new java.util.ArrayList<>();
-            for (int i = 0; i < tagCount && buf.readableBytes() > 0; i++) {
-                parsedTags.add(buf.readUtf(32));
+            for (int i = 0; i < tagCount; i++) {
+                String tag = buf.readUtf(MAX_TAG_LENGTH);
+                if (parsedTags.size() < MAX_TAGS) {
+                    parsedTags.add(tag);
+                }
             }
             metadata.library().setTags(parsedTags);
             metadata.library().setUploadedAt(buf.readLong());

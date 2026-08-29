@@ -50,12 +50,14 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_INTERNAL_ID = "InternalStateId";
+    private static final String NBT_LAST_REDSTONE_SIGNAL = "LastRedstoneSignal";
 
     private UUID internalStateId = UUID.randomUUID();
     private String speakerId = "";
     private String registeredKey = "";
 
-    /** Last observed redstone strength for edge-triggered modes (not persisted). */
+    /** Last observed redstone strength for edge-triggered modes. Persisted so a world
+     * reload does not fabricate a rising edge (0 -> current signal). */
     private int lastRedstoneSignal = 0;
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
@@ -514,6 +516,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         speakerId = tag.getStringOr(NBT_SPEAKER_ID, "");
+        lastRedstoneSignal = tag.getIntOr(NBT_LAST_REDSTONE_SIGNAL, 0);
 
         if (level != null && !level.isClientSide()) {
             if (migratedInternalId) ServerSpeakerRegistry.applyLegacyStandaloneTemplate(level, getStateKey());
@@ -549,6 +552,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (!speakerId.isEmpty()) {
             tag.putString(NBT_SPEAKER_ID, speakerId);
         }
+        tag.putInt(NBT_LAST_REDSTONE_SIGNAL, lastRedstoneSignal);
 
         SpeakerState persistedState = getSpeakerState();
         if (persistedState != null) {

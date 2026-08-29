@@ -18,8 +18,10 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Centralized server playback and listener management. Owns player-to-emitter
@@ -34,12 +36,29 @@ public final class ServerPlaybackManager {
 
     private static final PlaybackSubscriptions subscriptions = new PlaybackSubscriptions();
 
+    /**
+     * Natural-EOF reports for remote URL tracks, keyed by full state key. A URL
+     * track has no server-known duration, so playlist advancement happens once
+     * every subscribed player of the state reports that the stream finished.
+     */
+    private static final Map<String, RemoteEofReports> pendingRemoteEof = new ConcurrentHashMap<>();
+
+    private static final class RemoteEofReports {
+        final String audioId;
+        final Set<UUID> reported = ConcurrentHashMap.newKeySet();
+
+        RemoteEofReports(String audioId) {
+            this.audioId = audioId;
+        }
+    }
+
     private ServerPlaybackManager() {
     }
 
     /** Clears all subscription state; called when the server stops. */
     public static synchronized void resetForWorld() {
         subscriptions.clear();
+        pendingRemoteEof.clear();
     }
 
     // ------------------------------------------------------------------
@@ -140,6 +159,93 @@ public final class ServerPlaybackManager {
         }
     }
 
+    /**
+     * Advances the state's playlist to the next track, or stops playback and fires
+     * the FINISHED event when the playlist is exhausted. Shared by the manifest
+     * duration EOF path (local files) and the remote URL EOF report path.
+     */
+    private static void advancePlaylistOrStop(MinecraftServer server, ServerLevel level, ServerEmitter emitter, SpeakerState state) {
+        if (state.hasPlaylist() && state.getPlaylist().size() > 0) {
+            com.nstut.simplyspeakers.playlist.Playlist.Advance adv = state.getPlaylist().next();
+            if (adv.hasTrack()) {
+                com.nstut.simplyspeakers.playlist.PlaylistTrack nextTrack = adv.track();
+                state.setAudioId(nextTrack.getAudioId());
+                state.setAudioFilename(nextTrack.getFilename());
+                state.setPlaying(true);
+                state.setPaused(false);
+                state.setPlaybackStartTick(level.getGameTime());
+                state.setPauseOffsetSeconds(0.0f);
+                ServerSpeakerRegistry.updateSpeakerStateByFullKey(emitter.fullStateKey(), state);
+                ServerSpeakerRegistry.markDirty();
+
+                broadcastStateUpdate(level, emitter, state, "play");
+                broadcastPlaylistSync(level, emitter, state);
+                resyncState(server, level, emitter.fullStateKey());
+                com.nstut.simplyspeakers.api.SpeakerEvents.fire(
+                        com.nstut.simplyspeakers.api.SpeakerEvents.Type.TRACK_CHANGED,
+                        emitter.fullStateKey(), state.getNetworkName(), state.getAudioId());
+                return;
+            }
+        }
+        stopPlaybackForState(server, level, emitter, state);
+        com.nstut.simplyspeakers.api.SpeakerEvents.fire(
+                com.nstut.simplyspeakers.api.SpeakerEvents.Type.FINISHED,
+                emitter.fullStateKey(), state.getNetworkName(), state.getAudioId());
+    }
+
+    // ------------------------------------------------------------------
+    // Remote URL track EOF
+    // ------------------------------------------------------------------
+
+    /**
+     * Handles a client report that a remote HTTP(S) stream reached natural EOF.
+     * The report is only honored when the sender is a subscribed player of a
+     * speaker state currently playing the reported (non-looping) URL track;
+     * playback advances once every subscribed player has reported. Unlike
+     * transport controls this can only end or advance a track that has actually
+     * finished streaming on the reporting clients.
+     */
+    public static void handleRemoteStreamEofReport(ServerPlayer player, String audioId) {
+        if (player == null || audioId == null || audioId.isEmpty()) return;
+        if (!com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(audioId)) return;
+        MinecraftServer server = player.getServer();
+        if (server == null) return;
+        Set<SpeakerLocation> locations = subscriptions.getEmitterLocationsForPlayer(player.getUUID());
+        if (locations == null || locations.isEmpty()) return;
+
+        for (SpeakerLocation location : locations) {
+            ServerEmitter emitter = findEmitterByLocation(location);
+            if (emitter == null) continue;
+            SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(emitter.fullStateKey());
+            if (state == null || !state.isPlaying() || state.isPaused() || state.isLooping()) continue;
+            if (!audioId.equals(state.getAudioId())) continue;
+            if (!com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())) continue;
+            ServerLevel level = findLevel(server, emitter.location().dimension());
+            if (level == null) continue;
+            Set<UUID> subscribers = subscriptions.getSubscribers(emitter.location());
+            if (subscribers == null || subscribers.isEmpty()) continue;
+
+            String fullStateKey = emitter.fullStateKey();
+            RemoteEofReports reports = pendingRemoteEof.compute(fullStateKey,
+                    (key, existing) -> existing != null && audioId.equals(existing.audioId)
+                            ? existing
+                            : new RemoteEofReports(audioId));
+            reports.reported.add(player.getUUID());
+            if (reports.reported.containsAll(subscribers) && pendingRemoteEof.remove(fullStateKey, reports)) {
+                advancePlaylistOrStop(server, level, emitter, state);
+            }
+        }
+    }
+
+    private static ServerEmitter findEmitterByLocation(SpeakerLocation location) {
+        for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
+            if (emitter.location().equals(location)) {
+                return emitter;
+            }
+        }
+        return null;
+    }
+
     // ------------------------------------------------------------------
     // Periodic scanning
     // ------------------------------------------------------------------
@@ -216,32 +322,7 @@ public final class ServerPlaybackManager {
             if (audioFileManager != null) {
                 AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
                 if (meta != null && meta.getDurationSeconds() > 0.0f && elapsedSeconds >= meta.getDurationSeconds()) {
-                    if (state.hasPlaylist() && state.getPlaylist().size() > 0) {
-                        com.nstut.simplyspeakers.playlist.Playlist.Advance adv = state.getPlaylist().next();
-                        if (adv.hasTrack()) {
-                            com.nstut.simplyspeakers.playlist.PlaylistTrack nextTrack = adv.track();
-                            state.setAudioId(nextTrack.getAudioId());
-                            state.setAudioFilename(nextTrack.getFilename());
-                            state.setPlaying(true);
-                            state.setPaused(false);
-                            state.setPlaybackStartTick(level.getGameTime());
-                            state.setPauseOffsetSeconds(0.0f);
-                            ServerSpeakerRegistry.updateSpeakerStateByFullKey(emitter.fullStateKey(), state);
-                            ServerSpeakerRegistry.markDirty();
-
-                            broadcastStateUpdate(level, emitter, state, "play");
-                            broadcastPlaylistSync(level, emitter, state);
-                            resyncState(server, level, emitter.fullStateKey());
-                            com.nstut.simplyspeakers.api.SpeakerEvents.fire(
-                                    com.nstut.simplyspeakers.api.SpeakerEvents.Type.TRACK_CHANGED,
-                                    emitter.fullStateKey(), state.getNetworkName(), state.getAudioId());
-                            return;
-                        }
-                    }
-                    stopPlaybackForState(server, level, emitter, state);
-                    com.nstut.simplyspeakers.api.SpeakerEvents.fire(
-                            com.nstut.simplyspeakers.api.SpeakerEvents.Type.FINISHED,
-                            emitter.fullStateKey(), state.getNetworkName(), state.getAudioId());
+                    advancePlaylistOrStop(server, level, emitter, state);
                     return;
                 }
             }

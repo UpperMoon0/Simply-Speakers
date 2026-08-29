@@ -9,6 +9,9 @@ import java.util.Random;
  * shuffle, and a temporary play-next queue. Deterministic given the same seed.
  */
 public class Playlist {
+    /** Hard cap shared with the S2C playlist sync packet framing. */
+    public static final int MAX_ENTRIES = 256;
+
     private List<PlaylistTrack> tracks = new ArrayList<>();
     private int currentIndex = -1;
     private boolean shuffle = false;
@@ -21,11 +24,21 @@ public class Playlist {
     /** Tracks queued to play once before normal ordering resumes. */
     private List<String> queue = new ArrayList<>();
 
+    /** Canonical walk position to restore once the one-shot queue drains. */
+    private int resumeIndex = -1;
+
     public Playlist() {
     }
 
     public Playlist(List<PlaylistTrack> tracks) {
-        if (tracks != null) this.tracks.addAll(tracks);
+        if (tracks != null) appendAll(tracks);
+    }
+
+    private void appendAll(List<PlaylistTrack> newTracks) {
+        int room = Math.max(0, MAX_ENTRIES - tracks.size());
+        for (int i = 0; i < newTracks.size() && room > 0; i++, room--) {
+            tracks.add(newTracks.get(i));
+        }
     }
 
     public int size() {
@@ -44,12 +57,13 @@ public class Playlist {
     public void setTracks(List<PlaylistTrack> newTracks) {
         String currentKey = currentKey();
         tracks = new ArrayList<>();
-        if (newTracks != null) tracks.addAll(newTracks);
+        if (newTracks != null) appendAll(newTracks);
         currentIndex = indexOfKey(currentKey);
         clampIndex();
     }
 
     public void add(String audioId, String filename) {
+        if (tracks.size() >= MAX_ENTRIES) return;
         tracks.add(PlaylistTrack.of(audioId, filename));
     }
 
@@ -93,6 +107,7 @@ public class Playlist {
         tracks.clear();
         queue.clear();
         currentIndex = -1;
+        resumeIndex = -1;
     }
 
     public PlaylistTrack current() {
@@ -216,12 +231,20 @@ public class Playlist {
     public Advance next() {
         if (tracks.isEmpty()) return new Advance(AdvanceResult.EXHAUSTED, null);
 
+        int canonical = resumeIndex >= 0 ? resumeIndex : currentIndex;
         while (!queue.isEmpty()) {
             String queuedId = queue.remove(0);
             PlaylistTrack track = selectAudioId(queuedId);
-            if (track != null) return new Advance(AdvanceResult.ADVANCED, track);
+            if (track != null) {
+                resumeIndex = canonical;
+                return new Advance(AdvanceResult.ADVANCED, track);
+            }
         }
 
+        if (resumeIndex >= 0) {
+            selectIndex(resumeIndex);
+            resumeIndex = -1;
+        }
         if (repeatMode == RepeatMode.TRACK && current() != null) {
             return new Advance(AdvanceResult.ADVANCED, current());
         }

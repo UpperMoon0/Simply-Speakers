@@ -111,6 +111,11 @@ public class PacketRegistries {
                 RequestPlaylistPacketC2S::new,
                 RequestPlaylistPacketC2S::handle
         );
+        CHANNEL.register(RemoteStreamEofPacketC2S.class,
+                RemoteStreamEofPacketC2S::encode,
+                RemoteStreamEofPacketC2S::new,
+                RemoteStreamEofPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {

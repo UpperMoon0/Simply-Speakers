@@ -33,7 +33,7 @@ public class ToggleLoopPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.pos)) {
                 return;
             }
 

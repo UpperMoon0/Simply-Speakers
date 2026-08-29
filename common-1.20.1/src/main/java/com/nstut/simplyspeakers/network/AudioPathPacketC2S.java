@@ -35,6 +35,9 @@ public class AudioPathPacketC2S {
             ServerPlayer player = (ServerPlayer) context.getPlayer();
             if (player != null) {
                 if (player.level() instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                    if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) {
+                        return;
+                    }
                     BlockEntity blockEntity = serverLevel.getBlockEntity(packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity) {
                         ((SpeakerBlockEntity) blockEntity).setAudioId(packet.audioId);

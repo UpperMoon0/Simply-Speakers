@@ -19,32 +19,40 @@ public class SyncConfigPacketS2C implements CustomPacketPayload {
     private final int speakerRange;
     private final boolean disableUpload;
     private final int maxUploadSize;
+    private final boolean allowRemoteStreams;
 
     public SyncConfigPacketS2C(int speakerRange, boolean disableUpload, int maxUploadSize) {
+        this(speakerRange, disableUpload, maxUploadSize, Config.allowRemoteStreams);
+    }
+
+    public SyncConfigPacketS2C(int speakerRange, boolean disableUpload, int maxUploadSize, boolean allowRemoteStreams) {
         this.speakerRange = speakerRange;
         this.disableUpload = disableUpload;
         this.maxUploadSize = maxUploadSize;
+        this.allowRemoteStreams = allowRemoteStreams;
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, SyncConfigPacketS2C packet) {
         buffer.writeInt(packet.speakerRange);
         buffer.writeBoolean(packet.disableUpload);
         buffer.writeInt(packet.maxUploadSize);
+        buffer.writeBoolean(packet.allowRemoteStreams);
     }
 
     public static SyncConfigPacketS2C decode(RegistryFriendlyByteBuf buffer) {
         return new SyncConfigPacketS2C(
                 buffer.readInt(),
                 buffer.readBoolean(),
-                buffer.readInt()
+                buffer.readInt(),
+                buffer.readBoolean()
         );
     }
 
     public static void handle(SyncConfigPacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
-            SimplySpeakers.LOGGER.info("Received server config: speakerRange={}, disableUpload={}, maxUploadSize={}",
-                    packet.speakerRange, packet.disableUpload, packet.maxUploadSize);
-            Config.applyServerConfig(packet.speakerRange, packet.disableUpload, packet.maxUploadSize);
+            SimplySpeakers.LOGGER.info("Received server config: speakerRange={}, disableUpload={}, maxUploadSize={}, allowRemoteStreams={}",
+                    packet.speakerRange, packet.disableUpload, packet.maxUploadSize, packet.allowRemoteStreams);
+            Config.applyServerConfig(packet.speakerRange, packet.disableUpload, packet.maxUploadSize, packet.allowRemoteStreams);
         });
     }
 
@@ -58,6 +66,10 @@ public class SyncConfigPacketS2C implements CustomPacketPayload {
 
     public int getMaxUploadSize() {
         return maxUploadSize;
+    }
+
+    public boolean isAllowRemoteStreams() {
+        return allowRemoteStreams;
     }
 
     @Override
