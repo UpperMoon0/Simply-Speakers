@@ -12,6 +12,29 @@ public final class SpeakerPermissions {
     private SpeakerPermissions() {
     }
 
+    /**
+     * Who is invoking a control operation. {@link #PLAYER} carries the acting player so
+     * ownership/access rules can be enforced; {@link #AUTOMATION} is untrusted external
+     * automation (ComputerCraft, other mods) which may only touch public speakers;
+     * {@link #SYSTEM} is privileged internal code (GUI packets already authenticated the
+     * player, the sleep/wake manager, etc.).
+     */
+    public enum ControlActor {
+        PLAYER,
+        AUTOMATION,
+        SYSTEM
+    }
+
+    /** May untrusted automation (CC:Tweaked, etc.) control this speaker's transport/settings? */
+    public static boolean canAutomationControl(SpeakerState state) {
+        return canControl(state, null, false);
+    }
+
+    /** May untrusted automation re-link, rename, or re-own this network? */
+    public static boolean canAutomationManage(SpeakerState state) {
+        return canManage(state, null, false);
+    }
+
     /** May the player change playback or settings on this speaker state? */
     public static boolean canControl(SpeakerState state, UUID playerUuid, boolean isOperator) {
         if (state == null) return false;

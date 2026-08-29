@@ -38,6 +38,11 @@ public final class ServerSpeakerRegistry {
     private static final Map<SpeakerLocation, ServerEmitter> emitters = new ConcurrentHashMap<>();
     private static SpeakerState legacyDefaultTemplate = null;
 
+    /** Set whenever an in-memory mutation should eventually be persisted. The periodic
+     *  server tick (see {@link #flushDirty()}) performs the actual synchronous JSON write
+     *  off the hot control/slider paths so transport and redstone stay TPS-friendly. */
+    private static volatile boolean dirty = false;
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Path registryFilePath;
 
@@ -66,7 +71,28 @@ public final class ServerSpeakerRegistry {
         emitters.clear();
         legacyDefaultTemplate = null;
         registryFilePath = null;
+        dirty = false;
         SimplySpeakers.LOGGER.debug("SERVER: Reset ServerSpeakerRegistry state for world.");
+    }
+
+    /**
+     * Marks the registry as needing a persistent save. Hot control/slider/redstone paths
+     * call this instead of {@link #saveRegistry()} so disk I/O does not happen on the
+     * interaction thread; {@link #flushDirty()} (driven by the periodic server tick and on
+     * shutdown) performs the actual write.
+     */
+    public static void markDirty() {
+        dirty = true;
+    }
+
+    /** Performs the synchronous save only if a mutation is pending. Safe to call often. */
+    public static void flushDirty() {
+        if (!dirty) return;
+        synchronized (ServerSpeakerRegistry.class) {
+            if (!dirty) return;
+            dirty = false;
+            saveRegistry();
+        }
     }
 
     public static synchronized void init(Path worldSavePath) {
@@ -437,7 +463,7 @@ public final class ServerSpeakerRegistry {
             setSpeakerPowered(level, pos, newKey, true);
         }
 
-        saveRegistry();
+        markDirty();
     }
 
     public static Set<BlockPos> getSpeakerPositions(Level level, String stateKey) {

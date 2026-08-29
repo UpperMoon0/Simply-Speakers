@@ -23,6 +23,7 @@ public class TransportControlPacketC2S implements CustomPacketPayload {
     public static final byte ACTION_NEXT = 5;
     public static final byte ACTION_PREVIOUS = 6;
     public static final byte ACTION_SEEK = 7;
+    public static final byte ACTION_SEEK_RELATIVE = 8;
 
     public static final CustomPacketPayload.Type<TransportControlPacketC2S> TYPE =
         new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "transport_control"));

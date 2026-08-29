@@ -71,15 +71,22 @@ public final class ServerSpeakerControlService {
             return netKey;
         }
 
-        // 3. Search by human network name
+        // 3. Search by human network name (must be unique within this dimension).
+        String matchedKey = null;
+        boolean ambiguous = false;
         for (var entry : ServerSpeakerRegistry.getAllSpeakerStates().entrySet()) {
             if (entry.getKey().startsWith(dimension + "/")) {
                 SpeakerState s = entry.getValue();
                 if (s != null && trimmed.equalsIgnoreCase(s.getNetworkName())) {
-                    return entry.getKey();
+                    if (matchedKey != null) {
+                        ambiguous = true;
+                        break;
+                    }
+                    matchedKey = entry.getKey();
                 }
             }
         }
+        if (!ambiguous && matchedKey != null) return matchedKey;
         return null;
     }
 
@@ -93,6 +100,7 @@ public final class ServerSpeakerControlService {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
+        if (!state.hasAudio()) return false;
 
         if (state.isPlaying() && !state.isPaused()) {
             // Already playing: keep transport position untouched (play != restart).
@@ -110,7 +118,7 @@ public final class ServerSpeakerControlService {
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.STARTED, fullStateKey, state.getNetworkName(), state.getAudioId());
         }
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -124,7 +132,7 @@ public final class ServerSpeakerControlService {
             broadcastStateUpdate(level, fullStateKey, state, "pause");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.PAUSED, fullStateKey, state.getNetworkName(), state.getAudioId());
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.markDirty();
             return true;
         }
         return false;
@@ -151,7 +159,7 @@ public final class ServerSpeakerControlService {
             broadcastStateUpdate(level, fullStateKey, state, "stop");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.STOPPED, fullStateKey, state.getNetworkName(), state.getAudioId());
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.markDirty();
         }
         return true;
     }
@@ -160,13 +168,23 @@ public final class ServerSpeakerControlService {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
+        if (!state.hasAudio()) return false;
 
         state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
         broadcastStateUpdate(level, fullStateKey, state, "play");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
         SpeakerEvents.fire(SpeakerEvents.Type.STARTED, fullStateKey, state.getNetworkName(), state.getAudioId());
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
+    }
+
+    public static boolean seekRelative(MinecraftServer server, ServerLevel level, String fullStateKey, float deltaSeconds) {
+        if (fullStateKey == null) return false;
+        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        if (state == null) return false;
+        if (!state.isPlaying()) return false;
+        float current = state.getPlaybackPositionSeconds(level != null ? level.getGameTime() : 0);
+        return seek(server, level, fullStateKey, Math.max(0.0f, current + deltaSeconds));
     }
 
     public static boolean seek(MinecraftServer server, ServerLevel level, String fullStateKey, float seconds) {
@@ -183,7 +201,7 @@ public final class ServerSpeakerControlService {
         state.seekTo(seconds, level != null ? level.getGameTime() : 0, duration);
         broadcastStateUpdate(level, fullStateKey, state, state.isPaused() ? "pause" : "play");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -209,7 +227,7 @@ public final class ServerSpeakerControlService {
                 ServerPlaybackManager.resyncState(server, level, fullStateKey);
                 SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, fullStateKey, state.getNetworkName(), state.getAudioId());
             }
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.markDirty();
             return true;
         }
         return false;
@@ -237,7 +255,7 @@ public final class ServerSpeakerControlService {
                 ServerPlaybackManager.resyncState(server, level, fullStateKey);
                 SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, fullStateKey, state.getNetworkName(), state.getAudioId());
             }
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.markDirty();
             return true;
         }
         return false;
@@ -250,15 +268,20 @@ public final class ServerSpeakerControlService {
 
         state.setAudioId(audioId != null ? audioId : "");
         state.setAudioFilename(filename != null ? filename : "");
-        if (state.isPlaying()) {
-            state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
+        if (state.hasAudio()) {
+            if (state.isPlaying()) {
+                state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
+            }
+        } else {
+            // Selected audio cleared: a speaker with no audio cannot be "playing".
+            state.stopPlayback();
         }
         broadcastStateUpdate(level, fullStateKey, state, state.isPlaying() ? (state.isPaused() ? "pause" : "play") : "update");
         if (state.isPlaying() && !state.isPaused()) {
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
         }
         SpeakerEvents.fire(SpeakerEvents.Type.TRACK_CHANGED, fullStateKey, state.getNetworkName(), state.getAudioId());
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -320,7 +343,7 @@ public final class ServerSpeakerControlService {
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.TRACK_CHANGED, fullStateKey, state.getNetworkName(), state.getAudioId());
         }
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -374,7 +397,7 @@ public final class ServerSpeakerControlService {
         if (directional) {
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
         }
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -393,6 +416,7 @@ public final class ServerSpeakerControlService {
             case 5 -> next(server, level, fullStateKey);        // ACTION_NEXT
             case 6 -> previous(server, level, fullStateKey);    // ACTION_PREVIOUS
             case 7 -> seek(server, level, fullStateKey, seekSeconds); // ACTION_SEEK
+            case 8 -> seekRelative(server, level, fullStateKey, seekSeconds); // ACTION_SEEK_RELATIVE
             default -> false;
         };
     }
@@ -404,7 +428,7 @@ public final class ServerSpeakerControlService {
         state.setMaxVolume(Math.max(0.0f, Math.min(1.0f, volume)));
         broadcastStateUpdate(level, fullStateKey, state, "update");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -415,7 +439,7 @@ public final class ServerSpeakerControlService {
         state.setMaxRange(Math.max(1, range));
         broadcastStateUpdate(level, fullStateKey, state, "update");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 
@@ -426,7 +450,7 @@ public final class ServerSpeakerControlService {
         state.setLooping(looping);
         broadcastStateUpdate(level, fullStateKey, state, "update");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         return true;
     }
 

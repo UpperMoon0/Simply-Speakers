@@ -380,7 +380,7 @@ public class AudioFileManager {
             state.setPlaying(false);
             state.setPlaybackStartTick(-1);
         }
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         broadcastDeletedAudioState(server, states);
 
         return true;

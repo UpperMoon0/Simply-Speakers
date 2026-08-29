@@ -84,13 +84,16 @@ public final class SimplySpeakersForge {
     }
     
     public void onServerStopping(ServerStoppingEvent event) {
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.flushDirty();
         SimplySpeakers.shutdownAudio();
     }
 
     public void onServerStopped(ServerStoppedEvent event) {
         ServerPlaybackManager.resetForWorld();
         ServerSpeakerRegistry.resetForWorld();
+        if (net.neoforged.fml.ModList.get().isLoaded("computercraft")) {
+            com.nstut.neoforge.simplyspeakers.compat.computercraft.SimplySpeakersPeripheral.reset();
+        }
     }
 
     public void onServerTick(ServerTickEvent.Post event) {
@@ -98,7 +101,7 @@ public final class SimplySpeakersForge {
         // We only want to save periodically, not every tick
         // Save every 6000 ticks (5 minutes at 20 TPS)
         if (event.getServer().getTickCount() % 6000 == 0) {
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.flushDirty();
         }
     }
 }

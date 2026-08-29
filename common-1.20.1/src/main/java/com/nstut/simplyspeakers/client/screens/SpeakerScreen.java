@@ -325,8 +325,6 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     /** Guards policy packets until the screen finished initialising. */
     private boolean guiReady;
-    /** Local estimate of the playback position in seconds for seek buttons. */
-    private volatile float estimatedPositionSeconds;
 
     private void sendToServer(Object packet) {
         PacketRegistries.CHANNEL.sendToServer(packet);
@@ -349,12 +347,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         ).gap(4),
                         Ui.row(
                                 Ui.button(Component.translatable("gui.simplyspeakers.transport.back30"), () -> {
-                                    estimatedPositionSeconds = Math.max(0.0f, estimatedPositionSeconds - 30.0f);
-                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK, estimatedPositionSeconds);
+                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK_RELATIVE, -30.0f);
                                 }).small(),
                                 Ui.button(Component.translatable("gui.simplyspeakers.transport.fwd30"), () -> {
-                                    estimatedPositionSeconds += 30.0f;
-                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK, estimatedPositionSeconds);
+                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK_RELATIVE, 30.0f);
                                 }).small()
                         ).gap(6)
                 ).gap(6)

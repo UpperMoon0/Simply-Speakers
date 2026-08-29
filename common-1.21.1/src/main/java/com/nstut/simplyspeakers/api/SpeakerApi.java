@@ -273,7 +273,13 @@ public final class SpeakerApi {
                     : state.isPaused() ? "paused"
                     : state.isPlaying() ? "playing" : "stopped";
             String track = state.getAudioFilename().isEmpty() ? state.getAudioId() : state.getAudioFilename();
-            result.putIfAbsent(state.getNetworkName(), status + ": " + track + " [" + entry.getKey() + "]");
+            String name = state.getNetworkName();
+            if (result.containsKey(name)) {
+                // Duplicate human network name: disambiguate with the owning dimension.
+                String dim = entry.getKey().contains("/") ? entry.getKey().substring(0, entry.getKey().indexOf('/')) : "?";
+                name = name + " [" + dim + "]";
+            }
+            result.put(name, status + ": " + track + " [" + entry.getKey() + "]");
         }
         return result;
     }

@@ -150,7 +150,11 @@ public final class ServerPlaybackManager {
      * depend on speaker chunks ticking.
      */
     public static void serverTick(MinecraftServer server) {
-        if (server == null || server.getTickCount() % SCAN_INTERVAL_TICKS != 0) return;
+        if (server == null) return;
+        if (server.getTickCount() % 6000 == 0) {
+            ServerSpeakerRegistry.flushDirty();
+        }
+        if (server.getTickCount() % SCAN_INTERVAL_TICKS != 0) return;
         for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
             ServerLevel level = findLevel(server, emitter.location().dimension());
             if (level != null) {
@@ -223,7 +227,7 @@ public final class ServerPlaybackManager {
                             state.setPlaybackStartTick(level.getGameTime());
                             state.setPauseOffsetSeconds(0.0f);
                             ServerSpeakerRegistry.updateSpeakerStateByFullKey(emitter.fullStateKey(), state);
-                            ServerSpeakerRegistry.saveRegistry();
+                            ServerSpeakerRegistry.markDirty();
 
                             broadcastStateUpdate(level, emitter, state, "play");
                             broadcastPlaylistSync(level, emitter, state);

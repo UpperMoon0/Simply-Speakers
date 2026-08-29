@@ -55,20 +55,23 @@ public class SimplySpeakersFabric implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.flushDirty();
             SimplySpeakers.shutdownAudio();
         });
 
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
             ServerPlaybackManager.resetForWorld();
             ServerSpeakerRegistry.resetForWorld();
+            if (FabricLoader.getInstance().isModLoaded("computercraft")) {
+                com.nstut.fabric.simplyspeakers.compat.computercraft.SimplySpeakersPeripheral.reset();
+            }
         });
 
         // Centralized playback scanning (throttled internally) plus periodic registry saving
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             ServerPlaybackManager.serverTick(server);
             if (server.getTickCount() % 6000 == 0) {
-                ServerSpeakerRegistry.saveRegistry();
+                ServerSpeakerRegistry.flushDirty();
             }
         });
     }

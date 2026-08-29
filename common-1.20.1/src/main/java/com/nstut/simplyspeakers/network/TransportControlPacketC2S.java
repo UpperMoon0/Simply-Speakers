@@ -21,6 +21,7 @@ public class TransportControlPacketC2S {
     public static final byte ACTION_NEXT = 5;
     public static final byte ACTION_PREVIOUS = 6;
     public static final byte ACTION_SEEK = 7;
+    public static final byte ACTION_SEEK_RELATIVE = 8;
 
     private final BlockPos pos;
     private final byte action;

@@ -92,12 +92,28 @@ public class SpeakerBlockEntity extends BlockEntity {
      */
     public void updateEmitterSnapshot() {
         if (level == null || level.isClientSide()) return;
-        boolean active = getBlockState().hasProperty(SpeakerBlock.POWERED)
-                && getBlockState().getValue(SpeakerBlock.POWERED);
         SpeakerState state = ServerSpeakerRegistry.getSpeakerState(level, getStateKey());
+        RedstoneMode mode = state != null ? state.getRedstoneMode() : RedstoneMode.POWER;
+        boolean powered = getBlockState().hasProperty(SpeakerBlock.POWERED)
+                && getBlockState().getValue(SpeakerBlock.POWERED);
         Direction facing = getBlockState().hasProperty(SpeakerBlock.FACING)
                 ? getBlockState().getValue(SpeakerBlock.FACING)
                 : Direction.NORTH;
+
+        // Classic POWER mode: the emitter intent follows the instantaneous physical signal,
+        // and we keep the powered-speaker index accurate so linked POWER speakers survive one
+        // of them losing power (hasOtherPoweredMain looks this up).
+        // Edge-triggered modes (PULSE/TOGGLE/NEXT/ANALOG*) use the signal only as a trigger,
+        // so the speaker emits while the shared network is actively playing rather than only
+        // while the (falling) pulse is high -- otherwise a pulse would stop on its falling edge.
+        boolean active;
+        if (mode == RedstoneMode.POWER) {
+            active = powered;
+            ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), powered);
+        } else {
+            active = state != null && state.isPlaying() && !state.isPaused();
+        }
+
         DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
                 ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
                 : null;

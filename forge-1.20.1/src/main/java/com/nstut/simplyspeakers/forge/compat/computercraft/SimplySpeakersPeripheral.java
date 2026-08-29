@@ -2,6 +2,7 @@ package com.nstut.simplyspeakers.forge.compat.computercraft;
 
 import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
+import com.nstut.simplyspeakers.SpeakerPermissions;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dan200.computercraft.api.lua.LuaFunction;
 import dan200.computercraft.api.peripheral.IComputerAccess;
@@ -33,8 +34,15 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     public SimplySpeakersPeripheral(SpeakerBlockEntity speaker) {
         this.speaker = speaker;
-        LIVE.add(this);
         registerListenerOnce();
+    }
+
+    /** Clears all peripheral instances and the shared event listener registration. Call on
+     *  server/world shutdown so a long-running, automation-heavy server does not accumulate
+     *  stale peripheral references across speaker reloads. */
+    public static void reset() {
+        LIVE.clear();
+        listenerRegistered = false;
     }
 
     private static void registerListenerOnce() {
@@ -71,6 +79,18 @@ public class SimplySpeakersPeripheral implements IPeripheral {
         return speaker.getBlockPos();
     }
 
+    /** Whether untrusted automation (this CC peripheral) may drive transport/settings. */
+    private boolean mayAutomationControl() {
+        ServerLevel level = serverLevel();
+        return level != null && SpeakerPermissions.canAutomationControl(SpeakerApi.getState(level, pos()));
+    }
+
+    /** Whether untrusted automation may rename/manage the network identity. */
+    private boolean mayAutomationManage() {
+        ServerLevel level = serverLevel();
+        return level != null && SpeakerPermissions.canAutomationManage(SpeakerApi.getState(level, pos()));
+    }
+
 
     /**
      * Registers this peripheral with CC:Tweaked's Forge provider API.
@@ -94,11 +114,17 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     @Override
     public void attach(IComputerAccess computer) {
         attachedComputers.add(computer);
+        if (attachedComputers.size() == 1) {
+            LIVE.add(this);
+        }
     }
 
     @Override
     public void detach(IComputerAccess computer) {
         attachedComputers.remove(computer);
+        if (attachedComputers.isEmpty()) {
+            LIVE.remove(this);
+        }
     }
 
     @Nullable
@@ -118,41 +144,49 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     @LuaFunction(mainThread = true)
     public final void play() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.play(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void pause() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.pause(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void togglePause() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.togglePause(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void stop() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.stop(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void restart() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.restart(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void next() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.next(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void previous() {
+        if (!mayAutomationControl()) return;
         SpeakerApi.previous(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
     public final void seek(double seconds) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.seek(serverLevel(), pos(), (float) seconds);
     }
 
@@ -179,6 +213,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     @LuaFunction(mainThread = true)
     public final void setVolume(double volume) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.setVolume(serverLevel(), pos(), (float) volume);
     }
 
@@ -190,6 +225,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     @LuaFunction(mainThread = true)
     public final void setRange(int range) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.setRange(serverLevel(), pos(), range);
     }
 
@@ -201,6 +237,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     @LuaFunction(mainThread = true)
     public final void setLooping(boolean looping) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.setLooping(serverLevel(), pos(), looping);
     }
 
@@ -216,17 +253,20 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     @LuaFunction(mainThread = true)
     public final void setShuffle(boolean shuffle) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.playlistSetShuffle(serverLevel(), pos(), shuffle);
     }
 
     @LuaFunction(mainThread = true)
     public final void setRepeatMode(String mode) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.playlistSetRepeat(serverLevel(), pos(),
                 com.nstut.simplyspeakers.playlist.RepeatMode.parse(mode));
     }
 
     @LuaFunction(mainThread = true)
     public final void queueNext(String audioId) {
+        if (!mayAutomationControl()) return;
         SpeakerApi.playlistQueueNext(serverLevel(), pos(), audioId);
     }
 
@@ -261,6 +301,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
     @LuaFunction(mainThread = true)
     public final void setNetworkName(String name) {
+        if (!mayAutomationManage()) return;
         SpeakerApi.setNetworkName(serverLevel(), pos(), name);
     }
 }
