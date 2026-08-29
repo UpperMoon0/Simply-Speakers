@@ -85,9 +85,9 @@ public class SimplySpeakers {
         });
 
         // Drop centralized playback subscriptions when a player disconnects or changes dimension
-        PlayerEvent.PLAYER_QUIT.register(player -> ServerPlaybackManager.handlePlayerQuit(player.getUUID()));
-        PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getUUID()));
-        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd, removalReason) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getUUID()));
+        PlayerEvent.PLAYER_QUIT.register(player -> ServerPlaybackManager.handlePlayerQuit(player.level().getServer(), player.getUUID()));
+        PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> ServerPlaybackManager.handlePlayerDimensionChange(player.level().getServer(), player.getUUID()));
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd, removalReason) -> ServerPlaybackManager.handlePlayerDimensionChange(player.level().getServer(), player.getUUID()));
 
         // Register client-side events only on the client
         LOGGER.info("Platform.getEnv() = '{}', checking if CLIENT...", Platform.getEnv().toString());

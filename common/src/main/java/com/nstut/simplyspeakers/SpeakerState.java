@@ -226,7 +226,10 @@ public class SpeakerState {
 
     /** Seeks to an absolute position, clamped to a known duration. */
     public void seekTo(float seconds, long currentTick, float durationSeconds) {
-        float target = Math.max(0.0f, seconds);
+        // Defensive against NaN/Infinity from any caller (packets, API, CC, commands):
+        // Math.max(0, NaN) stays NaN and would poison all later position math.
+        float target = Float.isFinite(seconds) ? seconds : 0.0f;
+        target = Math.max(0.0f, target);
         if (durationSeconds > 0.0f && Float.isFinite(durationSeconds)) {
             target = Math.min(target, Math.max(0.0f, durationSeconds));
         }

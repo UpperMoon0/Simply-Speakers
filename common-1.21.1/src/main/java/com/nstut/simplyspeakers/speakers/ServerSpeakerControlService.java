@@ -170,6 +170,10 @@ public final class ServerSpeakerControlService {
         if (state == null) return false;
         if (!state.hasAudio()) return false;
 
+        // Explicit restart is a semantic new playback session even for the same URL:
+        // bump the remote generation so in-flight EOF reports from the previous run
+        // can never terminate the restarted stream.
+        ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
         state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
         broadcastStateUpdate(level, fullStateKey, state, "play");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
@@ -191,6 +195,12 @@ public final class ServerSpeakerControlService {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
+        // Seeks are transport mutations of a live session: a stopped speaker has no
+        // position to move, and accepting one would broadcast a "play" action while
+        // the authoritative state stays stopped (client/UI disagreement).
+        if (!state.isPlaying()) return false;
+        // Reject NaN/Infinity before it can poison pauseOffsetSeconds.
+        if (!Float.isFinite(seconds)) return false;
 
         float duration = 0.0f;
         AudioFileManager afm = SimplySpeakers.getAudioFileManager();
@@ -198,7 +208,7 @@ public final class ServerSpeakerControlService {
             AudioFileMetadata meta = afm.getManifest().get(state.getAudioId());
             if (meta != null) duration = meta.getDurationSeconds();
         }
-        state.seekTo(seconds, level != null ? level.getGameTime() : 0, duration);
+        state.seekTo(Math.max(0.0f, seconds), level != null ? level.getGameTime() : 0, duration);
         broadcastStateUpdate(level, fullStateKey, state, state.isPaused() ? "pause" : "play");
         ServerPlaybackManager.resyncState(server, level, fullStateKey);
         ServerSpeakerRegistry.markDirty();
@@ -270,6 +280,9 @@ public final class ServerSpeakerControlService {
         state.setAudioFilename(filename != null ? filename : "");
         if (state.hasAudio()) {
             if (state.isPlaying()) {
+                // Selecting a track on an already-playing network restarts the stream
+                // content, so it starts a new playback session (fresh generation).
+                ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
                 state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
             }
         } else {
@@ -326,6 +339,9 @@ public final class ServerSpeakerControlService {
                     state.setAudioFilename(selected.getFilename());
                     trackChanged = true;
                     if (flag) { // autoplay
+                        // Autoplay of a selected playlist slot is a semantic restart
+                        // boundary for remote URL tracks.
+                        ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
                         state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
                     }
                 }

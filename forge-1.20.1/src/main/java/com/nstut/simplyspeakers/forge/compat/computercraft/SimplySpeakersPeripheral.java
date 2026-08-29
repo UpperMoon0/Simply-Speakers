@@ -6,6 +6,7 @@ import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
 import com.nstut.simplyspeakers.SpeakerPermissions;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioOwnership;
 import com.nstut.simplyspeakers.audio.AudioFileManager;
 import com.nstut.simplyspeakers.audio.StreamTracks;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
@@ -249,9 +250,11 @@ public class SimplySpeakersPeripheral implements IPeripheral {
      * SSRF check, server config). Returns true when the selection was applied, false
      * when the speaker has no state or the track was rejected.
      *
-     * <p>Ownership of library tracks is intentionally not re-checked here: CC:Tweaked
-     * methods have no player actor, and invoking peripheral methods requires physical
-     * access to the block, so the computer is treated like a system actor.</p>
+     * <p>Automation is untrusted: CC:Tweaked methods have no player actor, so the
+     * computer acts on behalf of the speaker network's owner. Library tracks are
+     * accepted only when owned by that owner (unowned networks accept no library
+     * tracks), keeping the library-ownership boundary consistent with the packet
+     * paths.</p>
      */
     @LuaFunction(mainThread = true)
     public final boolean setTrack(String audioId) {
@@ -273,8 +276,14 @@ public class SimplySpeakersPeripheral implements IPeripheral {
         }
         AudioFileManager manager = SimplySpeakers.getAudioFileManager();
         if (manager == null) return false;
+        var state = SpeakerApi.getState(level, pos());
+        if (state == null) return false;
+        String ownerUuid = state.getOwnerUuid() != null ? state.getOwnerUuid().toString() : null;
         AudioFileMetadata meta = manager.getManifest().get(audioId);
         if (meta == null) return false;
+        // The computer is untrusted automation acting on behalf of the network owner:
+        // only that owner's library entries are selectable.
+        if (!AudioOwnership.isOwnedBy(meta.getOwnerUUID(), ownerUuid)) return false;
         return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey,
                 meta.getUuid(), meta.getOriginalFilename());
     }

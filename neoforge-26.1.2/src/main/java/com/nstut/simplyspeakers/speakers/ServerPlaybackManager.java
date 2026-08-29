@@ -94,10 +94,13 @@ public final class ServerPlaybackManager {
     /**
      * Drops every subscription of a disconnecting player. No stop packets are sent
      * because the client is gone; any stale hysteresis state is removed so a
-     * reconnecting player starts with a clean subscription slate.
+     * reconnecting player starts with a clean subscription slate. Pending remote
+     * EOF quorums are re-evaluated so a network whose last unreported listener
+     * disconnected still advances instead of stalling forever.
      */
-    public static void handlePlayerQuit(UUID playerId) {
+    public static void handlePlayerQuit(MinecraftServer server, UUID playerId) {
         subscriptions.removePlayer(playerId);
+        reevaluateAllPendingRemoteEof(server);
     }
 
     /**
@@ -105,9 +108,12 @@ public final class ServerPlaybackManager {
      * sent because the client already clears its playback state on dimension change;
      * clearing the server subscriptions ensures that subsequent range scans start
      * with a clean slate and immediately send replacement Play packets when in range.
+     * Pending remote EOF quorums are re-evaluated for the same reason as
+     * {@link #handlePlayerQuit}.
      */
-    public static void handlePlayerDimensionChange(UUID playerId) {
+    public static void handlePlayerDimensionChange(MinecraftServer server, UUID playerId) {
         subscriptions.removePlayer(playerId);
+        reevaluateAllPendingRemoteEof(server);
     }
 
     // ------------------------------------------------------------------
@@ -129,6 +135,9 @@ public final class ServerPlaybackManager {
                 PacketSenders.sendStop(player, stopPacket);
             }
         }
+        // The emitter's audience shrank (destroy, unlink, power off, unload):
+        // remaining subscribers of its shared state may already all have reported EOF.
+        reevaluateAllPendingRemoteEof(server);
     }
 
     /**
@@ -260,6 +269,87 @@ public final class ServerPlaybackManager {
     }
 
     /**
+     * Marks an explicit new playback session for a state (semantic restart boundary:
+     * explicit restart, or selecting a track on an already-playing network). Bumps
+     * the playback generation and drops pending EOF reports so a stale in-flight
+     * report can never terminate the restarted stream even when the URL is identical.
+     */
+    public static synchronized void beginNewPlaybackSession(String fullStateKey) {
+        if (fullStateKey == null) return;
+        Integer previous = playbackGenerations.get(fullStateKey);
+        playbackGenerations.put(fullStateKey, (previous == null ? 0 : previous) + 1);
+        pendingRemoteEof.remove(fullStateKey);
+    }
+
+    private record StateQuorum(Set<UUID> quorum, ServerEmitter emitter, ServerLevel level) {
+    }
+
+    /**
+     * Computes the state-wide subscriber union across ALL emitters registered for
+     * the given state, plus the emitter/level used to advance it. Shared by the
+     * EOF report path and the churn re-evaluation path so quorum semantics can
+     * never diverge.
+     */
+    private static StateQuorum computeStateQuorum(MinecraftServer server, String fullStateKey) {
+        Set<UUID> quorum = new HashSet<>();
+        ServerEmitter advanceEmitter = null;
+        ServerLevel advanceLevel = null;
+        for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
+            if (!fullStateKey.equals(emitter.fullStateKey())) continue;
+            quorum.addAll(subscriptions.getSubscribers(emitter.location()));
+            if (advanceEmitter == null) {
+                advanceLevel = findLevel(server, emitter.location().dimension());
+                if (advanceLevel != null) advanceEmitter = emitter;
+            }
+        }
+        if (advanceEmitter == null) return null;
+        return new StateQuorum(quorum, advanceEmitter, advanceLevel);
+    }
+
+    /**
+     * Re-evaluates pending remote EOF quorum after the subscriber set of a state
+     * shrank (player quit, range exit, dimension change, emitter removal). If every
+     * REMAINING subscriber has already reported EOF for the pending session, the
+     * network advances or stops instead of waiting forever on a listener that is
+     * gone. A no-op when nothing is pending or the session is stale.
+     */
+    private static void reevaluateRemoteEofQuorum(MinecraftServer server, String fullStateKey) {
+        if (server == null || fullStateKey == null) return;
+        RemoteEofReports reports = pendingRemoteEof.get(fullStateKey);
+        if (reports == null || reports.reported.isEmpty()) return;
+        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        if (state == null || !state.isPlaying() || state.isPaused() || state.isLooping()
+                || !com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())
+                || !state.getAudioId().equals(reports.audioId)) {
+            pendingRemoteEof.remove(fullStateKey, reports);
+            return;
+        }
+        Integer currentGeneration = playbackGenerations.get(fullStateKey);
+        if (currentGeneration == null || currentGeneration != reports.playbackGeneration) {
+            pendingRemoteEof.remove(fullStateKey, reports);
+            return;
+        }
+        StateQuorum target = computeStateQuorum(server, fullStateKey);
+        if (target == null) return;
+        if (RemoteEofQuorumEvaluator.shouldAdvance(reports.reported, target.quorum())
+                && pendingRemoteEof.remove(fullStateKey, reports)) {
+            advancePlaylistOrStop(server, target.level(), target.emitter(), state);
+        }
+    }
+
+    /**
+     * Re-evaluates every pending remote EOF session; used after events that can
+     * shrink multiple states' audiences at once (player quit, dimension change,
+     * emitter removal). Cheap no-op when nothing is pending.
+     */
+    private static void reevaluateAllPendingRemoteEof(MinecraftServer server) {
+        if (server == null || pendingRemoteEof.isEmpty()) return;
+        for (String key : pendingRemoteEof.keySet().toArray(new String[0])) {
+            reevaluateRemoteEofQuorum(server, key);
+        }
+    }
+
+    /**
      * Handles a client report that a remote HTTP(S) stream reached natural EOF.
      * The report targets the shared state by the server-assigned full state key
      * and is only honored when the state is currently playing the reported
@@ -284,26 +374,17 @@ public final class ServerPlaybackManager {
         Integer currentGeneration = playbackGenerations.get(fullStateKey);
         if (currentGeneration == null || currentGeneration != playbackGeneration) return;
 
-        Set<UUID> quorum = new HashSet<>();
-        ServerEmitter advanceEmitter = null;
-        ServerLevel advanceLevel = null;
-        for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
-            if (!fullStateKey.equals(emitter.fullStateKey())) continue;
-            quorum.addAll(subscriptions.getSubscribers(emitter.location()));
-            if (advanceEmitter == null) {
-                advanceLevel = findLevel(server, emitter.location().dimension());
-                if (advanceLevel != null) advanceEmitter = emitter;
-            }
-        }
-        if (advanceEmitter == null || quorum.isEmpty() || !quorum.contains(player.getUUID())) return;
+        StateQuorum target = computeStateQuorum(server, fullStateKey);
+        if (target == null || target.quorum().isEmpty() || !target.quorum().contains(player.getUUID())) return;
 
         RemoteEofReports reports = pendingRemoteEof.compute(fullStateKey,
                 (key, existing) -> existing != null && existing.matches(playbackGeneration, audioId)
                         ? existing
                         : new RemoteEofReports(playbackGeneration, audioId));
         reports.reported.add(player.getUUID());
-        if (reports.reported.containsAll(quorum) && pendingRemoteEof.remove(fullStateKey, reports)) {
-            advancePlaylistOrStop(server, advanceLevel, advanceEmitter, state);
+        if (RemoteEofQuorumEvaluator.shouldAdvance(reports.reported, target.quorum())
+                && pendingRemoteEof.remove(fullStateKey, reports)) {
+            advancePlaylistOrStop(server, target.level(), target.emitter(), state);
         }
     }
 
@@ -428,6 +509,10 @@ public final class ServerPlaybackManager {
             }
             subscriptions.unsubscribe(stopId, emitter.location());
         }
+
+        // Range exits shrink the state's audience: if every remaining listener of
+        // this state already reported remote EOF, advance now instead of stalling.
+        reevaluateRemoteEofQuorum(server, emitter.fullStateKey());
     }
 
     private static void broadcastStateUpdate(ServerLevel level, ServerEmitter emitter, SpeakerState state, String action) {
