@@ -69,13 +69,23 @@ public class ClientAudioPlayer {
         final Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
         final AtomicBoolean isLooping = new AtomicBoolean(false);
+        /** Server-provided state identity reported back on remote stream EOF; null for local files. */
+        final String eofFullStateKey;
+        final int playbackGeneration;
 
         StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread, boolean initialLooping) {
+            this(networkKey, sourceID, bufferIDs, streamingThread, initialLooping, null, 0);
+        }
+
+        StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread, boolean initialLooping,
+                String eofFullStateKey, int playbackGeneration) {
             this.networkKey = networkKey;
             this.sourceID = sourceID;
             this.bufferIDs = bufferIDs;
             this.streamingThread = streamingThread;
             this.isLooping.set(initialLooping);
+            this.eofFullStateKey = eofFullStateKey;
+            this.playbackGeneration = playbackGeneration;
         }
 
         void stopAndCleanup() {
@@ -137,6 +147,16 @@ public class ClientAudioPlayer {
 
     public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff,
             com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directional) {
+        play(pos, speakerId, metadata, startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff, directional, null, 0);
+    }
+
+    /**
+     * Full play entry point. {@code remoteFullStateKey} and {@code remotePlaybackGeneration}
+     * are the server-assigned playback identity from {@code PlayAudioPacketS2C}; they are
+     * carried by the active URL stream and echoed back in the remote stream EOF report.
+     */
+    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff,
+            com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directional, String remoteFullStateKey, int remotePlaybackGeneration) {
         String networkKey = (speakerId != null && !speakerId.trim().isEmpty())
                 ? "net_" + speakerId.trim()
                 : "pos_" + pos.asLong();
@@ -178,7 +198,8 @@ public class ClientAudioPlayer {
                 return;
             }
             playFromUrl(networkKey, pos, metadata.getUuid(),
-                    com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds), isLooping);
+                    com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds), isLooping,
+                    remoteFullStateKey, remotePlaybackGeneration);
             return;
         }
 
@@ -471,7 +492,8 @@ public class ClientAudioPlayer {
     // ------------------------------------------------------------------
 
     private static void playFromUrl(String networkKey, BlockPos pos, String url,
-                                    float startPositionSeconds, boolean isLooping) {
+                                    float startPositionSeconds, boolean isLooping,
+                                    String fullStateKey, int playbackGeneration) {
         Minecraft.getInstance().execute(() -> {
             StreamingAudioResource existing = networkResources.get(networkKey);
             if (existing != null && !existing.stopFlag.get()
@@ -488,11 +510,11 @@ public class ClientAudioPlayer {
                 AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
-                Thread streamingThread = new Thread(() -> streamUrlAudioData(networkKey, sourceID, bufferIDs, url, startPositionSeconds, isLooping),
+                Thread streamingThread = new Thread(() -> streamUrlAudioData(networkKey, sourceID, bufferIDs, url, startPositionSeconds, isLooping, fullStateKey, playbackGeneration),
                         SimplySpeakers.MOD_ID + "-url-stream-" + networkKey);
                 streamingThread.setDaemon(true);
 
-                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping);
+                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping, fullStateKey, playbackGeneration);
                 networkResources.put(networkKey, resource);
                 streamingThread.start();
 
@@ -503,6 +525,12 @@ public class ClientAudioPlayer {
         });
     }
 
+    /**
+     * Opens the URL stream, revalidating every redirect target. Note: host
+     * validation and connection are separate steps, so a hostile DNS server
+     * could rebind the name between them (TOCTOU window); see
+     * {@link com.nstut.simplyspeakers.audio.StreamTracks}.
+     */
     private static AudioInputStream openUrlStream(String url) throws IOException {
         try {
             String currentUrl = url;
@@ -550,16 +578,22 @@ public class ClientAudioPlayer {
         }
     }
 
-    private static void sendRemoteStreamEofReport(String audioId) {
+    private static void sendRemoteStreamEofReport(String fullStateKey, int playbackGeneration, String audioId) {
+        if (fullStateKey == null || fullStateKey.isEmpty()) {
+            // Without the server-provided identity the report cannot be validated.
+            SimplySpeakers.LOGGER.debug("CLIENT: Skipping remote stream EOF report without playback identity");
+            return;
+        }
         try {
-            NetworkManager.sendToServer(new RemoteStreamEofPacketC2S(audioId));
+            NetworkManager.sendToServer(new RemoteStreamEofPacketC2S(fullStateKey, playbackGeneration, audioId));
         } catch (Exception e) {
             SimplySpeakers.LOGGER.debug("CLIENT: Failed to report remote stream EOF", e);
         }
     }
 
     private static void streamUrlAudioData(String networkKey, int sourceID, int[] bufferIDs,
-                                           String url, float startPositionSeconds, boolean isLooping) {
+                                           String url, float startPositionSeconds, boolean isLooping,
+                                           String fullStateKey, int playbackGeneration) {
         StreamingAudioResource resource = networkResources.get(networkKey);
 
         while (resource != null && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
@@ -645,7 +679,7 @@ public class ClientAudioPlayer {
             }
 
             if (completed && !resource.stopFlag.get() && !resource.isLooping.get()) {
-                sendRemoteStreamEofReport(url);
+                sendRemoteStreamEofReport(resource.eofFullStateKey, resource.playbackGeneration, url);
             }
             if (completed && resource.isLooping.get() && !resource.stopFlag.get()) {
                 startPositionSeconds = 0.0f;

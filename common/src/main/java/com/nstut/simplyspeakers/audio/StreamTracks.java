@@ -15,8 +15,28 @@ import java.util.Locale;
  * opened: loopback, link-local, private, and unspecified IP ranges as well as
  * reserved internal hostnames are rejected, and every redirect target must be
  * revalidated by the caller.
+ *
+ * <p>Security notes: the DNS-resolving variant used at connection time fails
+ * CLOSED &mdash; when a hostname cannot be resolved or its resolved addresses
+ * cannot be validated, the URL is rejected. The no-DNS variant used for
+ * render-thread preflight stays permissive for hostnames because it must remain
+ * robust in environments without DNS.</p>
+ *
+ * <p>Residual risk: validating a hostname and opening the connection are two
+ * separate steps, so a hostile DNS server could answer with different addresses
+ * between validation and connection (DNS rebinding / TOCTOU window). Callers
+ * should revalidate every redirect target, but this window is only fully closed
+ * by resolving once and connecting to the validated address (DNS pinning),
+ * which the current connection code does not do.</p>
  */
 public final class StreamTracks {
+
+    /** Resolver seam so DNS-dependent policy is testable without real DNS. */
+    public interface DnsResolver {
+        InetAddress[] resolve(String host) throws UnknownHostException;
+    }
+
+    private static final DnsResolver SYSTEM_DNS = InetAddress::getAllByName;
 
     public static final int MAX_URL_LENGTH = 2048;
     private static final String[] SUPPORTED_EXTENSIONS = {".mp3", ".wav"};
@@ -84,17 +104,27 @@ public final class StreamTracks {
      * cloud metadata endpoint), RFC1918 private, and unspecified addresses, plus
      * reserved internal hostnames, are rejected.
      *
+     * <p>Note: because this check runs before the connection is opened, a
+     * hostile DNS server can still rebind the name between validation and
+     * connection (TOCTOU window); see the class javadoc.</p>
+     *
      * @param url       candidate stream URL
      * @param resolveDns when true, hostnames are resolved and every resolved
-     *                   address is validated too; when false only literal-IP and
-     *                   name-based rules are applied (safe for render threads and
-     *                   environments without DNS)
+     *                   address is validated too, failing closed on resolution
+     *                   errors; when false only literal-IP and name-based rules
+     *                   are applied (safe for render threads and environments
+     *                   without DNS)
      */
     public static boolean isRemoteStreamUrlAllowed(String url, boolean resolveDns) {
+        return isRemoteStreamUrlAllowed(url, resolveDns, SYSTEM_DNS);
+    }
+
+    /** Resolver-injectable variant of {@link #isRemoteStreamUrlAllowed(String, boolean)}. */
+    public static boolean isRemoteStreamUrlAllowed(String url, boolean resolveDns, DnsResolver resolver) {
         if (!isHttpAudioUrl(url)) return false;
         try {
             String host = new URI(url).getHost();
-            return host != null && isHostAllowed(host, resolveDns);
+            return host != null && isHostAllowed(host, resolveDns, resolver);
         } catch (Exception e) {
             return false;
         }
@@ -107,6 +137,11 @@ public final class StreamTracks {
 
     /** Validates a raw host (literal IPv4/IPv6 or hostname) against the SSRF policy. */
     public static boolean isHostAllowed(String host, boolean resolveDns) {
+        return isHostAllowed(host, resolveDns, SYSTEM_DNS);
+    }
+
+    /** Resolver-injectable variant of {@link #isHostAllowed(String, boolean)}. */
+    static boolean isHostAllowed(String host, boolean resolveDns, DnsResolver resolver) {
         if (host == null || host.isBlank()) return false;
         String normalized = host.trim().toLowerCase(Locale.ROOT);
         if (normalized.startsWith("[") && normalized.endsWith("]")) {
@@ -125,7 +160,7 @@ public final class StreamTracks {
         }
         if (isReservedHostname(normalized)) return false;
         if (!resolveDns) return true;
-        return areResolvedAddressesAllowed(normalized);
+        return areResolvedAddressesAllowed(normalized, resolver);
     }
 
     private static boolean looksLikeDottedOrNumericHost(String host) {
@@ -150,17 +185,22 @@ public final class StreamTracks {
         return false;
     }
 
-    private static boolean areResolvedAddressesAllowed(String host) {
+    /**
+     * Resolves the host and validates every resolved address against the SSRF
+     * policy. Fails CLOSED: if resolution fails, the resolver errors, or no
+     * usable addresses are returned, the host is rejected. This is the
+     * connection-time check, so an unresolvable or unverifiable host must never
+     * fall back to the weaker name-based rules.
+     */
+    private static boolean areResolvedAddressesAllowed(String host, DnsResolver resolver) {
         InetAddress[] addresses;
         try {
-            addresses = InetAddress.getAllByName(host);
-        } catch (UnknownHostException e) {
-            // Resolution unavailable: the connection would fail anyway, so rely on
-            // the name-based rules already applied above.
-            return true;
+            addresses = resolver.resolve(host);
         } catch (Exception e) {
-            return true;
+            // Fail closed: a host we cannot verify must not be connected to.
+            return false;
         }
+        if (addresses == null || addresses.length == 0) return false;
         for (InetAddress address : addresses) {
             if (address == null) return false;
             String literal = address.getHostAddress();

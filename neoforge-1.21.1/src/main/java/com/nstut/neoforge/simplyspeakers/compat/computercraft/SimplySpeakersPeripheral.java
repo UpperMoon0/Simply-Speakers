@@ -1,9 +1,15 @@
 package com.nstut.neoforge.simplyspeakers.compat.computercraft;
 
+import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
 import com.nstut.simplyspeakers.SpeakerPermissions;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.audio.StreamTracks;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
+import com.nstut.simplyspeakers.speakers.ServerSpeakerControlService;
 import dan200.computercraft.api.lua.ILuaCallback;
 import dan200.computercraft.api.lua.LuaException;
 import dan200.computercraft.api.lua.LuaFunction;
@@ -137,6 +143,21 @@ public class SimplySpeakersPeripheral implements IPeripheral {
 
 
 
+    /**
+     * Registers the NeoForge peripheral capability for the speaker block entity.
+     * Called from the mod constructor only when CC:Tweaked is present; keeping
+     * the CC API references inside this class (and out of the mod class's
+     * constant pool) prevents class-loading failures when CC:Tweaked is absent.
+     */
+    public static void registerProvider(net.neoforged.bus.api.IEventBus modEventBus) {
+        modEventBus.addListener((net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent event) -> {
+            event.registerBlockEntity(
+                    dan200.computercraft.api.peripheral.PeripheralCapability.get(),
+                    com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries.SPEAKER.get(),
+                    (be, side) -> new SimplySpeakersPeripheral(be));
+        });
+    }
+
     @Override
     public String getType() {
         return "simply_speaker";
@@ -219,6 +240,46 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     public final void seek(double seconds) {
         if (!mayAutomationControl()) return;
         SpeakerApi.seek(serverLevel(), pos(), (float) seconds);
+    }
+
+    /**
+     * Selects a track on this speaker without necessarily starting playback — the same
+     * effect as picking an entry in the speaker GUI (an already-playing network switches
+     * to the new track, an idle one stays idle). An empty string clears the selection.
+     * Library tracks must exist in the server manifest and the filename is always
+     * derived from that manifest, never from the caller; URL tracks must pass the same
+     * remote-stream policy the network layer applies (HTTP(S) URL, supported extension,
+     * SSRF check, server config). Returns true when the selection was applied, false
+     * when the speaker has no state or the track was rejected.
+     *
+     * <p>Ownership of library tracks is intentionally not re-checked here: CC:Tweaked
+     * methods have no player actor, and invoking peripheral methods requires physical
+     * access to the block, so the computer is treated like a system actor.</p>
+     */
+    @LuaFunction(mainThread = true)
+    public final boolean setTrack(String audioId) {
+        if (!mayAutomationControl()) return false;
+        ServerLevel level = serverLevel();
+        if (level == null) return false;
+        String fullStateKey = ServerSpeakerControlService.resolveFullStateKey(level, pos());
+        if (fullStateKey == null) return false;
+        if (audioId == null || audioId.isEmpty()) {
+            return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey, "", "");
+        }
+        if (StreamTracks.isHttpAudioUrl(audioId)) {
+            if (!Config.isRemoteStreamingAllowed()
+                    || !StreamTracks.hasSupportedExtension(audioId)
+                    || !StreamTracks.isRemoteStreamUrlAllowed(audioId, false)) {
+                return false;
+            }
+            return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey, audioId, audioId);
+        }
+        AudioFileManager manager = SimplySpeakers.getAudioFileManager();
+        if (manager == null) return false;
+        AudioFileMetadata meta = manager.getManifest().get(audioId);
+        if (meta == null) return false;
+        return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey,
+                meta.getUuid(), meta.getOriginalFilename());
     }
 
     /** Lua-friendly playback status snapshot. */

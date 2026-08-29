@@ -1,10 +1,5 @@
 package com.nstut.simplyspeakers.network;
 
-import com.nstut.simplyspeakers.Config;
-import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.audio.AudioFileMetadata;
-import com.nstut.simplyspeakers.audio.AudioFileManager;
-import com.nstut.simplyspeakers.audio.AudioOwnership;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -55,23 +50,13 @@ public class SelectAudioPacketC2S {
                     return;
                 }
 
-                if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(pkt.audioId)) {
-                    if (!com.nstut.simplyspeakers.Config.isRemoteStreamingAllowed()
-                            || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(pkt.audioId)
-                            || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(pkt.audioId, false)) {
-                        return;
-                    }
-                    if (!Config.disableUpload || player.hasPermissions(2)) {
-                        speaker.setSelectedAudio(pkt.audioId, pkt.audioId);
-                    }
-                    return;
-                }
-                AudioFileManager manager = SimplySpeakers.getAudioFileManager();
-                if (manager != null) {
-                    AudioFileMetadata meta = manager.getManifest().get(pkt.audioId);
-                    if (meta != null && AudioOwnership.isOwnedBy(meta.getOwnerUUID(), player.getUUID().toString())) {
-                        speaker.setSelectedAudio(meta.getUuid(), meta.getOriginalFilename());
-                    }
+                // Content-level authorization is shared with the playlist paths:
+                // owned local entries resolve via the manifest (server-derived
+                // filename), URL tracks via remote-streaming policy only.
+                SpeakerPacketSecurity.AuthorizedTrack track =
+                        SpeakerPacketSecurity.resolveAuthorizedTrack(player, pkt.audioId);
+                if (track != null) {
+                    speaker.setSelectedAudio(track.audioId(), track.filename());
                 }
             }
         });

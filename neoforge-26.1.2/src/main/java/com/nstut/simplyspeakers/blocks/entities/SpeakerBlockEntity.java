@@ -60,6 +60,12 @@ public class SpeakerBlockEntity extends BlockEntity {
      * reload does not fabricate a rising edge (0 -> current signal). */
     private int lastRedstoneSignal = 0;
 
+    private static final int COMPARATOR_UPDATE_INTERVAL_TICKS = 10;
+
+    /** Last comparator level pushed to neighbours; recalculated on a periodic cadence. */
+    private int lastComparatorLevel = 0;
+    private long lastComparatorCheckTick = -COMPARATOR_UPDATE_INTERVAL_TICKS;
+
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityRegistries.SPEAKER.get(), pos, state);
         if (level != null && !level.isClientSide()) {
@@ -211,6 +217,7 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, SpeakerBlockEntity blockEntity) {
         blockEntity.ensureServerRegistration();
+        blockEntity.updateComparatorOutput();
     }
 
     // ==================================================================
@@ -231,6 +238,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
+        updateComparatorOutput();
     }
 
     public void resumeAudio() {
@@ -327,6 +335,19 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
         float elapsed = state.getPlaybackPositionSeconds(level.getGameTime());
         return RedstoneLogic.comparatorLevel(state.isPlaying() && !state.isPaused(), elapsed, duration);
+    }
+
+    private void updateComparatorOutput() {
+        if (level == null || level.isClientSide()) return;
+        long now = level.getGameTime();
+        if (now - lastComparatorCheckTick < COMPARATOR_UPDATE_INTERVAL_TICKS) return;
+        lastComparatorCheckTick = now;
+        int computed = getComparatorOutput();
+        if (computed != lastComparatorLevel) {
+            lastComparatorLevel = computed;
+            level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+            setChanged();
+        }
     }
 
     public String getNetworkName() {
@@ -462,6 +483,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
+        updateComparatorOutput();
     }
 
     public void detachEmitterForPowerOff() {

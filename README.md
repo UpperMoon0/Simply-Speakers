@@ -78,6 +78,7 @@ Audio files are stored in `simply_speakers_audios/` inside your world's save fol
 Edit the mod config file to adjust:
 - `speakerRange`: Default range for new speakers (1–512, default: 64)
 - `disableUpload`: Disable the in-game upload feature
+- `allowRemoteStreams`: Whether clients may stream direct `http(s)` MP3/WAV URLs through this server (independent of `disableUpload`, default: off)
 - `maxUploadSize`: Maximum file size for uploads in bytes
 - `debugLogging`: Enable verbose logging for troubleshooting
 

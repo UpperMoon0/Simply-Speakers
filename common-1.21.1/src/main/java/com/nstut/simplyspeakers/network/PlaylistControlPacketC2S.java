@@ -72,8 +72,21 @@ public class PlaylistControlPacketC2S implements CustomPacketPayload {
                 if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), player.hasPermissions(2))) {
                     return;
                 }
+                // Content-level authorization: ADD and QUEUE_NEXT can introduce new
+                // tracks, so the audioId must resolve to an owned local entry or an
+                // allowed remote stream. The filename is derived server-side and the
+                // packet-supplied filename is never trusted.
+                String audioId = packet.audioId;
+                String filename = packet.filename;
+                if (packet.op == OP_ADD || packet.op == OP_QUEUE_NEXT) {
+                    SpeakerPacketSecurity.AuthorizedTrack track =
+                            SpeakerPacketSecurity.resolveAuthorizedTrack(player, packet.audioId);
+                    if (track == null) return;
+                    audioId = track.audioId();
+                    filename = track.filename();
+                }
                 speaker.playlistControl(player.level(), packet.op, packet.index, packet.flag,
-                        packet.audioId, packet.filename);
+                        audioId, filename);
             }
         });
     }

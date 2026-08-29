@@ -136,4 +136,55 @@ class StreamTracksTest {
         assertFalse(StreamTracks.isHostAllowed("127.0.0.1", false));
         assertTrue(StreamTracks.isHostAllowed("example.com", false));
     }
+
+    private static StreamTracks.DnsResolver resolving(java.net.InetAddress... addresses) {
+        return host -> addresses;
+    }
+
+    private static java.net.InetAddress address(byte... octets) throws Exception {
+        return java.net.InetAddress.getByAddress(octets);
+    }
+
+    @Test
+    void dnsResolutionFailureFailsClosed() {
+        StreamTracks.DnsResolver unknownHost = host -> {
+            throw new java.net.UnknownHostException(host);
+        };
+        assertFalse(StreamTracks.isRemoteStreamUrlAllowed("https://example.com/radio.mp3", true, unknownHost));
+        assertFalse(StreamTracks.isHostAllowed("example.com", true, unknownHost));
+        // The no-DNS preflight variant must stay permissive for the same host.
+        assertTrue(StreamTracks.isHostAllowed("example.com", false));
+    }
+
+    @Test
+    void dnsResolverErrorsFailClosed() {
+        StreamTracks.DnsResolver broken = host -> {
+            throw new RuntimeException("resolver unavailable");
+        };
+        assertFalse(StreamTracks.isRemoteStreamUrlAllowed("https://example.com/radio.mp3", true, broken));
+        assertFalse(StreamTracks.isHostAllowed("example.com", true, broken));
+    }
+
+    @Test
+    void nullAndEmptyResolutionResultsFailClosed() {
+        StreamTracks.DnsResolver nullResult = host -> null;
+        StreamTracks.DnsResolver emptyResult = host -> new java.net.InetAddress[0];
+        assertFalse(StreamTracks.isHostAllowed("example.com", true, nullResult));
+        assertFalse(StreamTracks.isHostAllowed("example.com", true, emptyResult));
+    }
+
+    @Test
+    void resolvedPrivateAddressIsRejected() throws Exception {
+        java.net.InetAddress priv = address((byte) 10, (byte) 0, (byte) 0, (byte) 5);
+        assertFalse(StreamTracks.isRemoteStreamUrlAllowed("https://example.com/radio.mp3", true, resolving(priv)));
+        // A single private address in the answer set poisons the whole host.
+        java.net.InetAddress pub = address((byte) 93, (byte) 184, (byte) 216, (byte) 34);
+        assertFalse(StreamTracks.isRemoteStreamUrlAllowed("https://example.com/radio.mp3", true, resolving(pub, priv)));
+    }
+
+    @Test
+    void resolvedPublicAddressesAreAllowed() throws Exception {
+        java.net.InetAddress pub = address((byte) 93, (byte) 184, (byte) 216, (byte) 34);
+        assertTrue(StreamTracks.isRemoteStreamUrlAllowed("https://example.com/radio.mp3", true, resolving(pub)));
+    }
 }

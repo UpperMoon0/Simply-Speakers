@@ -13,8 +13,7 @@ Simply Speakers adds configurable speaker blocks that play your own MP3 and WAV 
 - **Redstone control:** Power speakers to play and remove power to stop.
 - **Multiplayer synchronization:** Nearby players hear the same playback position while the server remains authoritative.
 - **Moving-body audio on 1.21.1:** When Sable is installed, speakers mounted on physics bodies follow their actual moving and rotating positions.
-
-Simply Speakers does not stream arbitrary internet URLs. The upload interface accepts files from your local computer and transfers validated MP3 or WAV audio to the server.
+- **Internet streams:** When the server enables `allowRemoteStreams`, direct `http(s)` MP3/WAV URLs can be selected as tracks and are streamed live by clients without caching. Private/internal network addresses are always rejected.
 
 ## Getting Started
 
@@ -72,6 +71,7 @@ Sable integration is currently available only on the Minecraft 1.21.1 builds.
 
 - `speakerRange`: Default range for new speakers, from 1 to 512 blocks (default: 64)
 - `disableUpload`: Disable in-game uploads
+- `allowRemoteStreams`: Whether clients may stream direct `http(s)` MP3/WAV URLs through this server (independent of `disableUpload`, default: off)
 - `maxUploadSize`: Maximum upload size in bytes
 - `debugLogging`: Enable verbose troubleshooting logs
 

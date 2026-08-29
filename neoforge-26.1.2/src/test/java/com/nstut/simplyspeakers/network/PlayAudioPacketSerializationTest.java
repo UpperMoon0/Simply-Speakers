@@ -36,4 +36,21 @@ public class PlayAudioPacketSerializationTest {
         assertEquals(1.0f, packet.getMaxVolume());
         assertEquals(1.0f, packet.getAudioDropoff());
     }
+
+    @Test
+    public void testPlayAudioPacketRemoteIdentityDefaultsToAbsent() {
+        BlockPos pos = new BlockPos(1, 2, 3);
+        PlayAudioPacketS2C packet = new PlayAudioPacketS2C(pos, "net", "audio_1", "song.mp3", 0.0f, false);
+        assertEquals("", packet.getFullStateKey());
+        assertEquals(0, packet.getPlaybackGeneration());
+    }
+
+    @Test
+    public void testPlayAudioPacketRemoteIdentityAttached() {
+        BlockPos pos = new BlockPos(4, 5, 6);
+        PlayAudioPacketS2C packet = new PlayAudioPacketS2C(pos, "net", "https://example.com/a.mp3", "a.mp3", 0.0f, false)
+                .withRemoteIdentity("overworld/net_living_room", 7);
+        assertEquals("overworld/net_living_room", packet.getFullStateKey());
+        assertEquals(7, packet.getPlaybackGeneration());
+    }
 }

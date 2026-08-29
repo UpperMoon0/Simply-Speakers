@@ -166,6 +166,7 @@ public class SpeakerState {
         for (String queued : source.getQueue()) {
             copy.queueNext(queued);
         }
+        copy.setResumeIndex(source.getResumeIndex());
         return copy;
     }
 

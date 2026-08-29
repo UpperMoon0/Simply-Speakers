@@ -1,9 +1,14 @@
 package com.nstut.simplyspeakers.network;
 
+import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerPermissions;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.audio.AudioOwnership;
+import com.nstut.simplyspeakers.audio.StreamTracks;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
@@ -129,5 +134,47 @@ public final class SpeakerPacketSecurity {
             }
         }
         return true;
+    }
+
+    /**
+     * Server-authorized (audioId, filename) pair for a track entering playback
+     * or a playlist.
+     */
+    public record AuthorizedTrack(String audioId, String filename) {
+    }
+
+    /**
+     * Content-level authorization for a track id entering playback or a playlist.
+     * A local audio UUID is accepted only when it exists in the audio manifest
+     * AND is owned by the actor ({@link AudioOwnership}), mirroring the
+     * {@code SelectAudioPacketC2S} rule; the filename is derived server-side
+     * from the manifest and the packet-supplied filename is never trusted.
+     * An HTTP(S) URL is accepted only when remote streaming is enabled
+     * ({@link Config#isRemoteStreamingAllowed()}), the extension is supported
+     * and the URL passes SSRF policy ({@link StreamTracks}), with the URL itself
+     * acting as the filename. Anything else (including unknown ids) is rejected.
+     * Returns the authorized pair or null. This is an additional content-level
+     * check on top of the speaker-control permission checks.
+     */
+    public static AuthorizedTrack resolveAuthorizedTrack(ServerPlayer player, String audioId) {
+        if (player == null || audioId == null || audioId.isEmpty()) {
+            return null;
+        }
+        if (StreamTracks.isHttpAudioUrl(audioId)) {
+            if (!Config.isRemoteStreamingAllowed()
+                    || !StreamTracks.hasSupportedExtension(audioId)
+                    || !StreamTracks.isRemoteStreamUrlAllowed(audioId, false)) {
+                return null;
+            }
+            return new AuthorizedTrack(audioId, audioId);
+        }
+        AudioFileManager manager = SimplySpeakers.getAudioFileManager();
+        if (manager != null) {
+            AudioFileMetadata meta = manager.getManifest().get(audioId);
+            if (meta != null && AudioOwnership.isOwnedBy(meta.getOwnerUUID(), player.getUUID().toString())) {
+                return new AuthorizedTrack(meta.getUuid(), meta.getOriginalFilename());
+            }
+        }
+        return null;
     }
 }

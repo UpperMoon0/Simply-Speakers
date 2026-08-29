@@ -17,6 +17,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,18 +38,42 @@ public final class ServerPlaybackManager {
     private static final PlaybackSubscriptions subscriptions = new PlaybackSubscriptions();
 
     /**
-     * Natural-EOF reports for remote URL tracks, keyed by full state key. A URL
-     * track has no server-known duration, so playlist advancement happens once
-     * every subscribed player of the state reports that the stream finished.
+     * Natural-EOF reports for remote URL tracks, keyed by full state key. Each
+     * entry also carries the playback generation and audio id it belongs to, so
+     * stale reports from a previous session are never counted. A URL track has
+     * no server-known duration, so playlist advancement happens once every
+     * subscribed player of the state reports that the stream finished.
      */
     private static final Map<String, RemoteEofReports> pendingRemoteEof = new ConcurrentHashMap<>();
 
+    /**
+     * Current playback generation per full state key. Bumped whenever a NEW URL
+     * playback session starts for the state (initial play, playlist advance to a
+     * URL track, or restart after playback stopped); resyncs (seek/resume
+     * re-subscribes and late joins) reuse the current generation. EOF reports
+     * carrying a stale generation are ignored, which guards against a delayed
+     * report terminating a newly restarted copy of the same URL.
+     */
+    private static final Map<String, Integer> playbackGenerations = new ConcurrentHashMap<>();
+
+    /**
+     * The audio id the current generation was issued for, used to distinguish a
+     * new playback session (different track) from a resync of the same track.
+     */
+    private static final Map<String, String> generationAudioId = new ConcurrentHashMap<>();
+
     private static final class RemoteEofReports {
+        final int playbackGeneration;
         final String audioId;
         final Set<UUID> reported = ConcurrentHashMap.newKeySet();
 
-        RemoteEofReports(String audioId) {
+        RemoteEofReports(int playbackGeneration, String audioId) {
+            this.playbackGeneration = playbackGeneration;
             this.audioId = audioId;
+        }
+
+        boolean matches(int reportedGeneration, String reportedAudioId) {
+            return playbackGeneration == reportedGeneration && audioId.equals(reportedAudioId);
         }
     }
 
@@ -59,6 +84,8 @@ public final class ServerPlaybackManager {
     public static synchronized void resetForWorld() {
         subscriptions.clear();
         pendingRemoteEof.clear();
+        playbackGenerations.clear();
+        generationAudioId.clear();
     }
 
     // ------------------------------------------------------------------
@@ -138,6 +165,10 @@ public final class ServerPlaybackManager {
         state.setPlaying(false);
         state.setPlaybackStartTick(-1);
         ServerSpeakerRegistry.updateSpeakerStateByFullKey(sourceEmitter.fullStateKey(), state);
+        // The URL playback session is over: drop the generation so a later
+        // restart of the same track is issued a fresh one, invalidating any
+        // in-flight EOF reports for the previous session.
+        clearPlaybackGeneration(sourceEmitter.fullStateKey());
 
         BlockPos pos = new BlockPos(sourceEmitter.location().getX(), sourceEmitter.location().getY(), sourceEmitter.location().getZ());
         SpeakerStateUpdatePacketS2C statePacket = new SpeakerStateUpdatePacketS2C(
@@ -198,52 +229,83 @@ public final class ServerPlaybackManager {
     // ------------------------------------------------------------------
 
     /**
-     * Handles a client report that a remote HTTP(S) stream reached natural EOF.
-     * The report is only honored when the sender is a subscribed player of a
-     * speaker state currently playing the reported (non-looping) URL track;
-     * playback advances once every subscribed player has reported. Unlike
-     * transport controls this can only end or advance a track that has actually
-     * finished streaming on the reporting clients.
+     * Returns the generation to carry on play packets for a URL track, bumping
+     * it only when a NEW playback session for the track is observed: no
+     * generation exists yet, playback previously stopped, or the track changed
+     * (playlist advance). Per-client resyncs (seek/resume, late joins) and play
+     * packets for sibling emitters of the same network reuse the current
+     * generation, and any pending EOF reports for a superseded session are dropped.
      */
-    public static void handleRemoteStreamEofReport(ServerPlayer player, String audioId) {
+    private static synchronized int currentPlaybackGeneration(String fullStateKey, String audioId) {
+        if (audioId != null && audioId.equals(generationAudioId.get(fullStateKey))) {
+            Integer current = playbackGenerations.get(fullStateKey);
+            if (current != null) return current;
+        }
+        Integer previous = playbackGenerations.get(fullStateKey);
+        int generation = (previous == null ? 0 : previous) + 1;
+        playbackGenerations.put(fullStateKey, generation);
+        generationAudioId.put(fullStateKey, audioId);
+        pendingRemoteEof.remove(fullStateKey);
+        return generation;
+    }
+
+    /**
+     * Drops the generation for a state whose URL session ended or was superseded
+     * by a non-URL track, invalidating any in-flight EOF reports for it.
+     */
+    private static synchronized void clearPlaybackGeneration(String fullStateKey) {
+        if (fullStateKey == null) return;
+        playbackGenerations.remove(fullStateKey);
+        generationAudioId.remove(fullStateKey);
+        pendingRemoteEof.remove(fullStateKey);
+    }
+
+    /**
+     * Handles a client report that a remote HTTP(S) stream reached natural EOF.
+     * The report targets the shared state by the server-assigned full state key
+     * and is only honored when the state is currently playing the reported
+     * (non-looping) URL track with the reported playback generation. Quorum is
+     * evaluated against the UNION of subscriber sets across ALL emitters
+     * registered for that state, so linked speakers cannot advance the network
+     * based on one emitter's audience alone. Unlike transport controls this can
+     * only end or advance a track that has actually finished streaming on the
+     * reporting clients.
+     */
+    public static void handleRemoteStreamEofReport(ServerPlayer player, String fullStateKey, int playbackGeneration, String audioId) {
         if (player == null || audioId == null || audioId.isEmpty()) return;
+        if (fullStateKey == null || fullStateKey.isEmpty()) return;
         if (!com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(audioId)) return;
         MinecraftServer server = player.getServer();
         if (server == null) return;
-        Set<SpeakerLocation> locations = subscriptions.getEmitterLocationsForPlayer(player.getUUID());
-        if (locations == null || locations.isEmpty()) return;
 
-        for (SpeakerLocation location : locations) {
-            ServerEmitter emitter = findEmitterByLocation(location);
-            if (emitter == null) continue;
-            SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(emitter.fullStateKey());
-            if (state == null || !state.isPlaying() || state.isPaused() || state.isLooping()) continue;
-            if (!audioId.equals(state.getAudioId())) continue;
-            if (!com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())) continue;
-            ServerLevel level = findLevel(server, emitter.location().dimension());
-            if (level == null) continue;
-            Set<UUID> subscribers = subscriptions.getSubscribers(emitter.location());
-            if (subscribers == null || subscribers.isEmpty()) continue;
+        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        if (state == null || !state.isPlaying() || state.isPaused() || state.isLooping()) return;
+        if (!audioId.equals(state.getAudioId())) return;
+        if (!com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())) return;
+        Integer currentGeneration = playbackGenerations.get(fullStateKey);
+        if (currentGeneration == null || currentGeneration != playbackGeneration) return;
 
-            String fullStateKey = emitter.fullStateKey();
-            RemoteEofReports reports = pendingRemoteEof.compute(fullStateKey,
-                    (key, existing) -> existing != null && audioId.equals(existing.audioId)
-                            ? existing
-                            : new RemoteEofReports(audioId));
-            reports.reported.add(player.getUUID());
-            if (reports.reported.containsAll(subscribers) && pendingRemoteEof.remove(fullStateKey, reports)) {
-                advancePlaylistOrStop(server, level, emitter, state);
-            }
-        }
-    }
-
-    private static ServerEmitter findEmitterByLocation(SpeakerLocation location) {
+        Set<UUID> quorum = new HashSet<>();
+        ServerEmitter advanceEmitter = null;
+        ServerLevel advanceLevel = null;
         for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
-            if (emitter.location().equals(location)) {
-                return emitter;
+            if (!fullStateKey.equals(emitter.fullStateKey())) continue;
+            quorum.addAll(subscriptions.getSubscribers(emitter.location()));
+            if (advanceEmitter == null) {
+                advanceLevel = findLevel(server, emitter.location().dimension());
+                if (advanceLevel != null) advanceEmitter = emitter;
             }
         }
-        return null;
+        if (advanceEmitter == null || quorum.isEmpty() || !quorum.contains(player.getUUID())) return;
+
+        RemoteEofReports reports = pendingRemoteEof.compute(fullStateKey,
+                (key, existing) -> existing != null && existing.matches(playbackGeneration, audioId)
+                        ? existing
+                        : new RemoteEofReports(playbackGeneration, audioId));
+        reports.reported.add(player.getUUID());
+        if (reports.reported.containsAll(quorum) && pendingRemoteEof.remove(fullStateKey, reports)) {
+            advancePlaylistOrStop(server, advanceLevel, advanceEmitter, state);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -451,6 +513,15 @@ public final class ServerPlaybackManager {
                     : (byte) 2; // NORTH
             packet.withExtras(new com.nstut.simplyspeakers.audio.DirectionalAudio.Extras(
                     state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), facing));
+        }
+        // URL tracks carry the authoritative shared-state identity so client EOF
+        // reports can be tied to the exact network state and playback session.
+        // A new generation is issued only when a new playback session starts;
+        // resyncs and sibling-emitter plays reuse the current generation.
+        if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())) {
+            packet.withRemoteIdentity(emitter.fullStateKey(), currentPlaybackGeneration(emitter.fullStateKey(), state.getAudioId()));
+        } else {
+            clearPlaybackGeneration(emitter.fullStateKey());
         }
         return packet;
     }

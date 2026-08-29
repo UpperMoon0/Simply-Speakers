@@ -36,6 +36,13 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
     /** Optional directional cone settings; null keeps omnidirectional behaviour. */
     private com.nstut.simplyspeakers.audio.DirectionalAudio.Extras extras;
 
+    /**
+     * Authoritative shared-state identity for remote-EOF reporting, attached by
+     * the server for URL tracks; empty/0 for packets without remote identity.
+     */
+    private String fullStateKey;
+    private int playbackGeneration;
+
 
     public PlayAudioPacketS2C(BlockPos pos, String speakerId, String audioId, String audioFilename, float playbackPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff) {
         this.pos = pos;
@@ -75,6 +82,12 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
             buffer.writeFloat(packet.extras.rearAttenuation());
             buffer.writeByte(packet.extras.facingOrdinal());
         }
+        boolean hasRemoteIdentity = packet.fullStateKey != null && !packet.fullStateKey.isEmpty();
+        buffer.writeBoolean(hasRemoteIdentity);
+        if (hasRemoteIdentity) {
+            buffer.writeUtf(packet.fullStateKey);
+            buffer.writeVarInt(packet.playbackGeneration);
+        }
     }
 
     public static PlayAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
@@ -92,6 +105,10 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         if (buffer.readableBytes() >= 1 && buffer.readBoolean()) {
             packet.extras = new com.nstut.simplyspeakers.audio.DirectionalAudio.Extras(
                     buffer.readFloat(), buffer.readFloat(), buffer.readFloat(), buffer.readByte());
+        }
+        if (buffer.readableBytes() >= 1 && buffer.readBoolean()) {
+            packet.fullStateKey = buffer.readUtf();
+            packet.playbackGeneration = buffer.readVarInt();
         }
         return packet;
     }
@@ -121,7 +138,8 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, speakerId: '{}', audioId: {}, filename: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
                 packet.pos, packet.speakerId, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff);
         AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
-        ClientAudioPlayer.play(packet.pos, packet.speakerId, metadata, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff, packet.getExtras());
+        ClientAudioPlayer.play(packet.pos, packet.speakerId, metadata, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff, packet.getExtras(),
+                packet.getFullStateKey(), packet.getPlaybackGeneration());
     }
 
     public static void processPendingPlays() {
@@ -193,6 +211,26 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
 
     public com.nstut.simplyspeakers.audio.DirectionalAudio.Extras getExtras() {
         return extras;
+    }
+
+    /**
+     * Attaches the authoritative shared-state identity used for remote-EOF
+     * reporting. Only meaningful for URL tracks.
+     */
+    public PlayAudioPacketS2C withRemoteIdentity(String remoteFullStateKey, int remotePlaybackGeneration) {
+        this.fullStateKey = remoteFullStateKey;
+        this.playbackGeneration = remotePlaybackGeneration;
+        return this;
+    }
+
+    /** Server-provided shared-state key for EOF reporting; empty when absent. */
+    public String getFullStateKey() {
+        return fullStateKey != null ? fullStateKey : "";
+    }
+
+    /** Playback generation for EOF reporting; 0 when absent. */
+    public int getPlaybackGeneration() {
+        return playbackGeneration;
     }
 
     @Override

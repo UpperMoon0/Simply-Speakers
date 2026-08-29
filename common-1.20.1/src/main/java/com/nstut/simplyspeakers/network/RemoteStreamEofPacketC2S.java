@@ -8,21 +8,32 @@ import java.util.function.Supplier;
 
 /**
  * Client -> server report that a direct HTTP(S) audio stream reached natural EOF.
- * The server validates the reporter is a subscribed player of a state currently
- * playing this URL track before advancing its playlist or stopping playback.
+ * The report carries the server-assigned shared-state key and playback session
+ * generation from the originating {@code PlayAudioPacketS2C}. The server honors
+ * it only when the reporter is a subscribed player of the referenced state,
+ * which must currently be playing the reported (non-looping) URL track with the
+ * reported generation, before advancing its playlist or stopping playback.
  */
 public class RemoteStreamEofPacketC2S {
+    private final String fullStateKey;
+    private final int playbackGeneration;
     private final String audioId;
 
-    public RemoteStreamEofPacketC2S(String audioId) {
+    public RemoteStreamEofPacketC2S(String fullStateKey, int playbackGeneration, String audioId) {
+        this.fullStateKey = fullStateKey != null ? fullStateKey : "";
+        this.playbackGeneration = playbackGeneration;
         this.audioId = audioId != null ? audioId : "";
     }
 
     public RemoteStreamEofPacketC2S(FriendlyByteBuf buf) {
+        this.fullStateKey = buf.readUtf();
+        this.playbackGeneration = buf.readVarInt();
         this.audioId = buf.readUtf();
     }
 
     public void encode(FriendlyByteBuf buf) {
+        buf.writeUtf(this.fullStateKey);
+        buf.writeVarInt(this.playbackGeneration);
         buf.writeUtf(this.audioId);
     }
 
@@ -30,7 +41,7 @@ public class RemoteStreamEofPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            com.nstut.simplyspeakers.speakers.ServerPlaybackManager.handleRemoteStreamEofReport(player, pkt.audioId);
+            com.nstut.simplyspeakers.speakers.ServerPlaybackManager.handleRemoteStreamEofReport(player, pkt.fullStateKey, pkt.playbackGeneration, pkt.audioId);
         });
     }
 }

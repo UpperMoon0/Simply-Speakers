@@ -66,7 +66,20 @@ public class PlaylistControlPacketC2S {
             if (level.getBlockEntity(pkt.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
                 if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), player.hasPermissions(2))) return;
-                speaker.playlistControl(level, pkt.op, pkt.index, pkt.flag, pkt.audioId, pkt.filename);
+                // Content-level authorization: ADD and QUEUE_NEXT can introduce new
+                // tracks, so the audioId must resolve to an owned local entry or an
+                // allowed remote stream. The filename is derived server-side and the
+                // packet-supplied filename is never trusted.
+                String audioId = pkt.audioId;
+                String filename = pkt.filename;
+                if (pkt.op == OP_ADD || pkt.op == OP_QUEUE_NEXT) {
+                    SpeakerPacketSecurity.AuthorizedTrack track =
+                            SpeakerPacketSecurity.resolveAuthorizedTrack(player, pkt.audioId);
+                    if (track == null) return;
+                    audioId = track.audioId();
+                    filename = track.filename();
+                }
+                speaker.playlistControl(level, pkt.op, pkt.index, pkt.flag, audioId, filename);
             }
         });
     }

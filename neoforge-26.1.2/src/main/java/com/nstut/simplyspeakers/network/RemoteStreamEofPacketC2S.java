@@ -10,8 +10,11 @@ import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Client -> server report that a direct HTTP(S) audio stream reached natural EOF.
- * The server validates the reporter is a subscribed player of a state currently
- * playing this URL track before advancing its playlist or stopping playback.
+ * The report carries the server-assigned shared-state key and playback session
+ * generation from the originating {@code PlayAudioPacketS2C}. The server honors
+ * it only when the reporter is a subscribed player of the referenced state,
+ * which must currently be playing the reported (non-looping) URL track with the
+ * reported generation, before advancing its playlist or stopping playback.
  */
 public class RemoteStreamEofPacketC2S implements CustomPacketPayload {
 
@@ -21,24 +24,30 @@ public class RemoteStreamEofPacketC2S implements CustomPacketPayload {
     public static final StreamCodec<RegistryFriendlyByteBuf, RemoteStreamEofPacketC2S> STREAM_CODEC =
             StreamCodec.of(RemoteStreamEofPacketC2S::encode, RemoteStreamEofPacketC2S::decode);
 
+    private final String fullStateKey;
+    private final int playbackGeneration;
     private final String audioId;
 
-    public RemoteStreamEofPacketC2S(String audioId) {
+    public RemoteStreamEofPacketC2S(String fullStateKey, int playbackGeneration, String audioId) {
+        this.fullStateKey = fullStateKey != null ? fullStateKey : "";
+        this.playbackGeneration = playbackGeneration;
         this.audioId = audioId != null ? audioId : "";
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, RemoteStreamEofPacketC2S packet) {
+        buffer.writeUtf(packet.fullStateKey);
+        buffer.writeVarInt(packet.playbackGeneration);
         buffer.writeUtf(packet.audioId);
     }
 
     public static RemoteStreamEofPacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new RemoteStreamEofPacketC2S(buffer.readUtf());
+        return new RemoteStreamEofPacketC2S(buffer.readUtf(), buffer.readVarInt(), buffer.readUtf());
     }
 
     public static void handle(RemoteStreamEofPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            com.nstut.simplyspeakers.speakers.ServerPlaybackManager.handleRemoteStreamEofReport(player, packet.audioId);
+            com.nstut.simplyspeakers.speakers.ServerPlaybackManager.handleRemoteStreamEofReport(player, packet.fullStateKey, packet.playbackGeneration, packet.audioId);
         });
     }
 

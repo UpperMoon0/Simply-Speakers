@@ -58,6 +58,12 @@ public class SpeakerBlockEntity extends BlockEntity {
      * reload does not fabricate a rising edge (0 -> current signal). */
     private int lastRedstoneSignal = 0;
 
+    private static final int COMPARATOR_UPDATE_INTERVAL_TICKS = 10;
+
+    /** Last comparator level pushed to neighbours; recalculated on a periodic cadence. */
+    private int lastComparatorLevel = 0;
+    private long lastComparatorCheckTick = -COMPARATOR_UPDATE_INTERVAL_TICKS;
+
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityRegistries.SPEAKER.get(), pos, state);
         if (level != null && !level.isClientSide()) {
@@ -214,6 +220,7 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, SpeakerBlockEntity blockEntity) {
         blockEntity.ensureServerRegistration();
+        blockEntity.updateComparatorOutput();
     }
 
     // ==================================================================
@@ -234,6 +241,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
+        updateComparatorOutput();
     }
 
     public void resumeAudio() {
@@ -330,6 +338,19 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
         float elapsed = state.getPlaybackPositionSeconds(level.getGameTime());
         return RedstoneLogic.comparatorLevel(state.isPlaying() && !state.isPaused(), elapsed, duration);
+    }
+
+    private void updateComparatorOutput() {
+        if (level == null || level.isClientSide()) return;
+        long now = level.getGameTime();
+        if (now - lastComparatorCheckTick < COMPARATOR_UPDATE_INTERVAL_TICKS) return;
+        lastComparatorCheckTick = now;
+        int computed = getComparatorOutput();
+        if (computed != lastComparatorLevel) {
+            lastComparatorLevel = computed;
+            level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+            setChanged();
+        }
     }
 
     public String getNetworkName() {
@@ -465,6 +486,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
+        updateComparatorOutput();
     }
 
     public void detachEmitterForPowerOff() {
@@ -505,15 +527,26 @@ public class SpeakerBlockEntity extends BlockEntity {
     public void loadAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider lookupProvider) {
         super.loadAdditional(tag, lookupProvider);
 
+        boolean migratedInternalId = !tag.contains(NBT_INTERNAL_ID);
         if (tag.hasUUID(NBT_INTERNAL_ID)) {
             internalStateId = tag.getUUID(NBT_INTERNAL_ID);
+        } else if (tag.contains(NBT_INTERNAL_ID)) {
+            try {
+                internalStateId = UUID.fromString(tag.getString(NBT_INTERNAL_ID));
+            } catch (Exception e) {
+                internalStateId = UUID.randomUUID();
+            }
+        } else {
+            internalStateId = UUID.randomUUID();
+            setChanged();
         }
 
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         lastRedstoneSignal = tag.contains(NBT_LAST_REDSTONE_SIGNAL) ? tag.getInt(NBT_LAST_REDSTONE_SIGNAL) : 0;
 
         if (level != null && !level.isClientSide()) {
-            SpeakerState persistedState = getSpeakerState();
+            if (migratedInternalId) ServerSpeakerRegistry.applyLegacyStandaloneTemplate(level, getStateKey());
+            SpeakerState persistedState = ServerSpeakerRegistry.getOrCreateSpeakerState(level, getStateKey());
             SpeakerSettings.read(
                     (key, fallback) -> tag.contains(key) ? tag.getFloat(key) : fallback,
                     (key, fallback) -> tag.contains(key) ? tag.getInt(key) : fallback,

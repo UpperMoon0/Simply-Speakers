@@ -181,6 +181,18 @@ public class Playlist {
         return queue;
     }
 
+    /**
+     * Canonical walk position to restore once the one-shot queue drains. Persisted so a
+     * server restart while a queued track is active does not lose the resume location.
+     */
+    public int getResumeIndex() {
+        return resumeIndex;
+    }
+
+    public void setResumeIndex(int index) {
+        this.resumeIndex = index;
+    }
+
     // ------------------------------------------------------------------
     // Modes
     // ------------------------------------------------------------------

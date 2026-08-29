@@ -36,13 +36,10 @@ public final class SimplySpeakersForge {
                 com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
 
         // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        // The CC API references live inside SimplySpeakersPeripheral.registerProvider so
+        // this mod class never resolves CC classes when the mod is absent.
         if (net.neoforged.fml.ModList.get().isLoaded("computercraft")) {
-            modEventBus.addListener((net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent event) -> {
-                event.registerBlockEntity(
-                        dan200.computercraft.api.peripheral.PeripheralCapability.get(),
-                        BlockEntityRegistries.SPEAKER.get(),
-                        (be, side) -> new SimplySpeakersPeripheral(be));
-            });
+            SimplySpeakersPeripheral.registerProvider(modEventBus);
         }
 
         SimplySpeakers.SOUND_EVENTS.register();

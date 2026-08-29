@@ -2,7 +2,6 @@ package com.nstut.fabric.simplyspeakers;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.blocks.BlockRegistries;
-import com.nstut.simplyspeakers.blocks.entities.BlockEntityRegistries;
 import com.nstut.simplyspeakers.items.ItemRegistries;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
@@ -28,10 +27,10 @@ public class SimplySpeakersFabric implements ModInitializer {
                 com.nstut.simplyspeakers.commands.SpeakerCommands.register(dispatcher));
 
         // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        // The CC API references live inside SimplySpeakersPeripheral.registerProvider so
+        // this entrypoint class never resolves CC classes when the mod is absent.
         if (FabricLoader.getInstance().isModLoaded("computercraft")) {
-            dan200.computercraft.api.peripheral.PeripheralLookup.get().registerForBlockEntity(
-                    (be, side) -> new SimplySpeakersPeripheral(be),
-                    BlockEntityRegistries.SPEAKER.get());
+            SimplySpeakersPeripheral.registerProvider();
         }
 
         // Load config
