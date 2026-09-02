@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SpeakerStateTransportTest {
@@ -26,6 +27,41 @@ class SpeakerStateTransportTest {
         SpeakerState state = new SpeakerState();
         state.startPlaybackAt(START_TICK, 10.0f);
         assertEquals(15.0f, state.getPlaybackPositionSeconds(START_TICK + 100), 0.0001f);
+    }
+
+    @Test
+    void eachStartCreatesANewPlaybackOccurrence() {
+        SpeakerState state = new SpeakerState();
+        state.startPlaybackAt(START_TICK, 0.0f);
+        int first = state.getPlaybackSessionGeneration();
+        state.startPlaybackAt(START_TICK, 0.0f); // same tick and same track is still a restart
+        int restart = state.getPlaybackSessionGeneration();
+        state.stopPlayback();
+        state.startPlaybackAt(START_TICK, 0.0f); // stop -> play in the same tick must not reuse identity
+        int replay = state.getPlaybackSessionGeneration();
+
+        assertTrue(first > 0);
+        assertNotEquals(first, restart);
+        assertNotEquals(restart, replay);
+    }
+
+    @Test
+    void resumeAndSeekKeepTheSamePlaybackOccurrence() {
+        SpeakerState state = new SpeakerState();
+        state.startPlaybackAt(START_TICK, 0.0f);
+        int generation = state.getPlaybackSessionGeneration();
+        state.pauseAt(START_TICK + 100);
+        state.resumeAt(START_TICK + 200);
+        state.seekTo(20.0f, START_TICK + 300, 100.0f);
+        assertEquals(generation, state.getPlaybackSessionGeneration());
+    }
+
+    @Test
+    void legacyPlayingStateCanAcquireGenerationWithoutRestart() {
+        SpeakerState state = new SpeakerState("id", "file.mp3", true, false, START_TICK);
+        assertEquals(0, state.getPlaybackSessionGeneration());
+        assertEquals(1, state.ensurePlaybackSessionGeneration());
+        assertEquals(1, state.ensurePlaybackSessionGeneration());
     }
 
     @Test
@@ -78,15 +114,17 @@ class SpeakerStateTransportTest {
     }
 
     @Test
-    void stopClearsTransportOffsets() {
+    void stopClearsTransportOffsetsButRetainsGeneration() {
         SpeakerState state = new SpeakerState();
         state.startPlaybackAt(START_TICK, 25.0f);
+        int generation = state.getPlaybackSessionGeneration();
         state.pauseAt(START_TICK + 100);
         state.stopPlayback();
         assertFalse(state.isPlaying());
         assertFalse(state.isPaused());
         assertEquals(-1, state.getPlaybackStartTick());
         assertEquals(0.0f, state.getPlaybackPositionSeconds(START_TICK + 999), 0.0001f);
+        assertEquals(generation, state.getPlaybackSessionGeneration());
     }
 
     @Test
@@ -99,8 +137,10 @@ class SpeakerStateTransportTest {
     }
 
     @Test
-    void copyDeepCopiesPlaylistAndSettings() {
-        SpeakerState state = new SpeakerState("id", "file.mp3", true, false, START_TICK, 0.5f, 32, 0.4f);
+    void copyDeepCopiesPlaylistSettingsAndPlaybackGeneration() {
+        SpeakerState state = new SpeakerState("id", "file.mp3", false, false, START_TICK, 0.5f, 32, 0.4f);
+        state.startPlaybackAt(START_TICK, 0.0f);
+        state.startPlaybackAt(START_TICK + 1, 0.0f);
         state.setNetworkName("Mall BGM");
         state.setRedstoneMode(RedstoneMode.TOGGLE);
         state.setOwnerUuid(UUID.randomUUID());
@@ -120,6 +160,7 @@ class SpeakerStateTransportTest {
         assertEquals(0.75f, copy.getDirectionality(), 0.0001f);
         assertEquals(80, copy.getConeAngleDegrees());
         assertEquals(0.6f, copy.getRearAttenuation(), 0.0001f);
+        assertEquals(state.getPlaybackSessionGeneration(), copy.getPlaybackSessionGeneration());
         assertEquals(1, copy.getPlaylist().size());
         assertEquals(0, copy.getPlaylist().getCurrentIndex());
 
