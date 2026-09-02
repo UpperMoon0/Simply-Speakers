@@ -7,10 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the edge-triggered redstone semantics that the 0.8.2 review required to be
- * correct: PULSE/TOGGLE/NEXT must fire only on a rising edge (so a pulse that falls
- * immediately does not stop playback), POWER must fire on both edges, and ANALOG_* must
- * act on level changes only.
+ * Verifies redstone transport edges, analog controls, and the stable comparator
+ * progress contract shared by every loader target.
  */
 class RedstoneLogicTest {
 
@@ -80,5 +78,22 @@ class RedstoneLogicTest {
         assertTrue(RedstoneMode.TOGGLE.isEdgeTriggered());
         assertTrue(RedstoneMode.NEXT.isEdgeTriggered());
         assertFalse(RedstoneMode.POWER.isEdgeTriggered());
+    }
+
+    @Test
+    void comparatorUsesStableFifteenBandProgressScale() {
+        assertEquals(0, RedstoneLogic.comparatorLevel(false, 50.0f, 100.0f));
+        assertEquals(1, RedstoneLogic.comparatorLevel(true, 0.0f, 100.0f));
+        assertEquals(8, RedstoneLogic.comparatorLevel(true, 50.0f, 100.0f));
+        assertEquals(15, RedstoneLogic.comparatorLevel(true, 100.0f, 100.0f));
+        assertEquals(15, RedstoneLogic.comparatorLevel(true, 150.0f, 100.0f));
+    }
+
+    @Test
+    void comparatorHandlesUnknownAndInvalidDurationsDefensively() {
+        assertEquals(7, RedstoneLogic.comparatorLevel(true, 20.0f, 0.0f));
+        assertEquals(7, RedstoneLogic.comparatorLevel(true, 20.0f, Float.NaN));
+        assertEquals(1, RedstoneLogic.comparatorLevel(true, Float.NaN, 100.0f));
+        assertEquals(1, RedstoneLogic.comparatorLevel(true, -10.0f, 100.0f));
     }
 }
