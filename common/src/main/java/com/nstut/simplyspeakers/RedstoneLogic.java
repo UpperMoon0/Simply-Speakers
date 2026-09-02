@@ -65,17 +65,18 @@ public final class RedstoneLogic {
     }
 
     /**
-     * Comparator output level exposing playback progress:
-     * 0 stopped, 1..14 proportional position, 15 finished.
+     * Comparator output exposing continuously observable playback progress:
+     * 0 stopped/paused, 1..15 proportional position. Unknown-duration streams
+     * report a neutral mid-level of 7 while playing.
      */
     public static int comparatorLevel(boolean playing, float positionSeconds, float durationSeconds) {
         if (!playing) return 0;
-        if (durationSeconds > 0.0f) {
-            if (positionSeconds >= durationSeconds) return 15;
-            double fraction = positionSeconds / (double) durationSeconds;
-            // Scale into the 1..14 band; midpoint lands on level 7.
-            int level = 1 + (int) (fraction * 13.999);
-            return Math.max(1, Math.min(14, level));
+        if (Float.isFinite(durationSeconds) && durationSeconds > 0.0f) {
+            double safePosition = Float.isFinite(positionSeconds) ? Math.max(0.0, positionSeconds) : 0.0;
+            double fraction = Math.max(0.0, Math.min(1.0, safePosition / durationSeconds));
+            // Fifteen stable progress bands. 0% => 1, ~50% => 8, 100% => 15.
+            int level = 1 + (int) Math.round(fraction * 14.0);
+            return Math.max(1, Math.min(15, level));
         }
         return 7;
     }
