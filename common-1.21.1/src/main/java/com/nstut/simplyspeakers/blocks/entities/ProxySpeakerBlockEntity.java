@@ -4,6 +4,7 @@ import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.audio.DirectionalAudio;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.ServerEmitter;
 import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
@@ -11,6 +12,7 @@ import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.SpeakerLocation;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
@@ -198,6 +200,16 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         if (level == null || level.isClientSide() || !SpeakerLink.isLinkableId(speakerId)) return;
         boolean powered = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED)
                 && getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED);
+        Direction facing = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
+                ? getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
+                : Direction.NORTH;
+        // Directional parameters mirror the shared network state instead of forcing
+        // omnidirectional (0 directionality) extras, which previously prevented the
+        // playback manager from applying the network's real directional settings.
+        SpeakerState state = getSpeakerState();
+        DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
+                ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
+                : null;
         ServerSpeakerRegistry.upsertEmitter(new ServerEmitter(
                 emitterLocation(),
                 "net_" + speakerId.trim(),
@@ -205,7 +217,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 maxVolume,
                 audioDropoff,
                 true,
-                isProxyPlaying && powered));
+                isProxyPlaying && powered,
+                extras));
     }
 
     private void startCentralScan() {
@@ -256,8 +269,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
 
     @Override
-    public void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
+    public void loadAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider lookupProvider) {
+        super.loadAdditional(tag, lookupProvider);
 
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
         isProxyPlaying = tag.contains(NBT_PROXY_PLAYING) && tag.getBoolean(NBT_PROXY_PLAYING);
@@ -276,8 +289,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
+    protected void saveAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider lookupProvider) {
+        super.saveAdditional(tag, lookupProvider);
 
         if (!speakerId.isEmpty()) {
             tag.putString(NBT_SPEAKER_ID, speakerId);
@@ -288,9 +301,9 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     @NotNull
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tag = super.getUpdateTag(registries);
-        saveAdditional(tag, registries);
+    public CompoundTag getUpdateTag(@NotNull HolderLookup.Provider lookupProvider) {
+        CompoundTag tag = super.getUpdateTag(lookupProvider);
+        saveAdditional(tag, lookupProvider);
         return tag;
     }
 
@@ -298,5 +311,9 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     @Override
     public Packet<ClientGamePacketListener> getUpdatePacket() {
         return ClientboundBlockEntityDataPacket.create(this);
+    }
+
+    public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+        loadAdditional(tag, lookupProvider);
     }
 }

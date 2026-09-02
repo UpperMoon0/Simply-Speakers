@@ -51,7 +51,10 @@ public class FabricConfig {
                 SimplySpeakers.LOGGER.error("Failed to parse max upload size from config", e);
             }
 
-            Config.setLocalConfig(range, disableUpload, size);
+            // Read allow remote streams
+            boolean allowRemoteStreams = Boolean.parseBoolean(props.getProperty("allowRemoteStreams", String.valueOf(Config.isLocalAllowRemoteStreams())));
+
+            Config.setLocalConfig(range, disableUpload, size, allowRemoteStreams);
             
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read config file", e);
@@ -65,6 +68,7 @@ public class FabricConfig {
             props.setProperty("speakerRange", "64");
             props.setProperty("disableUpload", String.valueOf(Config.disableUpload));
             props.setProperty("maxUploadSize", String.valueOf(Config.maxUploadSize));
+            props.setProperty("allowRemoteStreams", String.valueOf(Config.allowRemoteStreams));
             
             props.store(writer, "Simply Speakers Configuration");
         } catch (IOException e) {

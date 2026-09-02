@@ -38,6 +38,11 @@ public final class ServerSpeakerRegistry {
     private static final Map<SpeakerLocation, ServerEmitter> emitters = new ConcurrentHashMap<>();
     private static SpeakerState legacyDefaultTemplate = null;
 
+    /** Set whenever an in-memory mutation should eventually be persisted. The periodic
+     *  server tick (see {@link #flushDirty()}) performs the actual synchronous JSON write
+     *  off the hot control/slider paths so transport and redstone stay TPS-friendly. */
+    private static volatile boolean dirty = false;
+
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Path registryFilePath;
 
@@ -66,7 +71,31 @@ public final class ServerSpeakerRegistry {
         emitters.clear();
         legacyDefaultTemplate = null;
         registryFilePath = null;
+        dirty = false;
         SimplySpeakers.LOGGER.debug("SERVER: Reset ServerSpeakerRegistry state for world.");
+    }
+
+    /**
+     * Marks the registry as needing a persistent save. Hot control/slider/redstone paths
+     * call this instead of {@link #saveRegistry()} so disk I/O does not happen on the
+     * interaction thread; {@link #flushDirty()} (driven by the periodic server tick and on
+     * shutdown) performs the actual write.
+     */
+    public static void markDirty() {
+        dirty = true;
+    }
+
+    /** Performs the synchronous save only if a mutation is pending. Safe to call often. */
+    public static void flushDirty() {
+        if (!dirty) return;
+        synchronized (ServerSpeakerRegistry.class) {
+            if (!dirty) return;
+            // Only clear the dirty flag after a successful write, so an I/O failure keeps
+            // the retry pending for the next flush instead of losing the mutation.
+            if (saveRegistry()) {
+                dirty = false;
+            }
+        }
     }
 
     public static synchronized void init(Path worldSavePath) {
@@ -75,8 +104,14 @@ public final class ServerSpeakerRegistry {
         loadRegistry();
     }
 
-    public static synchronized void saveRegistry() {
-        if (registryFilePath == null) return;
+    /**
+     * Writes the registry to disk atomically.
+     *
+     * @return true when the file was written successfully (or there is no file target);
+     *         false when the write failed so {@link #flushDirty()} keeps the dirty flag set.
+     */
+    public static synchronized boolean saveRegistry() {
+        if (registryFilePath == null) return true;
 
         Path tmpPath = registryFilePath.resolveSibling("speaker_registry.json.tmp");
         try {
@@ -94,11 +129,13 @@ public final class ServerSpeakerRegistry {
                 Files.move(tmpPath, registryFilePath, StandardCopyOption.REPLACE_EXISTING);
             }
             SimplySpeakers.LOGGER.debug("SERVER: Saved speaker registry to {}", registryFilePath);
+            return true;
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("SERVER: Failed to save speaker registry", e);
             try {
                 Files.deleteIfExists(tmpPath);
             } catch (IOException ignored) {}
+            return false;
         }
     }
 
@@ -165,13 +202,19 @@ public final class ServerSpeakerRegistry {
 
     public static SpeakerState getOrCreateSpeakerState(Level level, String stateKey) {
         String fullKey = getRegistryKey(level, stateKey);
-        return speakerStates.computeIfAbsent(fullKey, k -> new SpeakerState());
+        SpeakerState existing = speakerStates.get(fullKey);
+        if (existing != null) return existing;
+        SpeakerState created = speakerStates.computeIfAbsent(fullKey, k -> new SpeakerState());
+        markDirty();
+        return created;
     }
 
     public static void applyLegacyStandaloneTemplate(Level level, String stateKey) {
         if (legacyDefaultTemplate == null) return;
         String fullKey = getRegistryKey(level, stateKey);
-        speakerStates.computeIfAbsent(fullKey, k -> legacyDefaultTemplate.copy());
+        if (speakerStates.containsKey(fullKey)) return;
+        speakerStates.put(fullKey, legacyDefaultTemplate.copy());
+        markDirty();
     }
 
     public static SpeakerState getSpeakerState(Level level, String stateKey) {
@@ -179,25 +222,63 @@ public final class ServerSpeakerRegistry {
         return speakerStates.get(fullKey);
     }
 
-    public static void updateSpeakerState(Level level, String stateKey, SpeakerState state) {
-        if (state == null) return;
-        String fullKey = getRegistryKey(level, stateKey);
-        speakerStates.put(fullKey, state.copy());
+    /**
+     * Resolves the dimension-qualified full state key ("dim/stateKey") registered for a
+     * physical speaker position, or null when nothing is registered there.
+     * The returned value is already dimension-prefixed and can be used directly against
+     * {@link #getSpeakerStateByFullKey(String)} — never pass it through
+     * {@link #getRegistryKey(Level, String)} again or the dimension gets double-prefixed.
+     */
+    public static String getFullStateKeyAt(Level level, BlockPos pos) {
+        if (level == null || pos == null) return null;
+        String dimension = getDimension(level);
+        return posToStateKey.get(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
     }
 
-    public static void removeSpeakerState(Level level, String stateKey) {
-        String fullKey = getRegistryKey(level, stateKey);
-        speakerStates.remove(fullKey);
+    public static SpeakerState getSpeakerStateByPos(Level level, BlockPos pos) {
+        if (level == null || pos == null) return null;
+        String fullKey = getFullStateKeyAt(level, pos);
+        if (fullKey == null) return null;
+        return speakerStates.get(fullKey);
+    }
+
+    /**
+     * Finds any registered main-speaker position for a dimension-qualified full state key.
+     * Used to give network-wide broadcasts a concrete physical identity for standalone
+     * ("internal_...") states whose packets would otherwise carry no usable position.
+     */
+    public static BlockPos findFirstSpeakerPosition(String fullStateKey) {
+        if (fullStateKey == null) return null;
+        Set<BlockPos> positions = speakerPositions.get(fullStateKey);
+        if (positions == null || positions.isEmpty()) return null;
+        return positions.iterator().next();
     }
 
     public static SpeakerState getSpeakerStateByFullKey(String fullKey) {
-        return fullKey != null ? speakerStates.get(fullKey) : null;
+        if (fullKey == null) return null;
+        return speakerStates.get(fullKey);
     }
 
     public static void updateSpeakerStateByFullKey(String fullKey, SpeakerState state) {
         if (fullKey == null || state == null) return;
         speakerStates.put(fullKey, state.copy());
+        markDirty();
     }
+
+    public static void updateSpeakerState(Level level, String stateKey, SpeakerState state) {
+        if (state == null) return;
+        String fullKey = getRegistryKey(level, stateKey);
+        speakerStates.put(fullKey, state.copy());
+        markDirty();
+    }
+
+    public static void removeSpeakerState(Level level, String stateKey) {
+        String fullKey = getRegistryKey(level, stateKey);
+        if (speakerStates.remove(fullKey) != null) {
+            markDirty();
+        }
+    }
+
 
     /**
      * Persists an emitter snapshot. Snapshots survive chunk unloads so that centralized
@@ -306,7 +387,49 @@ public final class ServerSpeakerRegistry {
         posToStateKey.remove(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
         SpeakerLocation loc = locationOf(dimension, pos);
         ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
-        SimplySpeakers.LOGGER.debug("SERVER: Unregistered speaker at {} in {} with key {}", pos, dimension, stateKey);
+    }
+
+    public static void unregisterSpeaker(Level level, BlockPos pos) {
+        if (level == null || level.isClientSide()) return;
+        String dimension = getDimension(level);
+        SpeakerLocation loc = locationOf(dimension, pos);
+        String fullKey = posToStateKey.remove(loc);
+        if (fullKey != null) {
+            Set<BlockPos> speakers = speakerPositions.get(fullKey);
+            if (speakers != null) {
+                speakers.remove(pos);
+                if (speakers.isEmpty()) {
+                    speakerPositions.remove(fullKey);
+                }
+            }
+            Set<BlockPos> powered = poweredSpeakerPositions.get(fullKey);
+            if (powered != null) {
+                powered.remove(pos);
+                if (powered.isEmpty()) {
+                    poweredSpeakerPositions.remove(fullKey);
+                }
+            }
+        }
+        removeEmitter(loc);
+        ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
+    }
+
+    public static void unregisterProxySpeaker(Level level, BlockPos pos) {
+        if (level == null || level.isClientSide()) return;
+        String dimension = getDimension(level);
+        SpeakerLocation loc = locationOf(dimension, pos);
+        String fullKey = posToStateKey.remove(loc);
+        if (fullKey != null) {
+            Set<BlockPos> proxies = proxySpeakerPositions.get(fullKey);
+            if (proxies != null) {
+                proxies.remove(pos);
+                if (proxies.isEmpty()) {
+                    proxySpeakerPositions.remove(fullKey);
+                }
+            }
+        }
+        removeEmitter(loc);
+        ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
     }
 
     public static void unregisterProxySpeaker(Level level, BlockPos pos, String speakerId) {
@@ -325,6 +448,10 @@ public final class ServerSpeakerRegistry {
         SpeakerLocation loc = locationOf(dimension, pos);
         ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
         SimplySpeakers.LOGGER.debug("SERVER: Unregistered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
+    }
+
+    public static void updateSpeakerId(Level level, BlockPos pos, String oldKey, String newKey) {
+        updateSpeakerKey(level, pos, oldKey, newKey);
     }
 
     public static void updateSpeakerKey(Level level, BlockPos pos, String oldKey, String newKey) {
@@ -357,7 +484,7 @@ public final class ServerSpeakerRegistry {
             setSpeakerPowered(level, pos, newKey, true);
         }
 
-        saveRegistry();
+        markDirty();
     }
 
     public static Set<BlockPos> getSpeakerPositions(Level level, String stateKey) {

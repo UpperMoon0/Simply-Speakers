@@ -380,7 +380,7 @@ public class AudioFileManager {
             state.setPlaying(false);
             state.setPlaybackStartTick(-1);
         }
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.markDirty();
         broadcastDeletedAudioState(server, states);
 
         return true;
@@ -466,6 +466,17 @@ public class AudioFileManager {
             activeDownloads.release(transferKey);
             SimplySpeakers.LOGGER.error("Failed to stream audio file for download", e);
         }
+    }
+
+
+    /**
+     * Replaces the manifest entry for an audio id with updated library
+     * metadata (display name, category, tags, ...) and persists immediately.
+     */
+    public void updateAudioMetadata(String audioId, AudioFileMetadata updated) {
+        if (audioId == null || audioId.isEmpty() || updated == null) return;
+        manifest.put(audioId, updated);
+        saveManifest();
     }
 
     public Map<String, AudioFileMetadata> getManifest() {

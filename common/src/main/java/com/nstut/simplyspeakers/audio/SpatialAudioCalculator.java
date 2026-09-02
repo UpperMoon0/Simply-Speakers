@@ -44,6 +44,62 @@ public class SpatialAudioCalculator {
         return Math.max(0.0f, Math.min(maxVolume, gain));
     }
 
+    // ------------------------------------------------------------------
+    // Directional audio (0.8.x)
+    // ------------------------------------------------------------------
+
+    /** Directional emission settings for one emitter. */
+    public record ConeSettings(float directionality, float coneAngleDegrees, float rearAttenuation) {
+        public static final ConeSettings OMNIDIRECTIONAL =
+                new ConeSettings(0.0f, 360.0f, 0.0f);
+    }
+
+    /**
+     * Distance gain combined with a horizontal directional cone.
+     *
+     * @param facingX      normalized emitter facing X component
+     * @param facingZ      normalized emitter facing Z component
+     * @param toListenerX  normalized vector from emitter towards the listener (X)
+     * @param toListenerZ  normalized vector from emitter towards the listener (Z)
+     */
+    public static float calculateDistanceGain(
+            double distance, int maxRange, float maxVolume, float audioDropoff,
+            double facingX, double facingZ,
+            double toListenerX, double toListenerZ,
+            ConeSettings cone) {
+        float baseGain = calculateDistanceGain(distance, maxRange, maxVolume, audioDropoff);
+        if (baseGain <= 0.0f || cone == null) return baseGain;
+        float directionality = clamp01(cone.directionality());
+        if (directionality <= 0.0f) return baseGain;
+
+        double facingLength = Math.sqrt(facingX * facingX + facingZ * facingZ);
+        double toListenerLength = Math.sqrt(toListenerX * toListenerX + toListenerZ * toListenerZ);
+        if (facingLength < 1.0E-6 || toListenerLength < 1.0E-6) return baseGain;
+
+        double cosAngle = (facingX * toListenerX + facingZ * toListenerZ) / (facingLength * toListenerLength);
+        cosAngle = Math.max(-1.0, Math.min(1.0, cosAngle));
+        double angleDegrees = Math.toDegrees(Math.acos(cosAngle));
+
+        float coneAngle = Math.max(5.0f, Math.min(355.0f, cone.coneAngleDegrees()));
+        float halfCone = coneAngle / 2.0f;
+
+        if (angleDegrees <= halfCone) {
+            return baseGain; // inside the main lobe
+        }
+
+        float rearFactor = clamp01(1.0f - clamp01(cone.rearAttenuation()) * directionality);
+        double span = 180.0 - halfCone;
+        double t = span > 0 ? (angleDegrees - halfCone) / span : 1.0;
+        t = Math.max(0.0, Math.min(1.0, t));
+        double smooth = t * t * (3.0 - 2.0 * t); // smoothstep between lobe edge and rear
+        float factor = (float) (1.0 - (1.0 - rearFactor) * smooth);
+        return baseGain * factor;
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0.0f, Math.min(1.0f, value));
+    }
+
     /**
      * Computes the weighted virtual emitter position and maximum dominant gain for a collection of overlapping speakers.
      *

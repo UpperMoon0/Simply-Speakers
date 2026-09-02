@@ -10,6 +10,7 @@ import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
+import com.nstut.simplyspeakers.network.RemoteStreamEofPacketC2S;
 import com.nstut.simplyspeakers.network.RequestAudioListPacketC2S;
 import com.nstut.simplyspeakers.network.UploadAudioDataPacketC2S;
 import dev.architectury.networking.NetworkManager;
@@ -57,6 +58,9 @@ public class ClientAudioPlayer {
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
     private static final int BUFFER_SIZE_SECONDS = 1;
+    private static final int MAX_REDIRECTS = 3;
+
+    private static final Map<BlockPos, com.nstut.simplyspeakers.audio.DirectionalAudio.Extras> directionalExtras = new ConcurrentHashMap<>();
 
     private static class StreamingAudioResource {
         final String networkKey;
@@ -65,13 +69,23 @@ public class ClientAudioPlayer {
         final Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
         final AtomicBoolean isLooping = new AtomicBoolean(false);
+        /** Server-provided state identity reported back on remote stream EOF; null for local files. */
+        final String eofFullStateKey;
+        final int playbackGeneration;
 
         StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread, boolean initialLooping) {
+            this(networkKey, sourceID, bufferIDs, streamingThread, initialLooping, null, 0);
+        }
+
+        StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread, boolean initialLooping,
+                String eofFullStateKey, int playbackGeneration) {
             this.networkKey = networkKey;
             this.sourceID = sourceID;
             this.bufferIDs = bufferIDs;
             this.streamingThread = streamingThread;
             this.isLooping.set(initialLooping);
+            this.eofFullStateKey = eofFullStateKey;
+            this.playbackGeneration = playbackGeneration;
         }
 
         void stopAndCleanup() {
@@ -128,6 +142,21 @@ public class ClientAudioPlayer {
     }
 
     public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff) {
+        play(pos, speakerId, metadata, startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff, null);
+    }
+
+    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff,
+            com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directional) {
+        play(pos, speakerId, metadata, startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff, directional, null, 0);
+    }
+
+    /**
+     * Full play entry point. {@code remoteFullStateKey} and {@code remotePlaybackGeneration}
+     * are the server-assigned playback identity from {@code PlayAudioPacketS2C}; they are
+     * carried by the active URL stream and echoed back in the remote stream EOF report.
+     */
+    public static void play(BlockPos pos, String speakerId, AudioFileMetadata metadata, float startPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff,
+            com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directional, String remoteFullStateKey, int remotePlaybackGeneration) {
         String networkKey = (speakerId != null && !speakerId.trim().isEmpty())
                 ? "net_" + speakerId.trim()
                 : "pos_" + pos.asLong();
@@ -137,6 +166,11 @@ public class ClientAudioPlayer {
 
         String oldKey = membership.getNetworkKey(pos);
         membership.track(pos, networkKey, new com.nstut.simplyspeakers.SpeakerSettings(maxVolume, maxRange, audioDropoff));
+        if (directional != null) {
+            directionalExtras.put(pos, directional);
+        } else {
+            directionalExtras.remove(pos);
+        }
 
         if (oldKey != null && !oldKey.equals(networkKey)) {
             if (membership.getPositions(oldKey).isEmpty()) {
@@ -151,6 +185,21 @@ public class ClientAudioPlayer {
         if (existing != null && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
             SimplySpeakers.LOGGER.debug("CLIENT: Network {} already actively streaming. Attached pos {} without duplicate stream.", networkKey, pos);
             updateSpeakerVolumes();
+            return;
+        }
+
+        if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(metadata.getUuid())) {
+            if (!Config.isRemoteStreamingAllowed()) {
+                SimplySpeakers.LOGGER.warn("CLIENT: Remote audio streams are disabled by server config; ignoring URL track {}", metadata.getUuid());
+                return;
+            }
+            if (!com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(metadata.getUuid(), false)) {
+                SimplySpeakers.LOGGER.warn("CLIENT: URL host is not allowed: {}", metadata.getUuid());
+                return;
+            }
+            playFromUrl(networkKey, pos, metadata.getUuid(),
+                    com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds), isLooping,
+                    remoteFullStateKey, remotePlaybackGeneration);
             return;
         }
 
@@ -437,6 +486,214 @@ public class ClientAudioPlayer {
         }
     }
 
+
+    // ------------------------------------------------------------------
+    // Internet streams (0.8.x): direct HTTP(S) audio only
+    // ------------------------------------------------------------------
+
+    private static void playFromUrl(String networkKey, BlockPos pos, String url,
+                                    float startPositionSeconds, boolean isLooping,
+                                    String fullStateKey, int playbackGeneration) {
+        Minecraft.getInstance().execute(() -> {
+            StreamingAudioResource existing = networkResources.get(networkKey);
+            if (existing != null && !existing.stopFlag.get()
+                    && existing.streamingThread != null && existing.streamingThread.isAlive()) {
+                return;
+            }
+            try {
+                int sourceID = AL10.alGenSources();
+                int[] bufferIDs = new int[NUM_BUFFERS];
+                AL10.alGenBuffers(bufferIDs);
+
+                AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+                AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
+                AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
+                AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
+
+                Thread streamingThread = new Thread(() -> streamUrlAudioData(networkKey, sourceID, bufferIDs, url, startPositionSeconds, isLooping, fullStateKey, playbackGeneration),
+                        SimplySpeakers.MOD_ID + "-url-stream-" + networkKey);
+                streamingThread.setDaemon(true);
+
+                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping, fullStateKey, playbackGeneration);
+                networkResources.put(networkKey, resource);
+                streamingThread.start();
+
+                updateSpeakerVolumes();
+            } catch (Exception e) {
+                SimplySpeakers.LOGGER.error("CLIENT: Failed to start internet stream {}", url, e);
+            }
+        });
+    }
+
+    /**
+     * Opens the URL stream, revalidating every redirect target. Note: host
+     * validation and connection are separate steps, so a hostile DNS server
+     * could rebind the name between them (TOCTOU window); see
+     * {@link com.nstut.simplyspeakers.audio.StreamTracks}.
+     */
+    private static AudioInputStream openUrlStream(String url) throws IOException {
+        try {
+            String currentUrl = url;
+            int redirects = 0;
+            while (true) {
+                if (!com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(currentUrl)) {
+                    throw new IOException("Stream URL host is not allowed: " + currentUrl);
+                }
+                java.net.URLConnection connection = new java.net.URL(currentUrl).openConnection();
+                connection.setConnectTimeout(8000);
+                connection.setReadTimeout(15000);
+                if (connection instanceof java.net.HttpURLConnection http) {
+                    http.setRequestProperty("Icy-MetaData", "1");
+                    http.setRequestProperty("User-Agent", SimplySpeakers.MOD_ID + "/0.8.2");
+                    http.setInstanceFollowRedirects(false);
+                    int code = http.getResponseCode();
+                    if (code >= 300 && code < 400) {
+                        String location = http.getHeaderField("Location");
+                        http.disconnect();
+                        if (location == null || location.isBlank()) {
+                            throw new IOException("HTTP " + code + " redirect without Location for stream " + currentUrl);
+                        }
+                        if (redirects >= MAX_REDIRECTS) {
+                            throw new IOException("Too many redirects for stream " + url);
+                        }
+                        redirects++;
+                        java.net.URI base;
+                        try {
+                            base = new java.net.URI(currentUrl).resolve(location.trim());
+                        } catch (Exception e) {
+                            throw new IOException("Invalid redirect location for stream " + currentUrl, e);
+                        }
+                        currentUrl = base.toString();
+                        continue;
+                    }
+                    if (code / 100 != 2) {
+                        throw new IOException("HTTP " + code + " for stream " + currentUrl);
+                    }
+                    return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), currentUrl);
+                }
+                return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), currentUrl);
+            }
+        } catch (javax.sound.sampled.UnsupportedAudioFileException e) {
+            throw new IOException("Unsupported internet stream format: " + url, e);
+        }
+    }
+
+    private static void sendRemoteStreamEofReport(String fullStateKey, int playbackGeneration, String audioId) {
+        if (fullStateKey == null || fullStateKey.isEmpty()) {
+            // Without the server-provided identity the report cannot be validated.
+            SimplySpeakers.LOGGER.debug("CLIENT: Skipping remote stream EOF report without playback identity");
+            return;
+        }
+        try {
+            NetworkManager.sendToServer(new RemoteStreamEofPacketC2S(fullStateKey, playbackGeneration, audioId));
+        } catch (Exception e) {
+            SimplySpeakers.LOGGER.debug("CLIENT: Failed to report remote stream EOF", e);
+        }
+    }
+
+    private static void streamUrlAudioData(String networkKey, int sourceID, int[] bufferIDs,
+                                           String url, float startPositionSeconds, boolean isLooping,
+                                           String fullStateKey, int playbackGeneration) {
+        StreamingAudioResource resource = networkResources.get(networkKey);
+
+        while (resource != null && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+            AudioInputStream pcm = null;
+            boolean completed = false;
+            try {
+                pcm = openUrlStream(url);
+                AudioFormat format = pcm.getFormat();
+                float startSeconds = com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds);
+                if (startSeconds > 0.0f) {
+                    long framesToSkip = PlaybackOffset.frameOffset(
+                            startSeconds,
+                            resource.isLooping.get(),
+                            pcm.getFrameLength(),
+                            format.getFrameRate());
+                    long bytesToSkip = framesToSkip * format.getFrameSize();
+                    if (bytesToSkip > 0) {
+                        skipFully(pcm, bytesToSkip);
+                    }
+                }
+                int alFormat = AL10.AL_FORMAT_MONO16;
+                int bufferSizeBytes = Math.max(4096, (int) (format.getFrameRate() * format.getFrameSize() * BUFFER_SIZE_SECONDS));
+                byte[] bufferData = new byte[bufferSizeBytes];
+
+                boolean playbackAttempted = false;
+                int prefill = 0;
+                while (prefill < NUM_BUFFERS && !resource.stopFlag.get()) {
+                    int read = pcm.read(bufferData, 0, bufferData.length);
+                    if (read <= 0) break;
+                    ByteBuffer alBuffer = ByteBuffer.allocateDirect(read).order(ByteOrder.nativeOrder());
+                    alBuffer.put(bufferData, 0, read).flip();
+                    AL10.alBufferData(bufferIDs[prefill], alFormat, alBuffer, (int) format.getSampleRate());
+                    AL10.alSourceQueueBuffers(sourceID, bufferIDs[prefill]);
+                    prefill++;
+                    if (!playbackAttempted && prefill >= 2) {
+                        AL10.alSourcePlay(sourceID);
+                        playbackAttempted = true;
+                    }
+                }
+                if (!playbackAttempted && prefill > 0) {
+                    AL10.alSourcePlay(sourceID);
+                    playbackAttempted = true;
+                }
+
+                boolean endOfStream = false;
+                while (playbackAttempted && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+                    int processed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
+                    for (int i = 0; i < processed; i++) {
+                        int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
+                        if (!endOfStream) {
+                            int read = pcm.read(bufferData, 0, bufferData.length);
+                            if (read > 0) {
+                                ByteBuffer alBuffer = ByteBuffer.allocateDirect(read).order(ByteOrder.nativeOrder());
+                                alBuffer.put(bufferData, 0, read).flip();
+                                AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                                AL10.alSourceQueueBuffers(sourceID, bufferID);
+                            } else {
+                                endOfStream = true;
+                            }
+                        }
+                    }
+                    if (endOfStream && AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED) == 0) {
+                        completed = true;
+                        break;
+                    }
+                    if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING
+                            && AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED) > 0) {
+                        AL10.alSourcePlay(sourceID);
+                    }
+                    Thread.sleep(50);
+                }
+                if (!playbackAttempted) completed = true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                if (resource != null) resource.stopFlag.set(true);
+            } catch (Exception e) {
+                SimplySpeakers.LOGGER.error("CLIENT: Internet stream error for {}: {}", networkKey, url, e);
+                if (resource != null) resource.stopFlag.set(true);
+            } finally {
+                if (pcm != null) {
+                    try { pcm.close(); } catch (IOException ignored) {}
+                }
+            }
+
+            if (completed && !resource.stopFlag.get() && !resource.isLooping.get()) {
+                sendRemoteStreamEofReport(resource.eofFullStateKey, resource.playbackGeneration, url);
+            }
+            if (completed && resource.isLooping.get() && !resource.stopFlag.get()) {
+                startPositionSeconds = 0.0f;
+                continue;
+            }
+            break;
+        }
+
+        if (resource != null) {
+            networkResources.remove(networkKey, resource);
+            resource.stopAndCleanup();
+        }
+    }
+
     public static void stop(BlockPos pos) {
         for (List<PlayRequest> requests : pendingPlays.values()) {
             requests.removeIf(req -> req.pos.equals(pos));
@@ -546,12 +803,25 @@ public class ClientAudioPlayer {
 
                 com.nstut.simplyspeakers.SpeakerSettings cached = membership.getSettings(speakerPos);
                 if (cached != null) {
+                    com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);
+                    float effectiveVolume = cached.maxVolume();
+                    if (cone != null && cone.directionality() > 0.0f) {
+                        double[] facing = com.nstut.simplyspeakers.audio.DirectionalAudio.facingFromOrdinal(cone.facingOrdinal());
+                        double[] toListener = com.nstut.simplyspeakers.audio.DirectionalAudio.normalize(
+                                playerPos.x - (speakerPos.getX() + 0.5), playerPos.z - (speakerPos.getZ() + 0.5));
+                        float adjusted = SpatialAudioCalculator.calculateDistanceGain(
+                                0, 64, cached.maxVolume(), 0.0f,
+                                facing[0], facing[1], toListener[0], toListener[1],
+                                new SpatialAudioCalculator.ConeSettings(
+                                        cone.directionality(), cone.coneAngleDegrees(), cone.rearAttenuation()));
+                        effectiveVolume = cached.maxVolume() > 1.0E-6f ? adjusted : 0.0f;
+                    }
                     emitters.add(new SpatialAudioCalculator.SpeakerEmitter(
                             speakerPos.getX() + 0.5,
                             speakerPos.getY() + 0.5,
                             speakerPos.getZ() + 0.5,
                             cached.maxRange(),
-                            cached.maxVolume(),
+                            effectiveVolume,
                             cached.audioDropoff()
                     ));
                 }

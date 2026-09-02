@@ -61,6 +61,9 @@ repositories {
 dependencies {
     neoForge "net.neoforged:neoforge:$project.neoforge_version"
 
+    // CC:Tweaked API (optional integration; compile-only)
+    compileOnly "cc.tweaked:cc-tweaked-1.21.1-forge-api:1.120.2"
+
     // OpenUI MC - required client-side UI framework (matching NeoForge 1.21.1 module)
     modImplementation "com.nstut:openui-mc-neoforge-1.21.1:${project.openui_version}"
 

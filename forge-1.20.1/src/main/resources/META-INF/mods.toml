@@ -42,3 +42,10 @@ mandatory = true
 versionRange = "[${openui_version},)"
 ordering = "NONE"
 side = "CLIENT"
+
+# Optional integrations
+[[dependencies.simplyspeakers]]
+    modId = "computercraft"
+    mandatory = false
+    ordering = "AFTER"
+    side = "BOTH"

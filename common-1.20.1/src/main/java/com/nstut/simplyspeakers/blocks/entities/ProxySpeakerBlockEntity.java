@@ -4,6 +4,7 @@ import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.audio.DirectionalAudio;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.ServerEmitter;
 import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
@@ -11,6 +12,7 @@ import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.SpeakerLocation;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
@@ -197,6 +199,16 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         if (level == null || level.isClientSide() || !SpeakerLink.isLinkableId(speakerId)) return;
         boolean powered = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED)
                 && getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED);
+        Direction facing = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
+                ? getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
+                : Direction.NORTH;
+        // Directional parameters mirror the shared network state instead of forcing
+        // omnidirectional (0 directionality) extras, which previously prevented the
+        // playback manager from applying the network's real directional settings.
+        SpeakerState state = getSpeakerState();
+        DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
+                ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
+                : null;
         ServerSpeakerRegistry.upsertEmitter(new ServerEmitter(
                 emitterLocation(),
                 "net_" + speakerId.trim(),
@@ -204,7 +216,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
                 maxVolume,
                 audioDropoff,
                 true,
-                isProxyPlaying && powered));
+                isProxyPlaying && powered,
+                extras));
     }
 
     private void startCentralScan() {
@@ -303,3 +316,4 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         load(tag);
     }
 }
+

@@ -41,7 +41,7 @@ public class RequestUploadAudioPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.blockPos)) {
                 PacketRegistries.CHANNEL.sendToPlayer(player, new RespondUploadAudioPacketS2C(pkt.transactionId, false, 0, Component.literal("You do not have permission to upload audio here.")));
                 return;
             }

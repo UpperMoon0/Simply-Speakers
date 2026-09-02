@@ -29,6 +29,13 @@ import dev.architectury.networking.NetworkManager;
 import com.nstut.simplyspeakers.network.RequestUploadAudioPacketC2S;
 import com.nstut.simplyspeakers.network.SelectAudioPacketC2S;
 import com.nstut.simplyspeakers.network.SetSpeakerIdPacketC2S;
+import com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C;
+import com.nstut.simplyspeakers.network.PlaylistControlPacketC2S;
+import com.nstut.simplyspeakers.network.RequestPlaylistPacketC2S;
+import com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S;
+import com.nstut.simplyspeakers.network.TransportControlPacketC2S;
+import com.nstut.simplyspeakers.RedstoneMode;
+import com.nstut.simplyspeakers.playlist.RepeatMode;
 import com.nstut.simplyspeakers.network.ToggleLoopPacketC2S;
 import com.nstut.simplyspeakers.network.UpdateAudioDropoffPacketC2S;
 import com.nstut.simplyspeakers.network.UpdateMaxRangePacketC2S;
@@ -72,6 +79,15 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     private final Signal<Double> maxRange = Signals.of(16.0);
     private final Signal<Double> audioDropoff = Signals.of(1.0);
     private final Signal<Boolean> looping = Signals.of(false);
+    private final Signal<Boolean> paused = Signals.of(false);
+    private final Signal<String> networkName = Signals.of("");
+    private final Signal<Integer> redstoneModeIndex = Signals.of(RedstoneMode.DEFAULT.ordinal());
+
+    private final Signal<List<String>> playlistIds = Signals.of(List.of());
+    private final Signal<List<String>> playlistNames = Signals.of(List.of());
+    private final Signal<Integer> playlistCursor = Signals.of(-1);
+    private final Signal<Boolean> playlistShuffle = Signals.of(false);
+    private final Signal<Integer> playlistRepeat = Signals.of(RepeatMode.DEFAULT.ordinal());
     private final Signal<Component> status = Signals.of(Component.empty());
     private boolean applyingRemoteState;
 
@@ -80,7 +96,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         String playing = playingAudioId.get();
         String selected = selectedAudioId.get();
         return audioFiles.get().stream()
-                .filter(a -> a.getOriginalFilename().toLowerCase(Locale.ROOT).contains(q))
+                .filter(a -> q.isEmpty() || a.hasTag(q))
                 .map(a -> new AudioRowModel(a, a.getUuid().equals(selected), a.getUuid().equals(playing)))
                 .toList();
     });
@@ -108,10 +124,14 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
             maxRange.set((double) speaker.getMaxRange());
             audioDropoff.set((double) speaker.getAudioDropoff());
             looping.set(speaker.isLooping());
+            networkName.set(speaker.getNetworkName());
+            redstoneModeIndex.set(speaker.getRedstoneMode().ordinal());
         }
         super.init();
         wireControlSubscriptions();
+        guiReady = true;
         NetworkManager.sendToServer(new com.nstut.simplyspeakers.network.RequestAudioListPacketC2S(blockEntityPos));
+        NetworkManager.sendToServer(new RequestPlaylistPacketC2S(blockEntityPos));
     }
 
     @Override
@@ -183,7 +203,8 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         // shell instead of a guessed fixed height that overflows
                         // small viewports; it scrolls internally past that.
                         .flex()
-                        .minHeight(56)
+                        .minHeight(56),
+                buildPlaylistCard()
         ).gap(6);
     }
 
@@ -209,7 +230,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         VStack left = Ui.column(
                 // Marquee: long filenames ping-pong inside the row like the
                 // pre-migration audio list did.
-                Ui.text(Component.literal(audio.getOriginalFilename())).marquee(),
+                Ui.text(Component.literal(audio.effectiveDisplayName())).marquee(),
                 audio.getDurationSeconds() > 0
                         ? Ui.text(Component.translatable("gui.simplyspeakers.duration", formatDuration(audio.getDurationSeconds())))
                         : Ui.text(Component.empty())
@@ -261,7 +282,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 Ui.row(
                         Ui.text(Component.translatable("gui.simplyspeakers.loop")),
                         Ui.toggle(looping)
-                ).gap(8).tooltip(Component.translatable("gui.simplyspeakers.loop.tooltip"))
+                ).gap(8).tooltip(Component.translatable("gui.simplyspeakers.loop.tooltip")),
+                Ui.divider(),
+                buildPolicyCard(),
+                buildTransportCard()
         ).gap(10)).fillHeight());
         return card;
     }
@@ -292,6 +316,238 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         ).gap(4);
         if (tooltip != null) row.tooltip(tooltip);
         return row;
+    }
+
+
+    // ==================================================================
+    // 0.8.x transport / playlist / policy UI
+    // ==================================================================
+
+    private record PlaylistRow(int index, String audioId, String filename, boolean current) {}
+
+    private final Computed<List<PlaylistRow>> playlistRows = Signals.computed(() -> {
+        List<String> ids = playlistIds.get();
+        List<String> names = playlistNames.get();
+        int cursor = playlistCursor.get();
+        List<PlaylistRow> rows = new java.util.ArrayList<>(ids.size());
+        for (int i = 0; i < ids.size(); i++) {
+            rows.add(new PlaylistRow(i, ids.get(i), i < names.size() ? names.get(i) : "", i == cursor));
+        }
+        return rows;
+    });
+
+    /** Guards policy packets until the screen finished initialising. */
+    private boolean guiReady;
+
+    private void sendToServer(net.minecraft.network.protocol.common.custom.CustomPacketPayload packet) {
+        NetworkManager.sendToServer(packet);
+    }
+
+    private UIComponent buildTransportCard() {
+        return Ui.card(
+                Ui.column(
+                        Ui.text(Component.translatable("gui.simplyspeakers.transport.title")),
+                        Ui.row(
+                                transportButton("gui.simplyspeakers.transport.previous",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_PREVIOUS)),
+                                playPauseButton(),
+                                transportButton("gui.simplyspeakers.transport.stop",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_STOP)),
+                                transportButton("gui.simplyspeakers.transport.restart",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_RESTART)),
+                                transportButton("gui.simplyspeakers.transport.next",
+                                        () -> sendTransport(TransportControlPacketC2S.ACTION_NEXT))
+                        ).gap(4),
+                        Ui.row(
+                                Ui.button(Component.translatable("gui.simplyspeakers.transport.back30"), () -> {
+                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK_RELATIVE, -30.0f);
+                                }).small(),
+                                Ui.button(Component.translatable("gui.simplyspeakers.transport.fwd30"), () -> {
+                                    sendTransport(TransportControlPacketC2S.ACTION_SEEK_RELATIVE, 30.0f);
+                                }).small()
+                        ).gap(6)
+                ).gap(6)
+        ).outlined(true).padding(10);
+    }
+
+    private ButtonWidget transportButton(String key, Runnable action) {
+        return Ui.button(Component.translatable(key), action);
+    }
+
+    private ButtonWidget playPauseButton() {
+        boolean isPaused = Boolean.TRUE.equals(paused.get());
+        return Ui.button(isPaused
+                        ? Component.translatable("gui.simplyspeakers.transport.play")
+                        : Component.translatable("gui.simplyspeakers.transport.pause"),
+                () -> sendTransport(TransportControlPacketC2S.ACTION_TOGGLE)).primary();
+    }
+
+    private void sendTransport(byte action) {
+        sendToServer(new TransportControlPacketC2S(blockEntityPos, action));
+    }
+
+    private void sendTransport(byte action, float seekSeconds) {
+        sendToServer(new TransportControlPacketC2S(blockEntityPos, action, seekSeconds));
+    }
+
+    private UIComponent buildPlaylistCard() {
+        HStack header = Ui.row(
+                Ui.text(Component.translatable("gui.simplyspeakers.playlist.title")).flex(),
+                Ui.button(Component.translatable("gui.simplyspeakers.playlist.add_selected"),
+                        this::addSelectedToPlaylist).small(),
+                shuffleButton(),
+                repeatCycleButton(),
+                Ui.button(Component.translatable("gui.simplyspeakers.playlist.clear"),
+                        () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_CLEAR, -1, false, "", "")).danger().small()
+        ).gap(4);
+
+        return Ui.card(
+                Ui.column(
+                        header,
+                        playlistRows.get().isEmpty()
+                                ? Ui.text(Component.translatable("gui.simplyspeakers.playlist.empty"))
+                                : Ui.list(playlistRows, this::buildPlaylistRow)
+                                        .key(row -> row.audioId() + ":" + row.index())
+                                        .itemHeight(24)
+                                        .flex()
+                                        .minHeight(40)
+                ).gap(6)
+        ).outlined(true).padding(10);
+    }
+
+    private ButtonWidget shuffleButton() {
+        return Ui.button((Supplier<Component>) () -> Component.translatable(
+                        playlistShuffle.get() ? "gui.simplyspeakers.playlist.shuffle_on"
+                                : "gui.simplyspeakers.playlist.shuffle_off"),
+                () -> {
+                    boolean newValue = !playlistShuffle.get();
+                    playlistShuffle.set(newValue);
+                    sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
+                            PlaylistControlPacketC2S.OP_SET_SHUFFLE, -1, newValue, "", ""));
+                });
+    }
+
+    private ButtonWidget repeatCycleButton() {
+        return Ui.button((Supplier<Component>) () -> {
+                    RepeatMode mode = RepeatMode.fromIndex(playlistRepeat.get());
+                    return Component.translatable("gui.simplyspeakers.playlist.repeat", mode.id());
+                },
+                () -> {
+                    int next = (playlistRepeat.get() + 1) % RepeatMode.values().length;
+                    playlistRepeat.set(next);
+                    sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
+                            PlaylistControlPacketC2S.OP_SET_REPEAT, next, false, "", ""));
+                });
+    }
+
+    private void addSelectedToPlaylist() {
+        String id = selectedAudioId.get();
+        if (id.isEmpty()) {
+            status.set(Component.translatable("gui.simplyspeakers.playlist.no_selection"));
+            return;
+        }
+        sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
+                PlaylistControlPacketC2S.OP_ADD, -1, false, id, filenameOf(id)));
+        status.set(Component.translatable("gui.simplyspeakers.playlist.added", filenameOf(id)));
+    }
+
+    private void sendPlaylistOp(byte op, int index, boolean flag, String audioId, String filename) {
+        sendToServer(new PlaylistControlPacketC2S(blockEntityPos, op, index, flag, audioId, filename));
+    }
+
+    private UIComponent buildPlaylistRow(PlaylistRow row) {
+        HStack right = Ui.row().gap(2);
+        if (!row.current()) {
+            right.child(Ui.button(Component.translatable("gui.simplyspeakers.playlist.play_here"),
+                    () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_SELECT_INDEX, row.index(), true,
+                            row.audioId(), row.filename())).small());
+        }
+        right.child(Ui.button(Component.translatable("gui.simplyspeakers.playlist.queue"),
+                () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_QUEUE_NEXT, -1, false, row.audioId(), "")).small());
+        right.child(Ui.button(Component.translatable("gui.simplyspeakers.playlist.up"),
+                () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_MOVE_UP, row.index(), false, "", "")).small());
+        right.child(Ui.button(Component.translatable("gui.simplyspeakers.playlist.down"),
+                () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_MOVE_DOWN, row.index(), false, "", "")).small());
+        right.child(Ui.button(Component.translatable("gui.simplyspeakers.playlist.remove"),
+                () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_REMOVE_AUDIO, -1, false, row.audioId(), "")).danger().small());
+
+        return Ui.card(
+                Ui.row(
+                        Ui.text(Component.literal((row.index() + 1) + ". " + row.filename())).marquee().flex(),
+                        right
+                ).gap(6)
+        ).outlined(true).padding(6);
+    }
+
+    private UIComponent buildPolicyCard() {
+        return Ui.card(
+                Ui.column(
+                        Ui.row(
+                                Ui.textField(networkName)
+                                        .placeholder(Component.translatable("gui.simplyspeakers.network_name.placeholder").getString())
+                                        .flex(),
+                                Ui.button(Component.translatable("gui.simplyspeakers.save"), () ->
+                                        sendToServer(SpeakerPolicyPacketC2S.networkName(blockEntityPos, networkName.get()))).primary()
+                        ).gap(6),
+                        Ui.row(
+                                Ui.text(Component.translatable("gui.simplyspeakers.redstone")).flex(),
+                                Ui.button((Supplier<Component>) () -> {
+                                            RedstoneMode mode = RedstoneMode.fromIndex(redstoneModeIndex.get());
+                                            return Component.translatable("gui.simplyspeakers.redstone.mode", mode.id());
+                                        },
+                                        () -> {
+                                            int next = (redstoneModeIndex.get() + 1) % RedstoneMode.values().length;
+                                            redstoneModeIndex.set(next);
+                                            sendToServer(SpeakerPolicyPacketC2S.redstoneMode(blockEntityPos, RedstoneMode.fromIndex(next)));
+                                        })
+                        ).gap(6),
+                        directionalSliderRow(Component.translatable("gui.simplyspeakers.directionality"), directionality, 0.0, 1.0,
+                                () -> sendToServer(SpeakerPolicyPacketC2S.directionality(blockEntityPos, directionality.get().floatValue()))),
+                        directionalSliderRow(Component.translatable("gui.simplyspeakers.cone_angle"), coneAngle, 5.0, 355.0,
+                                () -> sendToServer(SpeakerPolicyPacketC2S.coneAngle(blockEntityPos, (int) Math.round(coneAngle.get())))),
+                        directionalSliderRow(Component.translatable("gui.simplyspeakers.rear_attenuation"), rearAttenuation, 0.0, 1.0,
+                                () -> sendToServer(SpeakerPolicyPacketC2S.rearAttenuation(blockEntityPos, rearAttenuation.get().floatValue())))
+                ).gap(8)
+        ).outlined(true).padding(10);
+    }
+
+    private final Signal<Double> directionality = Signals.of(0.0);
+    private final Signal<Double> coneAngle = Signals.of(90.0);
+    private final Signal<Double> rearAttenuation = Signals.of(0.9);
+
+    private final java.util.List<Subscription> guiSubs = new java.util.ArrayList<>();
+
+    private UIComponent directionalSliderRow(Component label, Signal<Double> signal,
+                                             double min, double max, Runnable commit) {
+        Slider slider = Ui.slider(signal, min, max);
+        slider.fillWidth();
+        UIComponent column = Ui.column(
+                Ui.row(
+                        Ui.text((Supplier<Component>) () -> {
+                            double v = signal.get();
+                            String value = (max - min > 1.5)
+                                    ? String.format(java.util.Locale.ROOT, "%.0f", v)
+                                    : String.format(java.util.Locale.ROOT, "%.0f%%", v * 100.0);
+                            return label.copy().append(": ").append(value);
+                        }),
+                        slider
+                ).justify(Justification.SPACE_BETWEEN)
+        ).gap(2);
+        guiSubs.add(signal.subscribe(v -> {
+            if (!guiReady || applyingRemoteState) return;
+            commit.run();
+        }));
+        return column;
+    }
+
+    /** Called by {@link PlaylistSyncPacketS2C} handlers on every authoritative change. */
+    public void updatePlaylistModel(PlaylistSyncPacketS2C packet) {
+        playlistIds.set(List.copyOf(packet.getAudioIds()));
+        playlistNames.set(List.copyOf(packet.getFilenames()));
+        playlistCursor.set(packet.getCurrentIndex());
+        playlistShuffle.set(packet.isShuffle());
+        playlistRepeat.set(Math.max(0, packet.getRepeatOrdinal()));
+        paused.set(packet.isPaused());
     }
 
     private void wireControlSubscriptions() {
@@ -356,7 +612,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private String filenameOf(String uuid) {
         for (AudioFileMetadata a : audioFiles.get()) {
-            if (a.getUuid().equals(uuid)) return a.getOriginalFilename();
+            if (a.getUuid().equals(uuid)) return a.effectiveDisplayName();
         }
         return uuid;
     }
@@ -401,6 +657,11 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return speaker != null ? speaker.getSpeakerId() : "";
     }
 
+    /** Dimension-qualified registry key of this screen's speaker; used to match network-wide sync packets. */
+    public String getFullStateKey() {
+        return speaker != null ? speaker.getFullStateKey() : "";
+    }
+
     private void fetchDataFromBlockEntity() {
         if (Minecraft.getInstance().level == null) {
             this.speaker = null;
@@ -416,6 +677,9 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     @Override
     public void removed() {
+        guiSubs.forEach(Subscription::close);
+        guiSubs.clear();
+        guiReady = false;
         closeControlSubscriptions();
         audioViewState.close();
         filteredAudio.close();

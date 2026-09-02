@@ -1,9 +1,5 @@
 package com.nstut.simplyspeakers.network;
 
-import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.audio.AudioFileMetadata;
-import com.nstut.simplyspeakers.audio.AudioFileManager;
-import com.nstut.simplyspeakers.audio.AudioOwnership;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
 import dev.architectury.networking.NetworkManager;
 import net.minecraft.core.BlockPos;
@@ -43,7 +39,7 @@ public class SelectAudioPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.blockPos)) {
                 return;
             }
 
@@ -54,12 +50,13 @@ public class SelectAudioPacketC2S {
                     return;
                 }
 
-                AudioFileManager manager = SimplySpeakers.getAudioFileManager();
-                if (manager != null) {
-                    AudioFileMetadata meta = manager.getManifest().get(pkt.audioId);
-                    if (meta != null && AudioOwnership.isOwnedBy(meta.getOwnerUUID(), player.getUUID().toString())) {
-                        speaker.setSelectedAudio(meta.getUuid(), meta.getOriginalFilename());
-                    }
+                // Content-level authorization is shared with the playlist paths:
+                // owned local entries resolve via the manifest (server-derived
+                // filename), URL tracks via remote-streaming policy only.
+                SpeakerPacketSecurity.AuthorizedTrack track =
+                        SpeakerPacketSecurity.resolveAuthorizedTrack(player, pkt.audioId);
+                if (track != null) {
+                    speaker.setSelectedAudio(track.audioId(), track.filename());
                 }
             }
         });
