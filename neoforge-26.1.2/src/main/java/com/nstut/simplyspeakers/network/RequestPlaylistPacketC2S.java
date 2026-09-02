@@ -36,6 +36,7 @@ public class RequestPlaylistPacketC2S implements CustomPacketPayload {
     public static void handle(RequestPlaylistPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) return;
             if (player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker) {
                 speaker.sendPlaylistSync(player);
             }
