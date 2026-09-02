@@ -28,6 +28,7 @@ public class RequestPlaylistPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.pos)) return;
             if (player.serverLevel().getBlockEntity(pkt.pos) instanceof SpeakerBlockEntity speaker) {
                 speaker.sendPlaylistSync(player);
             }
