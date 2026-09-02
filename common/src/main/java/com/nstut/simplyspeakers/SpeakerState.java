@@ -28,6 +28,12 @@ public class SpeakerState {
     private boolean paused = false;
     /** Playback position preserved across pause/resume, used as play offset. */
     private float pauseOffsetSeconds = 0.0f;
+    /**
+     * Monotonic identity of the current playback occurrence. It is deliberately
+     * retained across stop and persisted with the network so delayed remote EOF
+     * reports can never become valid again merely because the same URL restarts.
+     */
+    private int playbackSessionGeneration = 0;
 
     // --- Playlist / queue (0.8.x) ---
     private Playlist playlist;
@@ -145,6 +151,7 @@ public class SpeakerState {
                 playbackStartTick, maxVolume, maxRange, audioDropoff);
         copy.paused = paused;
         copy.pauseOffsetSeconds = pauseOffsetSeconds;
+        copy.playbackSessionGeneration = playbackSessionGeneration;
         copy.playlist = playlist != null ? deepCopy(playlist) : null;
         copy.networkName = networkName;
         copy.redstoneMode = redstoneMode != null ? redstoneMode : RedstoneMode.DEFAULT;
@@ -197,8 +204,31 @@ public class SpeakerState {
         this.pauseOffsetSeconds = Math.max(0.0f, offsetSeconds);
     }
 
-    /** Starts (or restarts) playback at {@code offsetSeconds} from the given tick. */
+    /** Current playback-occurrence generation carried by remote stream packets. */
+    public int getPlaybackSessionGeneration() {
+        return Math.max(0, playbackSessionGeneration);
+    }
+
+    /**
+     * Ensures legacy/persisted playing states created before the generation field
+     * existed have a valid non-zero identity without treating a resync as a restart.
+     */
+    public int ensurePlaybackSessionGeneration() {
+        if (playbackSessionGeneration <= 0) playbackSessionGeneration = 1;
+        return playbackSessionGeneration;
+    }
+
+    private void advancePlaybackSessionGeneration() {
+        if (playbackSessionGeneration <= 0 || playbackSessionGeneration == Integer.MAX_VALUE) {
+            playbackSessionGeneration = 1;
+        } else {
+            playbackSessionGeneration++;
+        }
+    }
+
+    /** Starts (or restarts) a new playback occurrence at {@code offsetSeconds}. */
     public void startPlaybackAt(long currentTick, float offsetSeconds) {
+        advancePlaybackSessionGeneration();
         this.isPlaying = true;
         this.paused = false;
         this.pauseOffsetSeconds = Math.max(0.0f, offsetSeconds);
@@ -212,14 +242,14 @@ public class SpeakerState {
         this.paused = true;
     }
 
-    /** Resumes suspended playback from the preserved position. */
+    /** Resumes suspended playback from the preserved position without starting a new occurrence. */
     public void resumeAt(long currentTick) {
         if (!paused) return;
         this.playbackStartTick = currentTick;
         this.paused = false;
     }
 
-    /** Stops playback entirely, clearing position and pending seeks. */
+    /** Stops playback entirely, clearing position but retaining the occurrence generation. */
     public void stopPlayback() {
         setPlaying(false);
     }
