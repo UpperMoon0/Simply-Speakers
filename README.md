@@ -15,6 +15,15 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 * **Loop Playback**: Toggle looping from the speaker GUI.
 * **Moving Speakers (1.21.1)**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
 * **Cross-Platform**: Supports Fabric, Forge, and NeoForge across multiple Minecraft versions.
+* **Playlists & Queues**: Ordered playlists with shuffle, repeat track/playlist, and a one-shot play-next queue.
+* **Transport Controls**: Pause/resume (position-preserving), seek, restart, next/previous from GUI, redstone, commands, or code.
+* **CC:Tweaked Integration** (optional): Every main Speaker is a programmable peripheral with playback events - build PA systems, alarms, and radios.
+* **Advanced Redstone Modes**: Power, pulse, toggle, next-track, analog volume (signal 0-15) and analog track selection; comparator output exposes playback progress.
+* **Named Networks & Commands**: Name your speaker networks and drive them with `/simplyspeakers` (`/ss`) or the public Java API.
+* **Library Organization**: Display names, categories, and tags for your audio library.
+* **Ownership & Access**: Public, trusted, owner-only, or operators-only control per network.
+* **Directional Audio**: Focus sound into a cone in front of the speaker with adjustable directionality, angle, and rear attenuation.
+* **Internet Streams**: Play direct `http(s)` MP3/WAV stream URLs live.
 
 ## Supported Platforms
 
@@ -69,6 +78,7 @@ Audio files are stored in `simply_speakers_audios/` inside your world's save fol
 Edit the mod config file to adjust:
 - `speakerRange`: Default range for new speakers (1–512, default: 64)
 - `disableUpload`: Disable the in-game upload feature
+- `allowRemoteStreams`: Whether clients may stream direct `http(s)` MP3/WAV URLs through this server (independent of `disableUpload`, default: off)
 - `maxUploadSize`: Maximum file size for uploads in bytes
 - `debugLogging`: Enable verbose logging for troubleshooting
 
@@ -98,6 +108,19 @@ To target a specific module:
 gradlew.bat :neoforge-1.21.1:build
 gradlew.bat :fabric-1.20.1:build
 ```
+
+Development clients and servers automatically load CC:Tweaked on Fabric/Forge
+1.20.1 and Fabric/NeoForge 1.21.1. These runtime dependencies are development-only
+and are not bundled in release jars or published as required dependencies.
+
+For moving-speaker testing, both 1.21.1 loaders load Sable 2.0.5 when its matching
+jar exists under `../sable/<loader>/build/libs/`. Fabric also exposes Sable's
+nested physics backend, Veil, and Forge Config API Port to the dev runtime.
+NeoForge additionally loads Create and its dependencies, and the Simulated,
+Aeronautics, and Offroad 1.3.1 component jars when all three are built under
+`../Simulated-Project/<component>/neoforge/build/libs/`.
+Build those sibling projects before starting the dev run to enable these integrations.
+The 26.1.2 module has no CC:Tweaked or Sable integration.
 
 To run all version-independent tests:
 ```bash

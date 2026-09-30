@@ -19,10 +19,13 @@ loom {
             client()
             runDir("run/live-join/client")
             property "simplyspeakers.liveJoinTest", "true"
+            property "simplyspeakers.livePlaybackTest", "true"
             programArgs "--quickPlayMultiplayer", "127.0.0.1:25575"
         }
         liveJoinTestServer {
             server()
+            property "simplyspeakers.livePlaybackTest", "true"
+            property "simplyspeakers.requireComputerCraft", "true"
             runDir("run/live-join/server")
             programArg "nogui"
         }
@@ -49,6 +52,11 @@ configurations {
 dependencies {
     modImplementation "net.fabricmc:fabric-loader:$project.fabric_loader_version"
 
+    // CC:Tweaked API (optional integration; compile-only)
+    modCompileOnly "cc.tweaked:cc-tweaked-1.21.1-fabric-api:1.120.2"
+    modLocalRuntime "cc.tweaked:cc-tweaked-1.21.1-fabric:1.120.2"
+    modLocalRuntime 'net.fabricmc.fabric-api:fabric-api:0.116.12+1.21.1'
+
     // OpenUI MC - required client-side UI framework (matching Fabric 1.21.1 module)
     modImplementation "com.nstut:openui-mc-fabric-1.21.1:${project.openui_version}"
 
@@ -61,6 +69,23 @@ dependencies {
     modImplementation "com.nstut:openui-mc-fabric-1.21.1:${project.openui_version}"
 
     include(modApi("dev.ryanhcode.sable-companion:sable-companion-fabric-1.21.1:$project.sable_companion_version"))
+
+    // Match the NeoForge dev environment when the sibling Sable build exists.
+    // Expose its nested mods explicitly: Loom dev runs do not load nested jars.
+    def localSableJar = rootProject.file('../sable/fabric/build/libs/sable-fabric-1.21.1-2.0.5.jar')
+    if (localSableJar.exists()) {
+        // The Veil bundled in this Sable build requires these dev runtime minima.
+        modLocalRuntime 'net.fabricmc:fabric-loader:0.18.4'
+        modLocalRuntime files(localSableJar)
+        modLocalRuntime files(zipTree(localSableJar).matching {
+            include 'META-INF/jars/sable-sable_rapier-*.jar'
+            include 'META-INF/jars/veil-*.jar'
+            include 'META-INF/jars/forgeconfigapiport-*.jar'
+        })
+        runtimeOnly 'org.apache.maven:maven-artifact:3.8.5'
+        runtimeOnly 'gg.moonflower:molang-compiler:3.1.1.19'
+        runtimeOnly 'io.github.ocelot:glsl-processor:0.2.3'
+    }
 
     // JLayer (non-MC dependency) - needed for MP3 decoding
     implementation "javazoom:jlayer:1.0.1"

@@ -46,7 +46,7 @@ public class RequestUploadAudioPacketC2S implements CustomPacketPayload {
     public static void handle(RequestUploadAudioPacketC2S pkt, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.blockPos)) {
                 NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(pkt.transactionId, false, 0, Component.literal("You do not have permission to upload audio here.")));
                 return;
             }

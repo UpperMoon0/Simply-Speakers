@@ -22,15 +22,24 @@ public record ServerEmitter(
         float maxVolume,
         float dropoff,
         boolean proxy,
-        boolean active
+        boolean active,
+        com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directionalExtras
 ) {
+
+    public ServerEmitter(SpeakerLocation location, String networkKey, int maxRange, float maxVolume, float dropoff, boolean proxy, boolean active) {
+        this(location, networkKey, maxRange, maxVolume, dropoff, proxy, active, null);
+    }
 
     public ServerEmitter {
         networkKey = networkKey != null ? networkKey : "";
     }
 
     public ServerEmitter withActive(boolean newActive) {
-        return new ServerEmitter(location, networkKey, maxRange, maxVolume, dropoff, proxy, newActive);
+        return new ServerEmitter(location, networkKey, maxRange, maxVolume, dropoff, proxy, newActive, directionalExtras);
+    }
+
+    public ServerEmitter withDirectionalExtras(com.nstut.simplyspeakers.audio.DirectionalAudio.Extras newExtras) {
+        return new ServerEmitter(location, networkKey, maxRange, maxVolume, dropoff, proxy, active, newExtras);
     }
 
     /** Dimension-prefixed registry key used to look up the live {@code SpeakerState}. */

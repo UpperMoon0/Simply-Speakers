@@ -209,6 +209,7 @@ The system supports several configurable parameters:
 - `speakerRange`: Distance at which audio can be heard
 - `maxUploadSize`: Maximum file size for uploads
 - `disableUpload`: Disables the upload feature entirely
+- `allowRemoteStreams`: Whether clients may stream direct HTTP(S) audio URLs through this server; independent of `disableUpload`, and off by default
 
 ### Speaker Settings
 Each speaker now supports additional configurable parameters:

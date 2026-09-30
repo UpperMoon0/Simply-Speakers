@@ -13,13 +13,13 @@ class ConfigSyncTest {
     @BeforeEach
     void setUp() {
         Config.restoreLocalConfig();
-        Config.setLocalConfig(64, false, 5 * 1024 * 1024);
+        Config.setLocalConfig(64, false, 5 * 1024 * 1024, false);
     }
 
     @AfterEach
     void tearDown() {
         Config.restoreLocalConfig();
-        Config.setLocalConfig(64, false, 5 * 1024 * 1024);
+        Config.setLocalConfig(64, false, 5 * 1024 * 1024, false);
     }
 
     @Test
@@ -75,5 +75,41 @@ class ConfigSyncTest {
         Config.applyServerConfig(-10, false, 10);
         assertEquals(Config.MIN_RANGE, Config.speakerRange);
         assertEquals(Config.MIN_UPLOAD_SIZE, Config.maxUploadSize);
+    }
+
+    @Test
+    void allowRemoteStreamsWiresThroughLocalAndServerConfig() {
+        assertFalse(Config.allowRemoteStreams);
+        assertFalse(Config.isRemoteStreamingAllowed());
+
+        Config.setLocalConfig(64, false, 5 * 1024 * 1024, true);
+        assertTrue(Config.allowRemoteStreams);
+        assertTrue(Config.isLocalAllowRemoteStreams());
+
+        // Server config can disable remote streams while uploads stay enabled
+        Config.applyServerConfig(64, false, 5 * 1024 * 1024, false);
+        assertFalse(Config.isRemoteStreamingAllowed());
+        assertTrue(Config.isLocalAllowRemoteStreams());
+
+        // Restoring local config re-enables it
+        Config.restoreLocalConfig();
+        assertTrue(Config.isRemoteStreamingAllowed());
+    }
+
+    @Test
+    void legacySetLocalConfigOverloadPreservesRemoteStreamSetting() {
+        Config.setLocalConfig(64, false, 5 * 1024 * 1024, true);
+        Config.setLocalConfig(32, true, 1 * 1024 * 1024);
+        assertTrue(Config.allowRemoteStreams);
+        assertTrue(Config.isLocalAllowRemoteStreams());
+        assertEquals(32, Config.speakerRange);
+    }
+
+    @Test
+    void legacyApplyServerConfigOverloadPreservesRemoteStreamSetting() {
+        Config.setLocalConfig(64, false, 5 * 1024 * 1024, true);
+        Config.applyServerConfig(128, false, 8 * 1024 * 1024);
+        assertTrue(Config.isRemoteStreamingAllowed());
+        assertEquals(128, Config.speakerRange);
     }
 }

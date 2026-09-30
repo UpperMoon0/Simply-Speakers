@@ -21,17 +21,23 @@ public class SpeakerStateUpdatePacketS2C {
     private final BlockPos blockPos;
     private final boolean hasBlockPos;
     private final String speakerId;
-    private final String action; // "play", "stop", "update"
+    private final String action; // "play", "pause", "stop", "update"
     private final String audioId;
     private final String audioFilename;
     private final long playbackStartTick;
     private final boolean isLooping;
+    /** Dimension-qualified registry key of the authoritative state; may be empty. */
+    private final String fullStateKey;
 
     public SpeakerStateUpdatePacketS2C(BlockPos blockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
-        this(blockPos != null ? blockPos : BlockPos.ZERO, blockPos != null, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+        this(blockPos, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping, "");
     }
 
-    private SpeakerStateUpdatePacketS2C(BlockPos blockPos, boolean hasBlockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
+    public SpeakerStateUpdatePacketS2C(BlockPos blockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping, String fullStateKey) {
+        this(blockPos != null ? blockPos : BlockPos.ZERO, blockPos != null, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping, fullStateKey);
+    }
+
+    private SpeakerStateUpdatePacketS2C(BlockPos blockPos, boolean hasBlockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping, String fullStateKey) {
         this.blockPos = blockPos;
         this.hasBlockPos = hasBlockPos;
         this.speakerId = speakerId != null ? speakerId : "";
@@ -40,10 +46,11 @@ public class SpeakerStateUpdatePacketS2C {
         this.audioFilename = audioFilename != null ? audioFilename : "";
         this.playbackStartTick = playbackStartTick;
         this.isLooping = isLooping;
+        this.fullStateKey = fullStateKey != null ? fullStateKey : "";
     }
 
     public SpeakerStateUpdatePacketS2C(String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
-        this(BlockPos.ZERO, false, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping);
+        this(BlockPos.ZERO, false, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping, "");
     }
 
     public SpeakerStateUpdatePacketS2C(FriendlyByteBuf buf) {
@@ -55,6 +62,7 @@ public class SpeakerStateUpdatePacketS2C {
         this.audioFilename = buf.readUtf();
         this.playbackStartTick = buf.readLong();
         this.isLooping = buf.readBoolean();
+        this.fullStateKey = buf.readUtf(256);
     }
 
     public static void encode(SpeakerStateUpdatePacketS2C pkt, FriendlyByteBuf buf) {
@@ -66,6 +74,7 @@ public class SpeakerStateUpdatePacketS2C {
         buf.writeUtf(pkt.audioFilename);
         buf.writeLong(pkt.playbackStartTick);
         buf.writeBoolean(pkt.isLooping);
+        buf.writeUtf(pkt.fullStateKey, 256);
     }
 
     public static void handle(SpeakerStateUpdatePacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
@@ -93,14 +102,20 @@ public class SpeakerStateUpdatePacketS2C {
 
             if ("play".equals(pkt.action)) {
                 state.setPlaying(true);
+                state.setPaused(false);
+            } else if ("pause".equals(pkt.action)) {
+                state.setPlaying(true);
+                state.setPaused(true);
+                ClientAudioPlayer.stopNetwork(linkKey);
             } else if ("stop".equals(pkt.action)) {
                 state.setPlaying(false);
+                state.setPaused(false);
                 state.setPlaybackStartTick(-1);
                 ClientAudioPlayer.stopNetwork(linkKey);
             }
             ClientSpeakerRegistry.updateState(linkKey, state);
         } else if (pkt.hasBlockPos && Minecraft.getInstance().level != null) {
-            if ("stop".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
+            if ("stop".equals(pkt.action) || "pause".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
             var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
             if (be instanceof SpeakerBlockEntity speakerBE) {
                 SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
@@ -111,8 +126,13 @@ public class SpeakerStateUpdatePacketS2C {
 
                 if ("play".equals(pkt.action)) {
                     state.setPlaying(true);
+                    state.setPaused(false);
+                } else if ("pause".equals(pkt.action)) {
+                    state.setPlaying(true);
+                    state.setPaused(true);
                 } else if ("stop".equals(pkt.action)) {
                     state.setPlaying(false);
+                    state.setPaused(false);
                     state.setPlaybackStartTick(-1);
                 }
                 ClientSpeakerRegistry.updateState(speakerBE.getStateKey(), state);
@@ -120,8 +140,12 @@ public class SpeakerStateUpdatePacketS2C {
         }
 
         if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
-            if ((pkt.hasBlockPos && pkt.blockPos.equals(screen.getBlockEntityPos()))
-                    || (linked && pkt.speakerId.trim().equals(screen.getSpeakerId().trim()))) {
+            // Match by full state key first so network-wide broadcasts (which may carry a
+            // physical position of any linked speaker, or none) still reach the open GUI.
+            boolean matchesScreen = (pkt.hasBlockPos && pkt.blockPos.equals(screen.getBlockEntityPos()))
+                    || (!pkt.fullStateKey.isEmpty() && pkt.fullStateKey.equals(screen.getFullStateKey()))
+                    || (linked && pkt.speakerId.trim().equals(screen.getSpeakerId().trim()));
+            if (matchesScreen) {
                 screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
             }
         }
@@ -133,6 +157,10 @@ public class SpeakerStateUpdatePacketS2C {
 
     public boolean hasBlockPos() {
         return hasBlockPos;
+    }
+
+    public String getFullStateKey() {
+        return fullStateKey;
     }
 
     public String getSpeakerId() {

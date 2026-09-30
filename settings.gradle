@@ -17,24 +17,51 @@ rootProject.name = 'simplyspeakers'
 // Besides being faster, this keeps IDE-held 1.20.1 mapping locks from blocking
 // the standalone ModDevGradle client/server runs.
 def requestedTasks = gradle.startParameter.taskNames
+def onlyCore = !requestedTasks.isEmpty() && requestedTasks.every {
+    it.startsWith(':common:') || it == 'testCore'
+}
+def onlyAdapterTests = !requestedTasks.isEmpty() && requestedTasks.every {
+    it == 'testAllVersions' || it == ':common:test' ||
+            it == ':common-1.20.1:test' || it == ':common-1.21.1:test' ||
+            it == ':neoforge-26.1.2:test'
+}
 def onlyNeoForge2612 = !requestedTasks.isEmpty() && requestedTasks.every {
     it == 'neoforge-26.1.2' || it.startsWith(':neoforge-26.1.2:')
 }
+
+// A loader-specific build or game launch configures only its own Minecraft
+// version. Unqualified aggregate tasks keep the complete project graph.
+def loaders = ['fabric-1.20.1', 'forge-1.20.1', 'fabric-1.21.1', 'neoforge-1.21.1', 'neoforge-26.1.2']
+def targetedLoaders = requestedTasks.collect { task ->
+    loaders.find { task.startsWith(":${it}:") }
+}
+def onlyLoaders = !requestedTasks.isEmpty() && targetedLoaders.every { it != null }
+def selectedLoaders = targetedLoaders.findAll { it != null }.toSet()
+def include120 = !onlyLoaders || selectedLoaders.any { it.endsWith('1.20.1') }
+def include121 = !onlyLoaders || selectedLoaders.any { it.endsWith('1.21.1') }
 
 // Shared common module (version-independent)
 if (!onlyNeoForge2612) {
     include 'common'
 
     // Minecraft 1.20.1 modules
-    include 'common-1.20.1'
-    include 'fabric-1.20.1'
-    include 'forge-1.20.1'
+    if (!onlyCore && include120) {
+        include 'common-1.20.1'
+        if (!onlyAdapterTests) {
+            if (!onlyLoaders || selectedLoaders.contains('fabric-1.20.1')) include 'fabric-1.20.1'
+            if (!onlyLoaders || selectedLoaders.contains('forge-1.20.1')) include 'forge-1.20.1'
+        }
+    }
 
     // Minecraft 1.21.1 modules
-    include 'common-1.21.1'
-    include 'fabric-1.21.1'
-    include 'neoforge-1.21.1'
+    if (!onlyCore && include121) {
+        include 'common-1.21.1'
+        if (!onlyAdapterTests) {
+            if (!onlyLoaders || selectedLoaders.contains('fabric-1.21.1')) include 'fabric-1.21.1'
+            if (!onlyLoaders || selectedLoaders.contains('neoforge-1.21.1')) include 'neoforge-1.21.1'
+        }
+    }
 }
 
 // Minecraft 26.1.2 module (NeoForge, standalone ModDevGradle project)
-include 'neoforge-26.1.2'
+if (!onlyCore && (!onlyLoaders || selectedLoaders.contains('neoforge-26.1.2'))) include 'neoforge-26.1.2'

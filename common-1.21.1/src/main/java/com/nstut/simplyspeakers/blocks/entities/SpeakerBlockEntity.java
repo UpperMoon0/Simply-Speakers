@@ -1,34 +1,44 @@
 package com.nstut.simplyspeakers.blocks.entities;
 
 import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.RedstoneLogic;
+import com.nstut.simplyspeakers.RedstoneMode;
+import com.nstut.simplyspeakers.SimplySpeakers;
+import com.nstut.simplyspeakers.SpeakerAccess;
 import com.nstut.simplyspeakers.SpeakerLink;
-import com.nstut.simplyspeakers.SpeakerRegistry;
 import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.audio.DirectionalAudio;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C;
 import com.nstut.simplyspeakers.speakers.ServerEmitter;
 import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
+import com.nstut.simplyspeakers.speakers.ServerSpeakerControlService;
 import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.SpeakerLocation;
 import dev.architectury.networking.NetworkManager;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
+import net.minecraft.server.level.ServerPlayer;
+import java.util.List;
 import java.util.UUID;
+import com.nstut.simplyspeakers.playlist.Playlist;
+import com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C;
 
 /**
  * Block entity for the Speaker block.
@@ -38,10 +48,21 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     private static final String NBT_SPEAKER_ID = "SpeakerID";
     private static final String NBT_INTERNAL_ID = "InternalStateId";
+    private static final String NBT_LAST_REDSTONE_SIGNAL = "LastRedstoneSignal";
 
     private UUID internalStateId = UUID.randomUUID();
     private String speakerId = "";
     private String registeredKey = "";
+
+    /** Last observed redstone strength for edge-triggered modes. Persisted so a world
+     * reload does not fabricate a rising edge (0 -> current signal). */
+    private int lastRedstoneSignal = 0;
+
+    private static final int COMPARATOR_UPDATE_INTERVAL_TICKS = 10;
+
+    /** Last comparator level pushed to neighbours; recalculated on a periodic cadence. */
+    private int lastComparatorLevel = 0;
+    private long lastComparatorCheckTick = -COMPARATOR_UPDATE_INTERVAL_TICKS;
 
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityRegistries.SPEAKER.get(), pos, state);
@@ -75,11 +96,33 @@ public class SpeakerBlockEntity extends BlockEntity {
      * The snapshot carries the last known powered/playing intent so the centralized
      * {@link ServerPlaybackManager} keeps managing playback even if this chunk unloads.
      */
-    private void updateEmitterSnapshot() {
+    public void updateEmitterSnapshot() {
         if (level == null || level.isClientSide()) return;
-        boolean active = getBlockState().hasProperty(SpeakerBlock.POWERED)
-                && getBlockState().getValue(SpeakerBlock.POWERED);
         SpeakerState state = ServerSpeakerRegistry.getSpeakerState(level, getStateKey());
+        RedstoneMode mode = state != null ? state.getRedstoneMode() : RedstoneMode.POWER;
+        boolean powered = getBlockState().hasProperty(SpeakerBlock.POWERED)
+                && getBlockState().getValue(SpeakerBlock.POWERED);
+        Direction facing = getBlockState().hasProperty(SpeakerBlock.FACING)
+                ? getBlockState().getValue(SpeakerBlock.FACING)
+                : Direction.NORTH;
+
+        // Classic POWER mode: the emitter intent follows the instantaneous physical signal,
+        // and we keep the powered-speaker index accurate so linked POWER speakers survive one
+        // of them losing power (hasOtherPoweredMain looks this up).
+        // Edge-triggered modes (PULSE/TOGGLE/NEXT/ANALOG*) use the signal only as a trigger,
+        // so the speaker emits while the shared network is actively playing rather than only
+        // while the (falling) pulse is high -- otherwise a pulse would stop on its falling edge.
+        boolean active;
+        if (mode == RedstoneMode.POWER) {
+            active = powered;
+            ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), powered);
+        } else {
+            active = state != null && state.isPlaying() && !state.isPaused();
+        }
+
+        DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
+                ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
+                : null;
         ServerSpeakerRegistry.upsertEmitter(new ServerEmitter(
                 emitterLocation(),
                 getStateKey(),
@@ -87,16 +130,8 @@ public class SpeakerBlockEntity extends BlockEntity {
                 state != null ? state.getMaxVolume() : 1.0f,
                 state != null ? state.getAudioDropoff() : 1.0f,
                 false,
-                active));
-    }
-
-    private void startCentralScan() {
-        if (level instanceof ServerLevel serverLevel) {
-            ServerEmitter emitter = ServerSpeakerRegistry.getEmitter(emitterLocation());
-            if (emitter != null) {
-                ServerPlaybackManager.onEmitterActivated(serverLevel.getServer(), emitter);
-            }
-        }
+                active,
+                extras));
     }
 
     public String getStateKey() {
@@ -104,6 +139,10 @@ public class SpeakerBlockEntity extends BlockEntity {
             return "net_" + speakerId.trim();
         }
         return "internal_" + internalStateId.toString();
+    }
+
+    public String getFullStateKey() {
+        return ServerSpeakerRegistry.getRegistryKey(level, getStateKey());
     }
 
     public String getSpeakerId() {
@@ -126,14 +165,16 @@ public class SpeakerBlockEntity extends BlockEntity {
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
             if (!oldKey.equals(newKey)) {
-                SpeakerRegistry.updateSpeakerId(level, worldPosition, oldKey, newKey);
+                ServerSpeakerRegistry.updateSpeakerId(level, worldPosition, oldKey, newKey);
                 registeredKey = newKey;
                 if (!physicallyPowered && (destinationBeforeRelink == null || !destinationBeforeRelink.isPlaying())) {
                     SpeakerState newState = getSpeakerState();
-                    newState.setPlaying(false);
-                    newState.setPlaybackStartTick(-1);
-                    updateSpeakerState(newState);
-                    notifyClientsOfStateChange();
+                    if (newState != null) {
+                        newState.setPlaying(false);
+                        newState.setPlaybackStartTick(-1);
+                        updateSpeakerState(newState);
+                        notifyClientsOfStateChange();
+                    }
                 }
             }
             if (physicallyPowered && !oldKey.equals(newKey)) {
@@ -142,6 +183,11 @@ public class SpeakerBlockEntity extends BlockEntity {
         } else if (level != null) {
             this.speakerId = newSpeakerId;
         }
+    }
+
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
     }
 
     public void setSpeakerIdClient(String speakerId) {
@@ -165,80 +211,282 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     public void setSelectedAudio(String audioId, String filename) {
-        if (level != null && !level.isClientSide()) {
-            SpeakerState state = getSpeakerState();
-            if (state != null) {
-                state.setAudioId(audioId);
-                state.setAudioFilename(filename);
-                updateSpeakerState(state);
-                if (state.isPlaying()) {
-                    stopAudio();
-                }
-                notifyClientsOfStateChange();
-            }
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.selectAudio(serverLevel.getServer(), serverLevel, getFullStateKey(), audioId, filename);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
     public static void serverTick(Level level, BlockPos pos, BlockState state, SpeakerBlockEntity blockEntity) {
         blockEntity.ensureServerRegistration();
-        blockEntity.tick(level, pos, state);
+        blockEntity.updateComparatorOutput();
+    }
+
+    // ==================================================================
+    // 0.8.x transport, playlists, redstone automation, and policy
+    // ==================================================================
+
+    public void transportAction(Level currentLevel, byte action, float seekSeconds) {
+        if (currentLevel instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.applyTransport(serverLevel.getServer(), serverLevel, getFullStateKey(), action, seekSeconds);
+            setChanged();
+            currentLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void pauseAudio() {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.pause(serverLevel.getServer(), serverLevel, getFullStateKey());
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+        updateComparatorOutput();
+    }
+
+    public void resumeAudio() {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void togglePause() {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.togglePause(serverLevel.getServer(), serverLevel, getFullStateKey());
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void seekTo(float seconds) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.seek(serverLevel.getServer(), serverLevel, getFullStateKey(), seconds);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void nextTrack() {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.next(serverLevel.getServer(), serverLevel, getFullStateKey());
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void previousTrack() {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.previous(serverLevel.getServer(), serverLevel, getFullStateKey());
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void selectAndPlay(String audioId, String filename) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.selectAudio(serverLevel.getServer(), serverLevel, getFullStateKey(), audioId, filename);
+            ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void playlistControl(Level currentLevel, byte op, int index, boolean flagValue,
+                                String audioId, String filename) {
+        if (currentLevel instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.playlistControl(serverLevel.getServer(), serverLevel, getFullStateKey(), op, index, flagValue, audioId, filename);
+            setChanged();
+            currentLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void handleRedstoneChange(int newSignal) {
+        if (level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null) return;
+        int previous = lastRedstoneSignal;
+        lastRedstoneSignal = newSignal;
+        RedstoneMode mode = state.getRedstoneMode();
+        int trackCount = state.hasPlaylist() ? state.getPlaylist().size() : 0;
+        RedstoneLogic.RedstoneResult result = RedstoneLogic.evaluate(mode, previous, newSignal, trackCount);
+        if (level instanceof ServerLevel serverLevel) {
+            switch (result.action()) {
+                case PLAY -> ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
+                case STOP -> detachEmitterForPowerOff();
+                case RESTART -> ServerSpeakerControlService.restart(serverLevel.getServer(), serverLevel, getFullStateKey());
+                case TOGGLE_PAUSE -> ServerSpeakerControlService.togglePause(serverLevel.getServer(), serverLevel, getFullStateKey());
+                case NEXT_TRACK -> ServerSpeakerControlService.next(serverLevel.getServer(), serverLevel, getFullStateKey());
+                case PREVIOUS_TRACK -> ServerSpeakerControlService.previous(serverLevel.getServer(), serverLevel, getFullStateKey());
+                case SET_VOLUME -> ServerSpeakerControlService.setVolume(serverLevel.getServer(), serverLevel, getFullStateKey(), result.payload() / 15.0f);
+                case SELECT_TRACK -> ServerSpeakerControlService.selectPlaylistSlot(serverLevel.getServer(), serverLevel, getFullStateKey(), result.payload());
+                case NONE -> { }
+            }
+        }
+        updateEmitterSnapshot();
+    }
+
+    public int getComparatorOutput() {
+        SpeakerState state = getSpeakerState();
+        if (state == null || level == null || !state.isPlaying() || state.isPaused()) return 0;
+        AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
+        float duration = 0.0f;
+        if (audioFileManager != null) {
+            AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
+            if (meta != null) duration = meta.getDurationSeconds();
+        }
+        float elapsed = state.getPlaybackPositionSeconds(level.getGameTime());
+        return RedstoneLogic.comparatorLevel(state.isPlaying() && !state.isPaused(), elapsed, duration);
+    }
+
+    private void updateComparatorOutput() {
+        if (level == null || level.isClientSide()) return;
+        long now = level.getGameTime();
+        if (now - lastComparatorCheckTick < COMPARATOR_UPDATE_INTERVAL_TICKS) return;
+        lastComparatorCheckTick = now;
+        int computed = getComparatorOutput();
+        if (computed != lastComparatorLevel) {
+            lastComparatorLevel = computed;
+            level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+            setChanged();
+        }
+    }
+
+    public String getNetworkName() {
+        SpeakerState state = getSpeakerState();
+        return state != null && state.getNetworkName() != null ? state.getNetworkName() : "";
+    }
+
+    public RedstoneMode getRedstoneMode() {
+        SpeakerState state = getSpeakerState();
+        return state != null && state.getRedstoneMode() != null ? state.getRedstoneMode() : RedstoneMode.DEFAULT;
+    }
+
+    public void setNetworkName(String networkName) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_NETWORK_NAME,
+                    networkName, 0, 0.0f, null);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void setRedstoneMode(RedstoneMode mode) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_REDSTONE_MODE,
+                    "", mode != null ? mode.ordinal() : 0, 0.0f, null);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void setAccessMode(SpeakerAccess access) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_ACCESS_MODE,
+                    "", access != null ? access.ordinal() : 0, 0.0f, null);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
+    }
+
+    public void modifyTrust(UUID playerUuid, boolean add) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_TRUST_CHANGE,
+                    "", add ? 1 : 0, 0.0f, playerUuid);
+        }
+    }
+
+    public void sendPlaylistSync(ServerPlayer player) {
+        if (player == null || level == null || level.isClientSide()) return;
+        SpeakerState state = getSpeakerState();
+        if (state == null || !state.hasPlaylist()) return;
+        Playlist pl = state.getPlaylist();
+        List<String> audioIds = new java.util.ArrayList<>();
+        List<String> filenames = new java.util.ArrayList<>();
+        for (com.nstut.simplyspeakers.playlist.PlaylistTrack track : pl.getTracks()) {
+            audioIds.add(track.getAudioId());
+            filenames.add(track.getFilename());
+        }
+        int playingIndex = state.isPlaying() ? pl.getCurrentIndex() : -1;
+        PlaylistSyncPacketS2C sync = new PlaylistSyncPacketS2C(
+                worldPosition,
+                getFullStateKey(),
+                audioIds,
+                filenames,
+                pl.getCurrentIndex(),
+                pl.isShuffle(),
+                pl.getRepeatMode().ordinal(),
+                playingIndex,
+                state.isPaused()
+        );
+        dev.architectury.networking.NetworkManager.sendToPlayer(player, sync);
+    }
+
+    public void claimOwnership(UUID playerUuid) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_CLAIM_OWNER,
+                    "", 0, 0.0f, playerUuid);
+        }
+    }
+
+    public void setDirectionality(float directionality) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_DIRECTIONALITY,
+                    "", 0, directionality, null);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            updateEmitterSnapshot();
+        }
+    }
+
+    public void setConeAngleDegrees(int coneAngleDegrees) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_CONE_ANGLE,
+                    "", coneAngleDegrees, 0.0f, null);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            updateEmitterSnapshot();
+        }
+    }
+
+    public void setRearAttenuation(float rearAttenuation) {
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.policyControl(serverLevel.getServer(), serverLevel, getFullStateKey(),
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_REAR_ATTENUATION,
+                    "", 0, rearAttenuation, null);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            updateEmitterSnapshot();
+        }
     }
 
     public void playAudio() {
-        if (level == null || level.isClientSide()) {
-            return;
-        }
-
-        SpeakerState state = getSpeakerState();
-        if (state == null) {
-            return;
-        }
-        if (state.isPlaying()) {
+        if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), true);
+            ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
             updateEmitterSnapshot();
-            startCentralScan();
-            return;
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
-
-        String audioId = state.getAudioId();
-        if (audioId == null || audioId.isEmpty()) {
-            return;
-        }
-
-        long gameTime = level.getGameTime();
-        state.setPlaying(true);
-        state.setPlaybackStartTick(gameTime);
-        updateSpeakerState(state);
-
-        setChanged();
-        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-        notifyClientsOfStateChange();
-        ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), true);
-        updateEmitterSnapshot();
-        startCentralScan();
     }
 
     public void stopAudio() {
-        if (level == null || level.isClientSide()) {
-            return;
-        }
-
-        ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), false);
-        SpeakerState state = getSpeakerState();
-        if (state != null) {
-            state.setPlaying(false);
-            state.setPlaybackStartTick(-1);
-            updateSpeakerState(state);
-        }
-
-        updateEmitterSnapshot();
         if (level instanceof ServerLevel serverLevel) {
-            ServerPlaybackManager.stopEmitter(serverLevel.getServer(), emitterLocation());
+            ServerSpeakerRegistry.setSpeakerPowered(level, worldPosition, getStateKey(), false);
+            ServerSpeakerControlService.stop(serverLevel.getServer(), serverLevel, getFullStateKey());
+            updateEmitterSnapshot();
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
-
-        setChanged();
-        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-        notifyClientsOfStateChange();
+        updateComparatorOutput();
     }
 
     public void detachEmitterForPowerOff() {
@@ -255,77 +503,29 @@ public class SpeakerBlockEntity extends BlockEntity {
         notifyClientsOfStateChange();
     }
 
-    private void notifyClientsOfStateChange(ServerPlayer player) {
-        if (level instanceof ServerLevel) {
-            SpeakerState state = getSpeakerState();
-            if (state != null) {
-                SpeakerStateUpdatePacketS2C updatePacket = new SpeakerStateUpdatePacketS2C(
-                        worldPosition,
-                        speakerId,
-                        state.isPlaying() ? "play" : "stop",
-                        state.getAudioId(),
-                        state.getAudioFilename(),
-                        state.getPlaybackStartTick(),
-                        state.isLooping()
-                );
-                sendStateUpdatePacket(player, updatePacket);
-            }
-        }
-    }
-
     private void notifyClientsOfStateChange() {
         if (level instanceof ServerLevel serverLevel) {
             SpeakerState state = getSpeakerState();
             if (state != null) {
+                String action = (state.isPlaying() && !state.isPaused()) ? "play" : (state.isPaused() ? "pause" : "stop");
                 SpeakerStateUpdatePacketS2C updatePacket = new SpeakerStateUpdatePacketS2C(
                         worldPosition,
                         speakerId,
-                        state.isPlaying() ? "play" : "stop",
+                        action,
                         state.getAudioId(),
                         state.getAudioFilename(),
                         state.getPlaybackStartTick(),
-                        state.isLooping()
+                        state.isLooping(),
+                        getFullStateKey()
                 );
-                sendStateUpdatePacketToAll(serverLevel, updatePacket);
+                NetworkManager.sendToPlayers(serverLevel.players(), updatePacket);
             }
         }
     }
 
-    private void tick(Level currentLevel, BlockPos currentPos, BlockState currentState) {
-        if (currentLevel == null || currentLevel.isClientSide()) {
-            return;
-        }
-
-        if (!currentState.is(com.nstut.simplyspeakers.blocks.BlockRegistries.SPEAKER.get())) {
-            SpeakerState state = getSpeakerState();
-            if (state != null && state.isPlaying()) stopAudio();
-            return;
-        }
-
-        // Listener scanning and natural EOF handling are centralized in
-        // ServerPlaybackManager; the block entity only keeps its emitter
-        // snapshot (power/playing intent) up to date.
-        boolean isPowered = currentState.getValue(SpeakerBlock.POWERED);
-        ServerSpeakerRegistry.setSpeakerPowered(currentLevel, currentPos, getStateKey(), isPowered);
-        updateEmitterSnapshot();
-    }
-
-    private void sendStateUpdatePacket(ServerPlayer player, SpeakerStateUpdatePacketS2C packet) {
-        NetworkManager.sendToPlayer(player, packet);
-    }
-
-    private void sendStateUpdatePacketToAll(ServerLevel serverLevel, SpeakerStateUpdatePacketS2C packet) {
-        NetworkManager.sendToPlayers(serverLevel.players(), packet);
-    }
-
     @Override
-    public void setRemoved() {
-        super.setRemoved();
-    }
-
-    @Override
-    public void loadAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
-        super.loadAdditional(tag, registries);
+    public void loadAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider lookupProvider) {
+        super.loadAdditional(tag, lookupProvider);
 
         boolean migratedInternalId = !tag.contains(NBT_INTERNAL_ID);
         if (tag.hasUUID(NBT_INTERNAL_ID)) {
@@ -342,6 +542,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         }
 
         speakerId = tag.contains(NBT_SPEAKER_ID) ? tag.getString(NBT_SPEAKER_ID) : "";
+        lastRedstoneSignal = tag.contains(NBT_LAST_REDSTONE_SIGNAL) ? tag.getInt(NBT_LAST_REDSTONE_SIGNAL) : 0;
 
         if (level != null && !level.isClientSide()) {
             if (migratedInternalId) ServerSpeakerRegistry.applyLegacyStandaloneTemplate(level, getStateKey());
@@ -374,14 +575,15 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     @Override
-    protected void saveAdditional(@NotNull CompoundTag tag, HolderLookup.Provider registries) {
-        super.saveAdditional(tag, registries);
+    protected void saveAdditional(@NotNull CompoundTag tag, @NotNull HolderLookup.Provider lookupProvider) {
+        super.saveAdditional(tag, lookupProvider);
 
         tag.putUUID(NBT_INTERNAL_ID, internalStateId);
 
         if (!speakerId.isEmpty()) {
             tag.putString(NBT_SPEAKER_ID, speakerId);
         }
+        tag.putInt(NBT_LAST_REDSTONE_SIGNAL, lastRedstoneSignal);
 
         SpeakerState persistedState = getSpeakerState();
         if (persistedState != null) {
@@ -390,30 +592,15 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     public void setLooping(boolean looping) {
-        if (level != null && !level.isClientSide()) {
-            SpeakerState state = getSpeakerState();
-            if (state != null) {
-                state.setLooping(looping);
-                updateSpeakerState(state);
-                setChanged();
-                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-                notifyClientsOfStateChange();
-            }
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.setLooping(serverLevel.getServer(), serverLevel, getFullStateKey(), looping);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
     public void setAudio(String audioId, String filename) {
-        if (level != null && !level.isClientSide()) {
-            SpeakerState state = getSpeakerState();
-            if (state != null) {
-                state.setAudioId(audioId);
-                state.setAudioFilename(filename);
-                updateSpeakerState(state);
-                setChanged();
-                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-                notifyClientsOfStateChange();
-            }
-        }
+        setSelectedAudio(audioId, filename);
     }
 
     public void setAudioId(String audioId) {
@@ -428,6 +615,11 @@ public class SpeakerBlockEntity extends BlockEntity {
     public boolean isPlaying() {
         SpeakerState state = getSpeakerState();
         return state != null && state.isPlaying();
+    }
+
+    public boolean isPaused() {
+        SpeakerState state = getSpeakerState();
+        return state != null && state.isPaused();
     }
 
     public String getAudioId() {
@@ -493,9 +685,9 @@ public class SpeakerBlockEntity extends BlockEntity {
 
     @NotNull
     @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tag = super.getUpdateTag(registries);
-        saveAdditional(tag, registries);
+    public CompoundTag getUpdateTag(@NotNull HolderLookup.Provider lookupProvider) {
+        CompoundTag tag = super.getUpdateTag(lookupProvider);
+        saveAdditional(tag, lookupProvider);
         SpeakerState persistedState = getSpeakerState();
         if (persistedState != null) {
             if (persistedState.getAudioId() != null) {
@@ -517,29 +709,25 @@ public class SpeakerBlockEntity extends BlockEntity {
         return ClientboundBlockEntityDataPacket.create(this);
     }
 
+    public void handleUpdateTag(CompoundTag tag, HolderLookup.Provider lookupProvider) {
+        loadAdditional(tag, lookupProvider);
+    }
+
     public void setMaxVolume(float maxVolume) {
-        if (level != null && !level.isClientSide()) {
-            SpeakerState state = getSpeakerState();
-            if (state != null) {
-                state.setMaxVolume(maxVolume);
-                updateSpeakerState(state);
-                setChanged();
-                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-                updateEmitterSnapshot();
-            }
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.setVolume(serverLevel.getServer(), serverLevel, getFullStateKey(), maxVolume);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            updateEmitterSnapshot();
         }
     }
 
     public void setMaxRange(int maxRange) {
-        if (level != null && !level.isClientSide()) {
-            SpeakerState state = getSpeakerState();
-            if (state != null) {
-                state.setMaxRange(maxRange);
-                updateSpeakerState(state);
-                setChanged();
-                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
-                updateEmitterSnapshot();
-            }
+        if (level instanceof ServerLevel serverLevel) {
+            ServerSpeakerControlService.setRange(serverLevel.getServer(), serverLevel, getFullStateKey(), maxRange);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            updateEmitterSnapshot();
         }
     }
 

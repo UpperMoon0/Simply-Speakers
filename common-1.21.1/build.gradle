@@ -34,6 +34,7 @@ dependencies {
     modCompileOnly "com.nstut:openui-mc-fabric-1.21.1:${project.openui_version}"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.2'
 }
 
@@ -55,3 +56,6 @@ jar {
 test {
     useJUnitPlatform()
 }
+
+sourceSets.test.java.srcDir('../shared/integration-tests/src/test/java')
+sourceSets.main.java.srcDir('../shared/runtime-verification/src/main/java')

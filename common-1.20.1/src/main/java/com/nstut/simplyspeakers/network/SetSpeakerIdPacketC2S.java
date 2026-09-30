@@ -33,7 +33,7 @@ public class SetSpeakerIdPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, pkt.blockPos)) {
+            if (!SpeakerPacketSecurity.canRelinkSpeaker(player, pkt.blockPos, pkt.speakerId)) {
                 return;
             }
 
