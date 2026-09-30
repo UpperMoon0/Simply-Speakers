@@ -53,30 +53,7 @@ jobs:
           if-no-files-found: error
 
   test-shared:
-    needs: prepare-openui
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Restore OpenUI Maven Local Cache
-        id: cache-openui
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/com/nstut
-          key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
-      - name: Download OpenUI Maven Artifacts Fallback
-        if: steps.cache-openui.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: openui-m2
-          path: ~/.m2/repository/com/nstut
-      - uses: actions/setup-java@v5
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-          cache: 'gradle'
-      - run: chmod +x ./gradlew
-      - name: Run shared unit tests
-        run: ./gradlew :common:test :common-1.20.1:test :common-1.21.1:test
+    uses: ./.github/workflows/live-join-test.yml
 
   build:
     needs: prepare-openui
