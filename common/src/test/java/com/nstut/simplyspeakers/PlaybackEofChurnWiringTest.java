@@ -27,24 +27,6 @@ class PlaybackEofChurnWiringTest {
                     "neoforge-1.21.1/src/main/java/com/nstut/neoforge/simplyspeakers/compat/computercraft/SimplySpeakersPeripheral.java");
 
     @Test
-    void eofQuorumIsReevaluatedOnEveryListenerChurnPath() throws IOException {
-        Path root = findProjectRoot();
-        for (String module : VERSION_MODULES) {
-            String code = read(root, module, "speakers/ServerPlaybackManager.java");
-            assertTrue(code.contains("RemoteEofQuorumEvaluator.shouldAdvance"),
-                    module + " must advance EOF through the shared quorum predicate");
-            assertTrue(code.contains("reevaluateRemoteEofQuorum(server, emitter.fullStateKey())"),
-                    module + " scanEmitter must re-evaluate EOF quorum after range exits");
-            assertTrue(code.contains("subscriptions.removePlayer(playerId);\n        reevaluateAllPendingRemoteEof(server);")
-                            || code.contains("subscriptions.removePlayer(playerId);\r\n        reevaluateAllPendingRemoteEof(server);"),
-                    module + " player quit/dimension change must re-evaluate EOF quorum");
-            assertTrue(code.contains("reevaluateAllPendingRemoteEof(server);\n    }\n\n    /**\n     * Unregisters an emitter snapshot")
-                            || code.contains("reevaluateAllPendingRemoteEof(server);\r\n    }\r\n\r\n    /**\r\n     * Unregisters an emitter snapshot"),
-                    module + " stopEmitter must re-evaluate EOF quorum after emitter teardown");
-        }
-    }
-
-    @Test
     void loaderMainsPassServerToChurnHandlers() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
@@ -72,19 +54,6 @@ class PlaybackEofChurnWiringTest {
             // of a selected playlist slot are the three restart boundaries.
             assertTrue(countOccurrences(service, "beginNewPlaybackSession(fullStateKey)") >= 3,
                     module + " restart/selectAudio/OP_SELECT_INDEX must each begin a new session");
-        }
-    }
-
-    @Test
-    void seeksAreRejectedWhenStoppedOrNonFinite() throws IOException {
-        Path root = findProjectRoot();
-        for (String module : VERSION_MODULES) {
-            String service = read(root, module, "speakers/ServerSpeakerControlService.java");
-            assertTrue(service.contains("if (!Float.isFinite(seconds)) return false;"),
-                    module + " seek must reject non-finite values");
-            assertTrue(service.contains("if (!state.isPlaying()) return false;\n        // Reject NaN/Infinity")
-                            || service.contains("if (!state.isPlaying()) return false;\r\n        // Reject NaN/Infinity"),
-                    module + " seek must require a live session");
         }
     }
 

@@ -65,6 +65,8 @@ public class ClientAudioPlayer {
     private static class StreamingAudioResource {
         final String networkKey;
         final int sourceID;
+        volatile long decodedBytes;
+        float startOffsetSeconds;
         final int[] bufferIDs;
         final Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
@@ -120,6 +122,16 @@ public class ClientAudioPlayer {
                 SimplySpeakers.LOGGER.error("Error during OpenAL cleanup for source {} (network {})", sourceID, networkKey, e);
             }
         }
+    }
+
+    record VerificationSnapshot(int sources, int emitters, long decodedBytes, float offset, boolean playing) {}
+    /** Read-only diagnostic used by the opt-in playback verification fixture. */
+    static VerificationSnapshot verificationSnapshot(String key) {
+        StreamingAudioResource resource = networkResources.get(key);
+        if (resource == null) return new VerificationSnapshot(0, membership.getPositions(key).size(), 0, 0, false);
+        return new VerificationSnapshot(1, membership.getPositions(key).size(), resource.decodedBytes,
+                resource.startOffsetSeconds, !resource.stopFlag.get() &&
+                AL10.alGetSourcei(resource.sourceID, AL10.AL_SOURCE_STATE) == AL10.AL_PLAYING);
     }
 
     public static String resolveNetworkKey(BlockPos pos) {
@@ -262,6 +274,7 @@ public class ClientAudioPlayer {
                 streamingThread.setDaemon(true);
 
                 StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping);
+                resource.startOffsetSeconds = startPositionSeconds;
                 networkResources.put(networkKey, resource);
                 streamingThread.start();
 
@@ -354,6 +367,7 @@ public class ClientAudioPlayer {
 
                     AL10.alBufferData(bufferIDs[i], alFormat, alBuffer, (int) format.getSampleRate());
                     AL10.alSourceQueueBuffers(sourceID, bufferIDs[i]);
+                    resource.decodedBytes += bytesRead;
                     initialDataLoaded = true;
 
                     if (!playbackAttempted) {
@@ -515,6 +529,7 @@ public class ClientAudioPlayer {
                 streamingThread.setDaemon(true);
 
                 StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping, fullStateKey, playbackGeneration);
+                resource.startOffsetSeconds = startPositionSeconds;
                 networkResources.put(networkKey, resource);
                 streamingThread.start();
 

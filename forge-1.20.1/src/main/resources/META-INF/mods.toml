@@ -47,5 +47,6 @@ side = "CLIENT"
 [[dependencies.simplyspeakers]]
     modId = "computercraft"
     mandatory = false
+    versionRange = "[1.109.2,)"
     ordering = "AFTER"
     side = "BOTH"

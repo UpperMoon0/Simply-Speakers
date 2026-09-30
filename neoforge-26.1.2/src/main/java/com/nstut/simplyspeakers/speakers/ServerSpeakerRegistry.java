@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Dimension-safe, isolated per world lifecycle, and protected against state collisions.
  */
 public final class ServerSpeakerRegistry {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("simplyspeakers");
 
     private static final Map<String, Set<BlockPos>> speakerPositions = new ConcurrentHashMap<>();
     private static final Map<String, Set<BlockPos>> proxySpeakerPositions = new ConcurrentHashMap<>();
@@ -72,7 +73,7 @@ public final class ServerSpeakerRegistry {
         legacyDefaultTemplate = null;
         registryFilePath = null;
         dirty = false;
-        SimplySpeakers.LOGGER.debug("SERVER: Reset ServerSpeakerRegistry state for world.");
+        LOGGER.debug("SERVER: Reset ServerSpeakerRegistry state for world.");
     }
 
     /**
@@ -128,10 +129,10 @@ public final class ServerSpeakerRegistry {
             } catch (Exception e) {
                 Files.move(tmpPath, registryFilePath, StandardCopyOption.REPLACE_EXISTING);
             }
-            SimplySpeakers.LOGGER.debug("SERVER: Saved speaker registry to {}", registryFilePath);
+            LOGGER.debug("SERVER: Saved speaker registry to {}", registryFilePath);
             return true;
         } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("SERVER: Failed to save speaker registry", e);
+            LOGGER.error("SERVER: Failed to save speaker registry", e);
             try {
                 Files.deleteIfExists(tmpPath);
             } catch (IOException ignored) {}
@@ -153,7 +154,7 @@ public final class ServerSpeakerRegistry {
                             Path backupPath = registryFilePath.resolveSibling("speaker_registry.json.bak");
                             Files.copy(registryFilePath, backupPath, StandardCopyOption.REPLACE_EXISTING);
                         } catch (IOException e) {
-                            SimplySpeakers.LOGGER.warn("SERVER: Failed to create backup of speaker_registry.json", e);
+                            LOGGER.warn("SERVER: Failed to create backup of speaker_registry.json", e);
                         }
                         speakerStates.clear();
                         if (loadedStates.containsKey("")) {
@@ -182,17 +183,17 @@ public final class ServerSpeakerRegistry {
                             }
                             speakerStates.put(normalizedKey, state);
                         }
-                        SimplySpeakers.LOGGER.info("SERVER: Loaded speaker registry with {} entries (migrated: {})", speakerStates.size(), migratedAny);
+                        LOGGER.info("SERVER: Loaded speaker registry with {} entries (migrated: {})", speakerStates.size(), migratedAny);
                         if (migratedAny) {
                             saveRegistry();
                         }
                     }
                 }
             } else {
-                SimplySpeakers.LOGGER.info("SERVER: No existing speaker registry file found, starting with empty registry");
+                LOGGER.info("SERVER: No existing speaker registry file found, starting with empty registry");
             }
         } catch (Exception e) {
-            SimplySpeakers.LOGGER.error("SERVER: Failed to load speaker registry, quarantining corrupt file", e);
+            LOGGER.error("SERVER: Failed to load speaker registry, quarantining corrupt file", e);
             try {
                 Path corruptPath = registryFilePath.resolveSibling("speaker_registry.json.corrupt." + System.currentTimeMillis());
                 Files.move(registryFilePath, corruptPath, StandardCopyOption.REPLACE_EXISTING);
@@ -312,7 +313,7 @@ public final class ServerSpeakerRegistry {
 
         speakerPositions.computeIfAbsent(fullKey, k -> ConcurrentHashMap.newKeySet()).add(pos);
         posToStateKey.put(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()), fullKey);
-        SimplySpeakers.LOGGER.debug("SERVER: Registered speaker at {} in {} with key {}", pos, dimension, stateKey);
+        LOGGER.debug("SERVER: Registered speaker at {} in {} with key {}", pos, dimension, stateKey);
     }
 
     public static void registerProxySpeaker(Level level, BlockPos pos, String speakerId) {
@@ -322,7 +323,7 @@ public final class ServerSpeakerRegistry {
 
         proxySpeakerPositions.computeIfAbsent(fullKey, k -> ConcurrentHashMap.newKeySet()).add(pos);
         posToStateKey.put(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()), fullKey);
-        SimplySpeakers.LOGGER.debug("SERVER: Registered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
+        LOGGER.debug("SERVER: Registered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
     }
 
     public static void setSpeakerPowered(Level level, BlockPos pos, String stateKey, boolean powered) {
@@ -447,7 +448,7 @@ public final class ServerSpeakerRegistry {
         posToStateKey.remove(new SpeakerLocation(dimension, pos.getX(), pos.getY(), pos.getZ()));
         SpeakerLocation loc = locationOf(dimension, pos);
         ServerPlaybackManager.unregisterEmitter(level.getServer(), loc);
-        SimplySpeakers.LOGGER.debug("SERVER: Unregistered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
+        LOGGER.debug("SERVER: Unregistered proxy speaker at {} in {} with ID {}", pos, dimension, speakerId);
     }
 
     public static void updateSpeakerId(Level level, BlockPos pos, String oldKey, String newKey) {

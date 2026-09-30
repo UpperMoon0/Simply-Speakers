@@ -138,7 +138,7 @@ public final class ServerSpeakerControlService {
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null || !state.isPlaying() || !Float.isFinite(seconds)) return false;
         float duration = 0.0f;
-        AudioFileManager afm = com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager();
+        AudioFileManager afm = ServerPlaybackEnvironment.audioFiles();
         if (afm != null) {
             AudioFileMetadata meta = afm.getManifest().get(state.getAudioId());
             if (meta != null) duration = meta.getDurationSeconds();
@@ -339,7 +339,7 @@ public final class ServerSpeakerControlService {
         SpeakerStateUpdatePacketS2C packet = new SpeakerStateUpdatePacketS2C(
                 pos, speakerId, action, state.getAudioId(), state.getAudioFilename(),
                 state.getPlaybackStartTick(), state.isLooping(), fullStateKey);
-        dev.architectury.networking.NetworkManager.sendToPlayers(level.players(), packet);
+        ServerPlaybackEnvironment.sendState(level, packet);
     }
 
     private static void broadcastPlaylistSync(ServerLevel level, String fullStateKey, SpeakerState state) {
@@ -355,6 +355,6 @@ public final class ServerSpeakerControlService {
         PlaylistSyncPacketS2C packet = new PlaylistSyncPacketS2C(
                 BlockPos.ZERO, fullStateKey, audioIds, filenames, pl.getCurrentIndex(),
                 pl.isShuffle(), pl.getRepeatMode().ordinal(), playingIndex, state.isPaused());
-        dev.architectury.networking.NetworkManager.sendToPlayers(level.players(), packet);
+        ServerPlaybackEnvironment.sendPlaylist(level, packet);
     }
 }

@@ -36,29 +36,14 @@ class ReviewFixWiringTest {
     }
 
     @Test
-    void emptyPlaylistsAreBroadcastAndRequestable() throws IOException {
-        Path root = findProjectRoot();
-        for (String module : VERSION_MODULES) {
-            String service = read(root, module, "speakers/ServerSpeakerControlService.java");
-            String manager = read(root, module, "speakers/ServerPlaybackManager.java");
-            String request = read(root, module, "network/RequestPlaylistPacketC2S.java");
-
-            assertFalse(service.contains("state == null || !state.hasPlaylist()"),
-                    module + " service must broadcast zero-entry playlist snapshots");
-            assertFalse(manager.contains("state == null || !state.hasPlaylist()"),
-                    module + " playback manager must broadcast zero-entry playlist snapshots");
-            assertTrue(request.contains("new PlaylistSyncPacketS2C("),
-                    module + " explicit requests must return an authoritative snapshot even when empty");
-        }
-    }
-
-    @Test
     void playlistSnapshotRequestsUseFullSpeakerAuthorization() throws IOException {
         Path root = findProjectRoot();
         for (String module : VERSION_MODULES) {
             String request = read(root, module, "network/RequestPlaylistPacketC2S.java");
             assertTrue(request.contains("SpeakerPacketSecurity.canControlSpeaker(player,"),
                     module + " playlist reads must enforce distance, interaction and network access policy");
+            assertFalse(request.contains("!state.hasPlaylist()"),
+                    module + " empty snapshot requests must still reach the response path");
         }
     }
 

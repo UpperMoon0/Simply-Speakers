@@ -20,12 +20,16 @@ public final class SpeakerSpatialResolver {
     }
 
     public static @Nullable Vec3 resolveLogical(Level level, Position position) {
-        SubLevelAccess subLevel = SABLE.getContaining(level, position);
+        return resolveLogical(SABLE, level, position);
+    }
+
+    static @Nullable Vec3 resolveLogical(SableCompanion sable, Level level, Position position) {
+        SubLevelAccess subLevel = sable.getContaining(level, position);
         Vec3 local = new Vec3(position.x(), position.y(), position.z());
         if (subLevel != null) {
             return subLevel.logicalPose().transformPosition(local);
         }
-        return SABLE.isInPlotGrid(level, position) ? null : local;
+        return sable.isInPlotGrid(level, position) ? null : local;
     }
 
     /**
@@ -37,13 +41,17 @@ public final class SpeakerSpatialResolver {
      *         {@code null} when the emitter is inside a plot grid without a resolvable sub level.
      */
     public static @Nullable double[] resolveLogicalFacing(Level level, BlockPos position, int facingOrdinal) {
+        return resolveLogicalFacing(SABLE, level, position, facingOrdinal);
+    }
+
+    static @Nullable double[] resolveLogicalFacing(SableCompanion sable, Level level, BlockPos position, int facingOrdinal) {
         double[] local = DirectionalAudio.facingFromOrdinal(facingOrdinal);
-        SubLevelAccess subLevel = SABLE.getContaining(level, position);
+        SubLevelAccess subLevel = sable.getContaining(level, position);
         if (subLevel != null) {
             Vec3 world = subLevel.logicalPose().transformNormal(
                     new Vec3(local[0], 0.0, local[1]));
             return DirectionalAudio.normalize(world.x, world.z);
         }
-        return SABLE.isInPlotGrid(level, position) ? null : local;
+        return sable.isInPlotGrid(level, position) ? null : local;
     }
 }

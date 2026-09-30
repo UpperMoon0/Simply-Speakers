@@ -16,12 +16,16 @@ public final class ClientSpeakerSpatialResolver {
     private ClientSpeakerSpatialResolver() {}
 
     public static @Nullable Vec3 resolveRender(ClientLevel level, BlockPos position) {
+        return resolveRender(SABLE, level, position);
+    }
+
+    static @Nullable Vec3 resolveRender(SableCompanion sable, ClientLevel level, BlockPos position) {
         Vec3 local = Vec3.atCenterOf(position);
-        SubLevelAccess subLevel = SABLE.getContaining(level, position);
+        SubLevelAccess subLevel = sable.getContaining(level, position);
         if (subLevel instanceof ClientSubLevelAccess clientSubLevel) {
             return clientSubLevel.renderPose().transformPosition(local);
         }
-        return SABLE.isInPlotGrid(level, position) ? null : local;
+        return sable.isInPlotGrid(level, position) ? null : local;
     }
 
     /**
@@ -33,13 +37,17 @@ public final class ClientSpeakerSpatialResolver {
      *         when the emitter is inside a plot grid without a resolvable sub level.
      */
     public static @Nullable double[] resolveRenderFacing(ClientLevel level, BlockPos position, int facingOrdinal) {
+        return resolveRenderFacing(SABLE, level, position, facingOrdinal);
+    }
+
+    static @Nullable double[] resolveRenderFacing(SableCompanion sable, ClientLevel level, BlockPos position, int facingOrdinal) {
         double[] local = DirectionalAudio.facingFromOrdinal(facingOrdinal);
-        SubLevelAccess subLevel = SABLE.getContaining(level, position);
+        SubLevelAccess subLevel = sable.getContaining(level, position);
         if (subLevel instanceof ClientSubLevelAccess clientSubLevel) {
             Vec3 world = clientSubLevel.renderPose().transformNormal(
                     new Vec3(local[0], 0.0, local[1]));
             return DirectionalAudio.normalize(world.x, world.z);
         }
-        return SABLE.isInPlotGrid(level, position) ? null : local;
+        return sable.isInPlotGrid(level, position) ? null : local;
     }
 }

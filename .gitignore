@@ -84,3 +84,7 @@ saves/
 .vscode/
 
 .kilocode/
+
+# Python verification caches
+__pycache__/
+*.pyc

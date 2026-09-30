@@ -53,5 +53,6 @@ side = "BOTH"
 [[dependencies.simplyspeakers]]
 modId = "computercraft"
 type = "optional"
+versionRange = "[1.120.2,)"
 ordering = "AFTER"
 side = "BOTH"

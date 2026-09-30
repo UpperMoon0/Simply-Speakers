@@ -27,6 +27,7 @@ public class ClientEvents {
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
             finishLiveJoinTest(client);
+            LivePlaybackClientProbe.tick(client);
             ClientAudioPlayer.updateEmitterState();
         }
     }
@@ -36,7 +37,7 @@ public class ClientEvents {
                 && LiveJoinTestProtocol.passed()
                 && LiveJoinTestProtocol.markReported()) {
             SimplySpeakers.LOGGER.info(LiveJoinTestProtocol.PASS_MARKER);
-            LiveJoinTestProtocol.stopClient(client::stop);
+            if (!com.nstut.simplyspeakers.testing.LivePlaybackServerProbe.enabled()) LiveJoinTestProtocol.stopClient(client::stop);
         }
     }
 

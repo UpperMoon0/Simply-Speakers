@@ -109,6 +109,19 @@ gradlew.bat :neoforge-1.21.1:build
 gradlew.bat :fabric-1.20.1:build
 ```
 
+Development clients and servers automatically load CC:Tweaked on Fabric/Forge
+1.20.1 and Fabric/NeoForge 1.21.1. These runtime dependencies are development-only
+and are not bundled in release jars or published as required dependencies.
+
+For moving-speaker testing, both 1.21.1 loaders load Sable 2.0.5 when its matching
+jar exists under `../sable/<loader>/build/libs/`. Fabric also exposes Sable's
+nested physics backend, Veil, and Forge Config API Port to the dev runtime.
+NeoForge additionally loads Create and its dependencies, and the Simulated,
+Aeronautics, and Offroad 1.3.1 component jars when all three are built under
+`../Simulated-Project/<component>/neoforge/build/libs/`.
+Build those sibling projects before starting the dev run to enable these integrations.
+The 26.1.2 module has no CC:Tweaked or Sable integration.
+
 To run all version-independent tests:
 ```bash
 gradlew.bat testAllVersions

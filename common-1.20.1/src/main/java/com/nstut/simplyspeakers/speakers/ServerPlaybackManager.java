@@ -334,6 +334,7 @@ public final class ServerPlaybackManager {
      */
     public static void serverTick(MinecraftServer server) {
         if (server == null) return;
+        if (Boolean.getBoolean("simplyspeakers.livePlaybackTest")) com.nstut.simplyspeakers.testing.LivePlaybackServerProbe.tick(server);
         if (server.getTickCount() % 6000 == 0) {
             ServerSpeakerRegistry.flushDirty();
         }
@@ -361,15 +362,20 @@ public final class ServerPlaybackManager {
 
     public static void resyncState(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (server == null || level == null || fullStateKey == null) return;
+        // A transport resync replaces every client stream. EOF evidence from
+        // the old streams must not advance a partially rebuilt audience.
+        pendingRemoteEof.remove(fullStateKey);
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters()) {
-            if (fullStateKey.equals(emitter.fullStateKey())) {
-                if (state == null || !state.isPlaying() || state.isPaused() || !emitter.active()) {
-                    stopEmitter(server, emitter.location());
-                } else {
-                    stopEmitter(server, emitter.location());
-                    scanEmitter(server, level, emitter);
-                }
+        var emitters = ServerSpeakerRegistry.getEmitters().stream()
+                .filter(emitter -> fullStateKey.equals(emitter.fullStateKey())).toList();
+        // Linked emitters share one client stream. All old memberships must be
+        // removed before a play packet can create the replacement stream.
+        for (ServerEmitter emitter : emitters) {
+            stopEmitter(server, emitter.location());
+        }
+        if (state != null && state.isPlaying() && !state.isPaused()) {
+            for (ServerEmitter emitter : emitters) {
+                if (emitter.active()) scanEmitter(server, level, emitter);
             }
         }
     }
@@ -395,7 +401,7 @@ public final class ServerPlaybackManager {
         // Natural EOF for non-looping audio, even while the speaker's chunk is unloaded.
         if (!state.isLooping() && state.getPlaybackStartTick() >= 0) {
             float elapsedSeconds = state.getPlaybackPositionSeconds(level.getGameTime());
-            AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
+            AudioFileManager audioFileManager = ServerPlaybackEnvironment.audioFiles();
             if (audioFileManager != null) {
                 AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
                 if (meta != null && meta.getDurationSeconds() > 0.0f && elapsedSeconds >= meta.getDurationSeconds()) {
@@ -411,7 +417,7 @@ public final class ServerPlaybackManager {
         float dropoff = emitter.proxy() ? emitter.dropoff() : state.getAudioDropoff();
 
         double effectiveRange = SpeakerSettings.effectiveRange(maxRange);
-        Vec3 emitterPos = Vec3.atCenterOf(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()));
+        Vec3 emitterPos = ServerPlaybackEnvironment.emitterPosition(level, new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()));
 
         Set<UUID> subscribed = subscriptions.getSubscribers(emitter.location());
         List<ServerPlaybackPlanner.ListenerObservation> observations = new ArrayList<>();
@@ -419,7 +425,7 @@ public final class ServerPlaybackManager {
             boolean sameDimension = ServerSpeakerRegistry.getDimension(player.level()).equals(emitter.location().dimension());
             double distanceSq = Double.MAX_VALUE;
             if (sameDimension) {
-                distanceSq = player.position().distanceToSqr(emitterPos);
+                distanceSq = ServerPlaybackEnvironment.listenerPosition(level, player).distanceToSqr(emitterPos);
             }
             observations.add(new ServerPlaybackPlanner.ListenerObservation(player.getUUID(), sameDimension, true, distanceSq));
         }
@@ -443,7 +449,7 @@ public final class ServerPlaybackManager {
                 subscriptions.subscribe(addId, emitter.location());
                 ServerPlayer player = server.getPlayerList().getPlayer(addId);
                 if (player != null) {
-                    AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
+                    AudioFileManager audioFileManager = ServerPlaybackEnvironment.audioFiles();
                     if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
                     PacketSenders.sendPlay(player, packet);
                 }
@@ -503,7 +509,7 @@ public final class ServerPlaybackManager {
         float elapsedSeconds = state.getPlaybackPositionSeconds(level.getGameTime());
         if (elapsedSeconds < 0) elapsedSeconds = 0;
         float playbackPositionSeconds = elapsedSeconds;
-        AudioFileManager audioFileManager = SimplySpeakers.getAudioFileManager();
+        AudioFileManager audioFileManager = ServerPlaybackEnvironment.audioFiles();
         if (audioFileManager != null) {
             AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
             if (meta != null && meta.getDurationSeconds() > 0.0f && state.isLooping()) {
@@ -565,19 +571,19 @@ public final class ServerPlaybackManager {
         }
 
         static void sendPlay(ServerPlayer player, PlayAudioPacketS2C packet) {
-            com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet);
+            ServerPlaybackEnvironment.sendPlay(player, packet);
         }
 
         static void sendStop(ServerPlayer player, StopAudioPacketS2C packet) {
-            com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet);
+            ServerPlaybackEnvironment.sendStop(player, packet);
         }
 
         static void sendStateUpdateToAll(ServerLevel level, SpeakerStateUpdatePacketS2C packet) {
-            com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayers(level.players(), packet);
+            ServerPlaybackEnvironment.sendState(level, packet);
         }
 
         static void sendPlaylistSyncToAll(ServerLevel level, com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C packet) {
-            com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayers(level.players(), packet);
+            ServerPlaybackEnvironment.sendPlaylist(level, packet);
         }
     }
 }

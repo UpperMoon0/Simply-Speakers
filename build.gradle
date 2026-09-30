@@ -16,8 +16,10 @@ allprojects {
     version = rootProject.mod_version
 
     repositories {
+        mavenCentral()
         mavenLocal()
         maven { url 'https://jitpack.io' }
+        maven { url 'https://maven.blamejared.com' }
         // CC:Tweaked API (optional integration; compile-only)
         maven {
             url 'https://maven.squiddev.cc'
@@ -38,7 +40,7 @@ afterEvaluate {
     }
 
     subprojects {
-        if (project.name == 'neoforge-26.1.2') {
+        if (project.name == 'neoforge-26.1.2' || project.name == 'common') {
             return
         }
         apply plugin: 'dev.architectury.loom'
@@ -118,5 +120,20 @@ afterEvaluate {
 tasks.register('testAllVersions') {
     group = 'verification'
     description = 'Runs shared and version-specific tests for every supported Minecraft version.'
-    dependsOn ':common:test', ':common-1.20.1:test', ':common-1.21.1:test', ':neoforge-26.1.2:test'
+    if (findProject(':common-1.20.1') != null) {
+        dependsOn ':common:test', ':common-1.20.1:test', ':common-1.21.1:test', ':neoforge-26.1.2:test'
+    }
+}
+
+subprojects {
+    tasks.withType(JavaExec).configureEach {
+        if (name == 'runLiveJoinTestServer') maxHeapSize = '1G'
+        if (name == 'runLiveJoinTestClient') maxHeapSize = '2G'
+    }
+}
+
+tasks.register('testCore') {
+    group = 'verification'
+    description = 'Runs version-neutral behavior and cross-version wiring checks without configuring Minecraft.'
+    dependsOn ':common:test'
 }

@@ -39,6 +39,7 @@ import javazoom.jl.decoder.Bitstream;
 import javazoom.jl.decoder.Decoder;
 
 public class AudioFileManager {
+    private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("simplyspeakers");
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
     private static final int MAX_CHUNK_SIZE = 32000;
@@ -65,7 +66,7 @@ public class AudioFileManager {
             Files.createDirectories(audioDirPath);
             loadManifest();
         } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed to create audio directory", e);
+            LOGGER.error("Failed to create audio directory", e);
         }
     }
 
@@ -102,7 +103,7 @@ public class AudioFileManager {
                 }
             }
         } catch (Exception e) {
-            SimplySpeakers.LOGGER.error("Failed to load audio manifest, quarantining corrupt manifest", e);
+            LOGGER.error("Failed to load audio manifest, quarantining corrupt manifest", e);
             try {
                 Path corruptPath = audioDirPath.resolve(MANIFEST_FILE_NAME + ".corrupt." + System.currentTimeMillis());
                 Files.move(manifestPath, corruptPath, StandardCopyOption.REPLACE_EXISTING);
@@ -122,7 +123,7 @@ public class AudioFileManager {
                 Files.move(tmpPath, manifestPath, StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed to save audio manifest", e);
+            LOGGER.error("Failed to save audio manifest", e);
             try {
                 Files.deleteIfExists(tmpPath);
             } catch (IOException ignored) {}
@@ -136,7 +137,7 @@ public class AudioFileManager {
         activeUploads.clear();
         activeDownloads.clear();
         audioFileExecutor.shutdownNow();
-        SimplySpeakers.LOGGER.info("AudioFileManager shut down cleanly.");
+        LOGGER.info("AudioFileManager shut down cleanly.");
     }
 
     public boolean validateFile(String filename) {
@@ -156,7 +157,7 @@ public class AudioFileManager {
                 bitstream.closeFrame();
                 return true;
             } catch (Exception e) {
-                SimplySpeakers.LOGGER.warn("MP3 frame validation failed for {}: {}", filePath, e.getMessage());
+                LOGGER.warn("MP3 frame validation failed for {}: {}", filePath, e.getMessage());
                 return false;
             }
         }
@@ -166,7 +167,7 @@ public class AudioFileManager {
             javax.sound.sampled.AudioFileFormat format = javax.sound.sampled.AudioSystem.getAudioFileFormat(bin);
             return format != null && format.getFormat() != null && format.getFormat().getSampleRate() > 0;
         } catch (Exception e) {
-            SimplySpeakers.LOGGER.warn("Audio header validation failed for {}: {}", filePath, e.getMessage());
+            LOGGER.warn("Audio header validation failed for {}: {}", filePath, e.getMessage());
             return false;
         }
     }
@@ -206,7 +207,7 @@ public class AudioFileManager {
                 UploadSession session = activeUploads.remove(entry.getKey());
                 if (session != null) {
                     session.cleanup();
-                    SimplySpeakers.LOGGER.warn("Timed out stale upload session {}", entry.getKey());
+                    LOGGER.warn("Timed out stale upload session {}", entry.getKey());
                 }
             }
         }
@@ -214,7 +215,7 @@ public class AudioFileManager {
 
     public void handleUploadRequest(ServerPlayer player, BlockPos blockPos, UUID transactionId, String fileName, long fileSize) {
         cleanStaleUploads();
-        SimplySpeakers.LOGGER.debug("Handling upload request for transaction ID: {}", transactionId);
+        LOGGER.debug("Handling upload request for transaction ID: {}", transactionId);
 
         if (Config.disableUpload) {
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Audio uploads are disabled on this server.")));
@@ -250,7 +251,7 @@ public class AudioFileManager {
             activeUploads.put(transactionId, session);
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, true, MAX_CHUNK_SIZE, Component.literal("Upload approved")));
         } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed to initialize upload temporary file", e);
+            LOGGER.error("Failed to initialize upload temporary file", e);
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Server failed to create upload session.")));
         }
     }
@@ -258,7 +259,7 @@ public class AudioFileManager {
     public void handleUploadData(ServerPlayer player, UUID transactionId, byte[] data) {
         UploadSession session = activeUploads.get(transactionId);
         if (session == null) {
-            SimplySpeakers.LOGGER.warn("Received upload data for unknown/expired transaction ID: {}", transactionId);
+            LOGGER.warn("Received upload data for unknown/expired transaction ID: {}", transactionId);
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Upload session not found or timed out.")));
             return;
         }
@@ -270,7 +271,7 @@ public class AudioFileManager {
         }
 
         if (!session.ownerUUID.equals(player.getUUID().toString())) {
-            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: player mismatch", transactionId);
+            LOGGER.warn("Upload rejected for transaction ID {}: player mismatch", transactionId);
             return;
         }
 
@@ -279,7 +280,7 @@ public class AudioFileManager {
         if (data.length > MAX_CHUNK_SIZE || newSize > session.declaredFileSize || newSize > Config.maxUploadSize) {
             activeUploads.remove(transactionId);
             session.cleanup();
-            SimplySpeakers.LOGGER.warn("Upload rejected for transaction ID {}: size exceeded limit", transactionId);
+            LOGGER.warn("Upload rejected for transaction ID {}: size exceeded limit", transactionId);
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Upload exceeded maximum size limits.")));
             return;
         }
@@ -289,7 +290,7 @@ public class AudioFileManager {
         } catch (IOException e) {
             activeUploads.remove(transactionId);
             session.cleanup();
-            SimplySpeakers.LOGGER.error("Failed writing chunk to disk for upload {}", transactionId, e);
+            LOGGER.error("Failed writing chunk to disk for upload {}", transactionId, e);
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0, Component.literal("Disk write error during upload.")));
             return;
         }
@@ -307,7 +308,7 @@ public class AudioFileManager {
 
             if (!validateAudioContent(session.tempFilePath, session.fileName)) {
                 session.cleanup();
-                SimplySpeakers.LOGGER.warn("Rejecting upload {}: invalid or corrupt audio content", transactionId);
+                LOGGER.warn("Rejecting upload {}: invalid or corrupt audio content", transactionId);
                 if (server != null) {
                     server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Uploaded file is corrupt or not a valid audio file."), session.blockPos)));
                 }
@@ -330,13 +331,13 @@ public class AudioFileManager {
             manifest.put(uuid, metadata);
             saveManifest();
 
-            SimplySpeakers.LOGGER.info("Upload completed for transaction {}. Saved as {} (duration: {}s)", transactionId, uuid, durationSeconds);
+            LOGGER.info("Upload completed for transaction {}. Saved as {} (duration: {}s)", transactionId, uuid, durationSeconds);
             if (server != null) {
                 server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), session.blockPos)));
             }
         } catch (Exception e) {
             session.cleanup();
-            SimplySpeakers.LOGGER.error("Failed to complete upload for transaction {}", transactionId, e);
+            LOGGER.error("Failed to complete upload for transaction {}", transactionId, e);
             if (server != null) {
                 server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Failed to save uploaded file on server."), session.blockPos)));
             }
@@ -355,7 +356,7 @@ public class AudioFileManager {
         }
 
         if (!AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerUUID)) {
-            SimplySpeakers.LOGGER.warn("Player {} tried to delete audio {} owned by {}", playerUUID, audioId, metadata.getOwnerUUID());
+            LOGGER.warn("Player {} tried to delete audio {} owned by {}", playerUUID, audioId, metadata.getOwnerUUID());
             return false;
         }
 
@@ -364,7 +365,7 @@ public class AudioFileManager {
             try {
                 Files.deleteIfExists(filePath);
             } catch (IOException e) {
-                SimplySpeakers.LOGGER.error("Failed to delete audio file {}", audioId, e);
+                LOGGER.error("Failed to delete audio file {}", audioId, e);
                 return false;
             }
         }
@@ -448,7 +449,7 @@ public class AudioFileManager {
             long fileSize = Files.size(filePath);
             if (fileSize > Config.MAX_FILE_SIZE) {
                 activeDownloads.release(transferKey);
-                SimplySpeakers.LOGGER.warn("Refusing to send audio {} because it is {} bytes, over hard limit", audioId, fileSize);
+                LOGGER.warn("Refusing to send audio {} because it is {} bytes, over hard limit", audioId, fileSize);
                 return;
             }
 
@@ -462,7 +463,7 @@ public class AudioFileManager {
             });
         } catch (IOException e) {
             activeDownloads.release(transferKey);
-            SimplySpeakers.LOGGER.error("Failed to stream audio file for download", e);
+            LOGGER.error("Failed to stream audio file for download", e);
         }
     }
 
