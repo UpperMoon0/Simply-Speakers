@@ -92,7 +92,7 @@ public class AudioFileMetadata {
 
     public AudioFileMetadata withDuration(float newDurationSeconds) {
         AudioFileMetadata replaced = new AudioFileMetadata(uuid, originalFilename, ownerUUID, newDurationSeconds);
-        replaced.library = library.copy();
+        replaced.library = library().copy();
         return replaced;
     }
 

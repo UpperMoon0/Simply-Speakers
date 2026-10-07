@@ -99,6 +99,36 @@ class AccessButtonLayoutTest {
         } finally {runtime.close();}
     }
 
+    @Test void transportPacketsRefreshPlayPauseIconWithoutPlaylistSync() throws Exception {
+        try (var prefs=mockStatic(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.class);
+             var minecraft=mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(mock(net.minecraft.client.Minecraft.class));
+            prefs.when(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences::getThemeMode)
+                    .thenReturn(com.nstut.simplyspeakers.client.ui.UiThemeMode.DARK);
+            var screen=new com.nstut.simplyspeakers.client.screens.SpeakerScreen(net.minecraft.core.BlockPos.ZERO);
+            var factory=screen.getClass().getDeclaredMethod("playPauseButton");factory.setAccessible(true);
+            var button=factory.invoke(screen);
+            var field=com.nstut.simplyspeakers.client.ui.SpeakerIconButton.class.getDeclaredField("icon");field.setAccessible(true);
+            var icon=(java.util.function.Supplier<?>)field.get(button);
+            var pausedField=screen.getClass().getDeclaredField("paused");pausedField.setAccessible(true);
+            var paused=(com.nstut.openui.state.Signal<?>)pausedField.get(screen);
+            var hintField=com.nstut.simplyspeakers.client.ui.SpeakerIconButton.class.getDeclaredField("hint");hintField.setAccessible(true);
+            var hint=(java.util.function.Supplier<?>)hintField.get(button);
+            var positionField=screen.getClass().getDeclaredField("position");positionField.setAccessible(true);
+            @SuppressWarnings("unchecked") var position=(com.nstut.openui.state.Signal<Double>)positionField.get(screen);
+            boolean running=false;
+            for(String action:new String[]{"play","update","pause","update","play","stop","update"}) {
+                position.set(12.5);
+                screen.refreshFromState(new com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C(net.minecraft.core.BlockPos.ZERO,"test",action,"clip","clip.wav",0,false));
+                if(!action.equals("update"))running=action.equals("play");
+                assertEquals(running?com.nstut.simplyspeakers.client.ui.SpeakerIconButton.Icon.PAUSE:com.nstut.simplyspeakers.client.ui.SpeakerIconButton.Icon.PLAY,icon.get(),action);
+                assertEquals("gui.simplyspeakers.player."+(running?"pause":"play"),((Component)hint.get()).getString());
+                assertEquals(action.equals("stop")?0:12.5,position.get(),.001,action);
+                if(!action.equals("update"))assertEquals(action.equals("pause"),paused.get(),action);
+            }
+        }
+    }
+
     private boolean hasVirtualList(UIComponent node) {
         return node.getClass().getSimpleName().contains("VirtualList") || node.children().stream().anyMatch(this::hasVirtualList);
     }

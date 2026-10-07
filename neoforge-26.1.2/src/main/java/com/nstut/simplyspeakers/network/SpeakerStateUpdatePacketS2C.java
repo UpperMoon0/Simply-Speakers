@@ -168,7 +168,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
                     || (!pkt.fullStateKey.isEmpty() && pkt.fullStateKey.equals(screen.getFullStateKey()))
                     || (linked && pkt.speakerId.trim().equals(screen.getSpeakerId().trim()));
             if (matchesScreen) {
-                screen.refreshFromState(pkt.audioId, pkt.audioFilename, pkt.isLooping);
+                screen.refreshFromState(pkt);
             }
         }
     }

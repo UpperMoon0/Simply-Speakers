@@ -35,6 +35,7 @@ import com.nstut.simplyspeakers.network.RequestUploadAudioPacketC2S;
 import com.nstut.simplyspeakers.network.SelectAudioPacketC2S;
 import com.nstut.simplyspeakers.network.SetSpeakerIdPacketC2S;
 import com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C;
+import com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C;
 import com.nstut.simplyspeakers.network.PlaylistControlPacketC2S;
 import com.nstut.simplyspeakers.network.RequestPlaylistPacketC2S;
 import com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S;
@@ -952,12 +953,26 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         audioFiles.set(List.copyOf(audioList));
     }
 
-    public void refreshFromState(String audioId, String filename, boolean looping) {
+    public void refreshFromState(SpeakerStateUpdatePacketS2C packet) {
         applyingRemoteState = true;
         try {
-            playingAudioId.set(audioId == null ? "" : audioId);
-            if (speaker != null) {
-                speaker.setAudioIdClient(audioId, filename);
+            String audioId = packet.getAudioId();
+            playingAudioId.set(audioId);
+            playingFilename.set(packet.getAudioFilename());
+            if (speaker != null) speaker.setAudioIdClient(audioId, packet.getAudioFilename());
+            String action = packet.getAction();
+            if ("play".equals(action) || "pause".equals(action) || "stop".equals(action)) {
+                boolean stopped = "stop".equals(action);
+                playing.set(!stopped);
+                paused.set("pause".equals(action));
+                snapshotTick = Minecraft.getInstance().level == null ? 0 : Minecraft.getInstance().level.getGameTime();
+                // Keep the displayed position until the next full snapshot supplies the seek/pause offset.
+                snapshotPosition = stopped ? 0 : position.get();
+                if (!scrubbing) {
+                    position.set(snapshotPosition);
+                    seekFraction.set(duration.get() > 0 ? snapshotPosition / duration.get() : 0);
+                }
+                seekable.set(!stopped && duration.get() > 0 && !audioId.startsWith("http") && accessView.get().canControl());
             }
         } finally {
             applyingRemoteState = false;
