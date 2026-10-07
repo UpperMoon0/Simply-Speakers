@@ -212,14 +212,20 @@ public final class SpeakerCommands {
     }
 
     private static int speakerTransport(CommandContext<CommandSourceStack> ctx, byte action) {
-        SpeakerApi.applyTransport(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), action);
-        return 1;
+        var level = ctx.getSource().getLevel();
+        String key = com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.resolveFullStateKey(level, BlockPosArgument.getBlockPos(ctx, "pos"));
+        return commandResult(ctx, com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.applyTransport(level.getServer(), level, key, action, 0.0f));
     }
 
     private static int speakerSeek(CommandContext<CommandSourceStack> ctx) {
-        SpeakerApi.seek(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"),
-                FloatArgumentType.getFloat(ctx, "seconds"));
-        return 1;
+        var level = ctx.getSource().getLevel();
+        String key = com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.resolveFullStateKey(level, BlockPosArgument.getBlockPos(ctx, "pos"));
+        return commandResult(ctx, com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.seek(level.getServer(), level, key, FloatArgumentType.getFloat(ctx, "seconds")));
+    }
+
+    private static int commandResult(CommandContext<CommandSourceStack> ctx, boolean applied) {
+        if (!applied) ctx.getSource().sendFailure(Component.literal("Speaker operation could not be applied."));
+        return applied ? 1 : 0;
     }
 
     private static int setVolumePercent(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
@@ -279,9 +285,26 @@ public final class SpeakerCommands {
     }
 
     private static int setAccessMode(CommandContext<CommandSourceStack> ctx) {
-        SpeakerAccess access = SpeakerAccess.byId(StringArgumentType.getString(ctx, "mode"));
-        SpeakerApi.setAccessMode(ctx.getSource().getLevel(), BlockPosArgument.getBlockPos(ctx, "pos"), access);
-        ctx.getSource().sendSuccess(() -> Component.literal("Access mode: " + (access != null ? access.id() : "public")), false);
+        String value = StringArgumentType.getString(ctx, "mode");
+        SpeakerAccess access = java.util.Arrays.stream(SpeakerAccess.values())
+                .filter(mode -> mode.id().equalsIgnoreCase(value)).findFirst().orElse(null);
+        if (access == null) {
+            ctx.getSource().sendFailure(Component.literal("Unknown access mode: " + value));
+            return 0;
+        }
+        var level = ctx.getSource().getLevel();
+        String key = com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.resolveFullStateKey(level, BlockPosArgument.getBlockPos(ctx, "pos"));
+        var state = com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry.getSpeakerStateByFullKey(key);
+        java.util.UUID actor = ctx.getSource().getEntity() instanceof net.minecraft.server.level.ServerPlayer player ? player.getUUID() : null;
+        if (state == null) return commandResult(ctx, false);
+        if (state.getOwnerUuid() == null && actor == null && (access == SpeakerAccess.OWNER_ONLY || access == SpeakerAccess.TRUSTED)) {
+            ctx.getSource().sendFailure(Component.literal("Claim this speaker as a player before choosing owner or trusted access."));
+            return 0;
+        }
+        boolean applied = com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.policyControl(level.getServer(), level, key,
+                com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_ACCESS_MODE, "", access.ordinal(), 0.0f, actor);
+        if (!applied) return commandResult(ctx, false);
+        ctx.getSource().sendSuccess(() -> Component.literal("Access mode: " + access.id()), false);
         return 1;
     }
 

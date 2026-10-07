@@ -61,6 +61,20 @@ class SpeakerPermissionsTest {
     }
 
     @Test
+    void unownedRestrictedNetworksDoNotBypassPolicy() {
+        for (SpeakerAccess access : new SpeakerAccess[]{SpeakerAccess.OPERATORS, SpeakerAccess.OWNER_ONLY, SpeakerAccess.TRUSTED}) {
+            SpeakerState state = new SpeakerState();
+            state.setAccessMode(access);
+            assertFalse(SpeakerPermissions.canControl(state, STRANGER, false), access.id());
+            assertFalse(SpeakerPermissions.canAutomationControl(state), access.id());
+            assertFalse(SpeakerPermissions.canManage(state, STRANGER, false), access.id());
+            assertFalse(SpeakerPermissions.canAutomationManage(state), access.id());
+            assertTrue(SpeakerPermissions.canControl(state, STRANGER, true), access.id());
+            assertTrue(SpeakerPermissions.canManage(state, null, true), access.id());
+        }
+    }
+
+    @Test
     void managementRequiresOwnerOrOperator() {
         SpeakerState state = ownedState(SpeakerAccess.PUBLIC);
         assertTrue(SpeakerPermissions.canManage(state, OWNER, false));

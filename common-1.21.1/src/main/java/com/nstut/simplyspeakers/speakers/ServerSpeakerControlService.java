@@ -351,7 +351,10 @@ public final class ServerSpeakerControlService {
             case SpeakerPolicyPacketC2S.OP_CLAIM_OWNER -> { if (state.getOwnerUuid() == null && playerUuid != null) state.claimOwnershipIfAbsent(playerUuid); }
             case SpeakerPolicyPacketC2S.OP_TRANSFER_OWNER -> { if(playerUuid==null)return false;state.setOwnerUuid(playerUuid); }
             case SpeakerPolicyPacketC2S.OP_NETWORK_NAME -> state.setNetworkName(strValue != null ? strValue.trim() : "");
-            case SpeakerPolicyPacketC2S.OP_ACCESS_MODE -> state.setAccessMode(SpeakerAccess.fromIndex(intValue));
+            case SpeakerPolicyPacketC2S.OP_ACCESS_MODE -> {
+                state.claimOwnershipIfAbsent(playerUuid);
+                state.setAccessMode(SpeakerAccess.fromIndex(intValue));
+            }
             case SpeakerPolicyPacketC2S.OP_TRUST_CHANGE -> { if (playerUuid != null) { if (intValue > 0) state.trustPlayer(playerUuid); else state.distrustPlayer(playerUuid); } }
             case SpeakerPolicyPacketC2S.OP_REDSTONE_MODE -> { return false; } // Legacy packets cannot enable native redstone.
             case SpeakerPolicyPacketC2S.OP_DIRECTIONALITY -> { state.setDirectionality(Math.max(0.0f, Math.min(1.0f, floatValue))); directional = true; }

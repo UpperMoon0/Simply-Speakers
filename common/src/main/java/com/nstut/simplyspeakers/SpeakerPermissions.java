@@ -38,7 +38,7 @@ public final class SpeakerPermissions {
     /** May the player change playback or settings on this speaker state? */
     public static boolean canControl(SpeakerState state, UUID playerUuid, boolean isOperator) {
         if (state == null) return false;
-        if (isOperator || state.getOwnerUuid() == null) return true;
+        if (isOperator) return true;
         if (playerUuid == null) {
             // Anonymous automation may only touch public speakers.
             return state.getAccessMode() == SpeakerAccess.PUBLIC;
@@ -49,9 +49,9 @@ public final class SpeakerPermissions {
             case OPERATORS:
                 return false;
             case OWNER_ONLY:
-                return state.getOwnerUuid().equals(playerUuid);
+                return playerUuid.equals(state.getOwnerUuid());
             case TRUSTED:
-                return state.getOwnerUuid().equals(playerUuid) || state.isTrusted(playerUuid);
+                return playerUuid.equals(state.getOwnerUuid()) || state.isTrusted(playerUuid);
             default:
                 return false;
         }
@@ -61,7 +61,7 @@ public final class SpeakerPermissions {
     public static boolean canManage(SpeakerState state, UUID playerUuid, boolean isOperator) {
         if (state == null) return false;
         if (isOperator) return true;
-        if (state.getOwnerUuid() == null) return true;
+        if (state.getOwnerUuid() == null) return state.getAccessMode() == SpeakerAccess.PUBLIC;
         return state.getOwnerUuid().equals(playerUuid);
     }
 

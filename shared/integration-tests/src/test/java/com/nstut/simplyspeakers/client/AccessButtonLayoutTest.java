@@ -70,6 +70,35 @@ class AccessButtonLayoutTest {
             assertFalse(hasVirtualList(body),"Removing the last trusted member must restore the compact state");
         } finally {runtime.close();}
     }
+    @Test void addingFirstPlaylistTrackMountsRowsWithoutRebuildingScreen() throws Exception {
+        com.nstut.simplyspeakers.client.screens.SpeakerScreen screen;
+        try (var prefs=mockStatic(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.class);
+             var minecraft=mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(mock(net.minecraft.client.Minecraft.class));
+            prefs.when(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences::getThemeMode)
+                    .thenReturn(com.nstut.simplyspeakers.client.ui.UiThemeMode.DARK);
+            screen=new com.nstut.simplyspeakers.client.screens.SpeakerScreen(net.minecraft.core.BlockPos.ZERO);
+        }
+        screen.width=400;screen.height=300;
+        screen.updatePlaylistCatalog(com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.single(java.util.List.of(),java.util.List.of()));
+        var factory=screen.getClass().getDeclaredMethod("buildPlaylistView");factory.setAccessible(true);
+        var body=(UIComponent)factory.invoke(screen);
+        var font=mock(Font.class);
+        when(font.split(any(net.minecraft.network.chat.FormattedText.class),anyInt()))
+                .thenReturn(java.util.List.of(net.minecraft.util.FormattedCharSequence.EMPTY));
+        var runtime=new UiRuntime(font,mock(NativeWidgetHost.class));
+        try {
+            runtime.setRoot(body);runtime.setViewport(0,0,320,180);runtime.flushFrameTasks();
+            assertFalse(hasVirtualList(body));
+            screen.updatePlaylistCatalog(com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.single(java.util.List.of("clip"),java.util.List.of("clip.wav")));
+            runtime.flushFrameTasks();
+            assertTrue(hasVirtualList(body),"First authoritative addition must mount usable track rows");
+            screen.updatePlaylistCatalog(com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.single(java.util.List.of(),java.util.List.of()));
+            runtime.flushFrameTasks();
+            assertFalse(hasVirtualList(body),"Removing the last track must restore the empty state");
+        } finally {runtime.close();}
+    }
+
     private boolean hasVirtualList(UIComponent node) {
         return node.getClass().getSimpleName().contains("VirtualList") || node.children().stream().anyMatch(this::hasVirtualList);
     }

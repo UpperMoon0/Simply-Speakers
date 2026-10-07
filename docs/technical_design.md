@@ -290,3 +290,5 @@ playback identity. Native redstone settings remain retired in favor of controlle
 ComputerCraft getters use CC's main-thread scheduler, including its completion
 wakeup, on all four adapters. The real Lua acceptance program verifies that
 queries finish without requiring unrelated events.
+
+Operator commands enforce access policies even on unowned networks. A player setting access claims an unowned network without replacing an existing owner. Console commands can restrict an unowned network to operators; owner/trusted modes require an owner. Operator transport commands use the authenticated command path rather than anonymous automation.

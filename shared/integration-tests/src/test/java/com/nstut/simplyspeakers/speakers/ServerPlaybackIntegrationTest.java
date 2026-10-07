@@ -114,6 +114,60 @@ class ServerPlaybackIntegrationTest {
         ServerPlaybackManager.handleRemoteStreamEofReport(p, KEY, state().getPlaybackSessionGeneration(), URL);
     }
 
+    private net.minecraft.commands.CommandSourceStack commandSource(ServerPlayer actor) throws Exception {
+        ServerSpeakerRegistry.registerSpeaker(level, new net.minecraft.core.BlockPos(0,64,0), "net_test");
+        var source = mock(net.minecraft.commands.CommandSourceStack.class);
+        when(source.getLevel()).thenReturn(level);
+        when(source.getEntity()).thenReturn(actor);
+        when(source.getPosition()).thenReturn(Vec3.ZERO);
+        // Legacy versions use permission levels; 26.1 uses the operator profile gate.
+        try {
+            when((Boolean) source.getClass().getMethod("hasPermission", int.class).invoke(source, 2)).thenReturn(true);
+        } catch (NoSuchMethodException ignored) { }
+        return source;
+    }
+
+    private int command(net.minecraft.commands.CommandSourceStack source, String tail) throws Exception {
+        var dispatcher = new com.mojang.brigadier.CommandDispatcher<net.minecraft.commands.CommandSourceStack>();
+        com.nstut.simplyspeakers.commands.SpeakerCommands.register(dispatcher);
+        return dispatcher.execute("ss speaker 0 64 0 " + tail, source);
+    }
+
+    @Test void consoleOperatorRestrictionIsEnforcedWithoutAnOwner() throws Exception {
+        var source = commandSource(null);
+        assertEquals(1, command(source, "access operators"));
+        assertNull(state().getOwnerUuid());
+        assertEquals(com.nstut.simplyspeakers.SpeakerAccess.OPERATORS, state().getAccessMode());
+        assertFalse(com.nstut.simplyspeakers.SpeakerPermissions.canControl(state(), UUID.randomUUID(), false));
+        assertFalse(com.nstut.simplyspeakers.SpeakerPermissions.canAutomationControl(state()));
+        assertFalse(com.nstut.simplyspeakers.SpeakerPermissions.canAutomationManage(state()));
+        assertEquals(1, command(source, "play"));
+        assertTrue(state().isPlaying());
+        assertEquals(1, command(source, "pause"));
+        assertTrue(state().isPaused());
+        assertEquals(1, command(source, "seek 3"));
+        assertEquals(3f, state().getPlaybackPositionSeconds(tick), .001f);
+        assertEquals(1, command(source, "access public"));
+        assertTrue(com.nstut.simplyspeakers.SpeakerPermissions.canAutomationControl(state()));
+    }
+
+    @Test void playerPolicyCommandClaimsOnlyUnownedNetworksAndRejectsInvalidModes() throws Exception {
+        var actor = player(1);
+        var source = commandSource(actor);
+        assertEquals(1, command(source, "access owner_only"));
+        assertEquals(actor.getUUID(), state().getOwnerUuid());
+        assertFalse(com.nstut.simplyspeakers.SpeakerPermissions.canAutomationControl(state()));
+        var originalOwner = state().getOwnerUuid();
+        assertEquals(1, command(commandSource(player(1)), "access trusted"));
+        assertEquals(originalOwner, state().getOwnerUuid());
+        assertEquals(0, command(source, "access typo"));
+        assertEquals(com.nstut.simplyspeakers.SpeakerAccess.TRUSTED, state().getAccessMode());
+        state().setOwnerUuid(null);
+        state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.PUBLIC);
+        assertEquals(0, command(commandSource(null), "access owner_only"));
+        assertEquals(com.nstut.simplyspeakers.SpeakerAccess.PUBLIC, state().getAccessMode());
+    }
+
     @Test void transferringOwnershipPersistsNewOwnerAndLeavesPlaybackIntact() {
         var first=UUID.randomUUID();var next=UUID.randomUUID();state().setOwnerUuid(first);
         state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.TRUSTED);state().trustPlayer(first);
