@@ -1,0 +1,23 @@
+{
+  "name": "Transport Controls",
+  "category": "simplyspeakers:playback",
+  "icon": "minecraft:clock",
+  "sortnum": 4,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Repeat and queue",
+      "text": "Repeat supports Off, Current Sound and Playlist. Queued requests play once and interrupt a repeating sound. Old Loop settings migrate to Current Sound repeat."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Seeking and restart",
+      "text": "Restart begins the current sound at zero. Stop resets its position. Jump accepts minutes:seconds, e.g. 1:30. Unknown-duration streams cannot seek."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Request ordering",
+      "text": "Play Next inserts a request at the front; Add to Queue appends. Clearing the queue leaves saved playlists intact. Requests run before the saved source resumes."
+    }
+  ]
+}

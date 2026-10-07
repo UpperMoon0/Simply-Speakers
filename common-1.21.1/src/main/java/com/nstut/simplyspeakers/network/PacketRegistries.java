@@ -7,6 +7,7 @@ import net.fabricmc.api.EnvType;
 
 public class PacketRegistries {
     public static void registerC2S() {
+        NetworkManager.registerReceiver(NetworkManager.c2s(), ConfigureControllerPacketC2S.TYPE, ConfigureControllerPacketC2S.STREAM_CODEC, ConfigureControllerPacketC2S::handle);
         // Client to Server packets - register receivers on server side
         NetworkManager.registerReceiver(NetworkManager.c2s(), ToggleLoopPacketC2S.TYPE, ToggleLoopPacketC2S.STREAM_CODEC, ToggleLoopPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), RequestUploadAudioPacketC2S.TYPE, RequestUploadAudioPacketC2S.STREAM_CODEC, RequestUploadAudioPacketC2S::handle);

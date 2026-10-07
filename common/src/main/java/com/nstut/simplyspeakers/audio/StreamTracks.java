@@ -277,6 +277,15 @@ public final class StreamTracks {
         }
         long[] hextets = expandIpv6(literal);
         if (hextets == null) return false;
+        // Mapped IPv6 literals may encode the IPv4 tail entirely in hexadecimal.
+        // Validate after expansion so dotted, compressed and expanded forms agree.
+        boolean mapped = hextets[5] == 0xffff;
+        for (int i = 0; i < 5; i++) mapped &= hextets[i] == 0;
+        if (mapped) {
+            String embedded = (hextets[6] >> 8) + "." + (hextets[6] & 255)
+                    + "." + (hextets[7] >> 8) + "." + (hextets[7] & 255);
+            return isIpv4Allowed(embedded);
+        }
         int first = (int) hextets[0];
         if (first >= 0xfe80 && first <= 0xfebf) return false;                // fe80::/10 link-local
         if (first >= 0xfc00 && first <= 0xfdff) return false;                // fc00::/7 unique local

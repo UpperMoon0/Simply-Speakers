@@ -1,0 +1,23 @@
+{
+  "name": "Streaming audio",
+  "category": "simplyspeakers:playback",
+  "icon": "minecraft:ender_eye",
+  "sortnum": 9,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Direct audio URLs",
+      "text": "Remote streams require server permission. Use a direct public HTTP(S) MP3/WAV URL, not a video page. Private and loopback addresses are blocked."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Playing a stream",
+      "text": "Add Stream in Library offers Play, Queue and playlist destinations. URLs can be up to 256 characters. Each listening client connects to the URL; streams are separate from uploaded recordings."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Stream limits",
+      "text": "Unknown-duration streams cannot seek or serve as announcements. Their comparator output is 7 while playing."
+    }
+  ]
+}

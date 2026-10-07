@@ -4,6 +4,14 @@
 
 This document provides a comprehensive technical overview of the Simply Speakers mod, detailing the architecture, components, and interactions of the speaker and audio system in Minecraft.
 
+## Linked Controllers and Guide
+
+`RedstoneControllerBlockEntity` stores a dimension-local Speaker ID, one `ControllerAction`, optional proxy coordinates, and the configuring player's UUID. It samples the strongest input from any face. Pulse jobs act only on a zero-to-positive transition; enabled and volume jobs reconcile continuous input. Saved signal state prevents a held input from becoming a new pulse after reload. Configuration validates distance, interaction protection, controller ownership, loaded proxy identity, and network control permission. Every action rechecks network permission. Lookup never creates an unknown network or loads a proxy chunk.
+
+Network transport uses `ServerSpeakerControlService`. Announcements require an owned local file with known duration and mark only that playback occurrence as one-shot: packets suppress looping and completion stops instead of consuming a playlist or queue. Normal playback starts clear the flag. Volume changes resynchronize active listeners. Speakers and proxies ignore local redstone input. Proxies default to enabled, and loaded controllers apply transient output intent. Unloading or removing the last proxy playback controller restores enabled output; volume overrides preserve and restore configured volume.
+
+The Patchouli book definition is in `data/simplyspeakers/patchouli_books/guide/book.json`; its 23 chapters and four categories are client resources under `assets/simplyspeakers/patchouli_books/guide/en_us`. Patchouli adds the book to `simplyspeakers:tab`, using the generated transparent inventory texture. Minecraft 1.20.1 uses Patchouli's shaped book recipe serializer; 1.21.1 and 26.1.2 use the book data component, with 26.1.2 item definitions and string ingredient syntax. All development runtimes include the matching Patchouli artifact, and all loader metadata declares it required. Live verification compiles the actual book contents and exercises the registered controller block.
+
 ## System Architecture
 
 The Simply Speakers mod implements a distributed audio system using a central registry pattern with speaker entities that can be synchronized across multiple locations. The system consists of several key components:
@@ -21,7 +29,7 @@ The `SpeakerState` class represents the state of a speaker network and holds all
 - `audioId`: UUID of the selected audio file
 - `audioFilename`: Original filename of the audio file
 - `isPlaying`: Current playback status
-- `isLooping`: Loop playback setting
+- `isLooping`: Legacy compatibility alias for active playlist Repeat Track; old flags migrate once
 - `playbackStartTick`: Game tick when playback started
 - `maxVolume`: Maximum volume level (0.0 to 1.0)
 - `maxRange`: Maximum range for audio playback (1 to Config.MAX_RANGE)
@@ -56,7 +64,7 @@ The `ClientAudioPlayer` manages client-side audio playback:
 ### SpeakerBlockEntity
 The main speaker block entity that controls audio playback:
 - Manages the speaker state through the registry
-- Handles redstone power state changes
+- Emits network playback without local redstone input; linked Speaker Controllers handle automation
 - Notifies proxy speakers of state changes
 - Manages player listening states for range-based audio
 
@@ -75,7 +83,7 @@ The mod uses a packet-based communication system with both client-to-server (C2S
 ### Client-to-Server Packets
 - `LoadAudioCallPacketC2S`: Requests audio loading
 - `AudioPathPacketC2S`: Sends audio file path
-- `ToggleLoopPacketC2S`: Toggles looping state
+- `ToggleLoopPacketC2S`: Compatibility packet mapping to Repeat Track/None
 - `RequestUploadAudioPacketC2S`: Initiates file upload
 - `UploadAudioDataPacketC2S`: Sends file data chunks
 - `RequestAudioListPacketC2S`: Requests available audio files
@@ -148,7 +156,7 @@ The mod uses a packet-based communication system with both client-to-server (C2S
 2. When main speaker starts playback, it notifies all linked proxy speakers
 3. Proxy speakers receive state updates and begin playback at the correct position
 4. When main speaker stops, all proxy speakers stop
-5. Individual proxy speakers can be controlled via redstone power
+5. Individual proxy speakers can be enabled or muted by linked Speaker Controllers; direct block power is ignored
 
 ## Performance Considerations
 
@@ -229,3 +237,56 @@ Proxy speakers now support the same configurable parameters as main speakers:
 - Audio files are stored in a dedicated directory
 - Client-side file access is restricted to cached files
 - Network packets are validated before processing
+
+## Named playlist library
+
+PlayerPlaylistStore persists each player's catalog in the world's player_playlists.json,
+using atomic writes. Names are unique without case sensitivity, 1–64 characters, with
+limits of 16 lists, 256 entries per list and 512 entries total. Every list is deletable.
+Legacy catalogs migrate once to the network owner without copying transient queues.
+
+Explicit Play copies a personal source into SpeakerState, retaining its owner identity.
+Transport and temporary requests remain network-specific; browsing is local to the screen.
+Catalog edits validate the actor's ownership and target control rights. Deleting a playing
+source stops affected playback without deleting recordings or queued requests.
+
+Catalog and runtime snapshots are sent separately to stay within packet limits. Catalog
+responses are personalized per recipient; runtime playback is shared with listeners.
+Clients and servers must use matching mod versions.
+
+## Controller arbitration
+
+Controller inputs resolve once per server tick before the listener scan. Continuous playback combines powered sources with OR; continuous volume takes the highest requested level. Volume overrides are transient and do not overwrite saved/manual settings. Unloading, removal, retargeting or permission revocation releases contributions. Pulses coalesce to one command per target per tick with Stop > Announcement > Restart > Toggle > Select track > Next > Previous; packed source position breaks ties. Source permissions and exact proxy network membership are revalidated without loading target chunks. Speakers retain inert legacy blockstate/NBT fields for save compatibility.
+
+## Player consistency and area preview
+
+Repeat is authoritative in the active saved playlist. Legacy Loop flags migrate once to Repeat Track; transient decoder-loop flags do not overwrite saved repeat preferences. Natural completion respects Track repeat, while manual Next bypasses it and queued requests interrupt it. Playlist changes resynchronize active decoders when loop behavior changes.
+
+Controller configuration is validated server-side. Speaker block update tags include network name, directionality, cone angle, rear attenuation, and exact Repeat mode, and screen initialization hydrates these values. The area preview uses the same distance/directional gain calculation as playback, emits bounded local colored samples for eight seconds, and clears on world/dimension changes.
+
+## CC:Tweaked reference
+
+See [the ComputerCraft API reference](cc_api.md) for Lua methods, return values,
+events, permissions and examples. Main speakers expose `simply_speaker` on
+Fabric/Forge 1.20.1 and Fabric/NeoForge 1.21.1. NeoForge 26.1.2 has no CC integration.
+
+## Review corrections after 8537ecde
+
+IPv4-mapped IPv6 stream hosts are checked after hexadecimal expansion, so
+compressed, expanded and dotted encodings use the same IPv4 restrictions. The
+same policy validates literal URLs and DNS answers at connection time.
+
+Queued playback preserves its canonical cursor when tracks are removed or
+swapped. Whole-list replacement remaps the canonical track by key; if removed,
+continuation starts after its nearest surviving predecessor. An active queued
+request remains distinct from the canonical playlist cursor.
+
+State updates carry an authoritative settings snapshot: display name, legacy
+redstone mode, configured and effective controller volume, range, dropoff and
+cone settings. Clients apply it to their state replicas. Active audio gains are
+updated through the existing same-stream refresh path, preserving decoders and
+playback identity. Native redstone settings remain retired in favor of controllers.
+
+ComputerCraft getters use CC's main-thread scheduler, including its completion
+wakeup, on all four adapters. The real Lua acceptance program verifies that
+queries finish without requiring unrelated events.

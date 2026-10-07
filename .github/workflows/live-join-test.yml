@@ -156,6 +156,9 @@ jobs:
         run: python3 tools/verify.py build --target "${{ matrix.target }}"
       - name: One real playback session per target
         run: python3 tools/verify.py live --target "${{ matrix.target }}"
+      - name: Real ComputerCraft Lua acceptance
+        if: matrix.target != 'neoforge-26.1.2'
+        run: python3 tools/verify.py cc --target "${{ matrix.target }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -163,6 +166,7 @@ jobs:
           path: |
             build/verification/build-${{ matrix.target }}.*
             build/verification/live-${{ matrix.target }}.*
+            build/verification/cc-${{ matrix.target }}.*
           if-no-files-found: error
       - name: Preserve game logs on failure
         if: failure()
@@ -172,6 +176,7 @@ jobs:
           path: |
             ${{ matrix.target }}/run/live-join/client/logs
             ${{ matrix.target }}/run/live-join/server/logs
+            ${{ matrix.target }}/run/cc-lua/server/logs
           if-no-files-found: ignore
 
   verification-gate:

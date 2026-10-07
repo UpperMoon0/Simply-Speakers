@@ -1,0 +1,18 @@
+{
+  "name": "Audio files",
+  "category": "simplyspeakers:administration",
+  "icon": "minecraft:chest",
+  "sortnum": 21,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "World storage",
+      "text": "Files live in the world’s simply_speakers_audios folder as UUID.mp3 or UUID.wav. Back up the folder and stop the server before editing its manifest."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Manifest records",
+      "text": "audio_manifest.json maps each recording UUID to uuid, originalFilename, ownerUUID and durationSeconds. Set a player owner; unowned recordings cannot be selected."
+    }
+  ]
+}

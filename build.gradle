@@ -137,3 +137,13 @@ tasks.register('testCore') {
     description = 'Runs version-neutral behavior and cross-version wiring checks without configuring Minecraft.'
     dependsOn ':common:test'
 }
+
+// Opt-in native screenshots/layout verification; ordinary launches remain unchanged.
+subprojects {
+    tasks.withType(JavaExec).configureEach {
+        if (name == 'runClient' && rootProject.findProperty('uiPreview') == 'true') {
+            systemProperty 'simplyspeakers.uiPreview', 'true'
+            systemProperty 'simplyspeakers.uiAuditGroup', rootProject.findProperty('uiAuditGroup') ?: 'all'
+        }
+    }
+}

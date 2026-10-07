@@ -33,8 +33,10 @@ public class RequestPlaylistPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canControlSpeaker(player, pkt.pos)) return;
+            if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) return;
             if (!(player.serverLevel().getBlockEntity(pkt.pos) instanceof SpeakerBlockEntity speaker)) return;
+            if(!SpeakerPacketSecurity.canControlSpeaker(player,pkt.pos)
+                    && !com.nstut.simplyspeakers.SpeakerPermissions.canManage(speaker.getSpeakerState(),player.getUUID(),player.hasPermissions(2)))return;
             sendSnapshot(player, speaker, pkt.pos);
         });
     }
@@ -42,24 +44,6 @@ public class RequestPlaylistPacketC2S {
     private static void sendSnapshot(ServerPlayer player, SpeakerBlockEntity speaker, BlockPos pos) {
         SpeakerState state = speaker.getSpeakerState();
         if (state == null) return;
-        Playlist playlist = state.getPlaylist();
-        List<String> audioIds = new ArrayList<>();
-        List<String> filenames = new ArrayList<>();
-        for (PlaylistTrack track : playlist.getTracks()) {
-            audioIds.add(track.getAudioId());
-            filenames.add(track.getFilename());
-        }
-        int playingIndex = state.isPlaying() ? playlist.getCurrentIndex() : -1;
-        PacketRegistries.CHANNEL.sendToPlayer(player, new PlaylistSyncPacketS2C(
-                pos,
-                speaker.getFullStateKey(),
-                audioIds,
-                filenames,
-                playlist.getCurrentIndex(),
-                playlist.isShuffle(),
-                playlist.getRepeatMode().ordinal(),
-                playingIndex,
-                state.isPaused()
-        ));
+        PlaylistSyncPacketS2C.sendToPlayer(player, PlaylistSyncPacketS2C.fromState(pos, speaker.getFullStateKey(), state, player.serverLevel().getGameTime(), com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager()));
     }
 }

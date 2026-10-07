@@ -64,6 +64,7 @@ public final class ServerSpeakerRegistry {
     }
 
     public static synchronized void resetForWorld() {
+        com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.reset();
         speakerPositions.clear();
         proxySpeakerPositions.clear();
         poweredSpeakerPositions.clear();
@@ -102,6 +103,7 @@ public final class ServerSpeakerRegistry {
     public static synchronized void init(Path worldSavePath) {
         resetForWorld();
         registryFilePath = worldSavePath.resolve("speaker_registry.json");
+        com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.init(worldSavePath);
         loadRegistry();
     }
 
@@ -112,6 +114,7 @@ public final class ServerSpeakerRegistry {
      *         false when the write failed so {@link #flushDirty()} keeps the dirty flag set.
      */
     public static synchronized boolean saveRegistry() {
+        if (!com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.save()) return false;
         if (registryFilePath == null) return true;
 
         Path tmpPath = registryFilePath.resolveSibling("speaker_registry.json.tmp");

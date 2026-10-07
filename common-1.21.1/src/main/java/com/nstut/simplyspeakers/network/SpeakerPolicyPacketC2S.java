@@ -25,6 +25,7 @@ public class SpeakerPolicyPacketC2S implements CustomPacketPayload {
     public static final byte OP_CONE_ANGLE = 5;
     public static final byte OP_REAR_ATTENUATION = 6;
     public static final byte OP_CLAIM_OWNER = 7;
+    public static final byte OP_TRANSFER_OWNER = 8;
 
     public static final CustomPacketPayload.Type<SpeakerPolicyPacketC2S> TYPE =
         new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(SimplySpeakers.MOD_ID, "speaker_policy"));
@@ -96,7 +97,22 @@ public class SpeakerPolicyPacketC2S implements CustomPacketPayload {
             if (player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
                 if (state == null || !SpeakerPermissions.canManage(state, player.getUUID(), player.hasPermissions(2))) {
-                    return;
+                    speaker.sendPlaylistSync(player); return;
+                }
+                if(packet.op<OP_NETWORK_NAME || packet.op>OP_TRANSFER_OWNER) return;
+                if(packet.op==OP_ACCESS_MODE && (packet.intValue<0 || packet.intValue>=SpeakerAccess.values().length)) return;
+                java.util.UUID policyPlayer=null;
+                if(packet.op==OP_TRUST_CHANGE || packet.op==OP_TRANSFER_OWNER) {
+                    try { policyPlayer=java.util.UUID.fromString(packet.stringValue.trim()); }
+                    catch(IllegalArgumentException e) {
+                        var online=player.level().getServer().getPlayerList().getPlayerByName(packet.stringValue.trim());
+                        if(online!=null)policyPlayer=online.getUUID();
+                    }
+                    if(policyPlayer==null) {player.displayClientMessage(net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.access.invalid_player"),true);return;}
+                    if(packet.op==OP_TRUST_CHANGE && packet.boolValue && !state.getTrustedPlayers().contains(policyPlayer)
+                            && state.getTrustedPlayers().size()>=com.nstut.simplyspeakers.permissions.AccessViewSnapshot.MAX_TRUSTED) {
+                        player.displayClientMessage(net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.access.trust_limit"),true);return;
+                    }
                 }
                 if (state.getOwnerUuid() == null && packet.op != OP_DIRECTIONALITY
                         && packet.op != OP_CONE_ANGLE && packet.op != OP_REAR_ATTENUATION) {
@@ -107,18 +123,17 @@ public class SpeakerPolicyPacketC2S implements CustomPacketPayload {
                     case OP_NETWORK_NAME -> speaker.setNetworkName(packet.stringValue);
                     case OP_REDSTONE_MODE -> speaker.setRedstoneMode(RedstoneMode.fromIndex(packet.intValue));
                     case OP_ACCESS_MODE -> speaker.setAccessMode(SpeakerAccess.fromIndex(packet.intValue));
-                    case OP_TRUST_CHANGE -> {
-                        try {
-                            speaker.modifyTrust(java.util.UUID.fromString(packet.stringValue), packet.boolValue);
-                        } catch (IllegalArgumentException ignored) {
-                        }
-                    }
+                    case OP_TRUST_CHANGE -> speaker.modifyTrust(policyPlayer,packet.boolValue);
+                    case OP_TRANSFER_OWNER -> com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.policyControl(
+                        player.level().getServer(),player.serverLevel(),speaker.getFullStateKey(),OP_TRANSFER_OWNER,"",0,0,policyPlayer);
+                    case OP_CLAIM_OWNER -> {}
                     case OP_DIRECTIONALITY -> speaker.setDirectionality(Float.intBitsToFloat(packet.intValue));
                     case OP_CONE_ANGLE -> speaker.setConeAngleDegrees(packet.intValue);
                     case OP_REAR_ATTENUATION -> speaker.setRearAttenuation(Float.intBitsToFloat(packet.intValue));
                     default -> {
                     }
                 }
+                speaker.sendPlaylistSync(player);
             }
         });
     }

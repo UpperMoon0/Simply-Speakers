@@ -1,0 +1,6 @@
+{
+  "name": "Playback & Sound",
+  "description": "Transport, playlists, audio settings, and synchronized networks.",
+  "icon": "minecraft:jukebox",
+  "sortnum": 1
+}

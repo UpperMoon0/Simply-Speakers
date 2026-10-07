@@ -1,0 +1,37 @@
+{
+  "name": "Redstone control",
+  "category": "simplyspeakers:automation",
+  "icon": "simplyspeakers:redstone_controller",
+  "sortnum": 11,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "One job per block",
+      "text": "Controllers accept power from any face and link by Speaker ID within one dimension. Each performs one action. The target must already have a sound or playlist for transport actions."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Proxy targets",
+      "text": "Powered playback and Volume can target one proxy by coordinates. Its chunk must be loaded. Other jobs target the speaker network."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Shared inputs",
+      "text": "Playback inputs combine with OR; volume uses the highest request. Duplicate pulses execute once per target per tick. Different Speaker IDs remain independent."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Conflicting pulses",
+      "text": "Simultaneous jobs use this priority: Stop, Announcement, Restart, Toggle, Select Track, Next, Previous. Equal-priority sources use a stable position-based tie break."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Input lifetime",
+      "text": "Unloading, removal, retargeting or revoked control rights release continuous inputs. Removing the last proxy playback controller enables that output; networks retain their transport state."
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "simplyspeakers:redstone_controller"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ public class PacketRegistries {
     );
 
     public static void registerC2S() {
+        CHANNEL.register(ConfigureControllerPacketC2S.class, ConfigureControllerPacketC2S::encode, ConfigureControllerPacketC2S::new, ConfigureControllerPacketC2S::handle);
         // Client to Server packets
         CHANNEL.register(ToggleLoopPacketC2S.class,
                 ToggleLoopPacketC2S::encode,

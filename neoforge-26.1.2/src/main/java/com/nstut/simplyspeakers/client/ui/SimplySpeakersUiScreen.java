@@ -41,11 +41,20 @@ public abstract class SimplySpeakersUiScreen extends UiScreen {
      * Compact header theme toggle. The label describes the action ("switch to light"),
      * so while in dark mode it reads "☀ Light" and vice versa.
      */
+    /** Keep Minecraft's native drag gate open for OpenUI pointer capture. */
+    @Override public boolean mouseClicked(net.minecraft.client.input.MouseButtonEvent event, boolean doubleClick) {
+        boolean handled = super.mouseClicked(event, doubleClick);
+        if (handled && event.button() == 0) setDragging(true);
+        return handled;
+    }
+    @Override public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
+        try { return super.mouseReleased(event); }
+        finally { if (event.button() == 0) setDragging(false); }
+    }
+
     protected ButtonWidget buildThemeToggle() {
-        return Ui.button(
-                        () -> Component.literal(themeMode.get() == UiThemeMode.DARK ? "☀ Light" : "☾ Dark"),
-                        this::toggleTheme)
-                .ghost().small();
+        return new SpeakerIconButton(() -> themeMode.get() == UiThemeMode.DARK ? SpeakerIconButton.Icon.SUN : SpeakerIconButton.Icon.MOON,
+                () -> Component.translatable(themeMode.get() == UiThemeMode.DARK ? "gui.simplyspeakers.theme.light" : "gui.simplyspeakers.theme.dark"), this::toggleTheme);
     }
 
     protected void toggleTheme() {

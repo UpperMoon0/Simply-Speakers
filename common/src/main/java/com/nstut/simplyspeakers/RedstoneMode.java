@@ -12,7 +12,8 @@ public enum RedstoneMode {
     TOGGLE("toggle"),
     NEXT("next"),
     ANALOG_VOLUME("analog_volume"),
-    ANALOG_TRACK("analog_track");
+    ANALOG_TRACK("analog_track"),
+    IGNORE("ignore");
 
     public static final RedstoneMode DEFAULT = POWER;
     public static final int MAX_ANALOG_SLOTS = 15;

@@ -24,11 +24,13 @@ public class ClientEvents {
     }
 
     private static void onClientTick(Minecraft client) {
+        SpeakerUiPreviewProbe.tick(client);
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
             finishLiveJoinTest(client);
             LivePlaybackClientProbe.tick(client);
             ClientAudioPlayer.updateSpeakerVolumes();
+            DirectionalPreview.tick(client);
         }
     }
 
@@ -42,6 +44,7 @@ public class ClientEvents {
     }
     private static void onPlayerLoggedOut(net.minecraft.client.player.LocalPlayer player) {
         SimplySpeakers.LOGGER.info("CLIENT_PLAYER_QUIT event fired - Player logging out, initiating fast audio cleanup...");
+        DirectionalPreview.clear();
         ClientAudioPlayer.stopAll();
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
@@ -56,6 +59,7 @@ public class ClientEvents {
             SimplySpeakers.LOGGER.info("CLIENT_PLAYER_RESPAWN event fired with dimension change ({} -> {}), clearing audio playback...",
                     oldPlayer.level().dimension(),
                     newPlayer.level().dimension());
+            DirectionalPreview.clear();
             ClientAudioPlayer.stopAll();
             PlayAudioPacketS2C.clearPendingPlays();
             ClientSpeakerRegistry.clear();
@@ -64,6 +68,7 @@ public class ClientEvents {
     
     private static void onClientStopping(Minecraft client) {
         SimplySpeakers.LOGGER.info("CLIENT_STOPPING event fired - Client stopping, initiating audio cleanup...");
+        DirectionalPreview.clear();
         ClientAudioPlayer.stopAll();
         PlayAudioPacketS2C.clearPendingPlays();
         ClientAudioPlayer.clearAudioList();
@@ -75,6 +80,10 @@ public class ClientEvents {
         Minecraft.getInstance().setScreen(new SpeakerScreen(pos));
     }
     
+    public static void openRedstoneControllerScreen(BlockPos pos) {
+        Minecraft.getInstance().setScreen(new com.nstut.simplyspeakers.client.screens.RedstoneControllerScreen(pos));
+    }
+
     public static void openProxySpeakerScreen(BlockPos pos) {
         Minecraft.getInstance().setScreen(new ProxySpeakerScreen(pos));
     }

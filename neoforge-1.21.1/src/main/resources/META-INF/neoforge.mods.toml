@@ -56,3 +56,10 @@ type = "optional"
 versionRange = "[1.120.2,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies.simplyspeakers]]
+modId = "patchouli"
+type = "required"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "BOTH"

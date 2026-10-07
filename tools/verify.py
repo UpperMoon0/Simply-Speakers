@@ -16,7 +16,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = ("fabric-1.20.1", "forge-1.20.1", "fabric-1.21.1", "neoforge-1.21.1", "neoforge-26.1.2")
 ADAPTER_TASKS = (":common-1.20.1:test", ":common-1.21.1:test", ":neoforge-26.1.2:test")
-MODES = ("core", "adapters", "build", "live", "full", "gate")
+MODES = ("core", "adapters", "build", "live", "cc", "full", "gate")
 
 
 def checkout_identity(root: Path = ROOT) -> dict:
@@ -95,6 +95,8 @@ def layer_plan(mode: str, targets: list[str]) -> list[tuple[str, list[str]]]:
         plan.append(("build", gradle_command([f":{target}:build" for target in targets])))
     if mode in ("live", "full"):
         plan.extend((f"live-{target}", [sys.executable, "tools/live_join_test.py", "--target", target]) for target in targets)
+    if mode in ("cc", "full"):
+        plan.extend((f"cc-{target}", [sys.executable, "tools/cc_lua_test.py", "--target", target]) for target in targets if target!="neoforge-26.1.2")
     return plan
 
 
@@ -160,7 +162,7 @@ def main() -> int:
             if args.core_only and args.release: raise RuntimeError("Release verification cannot skip runtime layers")
             required = ["harness", "core", "adapters"]
             if not args.core_only:
-                required += [f"build-{target}" for target in targets] + [f"live-{target}" for target in targets]
+                required += [f"build-{target}" for target in targets] + [f"live-{target}" for target in targets] + [f"cc-{target}" for target in targets if target!="neoforge-26.1.2"]
             validate_receipts(directory, identity, required, release=args.release)
         else:
             for name, command in layer_plan(args.mode, targets):

@@ -1,0 +1,18 @@
+{
+  "name": "Moving Speakers",
+  "category": "simplyspeakers:playback",
+  "icon": "minecraft:minecart",
+  "sortnum": 10,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Moving speakers",
+      "text": "On Minecraft 1.21.1, optional Sable support updates sound position and facing on moving bodies. Sable Companion is bundled; Sable itself is separate."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Coordinate links",
+      "text": "Exact proxy-coordinate links must be updated if the proxy changes block position. Sable support is unavailable on 1.20.1 and 26.1.2."
+    }
+  ]
+}

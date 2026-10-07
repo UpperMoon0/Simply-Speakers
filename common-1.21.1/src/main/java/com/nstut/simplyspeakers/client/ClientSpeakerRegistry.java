@@ -48,16 +48,12 @@ public final class ClientSpeakerRegistry {
     public static void updateState(String stateKey, SpeakerState state) {
         if (stateKey == null || state == null) return;
         clientStates.put(stateKey, state.copy());
-        liveLoopStates.put(stateKey, state.isLooping());
+        // Decoder looping is transient; it must not overwrite the saved Repeat preference.
     }
 
     public static void setLooping(String stateKey, boolean looping) {
         if (stateKey == null) return;
         liveLoopStates.put(stateKey, looping);
-        SpeakerState state = clientStates.get(stateKey);
-        if (state != null) {
-            state.setLooping(looping);
-        }
     }
 
     public static boolean getLooping(String stateKey, boolean defaultLooping) {

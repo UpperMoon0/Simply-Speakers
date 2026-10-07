@@ -1,18 +1,9 @@
 package com.nstut.simplyspeakers.fabric.compat.computercraft;
 
-import com.nstut.simplyspeakers.Config;
-import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.api.SpeakerApi;
 import com.nstut.simplyspeakers.api.SpeakerEvents;
 import com.nstut.simplyspeakers.SpeakerPermissions;
-import com.nstut.simplyspeakers.audio.AudioFileMetadata;
-import com.nstut.simplyspeakers.audio.AudioOwnership;
-import com.nstut.simplyspeakers.audio.AudioFileManager;
-import com.nstut.simplyspeakers.audio.StreamTracks;
 import com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity;
-import com.nstut.simplyspeakers.speakers.ServerSpeakerControlService;
-import dan200.computercraft.api.lua.ILuaCallback;
-import dan200.computercraft.api.lua.LuaException;
 import dan200.computercraft.api.lua.LuaFunction;
 import dan200.computercraft.api.lua.MethodResult;
 import dan200.computercraft.api.peripheral.IComputerAccess;
@@ -26,8 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -102,43 +91,11 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     /**
-     * Runs a read-only snapshot on the main server thread and resumes the Lua caller
-     * with the result, keeping mutable server state off the Lua thread. The Lua method
-     * yields until the snapshot completes (interruptible by "terminate").
+     * Snapshot helpers run under CC's main-thread task scheduler.
      */
     private MethodResult readOnServerThread(@Nullable ServerLevel level, Supplier<Object> snapshot) {
-        if (level == null) return MethodResult.of(snapshot.get());
-        CompletableFuture<Object> future = new CompletableFuture<>();
-        level.getServer().execute(() -> {
-            try {
-                future.complete(snapshot.get());
-            } catch (Exception e) {
-                future.completeExceptionally(e);
-            }
-        });
-        return MethodResult.pullEvent(null, new ILuaCallback() {
-            @Override
-            public MethodResult resume(Object[] args) throws LuaException {
-                if (!future.isDone()) return MethodResult.pullEvent(null, this);
-                try {
-                    return MethodResult.of(future.join());
-                } catch (CompletionException e) {
-                    throw new LuaException("Failed to read speaker state");
-                }
-            }
-        });
-    }
-
-    /** Whether untrusted automation (this CC peripheral) may drive transport/settings. */
-    private boolean mayAutomationControl() {
-        ServerLevel level = serverLevel();
-        return level != null && SpeakerPermissions.canAutomationControl(SpeakerApi.getState(level, pos()));
-    }
-
-    /** Whether untrusted automation may rename/manage the network identity. */
-    private boolean mayAutomationManage() {
-        ServerLevel level = serverLevel();
-        return level != null && SpeakerPermissions.canAutomationManage(SpeakerApi.getState(level, pos()));
+        // CC schedules @LuaFunction(mainThread=true), including its completion wakeup.
+        return MethodResult.of(snapshot.get());
     }
 
     /**
@@ -190,51 +147,43 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     // ------------------------------------------------------------------
 
     @LuaFunction(mainThread = true)
-    public final void play() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.play(serverLevel(), pos());
+    public final boolean play() {
+        return SpeakerApi.play(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void pause() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.pause(serverLevel(), pos());
+    public final boolean pause() {
+        return SpeakerApi.pause(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void togglePause() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.togglePause(serverLevel(), pos());
+    public final boolean togglePause() {
+        return SpeakerApi.togglePause(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void stop() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.stop(serverLevel(), pos());
+    public final boolean stop() {
+        return SpeakerApi.stop(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void restart() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.restart(serverLevel(), pos());
+    public final boolean restart() {
+        return SpeakerApi.restart(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void next() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.next(serverLevel(), pos());
+    public final boolean next() {
+        return SpeakerApi.next(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void previous() {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.previous(serverLevel(), pos());
+    public final boolean previous() {
+        return SpeakerApi.previous(serverLevel(), pos());
     }
 
     @LuaFunction(mainThread = true)
-    public final void seek(double seconds) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.seek(serverLevel(), pos(), (float) seconds);
+    public final boolean seek(double seconds) {
+        return SpeakerApi.seek(serverLevel(), pos(), (float) seconds);
     }
 
     /**
@@ -255,38 +204,11 @@ public class SimplySpeakersPeripheral implements IPeripheral {
      */
     @LuaFunction(mainThread = true)
     public final boolean setTrack(String audioId) {
-        if (!mayAutomationControl()) return false;
-        ServerLevel level = serverLevel();
-        if (level == null) return false;
-        String fullStateKey = ServerSpeakerControlService.resolveFullStateKey(level, pos());
-        if (fullStateKey == null) return false;
-        if (audioId == null || audioId.isEmpty()) {
-            return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey, "", "");
-        }
-        if (StreamTracks.isHttpAudioUrl(audioId)) {
-            if (!Config.isRemoteStreamingAllowed()
-                    || !StreamTracks.hasSupportedExtension(audioId)
-                    || !StreamTracks.isRemoteStreamUrlAllowed(audioId, false)) {
-                return false;
-            }
-            return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey, audioId, audioId);
-        }
-        AudioFileManager manager = SimplySpeakers.getAudioFileManager();
-        if (manager == null) return false;
-        var state = SpeakerApi.getState(level, pos());
-        if (state == null) return false;
-        String ownerUuid = state.getOwnerUuid() != null ? state.getOwnerUuid().toString() : null;
-        AudioFileMetadata meta = manager.getManifest().get(audioId);
-        if (meta == null) return false;
-        // The computer is untrusted automation acting on behalf of the network owner:
-        // only that owner's library entries are selectable.
-        if (!AudioOwnership.isOwnedBy(meta.getOwnerUUID(), ownerUuid)) return false;
-        return ServerSpeakerControlService.selectAudio(level.getServer(), level, fullStateKey,
-                meta.getUuid(), meta.getOriginalFilename());
+        return SpeakerApi.selectTrack(serverLevel(),pos(),audioId);
     }
 
     /** Lua-friendly playback status snapshot. */
-    @LuaFunction
+    @LuaFunction(mainThread = true)
     public final MethodResult getStatus(IComputerAccess computer) {
         ServerLevel level = serverLevel();
         return readOnServerThread(level, () -> buildStatus(level));
@@ -303,6 +225,12 @@ public class SimplySpeakersPeripheral implements IPeripheral {
         result.put("trackId", state != null ? state.getAudioId() : "");
         result.put("looping", state != null && state.isLooping());
         result.put("network", state != null ? state.getNetworkName() : "");
+        result.put("speakerId",speaker.getSpeakerId());
+        result.put("repeatMode",state==null?"none":state.getPlaylist().getRepeatMode().id());
+        result.put("shuffle",state!=null && state.getPlaylist().isShuffle());
+        result.put("playlistIndex",state==null?0:state.getPlaylist().getCurrentIndex()+1);
+        result.put("canControl",state!=null && SpeakerPermissions.canAutomationControl(state));
+        result.put("canManage",state!=null && SpeakerPermissions.canAutomationManage(state));
         return result;
     }
 
@@ -311,12 +239,11 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     // ------------------------------------------------------------------
 
     @LuaFunction(mainThread = true)
-    public final void setVolume(double volume) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.setVolume(serverLevel(), pos(), (float) volume);
+    public final boolean setVolume(double volume) {
+        return SpeakerApi.setVolume(serverLevel(), pos(), (float) volume);
     }
 
-    @LuaFunction
+    @LuaFunction(mainThread = true)
     public final MethodResult getVolume(IComputerAccess computer) {
         ServerLevel level = serverLevel();
         return readOnServerThread(level, () -> {
@@ -326,12 +253,11 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     @LuaFunction(mainThread = true)
-    public final void setRange(int range) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.setRange(serverLevel(), pos(), range);
+    public final boolean setRange(int range) {
+        return SpeakerApi.setRange(serverLevel(), pos(), range);
     }
 
-    @LuaFunction
+    @LuaFunction(mainThread = true)
     public final MethodResult getRange(IComputerAccess computer) {
         ServerLevel level = serverLevel();
         return readOnServerThread(level, () -> {
@@ -341,12 +267,11 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     @LuaFunction(mainThread = true)
-    public final void setLooping(boolean looping) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.setLooping(serverLevel(), pos(), looping);
+    public final boolean setLooping(boolean looping) {
+        return SpeakerApi.setLooping(serverLevel(), pos(), looping);
     }
 
-    @LuaFunction
+    @LuaFunction(mainThread = true)
     public final MethodResult isLooping(IComputerAccess computer) {
         ServerLevel level = serverLevel();
         return readOnServerThread(level, () -> {
@@ -360,26 +285,24 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     // ------------------------------------------------------------------
 
     @LuaFunction(mainThread = true)
-    public final void setShuffle(boolean shuffle) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.playlistSetShuffle(serverLevel(), pos(), shuffle);
+    public final boolean setShuffle(boolean shuffle) {
+        return SpeakerApi.playlistSetShuffle(serverLevel(), pos(), shuffle);
     }
 
     @LuaFunction(mainThread = true)
-    public final void setRepeatMode(String mode) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.playlistSetRepeat(serverLevel(), pos(),
-                com.nstut.simplyspeakers.playlist.RepeatMode.parse(mode));
+    public final boolean setRepeatMode(String mode) {
+        for(var repeat:com.nstut.simplyspeakers.playlist.RepeatMode.values())
+            if(repeat.id().equalsIgnoreCase(mode.trim())) return SpeakerApi.playlistSetRepeat(serverLevel(),pos(),repeat);
+        return false;
     }
 
     @LuaFunction(mainThread = true)
-    public final void queueNext(String audioId) {
-        if (!mayAutomationControl()) return;
-        SpeakerApi.playlistQueueNext(serverLevel(), pos(), audioId);
+    public final boolean queueNext(String audioId) {
+        return SpeakerApi.playlistQueueNext(serverLevel(), pos(), audioId);
     }
 
     /** Returns playlist tracks with 1-based slot numbers. */
-    @LuaFunction
+    @LuaFunction(mainThread = true)
     public final MethodResult getPlaylist(IComputerAccess computer) {
         ServerLevel level = serverLevel();
         return readOnServerThread(level, () -> {
@@ -404,7 +327,7 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     // Network identity
     // ------------------------------------------------------------------
 
-    @LuaFunction
+    @LuaFunction(mainThread = true)
     public final MethodResult getNetworkName(IComputerAccess computer) {
         ServerLevel level = serverLevel();
         return readOnServerThread(level, () -> {
@@ -414,8 +337,67 @@ public class SimplySpeakersPeripheral implements IPeripheral {
     }
 
     @LuaFunction(mainThread = true)
-    public final void setNetworkName(String name) {
-        if (!mayAutomationManage()) return;
-        SpeakerApi.setNetworkName(serverLevel(), pos(), name);
+    public final boolean setNetworkName(String name) {
+        return SpeakerApi.setNetworkName(serverLevel(), pos(), name);
     }
+    @LuaFunction(mainThread = true)
+    public final boolean queueLast(String id) {return SpeakerApi.playlistQueueLast(serverLevel(),pos(),id);}
+    @LuaFunction(mainThread = true)
+    public final boolean clearQueue() {return SpeakerApi.playlistClearQueue(serverLevel(),pos());}
+    @LuaFunction(mainThread = true)
+    public final boolean removeQueued(int slot) {return SpeakerApi.playlistRemoveQueued(serverLevel(),pos(),slot-1);}
+    @LuaFunction(mainThread = true)
+    public final boolean moveQueued(int slot,int direction) {return SpeakerApi.playlistMoveQueued(serverLevel(),pos(),slot-1,direction);}
+    @LuaFunction(mainThread = true)
+    public final MethodResult getQueue() {
+        var state=SpeakerApi.getState(serverLevel(),pos());
+        return MethodResult.of((Object)(state==null?List.of():List.copyOf(state.getPlaylist().getQueue())));
+    }
+    @LuaFunction(mainThread = true)
+    public final boolean addToPlaylist(String id) {return SpeakerApi.playlistAdd(serverLevel(),pos(),id,"");}
+    @LuaFunction(mainThread = true)
+    public final boolean removeFromPlaylist(String id) {return SpeakerApi.playlistRemove(serverLevel(),pos(),id);}
+    @LuaFunction(mainThread = true)
+    public final boolean clearPlaylist() {return SpeakerApi.playlistClear(serverLevel(),pos());}
+    @LuaFunction(mainThread = true)
+    public final boolean playPlaylist() {return SpeakerApi.playlistPlay(serverLevel(),pos());}
+    @LuaFunction(mainThread = true)
+    public final boolean selectPlaylistTrack(int slot) {return SpeakerApi.playlistSelect(serverLevel(),pos(),slot-1);}
+    @LuaFunction(mainThread = true)
+    public final boolean setAudioDropoff(double value) {return SpeakerApi.setAudioDropoff(serverLevel(),pos(),(float)value);}
+    @LuaFunction(mainThread = true)
+    public final boolean setDirectionality(double value) {return SpeakerApi.setDirectionality(serverLevel(),pos(),(float)value);}
+    @LuaFunction(mainThread = true)
+    public final boolean setConeAngle(int degrees) {return SpeakerApi.setConeAngle(serverLevel(),pos(),degrees);}
+    @LuaFunction(mainThread = true)
+    public final boolean setRearAttenuation(double value) {return SpeakerApi.setRearAttenuation(serverLevel(),pos(),(float)value);}
+    @LuaFunction(mainThread = true)
+    public final MethodResult getSettings() {
+        var state=SpeakerApi.getState(serverLevel(),pos());var result=new HashMap<String,Object>();
+        if(state!=null) {
+            result.put("volume",(double)state.getMaxVolume());result.put("range",state.getMaxRange());
+            result.put("audioDropoff",(double)state.getAudioDropoff());result.put("directionality",(double)state.getDirectionality());
+            result.put("coneAngle",state.getConeAngleDegrees());result.put("rearAttenuation",(double)state.getRearAttenuation());
+        }
+        return MethodResult.of(result);
+    }
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getSavedPlaylists() {
+        var result=new ArrayList<Object>();
+        for(var entry:SpeakerApi.getSavedPlaylists(serverLevel(),pos()))
+            result.add(Map.of("id",entry.id(),"name",entry.name(),"count",entry.audioIds().size()));
+        return MethodResult.of((Object)result);
+    }
+    @LuaFunction(mainThread = true)
+    public final boolean playSavedPlaylist(String id) {return SpeakerApi.playSavedPlaylist(serverLevel(),pos(),id);}
+
+    @LuaFunction(mainThread = true)
+    public final MethodResult getLibrary() {
+        var result=new ArrayList<Object>();
+        for(var audio:SpeakerApi.getLibrary(serverLevel(),pos()))
+            result.add(Map.of("id",audio.getUuid(),"name",audio.getOriginalFilename(),"duration",audio.getDurationSeconds()));
+        return MethodResult.of((Object)result);
+    }
+
 }

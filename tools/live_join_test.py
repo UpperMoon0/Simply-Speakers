@@ -37,9 +37,9 @@ def reject_failure(prefix: str, line: str) -> None:
 
 
 def required_markers(target: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    client = (PASS_MARKER, "SIMPLYSPEAKERS_CLIENT_PLAYBACK_PASS", *(
+    client = (PASS_MARKER, "SIMPLYSPEAKERS_CONTINUOUS_DRAG_PASS", "SIMPLYSPEAKERS_GUIDE_PASS", "SIMPLYSPEAKERS_CLIENT_PLAYBACK_PASS", *(
         f"SIMPLYSPEAKERS_CLIENT_PHASE_PASS {phase}" for phase in PHASES))
-    server = ("SIMPLYSPEAKERS_SERVER_PLAYBACK_PASS", *(
+    server = ("SIMPLYSPEAKERS_CONTROLLER_COOPERATION_PASS", "SIMPLYSPEAKERS_CONTROLLER_PASS", "SIMPLYSPEAKERS_SERVER_PLAYBACK_PASS", *(
         f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}" for phase in PHASES))
     if target != "neoforge-26.1.2": server += ("SIMPLYSPEAKERS_PERIPHERAL_PASS",)
     return client, server
@@ -115,7 +115,7 @@ def command(root: Path, task: str) -> list[str]:
         "--no-daemon",
         "--console=plain",
         "--max-workers=4",
-        "-Dorg.gradle.jvmargs=-Xmx2048m",
+        "-Dorg.gradle.jvmargs=-Xmx" + os.environ.get("SIMPLYSPEAKERS_LIVE_GRADLE_HEAP", "2048m"),
     ]
 
 

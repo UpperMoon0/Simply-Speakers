@@ -65,6 +65,8 @@ sourceSets.main.resources {
 // Compile the version-neutral configuration, registry index, and image helpers directly.
 sourceSets.main.java.srcDir('../common/src/main/java')
 sourceSets.main.java.srcDir('../shared/runtime-verification/src/main/java')
+// CC is not available on this target; its legacy-version opt-in fixture is excluded.
+sourceSets.main.java.exclude('**/CcLuaServerProbe.java')
 sourceSets.main.java.srcDir('../shared/minecraft-1.21plus/src/main/java')
 sourceSets.main.java.srcDir('../shared/loader-neoforge/src/main/java')
 sourceSets.test.java.srcDir('../shared/integration-tests/src/test/java')
@@ -76,6 +78,7 @@ sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
 
 repositories {
     maven { url = 'https://maven.architectury.dev/' }
+    maven { url = 'https://maven.blamejared.com/' }
 }
 
 base {
@@ -97,6 +100,10 @@ neoForge {
     runs {
         client {
             client()
+            if (project.findProperty("uiPreview") == "true") {
+                systemProperty "simplyspeakers.uiPreview", "true"
+                systemProperty "simplyspeakers.uiAuditGroup", project.findProperty("uiAuditGroup") ?: "all"
+            }
 
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
@@ -181,6 +188,8 @@ configurations {
 }
 
 dependencies {
+    implementation "vazkii.patchouli:patchouli-neoforge:26.1-94"
+    localRuntime "vazkii.patchouli:patchouli-neoforge:26.1-94"
     // OpenUI is a separate required client mod. The Maven dependency supplies
     // its API at compile time, and localRuntime makes ModDevGradle load it in dev runs.
     implementation "com.nstut:openui-mc-neoforge-26.1.2:${project.openui_version}"

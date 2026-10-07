@@ -17,5 +17,5 @@ final class ServerPlaybackEnvironment {
     static void sendPlay(ServerPlayer player, PlayAudioPacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet); }
     static void sendStop(ServerPlayer player, StopAudioPacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet); }
     static void sendState(ServerLevel level, SpeakerStateUpdatePacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayers(level.players(), packet); }
-    static void sendPlaylist(ServerLevel level, PlaylistSyncPacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayers(level.players(), packet); }
+    static void sendPlaylist(ServerLevel level, PlaylistSyncPacketS2C packet) { for(var player:level.players()) PlaylistSyncPacketS2C.sendToPlayer(player,packet); }
 }

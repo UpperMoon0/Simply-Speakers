@@ -25,14 +25,16 @@ public class SimplySpeakersFabric implements ModInitializer {
         // 0.8.x: CC:Tweaked peripheral support (optional dependency)
         // The CC API references live inside SimplySpeakersPeripheral.registerProvider so
         // this entrypoint class never resolves CC classes when the mod is absent.
-        if (FabricLoader.getInstance().isModLoaded("computercraft")) {
-            SimplySpeakersPeripheral.registerProvider();
-        }
         // Load config
         FabricConfig.init();
         
         // Initialize the common elements of our mod
         SimplySpeakers.init();
+
+        // Peripheral lookup requires the registered speaker block entity type.
+        if (FabricLoader.getInstance().isModLoaded("computercraft")) {
+            SimplySpeakersPeripheral.registerProvider();
+        }
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             Path worldSavePath = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT);

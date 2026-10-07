@@ -52,9 +52,7 @@ public final class SpeakerCommands {
                                 .then(net.minecraft.commands.Commands.literal("shuffle")
                                         .then(boolArg().executes(SpeakerCommands::setShuffle)))
                                 .then(net.minecraft.commands.Commands.literal("repeat")
-                                        .then(wordArg("none", "track", "playlist").executes(SpeakerCommands::setRepeat)))
-                                .then(net.minecraft.commands.Commands.literal("redstone")
-                                        .then(redstoneArg().executes(SpeakerCommands::setRedstoneMode)))))
+                                        .then(wordArg("none", "track", "playlist").executes(SpeakerCommands::setRepeat)))))
                 .then(net.minecraft.commands.Commands.literal("speaker")
                         .then(net.minecraft.commands.Commands.argument("pos", BlockPosArgument.blockPos())
                                 .then(net.minecraft.commands.Commands.literal("info").executes(SpeakerCommands::speakerInfo))
@@ -160,7 +158,6 @@ public final class SpeakerCommands {
                         + "\n  loop: " + state.isLooping()
                         + ", volume: " + Math.round(state.getMaxVolume() * 100) + "%"
                         + ", range: " + state.getMaxRange()
-                        + ", redstone: " + state.getRedstoneMode().id()
                         + ", access: " + state.getAccessMode().id()
                         + "\n  playlist: " + (state.hasPlaylist()
                             ? state.getPlaylist().size() + " track(s)"
@@ -191,7 +188,6 @@ public final class SpeakerCommands {
                         + "\n  loop: " + state.isLooping()
                         + ", volume: " + Math.round(state.getMaxVolume() * 100) + "%"
                         + ", range: " + state.getMaxRange()
-                        + ", redstone: " + state.getRedstoneMode().id()
                         + ", access: " + state.getAccessMode().id()
                         + "\n  playlist: " + (state.hasPlaylist()
                             ? state.getPlaylist().size() + " track(s)"

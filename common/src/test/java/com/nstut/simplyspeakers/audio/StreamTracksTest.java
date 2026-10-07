@@ -187,4 +187,18 @@ class StreamTracksTest {
         java.net.InetAddress pub = address((byte) 93, (byte) 184, (byte) 216, (byte) 34);
         assertTrue(StreamTracks.isRemoteStreamUrlAllowed("https://example.com/radio.mp3", true, resolving(pub)));
     }
+    @Test void hexadecimalMappedIpv6UsesIpv4RestrictionsAtBothChecks() throws Exception {
+        for (String host : new String[]{"::ffff:7f00:1", "0:0:0:0:0:ffff:7f00:1",
+                "::FFFF:a00:1", "::ffff:ac10:1", "::ffff:c0a8:101", "::ffff:a9fe:a9fe", "::ffff:0:1"}) {
+            String url = "http://[" + host + "]/clip.wav";
+            assertFalse(StreamTracks.isRemoteStreamUrlAllowed(url, false), host);
+            assertFalse(StreamTracks.isRemoteStreamUrlAllowed(url, true), host);
+        }
+        byte[] mapped = new byte[16]; mapped[10]=(byte)255; mapped[11]=(byte)255;
+        mapped[12]=127; mapped[15]=1;
+        var resolved = java.net.Inet6Address.getByAddress(null, mapped, -1);
+        assertFalse(StreamTracks.isHostAllowed("example.com", true, resolving(resolved)));
+        assertTrue(StreamTracks.isRemoteStreamUrlAllowed("https://[::ffff:808:808]/clip.wav", false));
+        assertTrue(StreamTracks.isRemoteStreamUrlAllowed("https://[2001:4860:4860::8888]/clip.wav", false));
+    }
 }

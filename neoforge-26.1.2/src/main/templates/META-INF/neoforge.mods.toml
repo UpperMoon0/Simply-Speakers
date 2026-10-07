@@ -102,3 +102,10 @@ ${mod_description}
 #[features.${mod_id}]
 #openGLVersion="[3.2,)"
 
+
+[[dependencies.simplyspeakers]]
+modId = "patchouli"
+type = "required"
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "BOTH"

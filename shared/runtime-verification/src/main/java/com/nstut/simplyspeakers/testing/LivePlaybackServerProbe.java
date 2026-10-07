@@ -58,6 +58,7 @@ public final class LivePlaybackServerProbe {
             level.setBlockAndUpdate(origin.offset(1, 0, 0), BlockRegistries.SPEAKER.get().defaultBlockState());
             first = (SpeakerBlockEntity) level.getBlockEntity(origin);
             second = (SpeakerBlockEntity) level.getBlockEntity(origin.offset(1, 0, 0));
+            level.setBlockAndUpdate(origin.offset(0,0,3),BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
             require(first != null && second != null, "speaker block entities were not created");
             first.setSpeakerId(ID); second.setSpeakerId(ID); key = first.getFullStateKey();
             audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.tone(30)),
@@ -87,11 +88,24 @@ public final class LivePlaybackServerProbe {
             case "restarted" -> require(ServerSpeakerControlService.stop(currentServer, level, key), "stop rejected");
             case "stopped" -> {
                 first.handleRedstoneChange(0); first.handleRedstoneChange(15);
-                require(state().isPlaying() && !state().isPaused(), "redstone pulse did not start playback");
+                level.setBlockAndUpdate(first.getBlockPos().below(),net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState());
+                require(!state().isPlaying(), "speaker still consumes native redstone");
+                level.removeBlock(first.getBlockPos().below(),false);
+                BlockPos pos=first.getBlockPos().offset(0,0,2);
+                level.setBlockAndUpdate(pos,BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
+                var controller=(com.nstut.simplyspeakers.blocks.entities.RedstoneControllerBlockEntity)level.getBlockEntity(pos);
+                require(controller.configure(player,ID,false,BlockPos.ZERO,com.nstut.simplyspeakers.control.ControllerAction.TOGGLE,"",false,1),"controller configuration rejected");
+                level.setBlockAndUpdate(pos.offset(1,0,0),net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState());
+                controller.observeSignal(level.getBestNeighborSignal(pos));
+                com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer);
+                require(state().isPlaying() && !state().isPaused(), "controller pulse did not start playback");
+                level.removeBlock(pos.offset(1,0,0),false);
+                level.removeBlock(pos,false);
                 first.updateEmitterSnapshot(); second.updateEmitterSnapshot();
             }
             case "redstone" -> {
                 verifyPeripheral();
+                verifyController();
                 require(ServerSpeakerControlService.playlistControl(currentServer, level, key,
                         PlaylistControlPacketC2S.OP_CLEAR, 0, false, "", ""), "playlist clear rejected");
                 require(state().getPlaylist().size() == 0, "playlist did not clear");
@@ -130,6 +144,71 @@ public final class LivePlaybackServerProbe {
             type.getMethod("play").invoke(peripheral); require(!state().isPaused(), "public peripheral resume failed");
             System.out.println("SIMPLYSPEAKERS_PERIPHERAL_PASS");
         } catch (Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL peripheral", error); }
+    }
+
+    private static void verifyController() {
+        BlockPos pos=first.getBlockPos().offset(0,0,2);
+        level.setBlockAndUpdate(pos,BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
+        var controller=(com.nstut.simplyspeakers.blocks.entities.RedstoneControllerBlockEntity)level.getBlockEntity(pos);
+        require(controller != null,"controller block entity missing");
+        controller.claim(player.getUUID());
+        state().setRedstoneMode(RedstoneMode.IGNORE);
+        require(controller.configure(player,ID,false,BlockPos.ZERO,
+                com.nstut.simplyspeakers.control.ControllerAction.TOGGLE,"",false,1),"controller configuration rejected");
+        controller.observeSignal(15); com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer); require(state().isPaused(),"controller pulse did not pause");
+        controller.observeSignal(15); com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer); require(state().isPaused(),"held controller repeated pulse");
+        controller.observeSignal(0); controller.observeSignal(15); com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer); require(!state().isPaused(),"controller pulse did not resume");
+        require(controller.configure(player,ID,false,BlockPos.ZERO,
+                com.nstut.simplyspeakers.control.ControllerAction.VOLUME,"",false,0.5f),"volume controller rejected");
+        controller.observeSignal(12); com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer); require(Math.abs(state().getMaxVolume()-0.4f)<0.001,"analog controller volume incorrect");
+        level.removeBlock(pos,false);
+        com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer);
+        ServerSpeakerControlService.setVolume(currentServer,level,key,0);
+        verifyControllerCooperation();
+        System.out.println("SIMPLYSPEAKERS_CONTROLLER_PASS");
+    }
+
+    private static com.nstut.simplyspeakers.blocks.entities.RedstoneControllerBlockEntity controllerAt(BlockPos pos,com.nstut.simplyspeakers.control.ControllerAction mode,float ceiling) {
+        level.setBlockAndUpdate(pos,BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
+        var c=(com.nstut.simplyspeakers.blocks.entities.RedstoneControllerBlockEntity)level.getBlockEntity(pos);
+        require(c!=null && c.configure(player,ID,false,BlockPos.ZERO,mode,"",false,ceiling),"cooperation controller configuration failed");return c;
+    }
+    private static void power(BlockPos pos,boolean enabled) {
+        if(enabled) level.setBlockAndUpdate(pos.below(),net.minecraft.world.level.block.Blocks.REDSTONE_BLOCK.defaultBlockState());
+        else level.removeBlock(pos.below(),false);
+    }
+    private static void resolveControllers() { com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(currentServer); }
+    private static void verifyControllerCooperation() {
+        var mode=com.nstut.simplyspeakers.control.ControllerAction.ENABLED;
+        BlockPos a=first.getBlockPos().offset(0,0,2),b=a.offset(3,0,0),stopPos=a.offset(0,0,3);
+        var left=controllerAt(a,mode,1);var right=controllerAt(b,mode,1);
+        power(a,true);resolveControllers();require(state().isPlaying()&&!state().isPaused(),"first playback input did not enable shared network");
+        power(b,true);power(a,false);resolveControllers();require(!state().isPaused(),"unpowered duplicate incorrectly paused powered network");
+        power(b,false);resolveControllers();require(state().isPaused(),"all playback inputs off did not pause");
+        level.removeBlock(a,false);level.removeBlock(b,false);resolveControllers();
+        require(ServerSpeakerControlService.stop(currentServer,level,key),"cooperation reset failed");
+        left=controllerAt(a,com.nstut.simplyspeakers.control.ControllerAction.TOGGLE,1);
+        right=controllerAt(b,com.nstut.simplyspeakers.control.ControllerAction.TOGGLE,1);
+        power(a,true);power(b,true);resolveControllers();require(state().isPlaying()&&!state().isPaused(),"duplicate physical toggle pulses cancelled");
+        power(a,false);power(b,false);
+        controllerAt(stopPos,com.nstut.simplyspeakers.control.ControllerAction.STOP,1);
+        power(a,true);power(stopPos,true);resolveControllers();require(!state().isPlaying(),"physical Stop lost to competing Toggle");
+        power(a,false);power(stopPos,false);level.removeBlock(stopPos,false);
+        require(left.configure(player,ID,false,BlockPos.ZERO,com.nstut.simplyspeakers.control.ControllerAction.VOLUME,"",false,0.5f),"first volume configuration failed");
+        require(right.configure(player,ID,false,BlockPos.ZERO,com.nstut.simplyspeakers.control.ControllerAction.VOLUME,"",false,0.8f),"second volume configuration failed");
+        power(a,true);power(b,true);resolveControllers();require(Math.abs(state().getMaxVolume()-0.8f)<0.001,"physical volume inputs did not use maximum");
+        power(b,false);resolveControllers();require(Math.abs(state().getMaxVolume()-0.5f)<0.001,"remaining volume input was not retained");
+        power(a,false);level.removeBlock(a,false);level.removeBlock(b,false);resolveControllers();
+        require(state().getMaxVolume()==state().getConfiguredMaxVolume(),"removing physical controllers lost saved manual volume");
+        try {
+            var secondClip=SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.tone(2)),"cooperation-second.wav",player.getUUID().toString());
+            ServerSpeakerControlService.playlistControl(currentServer,level,key,PlaylistControlPacketC2S.OP_CLEAR,0,false,"","");
+            state().getPlaylist().add(audio.getUuid(),audio.getOriginalFilename());state().getPlaylist().add(secondClip.getUuid(),secondClip.getOriginalFilename());
+            controllerAt(a,com.nstut.simplyspeakers.control.ControllerAction.TRACK,1);power(a,true);resolveControllers();
+            require(state().getPlaylist().getCurrentIndex()==1 && state().getAudioId().equals(secondClip.getUuid()),"physical analog track selector did not bound strength to playlist size");
+            power(a,false);level.removeBlock(a,false);resolveControllers();
+        } catch(Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL track selection fixture",error); }
+        System.out.println("SIMPLYSPEAKERS_CONTROLLER_COOPERATION_PASS");
     }
 
     private static void require(boolean condition, String message) { if (!condition) fail(message); }

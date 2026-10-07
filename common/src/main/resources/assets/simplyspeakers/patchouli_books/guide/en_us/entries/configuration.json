@@ -1,0 +1,23 @@
+{
+  "name": "Server settings",
+  "category": "simplyspeakers:administration",
+  "icon": "minecraft:book",
+  "sortnum": 20,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Server policy",
+      "text": "speakerRange sets the range ceiling: 1–512, default 64. disableUpload blocks uploads. allowRemoteStreams defaults off and is independent of uploads."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Limits and cache",
+      "text": "maxUploadSize defaults to 5 MiB, capped at 100 MiB. The client uses a 500 MiB audio cache. Server policy overrides client defaults while connected."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Debug logs",
+      "text": "debugLogging enables detailed logs. Enable it when diagnosing a problem, then disable it to reduce log volume."
+    }
+  ]
+}

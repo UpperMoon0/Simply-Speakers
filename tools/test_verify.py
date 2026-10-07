@@ -17,8 +17,17 @@ class VerificationPolicyTest(unittest.TestCase):
     def test_full_runs_core_once_then_adapters_and_one_live_boot_per_target(self):
         names = [name for name, _ in verify.layer_plan("full", list(verify.TARGETS))]
         self.assertEqual(names[:4], ["harness", "core", "adapters", "build"])
-        self.assertEqual(names[4:], [f"live-{t}" for t in verify.TARGETS])
+        self.assertEqual(names[4:], [f"live-{t}" for t in verify.TARGETS] + [f"cc-{t}" for t in verify.TARGETS if t!="neoforge-26.1.2"])
         self.assertEqual(names.count("core"), 1)
+
+    def test_cc_plan_uses_real_lua_runner_on_supported_loaders_only(self):
+        plan = verify.layer_plan("cc", list(verify.TARGETS))
+        self.assertEqual(len(plan), 4)
+        for name, command in plan:
+            self.assertNotIn("26.1.2", name)
+            self.assertIn("tools/cc_lua_test.py", command)
+            self.assertIn("--target", command)
+        self.assertEqual(verify.layer_plan("cc", ["neoforge-26.1.2"]), [])
 
     def test_adapter_plan_covers_all_versions_without_duplicate_pure_tests(self):
         command = verify.layer_plan("adapters", [])[0][1]

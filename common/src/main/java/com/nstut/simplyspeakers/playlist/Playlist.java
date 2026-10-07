@@ -26,6 +26,7 @@ public class Playlist {
 
     /** Canonical walk position to restore once the one-shot queue drains. */
     private int resumeIndex = -1;
+    private boolean queuedTrackActive;
 
     public Playlist() {
     }
@@ -56,9 +57,20 @@ public class Playlist {
     /** Replaces the whole track list; keeps the current selection if still present. */
     public void setTracks(List<PlaylistTrack> newTracks) {
         String currentKey = currentKey();
+        List<String> resumePredecessors = new ArrayList<>();
+        for (int i = 0; i <= resumeIndex && i < tracks.size(); i++) {
+            resumePredecessors.add(tracks.get(i).key());
+        }
         tracks = new ArrayList<>();
         if (newTracks != null) appendAll(newTracks);
         currentIndex = indexOfKey(currentKey);
+        // Follow the canonical anchor through reordering. If it was removed,
+        // resume after its closest surviving predecessor (or at the beginning).
+        resumeIndex = -1;
+        for (int i = resumePredecessors.size() - 1; i >= 0; i--) {
+            int mapped = indexOfKey(resumePredecessors.get(i));
+            if (mapped >= 0) { resumeIndex = mapped; break; }
+        }
         clampIndex();
     }
 
@@ -79,6 +91,8 @@ public class Playlist {
                 removedAny = true;
                 if (i < currentIndex) currentIndex--;
                 else if (i == currentIndex) currentIndex = -1;
+                if (i < resumeIndex) resumeIndex--;
+                else if (i == resumeIndex) resumeIndex--;
             }
         }
         clampIndex();
@@ -93,6 +107,15 @@ public class Playlist {
         return swap(index, index + 1);
     }
 
+    public boolean removeAt(int index) {
+        if (index < 0 || index >= tracks.size()) return false;
+        tracks.remove(index);
+        if (index < currentIndex) currentIndex--;
+        else if (index == currentIndex) currentIndex = -1;
+        if (index <= resumeIndex) resumeIndex--;
+        return true;
+    }
+
     private boolean swap(int a, int b) {
         if (a < 0 || b < 0 || a >= tracks.size() || b >= tracks.size()) return false;
         PlaylistTrack tmp = tracks.get(a);
@@ -100,6 +123,8 @@ public class Playlist {
         tracks.set(b, tmp);
         if (currentIndex == a) currentIndex = b;
         else if (currentIndex == b) currentIndex = a;
+        if (resumeIndex == a) resumeIndex = b;
+        else if (resumeIndex == b) resumeIndex = a;
         return true;
     }
 
@@ -108,6 +133,7 @@ public class Playlist {
         queue.clear();
         currentIndex = -1;
         resumeIndex = -1;
+        queuedTrackActive = false;
     }
 
     public PlaylistTrack current() {
@@ -166,7 +192,55 @@ public class Playlist {
 
     /** Queues a track to be played next (one-shot). */
     public void queueNext(String audioId) {
-        if (audioId != null && !audioId.isEmpty()) queue.add(audioId);
+        if (audioId != null && !audioId.isEmpty() && queue.size() < MAX_ENTRIES) queue.add(0, audioId);
+    }
+
+    /** Appends a temporary request without changing the saved playlist. */
+    public void queueLast(String audioId) {
+        if (audioId != null && !audioId.isEmpty() && queue.size() < MAX_ENTRIES) queue.add(audioId);
+    }
+
+    public boolean removeQueued(int index) {
+        if (index < 0 || index >= queue.size()) return false;
+        queue.remove(index);
+        return true;
+    }
+
+    public boolean moveQueued(int index, int delta) {
+        int target = index + delta;
+        if (index < 0 || target < 0 || index >= queue.size() || target >= queue.size()) return false;
+        String id = queue.get(index);
+        queue.set(index, queue.get(target));
+        queue.set(target, id);
+        return true;
+    }
+
+    /** Starts the saved source, clearing one-shot requests and respecting shuffle. */
+    public PlaylistTrack playFromStart() {
+        clearQueue();
+        resumeIndex = -1;
+        queuedTrackActive = false;
+        return tracks.isEmpty() ? null : selectIndex(walkEntry(0));
+    }
+
+    public boolean isQueuedTrackActive() { return queuedTrackActive || resumeIndex >= 0; }
+    public void setQueuedTrackActive(boolean active) { queuedTrackActive = active; }
+
+    /** Saved-source continuation only; temporary requests are presented separately. */
+    public List<Integer> upcomingIndices() {
+        List<Integer> upcoming = new ArrayList<>();
+        if (tracks.isEmpty()) return upcoming;
+        int canonical = isQueuedTrackActive() ? resumeIndex : currentIndex;
+        if (repeatMode == RepeatMode.TRACK && canonical >= 0) {
+            upcoming.add(canonical);
+            return upcoming;
+        }
+        int position = walkPosition(canonical);
+        for (int i = position + 1; i < tracks.size(); i++) upcoming.add(walkEntry(i));
+        if (repeatMode == RepeatMode.PLAYLIST) {
+            for (int i = 0; i <= position && upcoming.size() < MAX_ENTRIES; i++) upcoming.add(walkEntry(i));
+        }
+        return upcoming;
     }
 
     public void clearQueue() {
@@ -191,6 +265,7 @@ public class Playlist {
 
     public void setResumeIndex(int index) {
         this.resumeIndex = index;
+        this.queuedTrackActive = index >= 0;
     }
 
     // ------------------------------------------------------------------
@@ -241,23 +316,32 @@ public class Playlist {
 
     /** Advances honouring the one-shot queue, shuffle order, and repeat mode. */
     public Advance next() {
-        if (tracks.isEmpty()) return new Advance(AdvanceResult.EXHAUSTED, null);
+        return advance(true);
+    }
 
-        int canonical = resumeIndex >= 0 ? resumeIndex : currentIndex;
+    /** Explicit Next skips the current track even when natural completion repeats it. */
+    public Advance nextRequested() {
+        return advance(false);
+    }
+
+    private Advance advance(boolean respectTrackRepeat) {
+        int canonical = isQueuedTrackActive() ? resumeIndex : currentIndex;
         while (!queue.isEmpty()) {
             String queuedId = queue.remove(0);
             PlaylistTrack track = selectAudioId(queuedId);
-            if (track != null) {
-                resumeIndex = canonical;
-                return new Advance(AdvanceResult.ADVANCED, track);
-            }
+            resumeIndex = canonical;
+            queuedTrackActive = true;
+            return new Advance(AdvanceResult.ADVANCED,
+                    track != null ? track : PlaylistTrack.of(queuedId, queuedId));
         }
 
-        if (resumeIndex >= 0) {
-            selectIndex(resumeIndex);
+        if (isQueuedTrackActive()) {
+            setCurrentIndex(resumeIndex);
             resumeIndex = -1;
+            queuedTrackActive = false;
         }
-        if (repeatMode == RepeatMode.TRACK && current() != null) {
+        if (tracks.isEmpty()) return new Advance(AdvanceResult.EXHAUSTED, null);
+        if (respectTrackRepeat && repeatMode == RepeatMode.TRACK && current() != null) {
             return new Advance(AdvanceResult.ADVANCED, current());
         }
 
@@ -276,6 +360,12 @@ public class Playlist {
 
     /** Moves backwards; wraps under PLAYLIST repeat, restarts at the start otherwise. */
     public Advance previous() {
+        if (isQueuedTrackActive()) {
+            setCurrentIndex(resumeIndex);
+            resumeIndex = -1;
+            queuedTrackActive = false;
+            if (current() != null) return new Advance(AdvanceResult.ADVANCED, current());
+        }
         if (tracks.isEmpty()) return new Advance(AdvanceResult.EXHAUSTED, null);
 
         int n = tracks.size();

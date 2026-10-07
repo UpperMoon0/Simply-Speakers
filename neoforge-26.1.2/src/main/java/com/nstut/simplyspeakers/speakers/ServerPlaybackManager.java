@@ -65,6 +65,7 @@ public final class ServerPlaybackManager {
 
     /** Clears all subscription state; called when the server stops. */
     public static synchronized void resetForWorld() {
+        com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.reset();
         subscriptions.clear();
         pendingRemoteEof.clear();
     }
@@ -129,7 +130,7 @@ public final class ServerPlaybackManager {
                 state.getAudioId(),
                 state.getAudioFilename(),
                 -1,
-                state.isLooping(),
+                state.isPlaybackLooping(),
                 sourceEmitter.fullStateKey()
         );
         PacketSenders.sendStateUpdateToAll(level, statePacket);
@@ -142,12 +143,12 @@ public final class ServerPlaybackManager {
     }
 
     private static void advancePlaylistOrStop(MinecraftServer server, ServerLevel level, ServerEmitter emitter, SpeakerState state) {
-        if (state.hasPlaylist() && state.getPlaylist().size() > 0) {
+        if (!state.isOneShotPlayback() && state.hasPlaybackContinuation()) {
             com.nstut.simplyspeakers.playlist.Playlist.Advance adv = state.getPlaylist().next();
             if (adv.hasTrack()) {
                 com.nstut.simplyspeakers.playlist.PlaylistTrack nextTrack = adv.track();
                 state.setAudioId(nextTrack.getAudioId());
-                state.setAudioFilename(nextTrack.getFilename());
+                state.setAudioFilename(ServerSpeakerControlService.filenameFor(nextTrack));
                 beginNewPlaybackSession(emitter.fullStateKey());
                 state.startPlaybackAt(level.getGameTime(), 0.0f);
                 ServerSpeakerRegistry.updateSpeakerStateByFullKey(emitter.fullStateKey(), state);
@@ -201,7 +202,7 @@ public final class ServerPlaybackManager {
         RemoteEofReports reports = pendingRemoteEof.get(fullStateKey);
         if (reports == null || reports.reported.isEmpty()) return;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null || !state.isPlaying() || state.isPaused() || state.isLooping()
+        if (state == null || !state.isPlaying() || state.isPaused() || state.isPlaybackLooping()
                 || !com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())
                 || !state.getAudioId().equals(reports.audioId)) {
             pendingRemoteEof.remove(fullStateKey, reports);
@@ -235,7 +236,7 @@ public final class ServerPlaybackManager {
         if (server == null) return;
 
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null || !state.isPlaying() || state.isPaused() || state.isLooping()) return;
+        if (state == null || !state.isPlaying() || state.isPaused() || state.isPlaybackLooping()) return;
         if (!audioId.equals(state.getAudioId())) return;
         if (!com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())) return;
         if (state.ensurePlaybackSessionGeneration() != playbackGeneration) return;
@@ -260,6 +261,7 @@ public final class ServerPlaybackManager {
 
     public static void serverTick(MinecraftServer server) {
         if (server == null) return;
+        com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(server);
         if (Boolean.getBoolean("simplyspeakers.livePlaybackTest")) com.nstut.simplyspeakers.testing.LivePlaybackServerProbe.tick(server);
         if (server.getTickCount() % 6000 == 0) {
             ServerSpeakerRegistry.flushDirty();
@@ -280,6 +282,26 @@ public final class ServerPlaybackManager {
             if (ServerSpeakerRegistry.getDimension(level).equals(dimension)) return level;
         }
         return null;
+    }
+
+    /** Update gain, range and cone without replacing a listener's decoder/source. */
+    public static void refreshSettings(MinecraftServer server, ServerLevel level, String fullStateKey) {
+        if (server == null || level == null || fullStateKey == null) return;
+        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        if (state == null) return;
+        for (ServerEmitter emitter : ServerSpeakerRegistry.getEmitters().stream()
+                .filter(e -> fullStateKey.equals(e.fullStateKey())).toList()) {
+            scanEmitter(server, level, emitter); // Reconcile actual range exits/entries only.
+            if (!state.isPlaying() || state.isPaused() || !emitter.active()) continue;
+            PlayAudioPacketS2C packet = buildPlayPacket(emitter, state, level,
+                    SpeakerSettings.effectiveRange(emitter.proxy() ? emitter.maxRange() : state.getMaxRange()),
+                    emitter.proxy() ? emitter.maxVolume() : state.getMaxVolume(),
+                    emitter.proxy() ? emitter.dropoff() : state.getAudioDropoff());
+            for (UUID id : subscriptions.getSubscribers(emitter.location())) {
+                ServerPlayer player = server.getPlayerList().getPlayer(id);
+                if (player != null) PacketSenders.sendPlay(player, packet);
+            }
+        }
     }
 
     public static void resyncState(MinecraftServer server, ServerLevel level, String fullStateKey) {
@@ -320,7 +342,7 @@ public final class ServerPlaybackManager {
             return;
         }
 
-        if (!state.isLooping() && state.getPlaybackStartTick() >= 0) {
+        if (!state.isPlaybackLooping() && state.getPlaybackStartTick() >= 0) {
             float elapsedSeconds = state.getPlaybackPositionSeconds(level.getGameTime());
             AudioFileManager audioFileManager = ServerPlaybackEnvironment.audioFiles();
             if (audioFileManager != null) {
@@ -380,7 +402,7 @@ public final class ServerPlaybackManager {
                 state.getAudioId(),
                 state.getAudioFilename(),
                 state.getPlaybackStartTick(),
-                state.isLooping(),
+                state.isPlaybackLooping(),
                 emitter.fullStateKey()
         );
         PacketSenders.sendStateUpdateToAll(level, statePacket);
@@ -388,25 +410,7 @@ public final class ServerPlaybackManager {
 
     private static void broadcastPlaylistSync(ServerLevel level, ServerEmitter emitter, SpeakerState state) {
         if (state == null) return;
-        com.nstut.simplyspeakers.playlist.Playlist pl = state.getPlaylist();
-        List<String> audioIds = new ArrayList<>();
-        List<String> filenames = new ArrayList<>();
-        for (com.nstut.simplyspeakers.playlist.PlaylistTrack track : pl.getTracks()) {
-            audioIds.add(track.getAudioId());
-            filenames.add(track.getFilename());
-        }
-        int playingIndex = state.isPlaying() ? pl.getCurrentIndex() : -1;
-        com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C packet = new com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C(
-                new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()),
-                emitter.fullStateKey(),
-                audioIds,
-                filenames,
-                pl.getCurrentIndex(),
-                pl.isShuffle(),
-                pl.getRepeatMode().ordinal(),
-                playingIndex,
-                state.isPaused()
-        );
+        com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C packet = com.nstut.simplyspeakers.network.PlaylistSyncPacketS2C.fromState(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()), emitter.fullStateKey(), state, level.getGameTime(), ServerPlaybackEnvironment.audioFiles());
         PacketSenders.sendPlaylistSyncToAll(level, packet);
     }
 
@@ -423,7 +427,7 @@ public final class ServerPlaybackManager {
         AudioFileManager audioFileManager = ServerPlaybackEnvironment.audioFiles();
         if (audioFileManager != null) {
             AudioFileMetadata meta = audioFileManager.getManifest().get(state.getAudioId());
-            if (meta != null && meta.getDurationSeconds() > 0.0f && state.isLooping()) {
+            if (meta != null && meta.getDurationSeconds() > 0.0f && state.isPlaybackLooping()) {
                 playbackPositionSeconds = elapsedSeconds % meta.getDurationSeconds();
             }
         }
@@ -433,7 +437,7 @@ public final class ServerPlaybackManager {
                 state.getAudioId(),
                 state.getAudioFilename(),
                 playbackPositionSeconds,
-                state.isLooping(),
+                state.isPlaybackLooping(),
                 (int) effectiveRange,
                 maxVolume,
                 dropoff);

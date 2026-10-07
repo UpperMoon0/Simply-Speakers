@@ -67,10 +67,31 @@ public final class ServerSpeakerControlService {
         return !ambiguous ? matchedKey : null;
     }
 
+    /** Starts a local clip once without editing the saved playlist or repeat preference. */
+    public static boolean playAnnouncement(MinecraftServer server, ServerLevel level, String key,
+                                          String audioId, UUID actor, boolean restart) {
+        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(key);
+        AudioFileManager files = ServerPlaybackEnvironment.audioFiles();
+        AudioFileMetadata meta = files == null ? null : files.getManifest().get(audioId);
+        if (actor == null || state == null || meta == null || meta.getDurationSeconds() <= 0
+            || !com.nstut.simplyspeakers.audio.AudioOwnership.isOwnedBy(meta.getOwnerUUID(), actor.toString())) return false;
+        if (!restart && state.isPlaying() && state.isOneShotPlayback() && audioId.equals(state.getAudioId())) return true;
+        ServerPlaybackManager.beginNewPlaybackSession(key);
+        state.setAudioId(meta.getUuid()); state.setAudioFilename(meta.getOriginalFilename());
+        state.startPlaybackAt(level.getGameTime(), 0);
+        state.setOneShotPlayback(true);
+        broadcastStateUpdate(level, key, state, "play");
+        ServerPlaybackManager.resyncState(server, level, key);
+        ServerSpeakerRegistry.markDirty();
+        SpeakerEvents.fire(SpeakerEvents.Type.STARTED, key, state.getNetworkName(), audioId);
+        return true;
+    }
+
     public static boolean play(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null || !state.hasAudio()) return false;
+        if (state == null) return false;
+        if (!state.hasAudio()) return state.hasPlaybackContinuation() && next(server, level, fullStateKey);
         if (state.isPlaying() && !state.isPaused()) return true;
         long now = level != null ? level.getGameTime() : 0;
         if (state.isPlaying() && state.isPaused()) {
@@ -165,19 +186,19 @@ public final class ServerSpeakerControlService {
     public static boolean next(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null || !state.hasPlaylist()) return false;
-        Playlist.Advance adv = state.getPlaylist().next();
+        if (state == null || (!state.hasAudio() && !state.hasPlaybackContinuation())) return false;
+        Playlist.Advance adv = state.hasPlaybackContinuation() ? state.getPlaylist().nextRequested()
+                : new Playlist.Advance(Playlist.AdvanceResult.EXHAUSTED, null);
         if (adv.hasTrack()) {
             state.setAudioId(adv.track().getAudioId());
-            state.setAudioFilename(adv.track().getFilename());
+            state.setAudioFilename(filenameFor(adv.track()));
+            ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
             state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
-            broadcastPlaylistSync(level, fullStateKey, state);
             broadcastStateUpdate(level, fullStateKey, state, "play");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.TRACK_CHANGED, fullStateKey, state.getNetworkName(), state.getAudioId());
         } else {
             state.stopPlayback();
-            broadcastPlaylistSync(level, fullStateKey, state);
             broadcastStateUpdate(level, fullStateKey, state, "stop");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, fullStateKey, state.getNetworkName(), state.getAudioId());
@@ -189,19 +210,20 @@ public final class ServerSpeakerControlService {
     public static boolean previous(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null || !state.hasPlaylist()) return false;
+        if (state == null) return false;
+        if (!state.isPlaylistSourceActive() || state.getPlaylist().isEmpty()) return restart(server, level, fullStateKey);
+        if (!state.hasPlaylist()) return false;
         Playlist.Advance adv = state.getPlaylist().previous();
         if (adv.hasTrack()) {
             state.setAudioId(adv.track().getAudioId());
-            state.setAudioFilename(adv.track().getFilename());
+            state.setAudioFilename(filenameFor(adv.track()));
+            ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
             state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
-            broadcastPlaylistSync(level, fullStateKey, state);
             broadcastStateUpdate(level, fullStateKey, state, "play");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.TRACK_CHANGED, fullStateKey, state.getNetworkName(), state.getAudioId());
         } else {
             state.stopPlayback();
-            broadcastPlaylistSync(level, fullStateKey, state);
             broadcastStateUpdate(level, fullStateKey, state, "stop");
             ServerPlaybackManager.resyncState(server, level, fullStateKey);
             SpeakerEvents.fire(SpeakerEvents.Type.FINISHED, fullStateKey, state.getNetworkName(), state.getAudioId());
@@ -232,21 +254,50 @@ public final class ServerSpeakerControlService {
     }
 
     public static boolean playlistControl(MinecraftServer server, ServerLevel level, String fullStateKey, byte op, int index, boolean flag, String audioId, String filename) {
+        return playlistControl(server,level,fullStateKey,op,index,flag,audioId,filename,"");
+    }
+    public static boolean playlistControl(MinecraftServer server, ServerLevel level, String fullStateKey, byte op, int index, boolean flag, String audioId,String filename,String playlistId) {
         if (fullStateKey == null) return false;
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
-        Playlist playlist = state.getPlaylist();
+        boolean queueOperation=op>=PlaylistControlPacketC2S.OP_QUEUE_NEXT && op<=PlaylistControlPacketC2S.OP_QUEUE_DOWN && op!=PlaylistControlPacketC2S.OP_SET_SHUFFLE && op!=PlaylistControlPacketC2S.OP_SET_REPEAT;
+        boolean activeOperation=queueOperation || op==PlaylistControlPacketC2S.OP_SET_SHUFFLE || op==PlaylistControlPacketC2S.OP_SET_REPEAT || op==PlaylistControlPacketC2S.OP_PLAY_AUDIO;
+        String targetId=playlistId==null || playlistId.isEmpty() || activeOperation ? state.getActivePlaylistId() : playlistId;
+        var saved=state.findSavedPlaylist(targetId);
+        if(saved==null && !activeOperation && !state.isPersonalPlaylistSource() && op!=PlaylistControlPacketC2S.OP_CREATE_PLAYLIST)return false;
+        Playlist playlist=state.isPersonalPlaylistSource() || saved==null?state.getPlaylist():saved.getPlaylist();
+        boolean playbackLoopingBefore = state.isPlaybackLooping();
         boolean trackChanged = false;
         switch (op) {
-            case PlaylistControlPacketC2S.OP_ADD -> { if (audioId != null && !audioId.isEmpty()) playlist.add(audioId, filename != null ? filename : ""); }
+            case PlaylistControlPacketC2S.OP_ADD -> {
+                if(audioId==null || audioId.isEmpty() || playlist.size()>=Playlist.MAX_ENTRIES || state.savedTrackCount()>=SpeakerState.MAX_SAVED_TRACKS) return false;
+                playlist.add(audioId,filename==null?"":filename);
+            }
+            case PlaylistControlPacketC2S.OP_CREATE_PLAYLIST -> { if(state.createSavedPlaylist(filename)==null) return false; }
+            case PlaylistControlPacketC2S.OP_RENAME_PLAYLIST -> { if(!state.renameSavedPlaylist(targetId,filename)) return false; }
+            case PlaylistControlPacketC2S.OP_DUPLICATE_PLAYLIST -> { if(state.duplicateSavedPlaylist(targetId,filename)==null) return false; }
+            case PlaylistControlPacketC2S.OP_DELETE_PLAYLIST -> {
+
+                boolean active=state.getActivePlaylistId().equals(targetId);
+                if(active) stop(server,level,fullStateKey);
+                if(!state.deleteSavedPlaylist(targetId)) return false;
+                trackChanged=active;
+            }
             case PlaylistControlPacketC2S.OP_REMOVE_AUDIO -> { if (audioId != null && !audioId.isEmpty()) playlist.removeByAudioId(audioId); }
+            case PlaylistControlPacketC2S.OP_REMOVE_INDEX -> playlist.removeAt(index);
             case PlaylistControlPacketC2S.OP_MOVE_UP -> playlist.moveUp(index);
             case PlaylistControlPacketC2S.OP_MOVE_DOWN -> playlist.moveDown(index);
             case PlaylistControlPacketC2S.OP_CLEAR -> playlist.clear();
             case PlaylistControlPacketC2S.OP_SET_SHUFFLE -> playlist.setShuffle(flag);
             case PlaylistControlPacketC2S.OP_SET_REPEAT -> playlist.setRepeatMode(RepeatMode.values()[Math.max(0, Math.min(RepeatMode.values().length - 1, index))]);
             case PlaylistControlPacketC2S.OP_SELECT_INDEX -> {
+                if (index < 0 || index >= playlist.size()) return false;
+                if(!state.getActivePlaylistId().equals(targetId) && !flag) { playlist.selectIndex(index);break; }
+                state.activateSavedPlaylist(targetId);
+                if(!state.isPersonalPlaylistSource())playlist.clearQueue();
+                playlist.setResumeIndex(-1);
                 PlaylistTrack selected = playlist.selectIndex(index);
+                state.setPlaylistSourceActive(true);
                 if (selected != null) {
                     state.setAudioId(selected.getAudioId());
                     state.setAudioFilename(selected.getFilename());
@@ -257,9 +308,42 @@ public final class ServerSpeakerControlService {
                     }
                 }
             }
-            case PlaylistControlPacketC2S.OP_QUEUE_NEXT -> { if (audioId != null && !audioId.isEmpty()) playlist.queueNext(audioId); }
+            case PlaylistControlPacketC2S.OP_QUEUE_NEXT -> playlist.queueNext(audioId);
+            case PlaylistControlPacketC2S.OP_QUEUE_LAST -> playlist.queueLast(audioId);
+            case PlaylistControlPacketC2S.OP_CLEAR_QUEUE -> playlist.clearQueue();
+            case PlaylistControlPacketC2S.OP_REMOVE_QUEUED -> playlist.removeQueued(index);
+            case PlaylistControlPacketC2S.OP_QUEUE_UP -> playlist.moveQueued(index, -1);
+            case PlaylistControlPacketC2S.OP_QUEUE_DOWN -> playlist.moveQueued(index, 1);
+            case PlaylistControlPacketC2S.OP_PLAY_PLAYLIST -> {
+                if (playlist.size() == 0) return false;
+                state.activateSavedPlaylist(targetId);
+                var requests=state.isPersonalPlaylistSource()?new java.util.ArrayList<>(playlist.getQueue()):java.util.List.<String>of();
+                PlaylistTrack selected = playlist.playFromStart();
+                for(String request:requests)playlist.queueLast(request);
+                state.setPlaylistSourceActive(true);
+                if (selected == null) return false;
+                state.setAudioId(selected.getAudioId());
+                state.setAudioFilename(selected.getFilename());
+                ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
+                state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0);
+                trackChanged = true;
+            }
+            case PlaylistControlPacketC2S.OP_PLAY_AUDIO -> {
+                if (audioId == null || audioId.isEmpty()) return false;
+                playlist.clearQueue(); playlist.setResumeIndex(-1);
+                state.setPlaylistSourceActive(false);
+                state.setAudioId(audioId); state.setAudioFilename(filename);
+                ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
+                state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0);
+                trackChanged = true;
+            }
+            default -> { return false; }
         }
-        broadcastPlaylistSync(level, fullStateKey, state);
+        if (!trackChanged) broadcastPlaylistSync(level, fullStateKey, state);
+        if (!trackChanged && playbackLoopingBefore != state.isPlaybackLooping()) {
+            broadcastStateUpdate(level, fullStateKey, state, "update");
+            if (state.isPlaying() && !state.isPaused()) ServerPlaybackManager.resyncState(server,level,fullStateKey);
+        }
         if (trackChanged) {
             boolean activelyPlaying = state.isPlaying() && !state.isPaused();
             broadcastStateUpdate(level, fullStateKey, state, activelyPlaying ? "play" : "update");
@@ -277,16 +361,17 @@ public final class ServerSpeakerControlService {
         boolean directional = false;
         switch (op) {
             case SpeakerPolicyPacketC2S.OP_CLAIM_OWNER -> { if (state.getOwnerUuid() == null && playerUuid != null) state.claimOwnershipIfAbsent(playerUuid); }
+            case SpeakerPolicyPacketC2S.OP_TRANSFER_OWNER -> { if(playerUuid==null)return false;state.setOwnerUuid(playerUuid); }
             case SpeakerPolicyPacketC2S.OP_NETWORK_NAME -> state.setNetworkName(strValue != null ? strValue.trim() : "");
             case SpeakerPolicyPacketC2S.OP_ACCESS_MODE -> state.setAccessMode(SpeakerAccess.fromIndex(intValue));
             case SpeakerPolicyPacketC2S.OP_TRUST_CHANGE -> { if (playerUuid != null) { if (intValue > 0) state.trustPlayer(playerUuid); else state.distrustPlayer(playerUuid); } }
-            case SpeakerPolicyPacketC2S.OP_REDSTONE_MODE -> state.setRedstoneMode(RedstoneMode.fromIndex(intValue));
+            case SpeakerPolicyPacketC2S.OP_REDSTONE_MODE -> { return false; } // Legacy packets cannot enable native redstone.
             case SpeakerPolicyPacketC2S.OP_DIRECTIONALITY -> { state.setDirectionality(Math.max(0.0f, Math.min(1.0f, floatValue))); directional = true; }
             case SpeakerPolicyPacketC2S.OP_CONE_ANGLE -> { state.setConeAngleDegrees(Math.max(5, Math.min(350, intValue))); directional = true; }
             case SpeakerPolicyPacketC2S.OP_REAR_ATTENUATION -> { state.setRearAttenuation(Math.max(0.0f, Math.min(1.0f, floatValue))); directional = true; }
         }
         broadcastStateUpdate(level, fullStateKey, state, "update");
-        if (directional) ServerPlaybackManager.resyncState(server, level, fullStateKey);
+        if (directional) ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
         ServerSpeakerRegistry.markDirty();
         return true;
     }
@@ -311,8 +396,27 @@ public final class ServerSpeakerControlService {
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
         state.setMaxVolume(Math.max(0.0f, Math.min(1.0f, volume)));
+        ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
         broadcastStateUpdate(level, fullStateKey, state, "update");
         ServerSpeakerRegistry.markDirty();
+        return true;
+    }
+
+    public static boolean setAudioDropoff(MinecraftServer server,ServerLevel level,String key,float value) {
+        if (!Float.isFinite(value)) return false;
+        var state=ServerSpeakerRegistry.getSpeakerStateByFullKey(key);if(state==null)return false;
+        state.setAudioDropoff(Math.max(0,Math.min(1,value)));
+        ServerPlaybackManager.refreshSettings(server,level,key);
+        broadcastStateUpdate(level,key,state,"update");ServerSpeakerRegistry.markDirty();return true;
+    }
+
+    /** Controller volume is transient; saved/manual volume survives unload and restart. */
+    public static boolean setControllerVolume(MinecraftServer server, ServerLevel level, String fullStateKey, Float volume) {
+        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        if (state == null) return false;
+        state.setControllerVolume(volume);
+        ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
+        broadcastStateUpdate(level, fullStateKey, state, "update");
         return true;
     }
 
@@ -321,19 +425,15 @@ public final class ServerSpeakerControlService {
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
         if (state == null) return false;
         state.setMaxRange(Math.max(1, range));
+        ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
         broadcastStateUpdate(level, fullStateKey, state, "update");
         ServerSpeakerRegistry.markDirty();
         return true;
     }
 
     public static boolean setLooping(MinecraftServer server, ServerLevel level, String fullStateKey, boolean looping) {
-        if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
-        if (state == null) return false;
-        state.setLooping(looping);
-        broadcastStateUpdate(level, fullStateKey, state, "update");
-        ServerSpeakerRegistry.markDirty();
-        return true;
+        return playlistControl(server,level,fullStateKey,PlaylistControlPacketC2S.OP_SET_REPEAT,
+            (looping?RepeatMode.TRACK:RepeatMode.NONE).ordinal(),false,"","");
     }
 
     public static void selectPlaylistSlot(MinecraftServer server, ServerLevel level, String fullStateKey, int slotIndex) {
@@ -344,29 +444,26 @@ public final class ServerSpeakerControlService {
         }
     }
 
+    static String filenameFor(PlaylistTrack track) {
+        var files = ServerPlaybackEnvironment.audioFiles();
+        var metadata = files == null ? null : files.getManifest().get(track.getAudioId());
+        return metadata == null ? track.getFilename() : metadata.effectiveDisplayName();
+    }
+
     private static void broadcastStateUpdate(ServerLevel level, String fullStateKey, SpeakerState state, String action) {
         if (level == null || fullStateKey == null || state == null) return;
         String speakerId = fullStateKey.contains("/net_") ? fullStateKey.substring(fullStateKey.indexOf("/net_") + 5) : "";
         BlockPos pos = speakerId.isEmpty() ? ServerSpeakerRegistry.findFirstSpeakerPosition(fullStateKey) : null;
         SpeakerStateUpdatePacketS2C packet = new SpeakerStateUpdatePacketS2C(
                 pos, speakerId, action, state.getAudioId(), state.getAudioFilename(),
-                state.getPlaybackStartTick(), state.isLooping(), fullStateKey);
+                state.getPlaybackStartTick(), state.isPlaybackLooping(), fullStateKey).withSettings(state);
         ServerPlaybackEnvironment.sendState(level, packet);
+        broadcastPlaylistSync(level, fullStateKey, state);
     }
 
     private static void broadcastPlaylistSync(ServerLevel level, String fullStateKey, SpeakerState state) {
         if (level == null || fullStateKey == null || state == null) return;
-        Playlist pl = state.getPlaylist();
-        List<String> audioIds = new ArrayList<>();
-        List<String> filenames = new ArrayList<>();
-        for (PlaylistTrack track : pl.getTracks()) {
-            audioIds.add(track.getAudioId());
-            filenames.add(track.getFilename());
-        }
-        int playingIndex = state.isPlaying() ? pl.getCurrentIndex() : -1;
-        PlaylistSyncPacketS2C packet = new PlaylistSyncPacketS2C(
-                BlockPos.ZERO, fullStateKey, audioIds, filenames, pl.getCurrentIndex(),
-                pl.isShuffle(), pl.getRepeatMode().ordinal(), playingIndex, state.isPaused());
+        PlaylistSyncPacketS2C packet = PlaylistSyncPacketS2C.fromState(BlockPos.ZERO, fullStateKey, state, level.getGameTime(), ServerPlaybackEnvironment.audioFiles());
         ServerPlaybackEnvironment.sendPlaylist(level, packet);
     }
 }

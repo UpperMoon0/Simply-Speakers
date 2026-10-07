@@ -70,6 +70,7 @@ public class ClientAudioPlayer {
         final int[] bufferIDs;
         final Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
+        final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
         final AtomicBoolean isLooping = new AtomicBoolean(false);
         /** Server-provided state identity reported back on remote stream EOF; null for local files. */
         final String eofFullStateKey;
@@ -91,6 +92,9 @@ public class ClientAudioPlayer {
         }
 
         void stopAndCleanup() {
+            // Transport stop and decoder completion can race. Delete each OpenAL
+            // allocation once so a delayed cleanup cannot delete a reused source ID.
+            if (!cleanupScheduled.compareAndSet(false,true)) return;
             stopFlag.set(true);
             if (streamingThread != null && streamingThread.isAlive()) {
                 streamingThread.interrupt();
@@ -177,7 +181,7 @@ public class ClientAudioPlayer {
                 pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff);
 
         String oldKey = membership.getNetworkKey(pos);
-        membership.track(pos, networkKey, new com.nstut.simplyspeakers.SpeakerSettings(maxVolume, maxRange, audioDropoff));
+        membership.track(pos, networkKey, new com.nstut.simplyspeakers.SpeakerSettings(maxVolume, Math.min(maxRange, Config.speakerRange), audioDropoff));
         if (directional != null) {
             directionalExtras.put(pos, directional);
         } else {
@@ -801,21 +805,8 @@ public class ClientAudioPlayer {
             List<SpatialAudioCalculator.SpeakerEmitter> emitters = new ArrayList<>();
 
             for (BlockPos speakerPos : positions) {
-                if (mc.level.hasChunkAt(speakerPos)) {
-                    net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(speakerPos);
-                    if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speakerBlockEntity) {
-                        membership.updateSettings(speakerPos, new com.nstut.simplyspeakers.SpeakerSettings(
-                                speakerBlockEntity.getMaxVolume(),
-                                Math.min(speakerBlockEntity.getMaxRange(), Config.speakerRange),
-                                speakerBlockEntity.getAudioDropoff()));
-                    } else if (blockEntity instanceof com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity proxySpeakerBlockEntity) {
-                        membership.updateSettings(speakerPos, new com.nstut.simplyspeakers.SpeakerSettings(
-                                proxySpeakerBlockEntity.getMaxVolume(),
-                                Math.min(proxySpeakerBlockEntity.getMaxRange(), Config.speakerRange),
-                                proxySpeakerBlockEntity.getAudioDropoff()));
-                    }
-                }
-
+                // Play/settings packets are authoritative for loaded and unloaded emitters.
+                // Block tags contain saved preferences and can lag transient controller gain.
                 com.nstut.simplyspeakers.SpeakerSettings cached = membership.getSettings(speakerPos);
                 if (cached != null) {
                     com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);

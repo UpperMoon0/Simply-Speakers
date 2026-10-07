@@ -37,6 +37,40 @@ public final class SpeakerApi {
     private SpeakerApi() {
     }
 
+    /** Actor-less calls are untrusted automation, never an ownership bypass. */
+    private static boolean authorized(Level level, BlockPos pos, boolean manage) {
+        if (!(level instanceof ServerLevel) || pos == null) return false;
+        SpeakerState state = getState(level, pos);
+        return manage ? com.nstut.simplyspeakers.SpeakerPermissions.canAutomationManage(state)
+                : com.nstut.simplyspeakers.SpeakerPermissions.canAutomationControl(state);
+    }
+
+    /** Resolves a public stream or the network owner's recording; ignores supplied filenames. */
+    public static @Nullable com.nstut.simplyspeakers.audio.AudioFileMetadata resolveAutomationTrack(Level level, BlockPos pos, String id) {
+        if (!authorized(level,pos,false) || id == null || id.isEmpty() || id.length()>256) return null;
+        if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(id)) {
+            if (!com.nstut.simplyspeakers.Config.isRemoteStreamingAllowed()
+                    || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(id)
+                    || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(id,false)) return null;
+            return new com.nstut.simplyspeakers.audio.AudioFileMetadata(id,id);
+        }
+        var files=com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager();
+        var state=getState(level,pos);
+        if (files==null || state.getOwnerUuid()==null) return null;
+        var track=files.getManifest().get(id);
+        return track!=null && com.nstut.simplyspeakers.audio.AudioOwnership.isOwnedBy(track.getOwnerUUID(),state.getOwnerUuid().toString()) ? track : null;
+    }
+
+    /** Selection stays idle unless playback was already running. */
+    public static boolean selectTrack(Level level,BlockPos pos,String id) {
+        if (!authorized(level,pos,false)) return false;
+        var track=id!=null && id.isEmpty()?null:resolveAutomationTrack(level,pos,id);
+        if (track==null && (id==null || !id.isEmpty())) return false;
+        var serverLevel=(ServerLevel)level;
+        return ServerSpeakerControlService.selectAudio(serverLevel.getServer(),serverLevel,
+            ServerSpeakerControlService.resolveFullStateKey(level,pos),id,track==null?"":track.getOriginalFilename());
+    }
+
     // ------------------------------------------------------------------
     // Transport operations by BlockPos
     // ------------------------------------------------------------------
@@ -78,6 +112,8 @@ public final class SpeakerApi {
     }
 
     public static boolean applyTransport(Level level, BlockPos pos, byte action, float seekSeconds) {
+        if (!Float.isFinite(seekSeconds)) return false;
+        if (!authorized(level,pos,false)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
@@ -123,7 +159,8 @@ public final class SpeakerApi {
     public static boolean applyTransportNetwork(Level level, String networkOrFullKey, byte action, float seekSeconds) {
         if (!(level instanceof ServerLevel serverLevel) || networkOrFullKey == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKeyByNetwork(level, networkOrFullKey);
-        if (fullKey == null) return false;
+        if (fullKey == null || !Float.isFinite(seekSeconds)
+                || !com.nstut.simplyspeakers.SpeakerPermissions.canAutomationControl(ServerSpeakerRegistry.getSpeakerStateByFullKey(fullKey))) return false;
         return ServerSpeakerControlService.applyTransport(serverLevel.getServer(), serverLevel, fullKey, action, seekSeconds);
     }
 
@@ -132,15 +169,17 @@ public final class SpeakerApi {
     // ------------------------------------------------------------------
 
     public static boolean setTrack(Level level, BlockPos pos, String audioId, String filename) {
+        if (!authorized(level,pos,false)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
-        boolean ok = ServerSpeakerControlService.selectAudio(serverLevel.getServer(), serverLevel, fullKey, audioId, filename);
+        boolean ok = selectTrack(level,pos,audioId);
         if (ok) ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, fullKey);
         return ok;
     }
 
     public static boolean setLooping(Level level, BlockPos pos, boolean looping) {
+        if (!authorized(level,pos,false)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
@@ -148,6 +187,8 @@ public final class SpeakerApi {
     }
 
     public static boolean setVolume(Level level, BlockPos pos, float volume0to1) {
+        if (!Float.isFinite(volume0to1)) return false;
+        if (!authorized(level,pos,false)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
@@ -155,13 +196,15 @@ public final class SpeakerApi {
     }
 
     public static boolean setRange(Level level, BlockPos pos, int blocks) {
+        if (!authorized(level,pos,false)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
-        return ServerSpeakerControlService.setRange(serverLevel.getServer(), serverLevel, fullKey, blocks);
+        return ServerSpeakerControlService.setRange(serverLevel.getServer(), serverLevel, fullKey, Math.max(1,Math.min(com.nstut.simplyspeakers.Config.speakerRange,blocks)));
     }
 
     public static boolean setRedstoneMode(Level level, BlockPos pos, RedstoneMode mode) {
+        if (!authorized(level,pos,true)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
@@ -171,6 +214,7 @@ public final class SpeakerApi {
     }
 
     public static boolean setAccessMode(Level level, BlockPos pos, SpeakerAccess access) {
+        if (!authorized(level,pos,true)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
@@ -180,6 +224,7 @@ public final class SpeakerApi {
     }
 
     public static boolean setNetworkName(Level level, BlockPos pos, String name) {
+        if (!authorized(level,pos,true)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
@@ -214,10 +259,68 @@ public final class SpeakerApi {
 
     private static boolean playlistOp(Level level, BlockPos pos, byte op, int index,
                                       boolean flag, String audioId, String filename) {
+        if (!authorized(level,pos,false)) return false;
         if (!(level instanceof ServerLevel serverLevel) || pos == null) return false;
         String fullKey = ServerSpeakerControlService.resolveFullStateKey(level, pos);
         if (fullKey == null) return false;
+        if (op==com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_ADD || op==com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_NEXT || op==com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_LAST) {
+            var track=resolveAutomationTrack(level,pos,audioId);if(track==null)return false;
+            audioId=track.getUuid();filename=track.getOriginalFilename();
+        }
         return ServerSpeakerControlService.playlistControl(serverLevel.getServer(), serverLevel, fullKey, op, index, flag, audioId, filename);
+    }
+
+    public static boolean setAudioDropoff(Level level,BlockPos pos,float value) {
+        if (!Float.isFinite(value) || !authorized(level,pos,false)) return false;
+        var serverLevel=(ServerLevel)level;
+        return ServerSpeakerControlService.setAudioDropoff(serverLevel.getServer(),serverLevel,ServerSpeakerControlService.resolveFullStateKey(level,pos),value);
+    }
+    private static boolean directionalPolicy(Level level,BlockPos pos,byte op,int integer,float value) {
+        if (!Float.isFinite(value) || !authorized(level,pos,true)) return false;
+        var serverLevel=(ServerLevel)level;
+        return ServerSpeakerControlService.policyControl(serverLevel.getServer(),serverLevel,ServerSpeakerControlService.resolveFullStateKey(level,pos),op,"",integer,value,null);
+    }
+    public static boolean setDirectionality(Level level,BlockPos pos,float value) { return directionalPolicy(level,pos,com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_DIRECTIONALITY,0,value); }
+    public static boolean setConeAngle(Level level,BlockPos pos,int degrees) { return directionalPolicy(level,pos,com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_CONE_ANGLE,degrees,0); }
+    public static boolean setRearAttenuation(Level level,BlockPos pos,float value) { return directionalPolicy(level,pos,com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_REAR_ATTENUATION,0,value); }
+    public static boolean playlistQueueLast(Level level,BlockPos pos,String id) { return playlistOp(level,pos,com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_LAST,0,false,id,""); }
+    public static boolean playlistClearQueue(Level level,BlockPos pos) { return playlistOp(level,pos,com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_CLEAR_QUEUE,0,false,"",""); }
+    public static boolean playlistRemoveQueued(Level level,BlockPos pos,int index) {
+        var state=getState(level,pos);if(state==null || index<0 || index>=state.getPlaylist().getQueue().size())return false;
+        return playlistOp(level,pos,com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_REMOVE_QUEUED,index,false,"","");
+    }
+    public static boolean playlistMoveQueued(Level level,BlockPos pos,int index,int delta) {
+        var state=getState(level,pos);if(state==null || Math.abs(delta)!=1 || index<0 || index+delta<0
+            || index>=state.getPlaylist().getQueue().size() || index+delta>=state.getPlaylist().getQueue().size())return false;
+        return playlistOp(level,pos,delta<0?com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_UP:com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_DOWN,index,false,"","");
+    }
+    public static boolean playlistPlay(Level level,BlockPos pos) { return playlistOp(level,pos,com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_PLAY_PLAYLIST,0,false,"",""); }
+    public static boolean playlistSelect(Level level,BlockPos pos,int index) { return playlistOp(level,pos,com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_SELECT_INDEX,index,true,"",""); }
+
+    public static java.util.List<com.nstut.simplyspeakers.audio.AudioFileMetadata> getLibrary(Level level,BlockPos pos) {
+        if(!authorized(level,pos,false))return java.util.List.of();
+        var state=getState(level,pos);var files=com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager();
+        if(files==null || state.getOwnerUuid()==null)return java.util.List.of();
+        return files.getManifest().values().stream().filter(audio -> com.nstut.simplyspeakers.audio.AudioOwnership.isOwnedBy(audio.getOwnerUUID(),state.getOwnerUuid().toString()))
+            .sorted(java.util.Comparator.comparing(com.nstut.simplyspeakers.audio.AudioFileMetadata::getOriginalFilename)).toList();
+    }
+
+    /** Read-only catalog belonging to the owner who opted this network into public automation. */
+    public static java.util.List<com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.Entry> getSavedPlaylists(Level level,BlockPos pos) {
+        if(!authorized(level,pos,false))return java.util.List.of();
+        var state=getState(level,pos);if(state.getOwnerUuid()==null)return java.util.List.of();
+        return com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.capture(
+            com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.library(state.getOwnerUuid())).entries();
+    }
+    /** Copies an owner's template into this speaker without changing their saved list or queue. */
+    public static boolean playSavedPlaylist(Level level,BlockPos pos,String id) {
+        if(!authorized(level,pos,false) || id==null)return false;
+        var state=getState(level,pos);if(state.getOwnerUuid()==null)return false;
+        var saved=com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.library(state.getOwnerUuid()).findSavedPlaylist(id);
+        if(saved==null || saved.getPlaylist().isEmpty())return false;
+        for(var track:saved.getPlaylist().getTracks())if(resolveAutomationTrack(level,pos,track.getAudioId())==null)return false;
+        state.usePlayerPlaylist(state.getOwnerUuid(),id,saved.getPlaylist());
+        return playlistPlay(level,pos);
     }
 
     // ------------------------------------------------------------------

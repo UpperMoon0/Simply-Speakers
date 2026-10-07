@@ -29,9 +29,6 @@ public class SimplySpeakersFabric implements ModInitializer {
         // 0.8.x: CC:Tweaked peripheral support (optional dependency)
         // The CC API references live inside SimplySpeakersPeripheral.registerProvider so
         // this entrypoint class never resolves CC classes when the mod is absent.
-        if (FabricLoader.getInstance().isModLoaded("computercraft")) {
-            SimplySpeakersPeripheral.registerProvider();
-        }
 
         // Load config
         FabricConfig.init();
@@ -43,6 +40,11 @@ public class SimplySpeakersFabric implements ModInitializer {
         BlockRegistries.BLOCKS.register();
         BlockEntityRegistries.BLOCK_ENTITIES.register();
         ItemRegistries.ITEMS.register();
+
+        // Peripheral lookup requires the registered speaker block entity type.
+        if (FabricLoader.getInstance().isModLoaded("computercraft")) {
+            SimplySpeakersPeripheral.registerProvider();
+        }
 
         // Initialize packet registration
         PacketRegistries.init();

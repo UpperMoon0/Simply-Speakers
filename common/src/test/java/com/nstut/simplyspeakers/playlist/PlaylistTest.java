@@ -105,13 +105,16 @@ class PlaylistTest {
     }
 
     @Test
-    void queuedUnknownIdsAreSkipped() {
-        playlist.queueNext("missing");
+    void queuedLibraryTracksDoNotNeedToBeInTheSavedPlaylist() {
+        playlist.selectIndex(0);
+        playlist.queueNext("library-only");
         playlist.queueNext("b");
         Playlist.Advance advance = playlist.next();
         assertEquals("b", advance.track().getAudioId());
         Playlist.Advance nextAdvance = playlist.next();
-        assertEquals("c", nextAdvance.track().getAudioId());
+        assertEquals("library-only", nextAdvance.track().getAudioId());
+        assertEquals("b", playlist.next().track().getAudioId());
+        assertEquals(3, playlist.size());
     }
 
     @Test

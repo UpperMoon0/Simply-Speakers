@@ -70,10 +70,9 @@ class PlaybackEofChurnWiringTest {
         Path root = findProjectRoot();
         for (String relative : CC_MODULES) {
             String code = Files.readString(root.resolve(relative));
-            assertTrue(code.contains("AudioOwnership.isOwnedBy(meta.getOwnerUUID(), ownerUuid)"),
-                    relative + " setTrack must enforce library ownership via the network owner");
-            assertTrue(code.contains("state.getOwnerUuid()"),
-                    relative + " setTrack must resolve ownership from the speaker state owner");
+            // Ownership is exercised through real CC Lua and Java API integration tests.
+            assertTrue(code.contains("SpeakerApi.selectTrack(serverLevel(),pos(),audioId)"),
+                    relative + " must use the shared validated automation entrypoint");
             assertFalse(code.contains("system actor"),
                     relative + " must not claim computers are system actors");
         }

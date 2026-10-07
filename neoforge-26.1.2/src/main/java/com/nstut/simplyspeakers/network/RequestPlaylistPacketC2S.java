@@ -42,8 +42,10 @@ public class RequestPlaylistPacketC2S implements CustomPacketPayload {
     public static void handle(RequestPlaylistPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) return;
+            if (!SpeakerPacketSecurity.canModify(player, packet.pos)) return;
             if (!(player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker)) return;
+            if(!SpeakerPacketSecurity.canControlSpeaker(player,packet.pos)
+                    && !com.nstut.simplyspeakers.SpeakerPermissions.canManage(speaker.getSpeakerState(),player.getUUID(),player.level().getServer().getPlayerList().isOp(player.nameAndId())))return;
             sendSnapshot(player, speaker, packet.pos);
         });
     }
@@ -51,25 +53,7 @@ public class RequestPlaylistPacketC2S implements CustomPacketPayload {
     private static void sendSnapshot(ServerPlayer player, SpeakerBlockEntity speaker, BlockPos pos) {
         SpeakerState state = speaker.getSpeakerState();
         if (state == null) return;
-        Playlist playlist = state.getPlaylist();
-        List<String> audioIds = new ArrayList<>();
-        List<String> filenames = new ArrayList<>();
-        for (PlaylistTrack track : playlist.getTracks()) {
-            audioIds.add(track.getAudioId());
-            filenames.add(track.getFilename());
-        }
-        int playingIndex = state.isPlaying() ? playlist.getCurrentIndex() : -1;
-        NetworkManager.sendToPlayer(player, new PlaylistSyncPacketS2C(
-                pos,
-                speaker.getFullStateKey(),
-                audioIds,
-                filenames,
-                playlist.getCurrentIndex(),
-                playlist.isShuffle(),
-                playlist.getRepeatMode().ordinal(),
-                playingIndex,
-                state.isPaused()
-        ));
+        PlaylistSyncPacketS2C.sendToPlayer(player, PlaylistSyncPacketS2C.fromState(pos, speaker.getFullStateKey(), state, player.level().getGameTime(), com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager()));
     }
 
     @Override

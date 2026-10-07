@@ -12,6 +12,12 @@ loom {
         mixinConfig "simplyspeakers.mixins.json"
     }
     runs {
+        ccLuaTestServer {
+            server()
+            property "simplyspeakers.ccLuaTest", "true"
+            runDir("run/cc-lua/server")
+            programArg "nogui"
+        }
         liveJoinTestClient {
             client()
             runDir("run/live-join/client")
@@ -52,6 +58,7 @@ configurations {
 }
 
 dependencies {
+    modImplementation "vazkii.patchouli:Patchouli:1.20.1-85-FORGE"
     forge "net.minecraftforge:forge:$project.forge_version"
 
     // Architectury API. This is optional, and you can comment it out if you don't need it.
@@ -122,4 +129,12 @@ shadowJar {
 
 remapJar {
     inputFile.set shadowJar.archiveFile
+}
+
+// Patchouli discovers definitions in the physical loader mod root, while the
+// shared resource pack supplies the localized contents and textures.
+processResources {
+    from('../common/src/main/resources/data/simplyspeakers/patchouli_books') {
+        into 'data/simplyspeakers/patchouli_books'
+    }
 }

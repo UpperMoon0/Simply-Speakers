@@ -11,6 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class SpeakerStatePolicyTest {
 
+    @Test void controllerVolumeIsCopiedAtRuntimeAndPreservesManualVolume() {
+        SpeakerState state=new SpeakerState();state.setMaxVolume(0.7f);state.setControllerVolume(0.2f);
+        assertEquals(0.2f,state.copy().getMaxVolume());
+        assertEquals(0.7f,state.getConfiguredMaxVolume());
+        state.setControllerVolume(null);assertEquals(0.7f,state.getMaxVolume());
+    }
+
     @Test
     void playlistAccessorIsLazyButStable() {
         SpeakerState state = new SpeakerState();

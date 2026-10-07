@@ -23,6 +23,7 @@ public class SpeakerPolicyPacketC2S {
     public static final byte OP_CONE_ANGLE = 5;
     public static final byte OP_REAR_ATTENUATION = 6;
     public static final byte OP_CLAIM_OWNER = 7;
+    public static final byte OP_TRANSFER_OWNER = 8;
 
     private final BlockPos pos;
     private final byte op;
@@ -90,7 +91,22 @@ public class SpeakerPolicyPacketC2S {
             ServerLevel level = player.serverLevel();
             if (level.getBlockEntity(pkt.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
-                if (state == null || !SpeakerPermissions.canManage(state, player.getUUID(), player.hasPermissions(2))) return;
+                if (state == null || !SpeakerPermissions.canManage(state, player.getUUID(), player.hasPermissions(2))) { speaker.sendPlaylistSync(player); return; }
+                if(pkt.op<OP_NETWORK_NAME || pkt.op>OP_TRANSFER_OWNER) return;
+                if(pkt.op==OP_ACCESS_MODE && (pkt.intValue<0 || pkt.intValue>=SpeakerAccess.values().length)) return;
+                java.util.UUID policyPlayer=null;
+                if(pkt.op==OP_TRUST_CHANGE || pkt.op==OP_TRANSFER_OWNER) {
+                    try { policyPlayer=java.util.UUID.fromString(pkt.stringValue.trim()); }
+                    catch(IllegalArgumentException e) {
+                        var online=player.level().getServer().getPlayerList().getPlayerByName(pkt.stringValue.trim());
+                        if(online!=null)policyPlayer=online.getUUID();
+                    }
+                    if(policyPlayer==null) {player.displayClientMessage(net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.access.invalid_player"),true);return;}
+                    if(pkt.op==OP_TRUST_CHANGE && pkt.boolValue && !state.getTrustedPlayers().contains(policyPlayer)
+                            && state.getTrustedPlayers().size()>=com.nstut.simplyspeakers.permissions.AccessViewSnapshot.MAX_TRUSTED) {
+                        player.displayClientMessage(net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.access.trust_limit"),true);return;
+                    }
+                }
                 if (state.getOwnerUuid() == null && pkt.op != OP_DIRECTIONALITY
                         && pkt.op != OP_CONE_ANGLE && pkt.op != OP_REAR_ATTENUATION) {
                     speaker.claimOwnership(player.getUUID());
@@ -99,18 +115,17 @@ public class SpeakerPolicyPacketC2S {
                     case OP_NETWORK_NAME -> speaker.setNetworkName(pkt.stringValue);
                     case OP_REDSTONE_MODE -> speaker.setRedstoneMode(RedstoneMode.fromIndex(pkt.intValue));
                     case OP_ACCESS_MODE -> speaker.setAccessMode(SpeakerAccess.fromIndex(pkt.intValue));
-                    case OP_TRUST_CHANGE -> {
-                        try {
-                            speaker.modifyTrust(java.util.UUID.fromString(pkt.stringValue), pkt.boolValue);
-                        } catch (IllegalArgumentException ignored) {
-                        }
-                    }
+                    case OP_TRUST_CHANGE -> speaker.modifyTrust(policyPlayer,pkt.boolValue);
+                    case OP_TRANSFER_OWNER -> com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.policyControl(
+                        player.level().getServer(),player.serverLevel(),speaker.getFullStateKey(),OP_TRANSFER_OWNER,"",0,0,policyPlayer);
+                    case OP_CLAIM_OWNER -> {}
                     case OP_DIRECTIONALITY -> speaker.setDirectionality(Float.intBitsToFloat(pkt.intValue));
                     case OP_CONE_ANGLE -> speaker.setConeAngleDegrees(pkt.intValue);
                     case OP_REAR_ATTENUATION -> speaker.setRearAttenuation(Float.intBitsToFloat(pkt.intValue));
                     default -> {
                     }
                 }
+                speaker.sendPlaylistSync(player);
             }
         });
     }

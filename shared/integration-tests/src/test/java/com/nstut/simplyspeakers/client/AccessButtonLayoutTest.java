@@ -1,0 +1,77 @@
+package com.nstut.simplyspeakers.client;
+
+import com.nstut.openui.api.Ui;
+import com.nstut.openui.api.UIComponent;
+import com.nstut.openui.runtime.UiRuntime;
+import com.nstut.openui.runtime.NativeWidgetHost;
+import com.nstut.simplyspeakers.client.ui.SpeakerMarqueeButton;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
+import org.junit.jupiter.api.Test;
+import java.util.concurrent.atomic.AtomicReference;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+class AccessButtonLayoutTest {
+    @Test void modeChangesReserveLongestLabelAndRemainInsideNarrowRows() {
+        var font = mock(Font.class);
+        Component[] labels = {Component.literal("Public"), Component.literal("Trusted players"),
+                Component.literal("Owner only"), Component.literal("Operators only")};
+        for (var label : labels) when(font.width(label)).thenReturn(label.getString().length()*6);
+        var selected = new AtomicReference<>(labels[0]);
+        var button = new SpeakerMarqueeButton(selected::get, 6).reserveLabels(labels);
+        button.ghost().small().flex();
+        assertEquals(102, button.preferredWidth(font));
+        for (int width : new int[]{160,240,400}) {
+            UIComponent row = Ui.row(Ui.text(Component.literal("Control access")).nowrap().marquee().flex(),button).gap(6);
+            var runtime = new UiRuntime(font,mock(NativeWidgetHost.class));
+            try {
+                runtime.setRoot(row);runtime.setViewport(0,0,width,24);runtime.flushFrameTasks();
+                for (var label : labels) {
+                    selected.set(label);
+                    assertEquals(102,button.preferredWidth(font));
+                    row.layoutTree(font,0,0,width,24);
+                    assertTrue(button.getWidth()>12);
+                    assertTrue(button.getX()>=0);
+                    assertTrue(button.getX()+button.getWidth()<=width);
+                }
+            } finally {runtime.close();}
+        }
+    }
+    @Test void emptyTrustedDialogDoesNotMountAnEmptyList() throws Exception {
+        com.nstut.simplyspeakers.client.screens.SpeakerScreen screen;
+        try (var prefs=mockStatic(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.class);
+             var minecraft=mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(mock(net.minecraft.client.Minecraft.class));
+            prefs.when(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences::getThemeMode)
+                    .thenReturn(com.nstut.simplyspeakers.client.ui.UiThemeMode.DARK);
+            screen=new com.nstut.simplyspeakers.client.screens.SpeakerScreen(net.minecraft.core.BlockPos.ZERO);
+        }
+        screen.width=400;screen.height=300;
+        var factory=screen.getClass().getDeclaredMethod("buildTrustedPlayersDialog",Runnable.class,Runnable.class);
+        factory.setAccessible(true);
+        var body=(UIComponent)factory.invoke(screen,(Runnable)() -> {},(Runnable)() -> {});
+        var font=mock(Font.class);
+        when(font.split(any(net.minecraft.network.chat.FormattedText.class),anyInt()))
+                .thenReturn(java.util.List.of(net.minecraft.util.FormattedCharSequence.EMPTY));
+        var runtime=new UiRuntime(font,mock(NativeWidgetHost.class));
+        try {
+            runtime.setRoot(body);runtime.setViewport(0,0,320,240);runtime.flushFrameTasks();
+            assertFalse(hasVirtualList(body),"Empty trusted lists must not reserve a scroll viewport");
+            assertTrue(body.preferredHeight(font)<160,"Empty state should fit a compact dialog");
+            var id=java.util.UUID.randomUUID();
+            screen.updateAccessModel(new com.nstut.simplyspeakers.permissions.AccessViewSnapshot(id,"Owner",
+                com.nstut.simplyspeakers.SpeakerAccess.TRUSTED,
+                java.util.List.of(new com.nstut.simplyspeakers.permissions.AccessViewSnapshot.Player(id,"Player")),true,true,false));
+            runtime.flushFrameTasks();
+            assertTrue(hasVirtualList(body),"Trusted members must remain visible after sync");
+            screen.updateAccessModel(com.nstut.simplyspeakers.permissions.AccessViewSnapshot.EMPTY);
+            runtime.flushFrameTasks();
+            assertFalse(hasVirtualList(body),"Removing the last trusted member must restore the compact state");
+        } finally {runtime.close();}
+    }
+    private boolean hasVirtualList(UIComponent node) {
+        return node.getClass().getSimpleName().contains("VirtualList") || node.children().stream().anyMatch(this::hasVirtualList);
+    }
+
+}

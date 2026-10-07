@@ -1,0 +1,23 @@
+{
+  "name": "Ownership & Access",
+  "category": "simplyspeakers:administration",
+  "icon": "minecraft:iron_door",
+  "sortnum": 19,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Control and hearing",
+      "text": "Public, Trusted, Owner and Operators access restrict control, not who can hear audio. Trusted access uses player UUIDs."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Ownership and trust",
+      "text": "Access settings show the owner and trusted players. Use online names or UUIDs to add players or transfer ownership. Only the owner or an operator can manage these settings. Transfer may remove your access."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Controller rights",
+      "text": "Controllers recheck the configuring player’s current target rights. Revoked access disables their input. Controllers cannot retain operator privileges for an Operators-only network."
+    }
+  ]
+}

@@ -20,6 +20,10 @@ public final class SpeakerStateRelinker {
         if (selected == null) {
             selected = destinationState;
         }
-        return selected == null ? null : selected.copy();
+        if (selected == null) return null;
+        SpeakerState result=selected.copy();
+        // A controller targets an ID, so its override must not follow a source into a new ID.
+        if (selected == sourceState && !destinationHasMainSpeaker) result.setControllerVolume(null);
+        return result;
     }
 }

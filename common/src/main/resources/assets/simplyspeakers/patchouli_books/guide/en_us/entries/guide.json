@@ -1,0 +1,17 @@
+{
+  "name": "Using This Guide",
+  "category": "simplyspeakers:getting_started",
+  "icon": "minecraft:book",
+  "sortnum": 1,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Audio Circuit",
+      "text": "Two copper ingots, two redstone dust and one amethyst shard craft four Audio Circuits. Speakers, proxies, controllers and this guide use them."
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "simplyspeakers:guide_book"
+    }
+  ]
+}

@@ -22,6 +22,8 @@ public class BlockRegistries {
     /**
      * Initializes the block registry.
      */
+    public static final RegistrySupplier<Block> REDSTONE_CONTROLLER = BLOCKS.register("redstone_controller", RedstoneControllerBlock::new);
+
     public static void init() {
         BLOCKS.register();
     }

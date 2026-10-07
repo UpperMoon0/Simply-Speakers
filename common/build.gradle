@@ -20,6 +20,8 @@ base {
 }
 
 dependencies {
+    compileOnly "com.google.code.gson:gson:2.10.1"
+    testImplementation "com.google.code.gson:gson:2.10.1"
     // Lombok for code generation
     compileOnly "org.projectlombok:lombok:1.18.30"
     annotationProcessor "org.projectlombok:lombok:1.18.30"

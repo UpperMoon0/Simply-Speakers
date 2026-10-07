@@ -22,8 +22,8 @@ class SpeakerRelinkWiringTest {
                 "1.21.1 registry must transfer state when a main speaker ID changes");
         assertTrue(speaker.indexOf("detachEmitterForPowerOff();") < speaker.indexOf("SpeakerRegistry.updateSpeakerId"),
                 "old physical emitter must detach without force-stopping the shared network");
-        assertTrue(speaker.contains("if (physicallyPowered && !oldKey.equals(newKey))"),
-                "only a physically powered speaker may attach and play under its new ID");
+        assertFalse(speaker.contains("physicallyPowered"),
+                "relinking must not start or gate playback from local redstone");
     }
 
     @Test

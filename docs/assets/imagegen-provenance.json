@@ -1,0 +1,10 @@
+{
+  "generator": "built-in image_gen",
+  "final_size": [
+    16,
+    16
+  ],
+  "resize": "nearest-neighbor; preserve RGBA alpha",
+  "controller_prompt": "Flat 16x16 logical-pixel front texture matching Simply Speakers cool gray steel, blue-gray trim and charcoal details; recessed controls, muted red indicator, no perspective, text or background outside the full texture. Existing speaker_front.png and speaker_side.png used as palette references.",
+  "book_prompt": "Closed technical manual inventory sprite with blue-gray cover, speaker emblem, pale paper edge and muted red bookmark; vanilla 16x16 pixel style, real transparent background, no text or external shadow. Existing speaker textures used as palette references."
+}

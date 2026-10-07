@@ -114,6 +114,28 @@ class ServerPlaybackIntegrationTest {
         ServerPlaybackManager.handleRemoteStreamEofReport(p, KEY, state().getPlaybackSessionGeneration(), URL);
     }
 
+    @Test void transferringOwnershipPersistsNewOwnerAndLeavesPlaybackIntact() {
+        var first=UUID.randomUUID();var next=UUID.randomUUID();state().setOwnerUuid(first);
+        state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.TRUSTED);state().trustPlayer(first);
+        play();long start=state().getPlaybackStartTick();
+        assertTrue(ServerSpeakerControlService.policyControl(server,level,KEY,
+            com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_TRANSFER_OWNER,"",0,0,next));
+        assertEquals(next,state().getOwnerUuid());assertTrue(state().isPlaying());
+        assertEquals(start,state().getPlaybackStartTick());
+        assertFalse(com.nstut.simplyspeakers.SpeakerPermissions.canManage(state(),first,false));
+        assertTrue(com.nstut.simplyspeakers.SpeakerPermissions.canManage(state(),next,false));
+    }
+
+    @Test void repeatAndQueuedRequestsResynchronizeDecoderLooping() {
+        player(2);play();scan();
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_SET_REPEAT,1,false,"",""));
+        var plays=packets.stream().filter(PlayAudioPacketS2C.class::isInstance).map(PlayAudioPacketS2C.class::cast).toList();
+        assertTrue(plays.get(plays.size()-1).isLooping());
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_QUEUE_LAST,0,false,"https://example.invalid/request.wav","request.wav"));
+        plays=packets.stream().filter(PlayAudioPacketS2C.class::isInstance).map(PlayAudioPacketS2C.class::cast).toList();
+        assertFalse(plays.get(plays.size()-1).isLooping(),"Request must not be starved by decoder loop");
+    }
+
     @Test void listenerEntryExitAndReentryDispatchExactlyOnceWithLiveSettings() {
         ServerPlayer p = player(10);
         state().setMaxVolume(0.75f);
@@ -270,6 +292,74 @@ class ServerPlaybackIntegrationTest {
         assertEquals(KEY, packet.getFullStateKey());
     }
 
+    @Test void temporaryLibraryRequestsResumePlaylistAndPlayPlaylistClearsThem() {
+        state().getPlaylist().add(URL, "one.wav");
+        state().getPlaylist().add("b", "B.wav");
+        assertTrue(ServerSpeakerControlService.playlistControl(server, level, KEY,
+                PlaylistControlPacketC2S.OP_PLAY_PLAYLIST, 0, true, "", ""));
+        ServerSpeakerControlService.playlistControl(server, level, KEY, PlaylistControlPacketC2S.OP_QUEUE_LAST, 0, false, "x", "X.wav");
+        ServerSpeakerControlService.playlistControl(server, level, KEY, PlaylistControlPacketC2S.OP_QUEUE_NEXT, 0, false, "y", "Y.wav");
+        assertEquals(List.of("y", "x"), state().getPlaylist().getQueue());
+        assertTrue(ServerSpeakerControlService.next(server, level, KEY)); assertEquals("y", state().getAudioId());
+        assertTrue(ServerSpeakerControlService.next(server, level, KEY)); assertEquals("x", state().getAudioId());
+        assertTrue(ServerSpeakerControlService.next(server, level, KEY)); assertEquals("b", state().getAudioId());
+        assertEquals(2, state().getPlaylist().size());
+        ServerSpeakerControlService.playlistControl(server, level, KEY, PlaylistControlPacketC2S.OP_QUEUE_LAST, 0, false, "x", "X.wav");
+        ServerSpeakerControlService.playlistControl(server, level, KEY, PlaylistControlPacketC2S.OP_PLAY_PLAYLIST, 0, true, "", "");
+        assertTrue(state().getPlaylist().getQueue().isEmpty());
+        assertEquals(URL, state().getAudioId());
+        assertTrue(state().isPlaylistSourceActive());
+    }
+
+    @Test void playingSingleAudioPreservesSavedPlaylistAndOnlyPlaysTemporaryRequestsAfterIt() {
+        state().getPlaylist().add(URL, "one.wav"); state().getPlaylist().add("b", "B.wav");
+        ServerSpeakerControlService.playlistControl(server, level, KEY, PlaylistControlPacketC2S.OP_PLAY_AUDIO, 0, true, "x", "X.wav");
+        assertEquals(2, state().getPlaylist().size());
+        assertFalse(state().isPlaylistSourceActive());
+        ServerSpeakerControlService.playlistControl(server, level, KEY, PlaylistControlPacketC2S.OP_QUEUE_NEXT, 0, false, "y", "Y.wav");
+        ServerSpeakerControlService.next(server, level, KEY); assertEquals("y", state().getAudioId());
+        ServerSpeakerControlService.next(server, level, KEY); assertFalse(state().isPlaying());
+        assertEquals(2, state().getPlaylist().size());
+    }
+
+    @Test void playStartsPendingRequestsWhenNoTrackWasSelected() {
+        state().setAudioId("");
+        state().getPlaylist().queueLast("x");
+        assertTrue(ServerSpeakerControlService.play(server, level, KEY));
+        assertEquals("x", state().getAudioId());
+        assertTrue(state().isPlaying());
+        assertTrue(ServerSpeakerControlService.next(server, level, KEY));
+        assertFalse(state().isPlaying());
+    }
+
+    @Test void invalidSourceSelectionsPreservePendingRequests() {
+        state().getPlaylist().queueLast("x");
+        state().setPlaylistSourceActive(false);
+        assertFalse(ServerSpeakerControlService.playlistControl(server, level, KEY,
+                PlaylistControlPacketC2S.OP_SELECT_INDEX, 8, true, "", ""));
+        assertFalse(ServerSpeakerControlService.playlistControl(server, level, KEY,
+                PlaylistControlPacketC2S.OP_PLAY_PLAYLIST, 0, true, "", ""));
+        assertFalse(ServerSpeakerControlService.playlistControl(server, level, KEY,
+                PlaylistControlPacketC2S.OP_PLAY_AUDIO, 0, true, "", ""));
+        assertEquals(List.of("x"), state().getPlaylist().getQueue());
+        assertFalse(state().isPlaylistSourceActive());
+    }
+
+    @Test void manualNextStopsAfterQueueWithoutASavedPlaylistAndRenewsRepeatedOccurrences() {
+        ServerSpeakerControlService.playlistControl(server, level, KEY,
+                PlaylistControlPacketC2S.OP_PLAY_AUDIO, 0, true, URL, "one.wav");
+        int generation = state().getPlaybackSessionGeneration();
+        ServerSpeakerControlService.playlistControl(server, level, KEY,
+                PlaylistControlPacketC2S.OP_QUEUE_LAST, 0, false, URL, "one.wav");
+        assertTrue(ServerSpeakerControlService.next(server, level, KEY));
+        assertTrue(state().getPlaybackSessionGeneration() > generation);
+        assertEquals(URL, state().getAudioId());
+        assertTrue(ServerSpeakerControlService.previous(server, level, KEY));
+        assertEquals(URL, state().getAudioId());
+        assertTrue(ServerSpeakerControlService.next(server, level, KEY));
+        assertFalse(state().isPlaying());
+    }
+
     @Test void changedPhysicsPositionAndMissingBodyUpdateRealSubscriptions() {
         ServerPlayer p = player(1); play();
         emitterPosition = new Vec3(100, 64, 0); scan();
@@ -303,6 +393,59 @@ class ServerPlaybackIntegrationTest {
         assertTrue(ServerPlaybackManager.getSubscribers(location).isEmpty());
     }
 
+    @Test void announcementStopsOnceDespiteLoopPlaylistAndQueueAndRevalidatesOwnership(@TempDir Path world) throws Exception {
+        var files = new com.nstut.simplyspeakers.audio.AudioFileManager(world);
+        UUID owner = UUID.randomUUID();
+        try {
+            var metadata = files.saveFile(new java.io.ByteArrayInputStream(
+                    com.nstut.simplyspeakers.testing.WaveFixture.tone(2)), "announcement.wav", owner.toString());
+            environment.when(ServerPlaybackEnvironment::audioFiles).thenReturn(files);
+            state().setLooping(true);
+            state().getPlaylist().add(URL, "music.wav");
+            state().getPlaylist().queueNext(URL);
+            assertFalse(ServerSpeakerControlService.playAnnouncement(server, level, KEY, metadata.getUuid(), UUID.randomUUID(), false));
+            player(1);
+            assertTrue(ServerSpeakerControlService.playAnnouncement(server, level, KEY, metadata.getUuid(), owner, false));
+            assertTrue(state().isOneShotPlayback());
+            var started = (PlayAudioPacketS2C) packets.stream().filter(PlayAudioPacketS2C.class::isInstance).findFirst().orElseThrow();
+            assertFalse(started.isLooping());
+            int generation = state().getPlaybackSessionGeneration();
+            tick = 10;
+            assertTrue(ServerSpeakerControlService.playAnnouncement(server, level, KEY, metadata.getUuid(), owner, false));
+            assertEquals(generation, state().getPlaybackSessionGeneration());
+            assertTrue(ServerSpeakerControlService.playAnnouncement(server, level, KEY, metadata.getUuid(), owner, true));
+            assertTrue(state().getPlaybackSessionGeneration() > generation);
+            tick = 50; scan(); scan();
+            assertFalse(state().isPlaying());
+            assertTrue(state().isLooping());
+            assertEquals(List.of(URL), state().getPlaylist().getQueue());
+            assertEquals(1, Collections.frequency(events, SpeakerEvents.Type.FINISHED));
+        } finally { files.shutdown(); }
+    }
+
+    @Test void continuousSettingsUpdatesPreserveSubscriptionsTransportAndSession() {
+        player(1); play();
+        int generation = state().getPlaybackSessionGeneration();
+        long start = state().getPlaybackStartTick();
+        packets.clear();
+        for (int i = 0; i < 20; i++) {
+            assertTrue(ServerSpeakerControlService.setVolume(server, level, KEY, i / 20f));
+            assertTrue(ServerSpeakerControlService.setControllerVolume(server, level, KEY, i / 20f));
+            assertTrue(ServerSpeakerControlService.policyControl(server, level, KEY,
+                    com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_DIRECTIONALITY, "", 0, i / 20f, null));
+            assertTrue(ServerSpeakerControlService.setRange(server, level, KEY, 20 + i));
+            assertEquals(generation, state().getPlaybackSessionGeneration());
+            assertEquals(start, state().getPlaybackStartTick());
+            assertTrue(state().isPlaying());
+            assertEquals(1, ServerPlaybackManager.getSubscribers(location).size());
+        }
+        assertTrue(packets.stream().noneMatch(StopAudioPacketS2C.class::isInstance));
+        var updated = packets.stream().filter(PlayAudioPacketS2C.class::isInstance)
+                .map(PlayAudioPacketS2C.class::cast).reduce((a,b) -> b).orElseThrow();
+        assertEquals(.95f, updated.getMaxVolume(), .001);
+        assertEquals(.95f, updated.getExtras().directionality(), .001);
+    }
+
     @Test void realFileDurationEndsPlaybackAtTickZeroAndLoopOffsetsWrap(@TempDir Path world) throws Exception {
         var files = new com.nstut.simplyspeakers.audio.AudioFileManager(world);
         try {
@@ -323,5 +466,143 @@ class ServerPlaybackIntegrationTest {
             assertEquals(1.25f, packet.getPlaybackPositionSeconds(), 0.01);
             assertTrue(state().isPlaying());
         } finally { files.shutdown(); }
+    }
+
+    @Test void editingAnInactivePlaylistDoesNotChangeThePlayingTrackOffsetOrQueue() {
+        state().getPlaylist().add(URL,"One");state().getPlaylist().selectIndex(0);state().getPlaylist().queueLast("request");state().startPlaybackAt(tick,12);
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_CREATE_PLAYLIST,-1,false,"","Evening"));
+        String id=state().getSavedPlaylists().get(1).getId();
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_ADD,-1,false,"other","Other",id));
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_RENAME_PLAYLIST,-1,false,"","Travel",id));
+        assertEquals("default",state().getActivePlaylistId());assertEquals(URL,state().getAudioId());assertEquals(12,state().getPlaybackPositionSeconds(tick));assertEquals(List.of("request"),state().getPlaylist().getQueue());assertTrue(state().isPlaying());
+    }
+    @Test void explicitPlaylistPlaySwitchesSourceAndClearsTemporaryRequests() {
+        state().getPlaylist().add(URL,"One");state().getPlaylist().queueNext("request");String id=state().createSavedPlaylist("Evening");state().findSavedPlaylist(id).getPlaylist().add("new-track","New");
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_PLAY_PLAYLIST,-1,true,"","",id));
+        assertEquals(id,state().getActivePlaylistId());assertEquals("new-track",state().getAudioId());assertTrue(state().isPlaying());assertTrue(state().findSavedPlaylist("default").getPlaylist().getQueue().isEmpty());assertEquals(1,state().findSavedPlaylist("default").getPlaylist().size());
+    }
+    @Test void deletingThePlayingPlaylistStopsAndFallsBackWithoutDeletingOtherTracks() {
+        state().getPlaylist().add(URL,"One");String id=state().createSavedPlaylist("Evening");state().findSavedPlaylist(id).getPlaylist().add(URL,"One");
+        ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_PLAY_PLAYLIST,-1,true,"","",id);
+        assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_DELETE_PLAYLIST,-1,false,"","",id));
+        assertFalse(state().isPlaying());assertEquals("default",state().getActivePlaylistId());assertEquals(1,state().getPlaylist().size());assertTrue(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_DELETE_PLAYLIST,-1,false,"","","default"));assertTrue(state().getSavedPlaylists().isEmpty());
+    }
+    @Test void unknownTargetsAndOverfullCatalogsCannotMutateTheActivePlaylist() {
+        assertFalse(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_ADD,-1,false,"x","X","deleted-id"));
+        for(int n=0;n<256;n++)state().getPlaylist().add("a"+n,"A");String id=state().createSavedPlaylist("Full");for(int n=0;n<256;n++)state().findSavedPlaylist(id).getPlaylist().add("b"+n,"B");
+        String empty=state().createSavedPlaylist("Empty");assertFalse(ServerSpeakerControlService.playlistControl(server,level,KEY,PlaylistControlPacketC2S.OP_ADD,-1,false,"x","X",empty));assertNull(state().duplicateSavedPlaylist(id,"Copy"));assertEquals(512,state().savedTrackCount());
+    }
+    @Test void namedPlaylistsAndTheirModesPersistThroughAnActualRegistryReload(@TempDir Path world) {
+        ServerSpeakerRegistry.init(world);var original=new SpeakerState(URL,"One",false,false,-1);original.getPlaylist().add(URL,"One");String id=original.createSavedPlaylist("Evening");var saved=original.findSavedPlaylist(id).getPlaylist();saved.add("two","Two");saved.setShuffle(true,42);saved.setRepeatMode(com.nstut.simplyspeakers.playlist.RepeatMode.PLAYLIST);original.activateSavedPlaylist(id);
+        ServerSpeakerRegistry.updateSpeakerStateByFullKey(KEY,original);ServerSpeakerRegistry.flushDirty();ServerSpeakerRegistry.init(world);
+        assertEquals(2,state().getSavedPlaylists().size());assertEquals(id,state().getActivePlaylistId());assertEquals("Evening",state().findSavedPlaylist(id).getName());assertEquals(List.of("two"),state().getPlaylist().getTracks().stream().map(t -> t.getAudioId()).toList());assertEquals(42,state().getPlaylist().getShuffleSeed());assertEquals(com.nstut.simplyspeakers.playlist.RepeatMode.PLAYLIST,state().getPlaylist().getRepeatMode());assertEquals(1,state().findSavedPlaylist("default").getPlaylist().size());
+    }
+
+    @Test void oldSinglePlaylistRegistryMigratesWithoutLosingModesCursorOrRequests(@TempDir Path world)throws Exception {
+        var original=new SpeakerState(URL,"One",false,false,-1);original.getPlaylist().add(URL,"One");original.getPlaylist().add("two","Two");original.getPlaylist().selectIndex(1);original.getPlaylist().setShuffle(true,99);original.getPlaylist().setRepeatMode(com.nstut.simplyspeakers.playlist.RepeatMode.TRACK);original.getPlaylist().queueLast("request");
+        var gson=new com.google.gson.Gson();var data=gson.toJsonTree(Map.of(KEY,original)).getAsJsonObject();data.getAsJsonObject(KEY).remove("savedPlaylists");data.getAsJsonObject(KEY).remove("activePlaylistId");
+        java.nio.file.Files.writeString(world.resolve("speaker_registry.json"),gson.toJson(data));ServerSpeakerRegistry.init(world);
+        assertEquals("Default",state().getSavedPlaylists().get(0).getName());assertEquals(2,state().getPlaylist().size());assertEquals(1,state().getPlaylist().getCurrentIndex());assertEquals(List.of("request"),state().getPlaylist().getQueue());assertEquals(99,state().getPlaylist().getShuffleSeed());assertEquals(com.nstut.simplyspeakers.playlist.RepeatMode.TRACK,state().getPlaylist().getRepeatMode());
+    }
+
+    @Test void personalListsFollowPlayerWhileSpeakerQueuesRemainIndependent() {
+        var owner=player(2);var other=player(3);
+        var store=com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.library(owner.getUUID());
+        assertTrue(PlayerPlaylistControlService.control(owner,KEY,PlaylistControlPacketC2S.OP_CREATE_PLAYLIST,-1,false,"","Clips",""));
+        String id=store.getSavedPlaylists().get(0).getId();
+        assertTrue(PlayerPlaylistControlService.control(owner,KEY,PlaylistControlPacketC2S.OP_ADD,-1,false,URL,"One",id));
+        assertTrue(com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.library(other.getUUID()).getSavedPlaylists().isEmpty());
+        assertFalse(PlayerPlaylistControlService.control(other,KEY,PlaylistControlPacketC2S.OP_DELETE_PLAYLIST,-1,false,"","",id));
+        String second="minecraft:overworld/second";ServerSpeakerRegistry.updateSpeakerStateByFullKey(second,new SpeakerState());
+        state().getPlaylist().queueLast("first-request");ServerSpeakerRegistry.getSpeakerStateByFullKey(second).getPlaylist().queueLast("second-request");
+        try(var security=mockStatic(com.nstut.simplyspeakers.network.SpeakerPacketSecurity.class)) {
+            security.when(()->com.nstut.simplyspeakers.network.SpeakerPacketSecurity.resolveAuthorizedTrack(owner,URL))
+                .thenReturn(new com.nstut.simplyspeakers.network.SpeakerPacketSecurity.AuthorizedTrack(URL,"One"));
+            assertTrue(PlayerPlaylistControlService.control(owner,KEY,PlaylistControlPacketC2S.OP_PLAY_PLAYLIST,-1,true,"","",id));
+            assertTrue(PlayerPlaylistControlService.control(owner,second,PlaylistControlPacketC2S.OP_PLAY_PLAYLIST,-1,true,"","",id));
+        }
+        assertEquals(List.of("first-request"),state().getPlaylist().getQueue());
+        assertEquals(List.of("second-request"),ServerSpeakerRegistry.getSpeakerStateByFullKey(second).getPlaylist().getQueue());
+        assertTrue(store.findSavedPlaylist(id).getPlaylist().getQueue().isEmpty());
+        assertTrue(PlayerPlaylistControlService.control(owner,KEY,PlaylistControlPacketC2S.OP_DELETE_PLAYLIST,-1,false,"","",id));
+        assertTrue(store.getSavedPlaylists().isEmpty());assertTrue(state().getPlaylist().isEmpty());assertFalse(state().isPlaying());
+        assertEquals(List.of("first-request"),state().getPlaylist().getQueue());
+        assertFalse(ServerSpeakerRegistry.getSpeakerStateByFullKey(second).isPlaying());
+        assertEquals(List.of("second-request"),ServerSpeakerRegistry.getSpeakerStateByFullKey(second).getPlaylist().getQueue());
+        assertTrue(PlayerPlaylistControlService.control(owner,KEY,PlaylistControlPacketC2S.OP_CLEAR_QUEUE,-1,false,"","",""));
+        assertTrue(state().getPlaylist().getQueue().isEmpty());
+    }
+    @Test void personalPlaylistAndSpeakerSourcePersistIndependently(@TempDir Path world) {
+        ServerSpeakerRegistry.init(world);var owner=player(2);var state=new SpeakerState();ServerSpeakerRegistry.updateSpeakerStateByFullKey(KEY,state);
+        var store=com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.library(owner.getUUID());String id=store.createSavedPlaylist("Persist");store.findSavedPlaylist(id).getPlaylist().add(URL,"One");
+        state().usePlayerPlaylist(owner.getUUID(),id,store.findSavedPlaylist(id).getPlaylist());state().getPlaylist().queueLast("speaker-request");
+        com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.changed();ServerSpeakerRegistry.markDirty();ServerSpeakerRegistry.flushDirty();ServerSpeakerRegistry.init(world);
+        assertEquals(owner.getUUID(),state().getPlaylistOwnerUuid());assertEquals(id,state().getActivePlaylistId());
+        assertEquals(List.of("speaker-request"),state().getPlaylist().getQueue());
+        assertTrue(com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.library(owner.getUUID()).findSavedPlaylist(id).getPlaylist().getQueue().isEmpty());
+    }
+    @ParameterizedTest @ValueSource(ints={1,2,3})
+    void actorlessPublicJavaApiCannotBypassProtectedPolicies(int mode) {
+        var pos=new net.minecraft.core.BlockPos(0,64,0);
+        ServerSpeakerRegistry.registerSpeaker(level,pos,"net_test");
+        state().setOwnerUuid(UUID.randomUUID());state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.fromIndex(mode));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.play(level,pos));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.playNetwork(level,KEY));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setTrack(level,pos,"foreign","forged filename"));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setVolume(level,pos,0.1f));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setRange(level,pos,32));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setAudioDropoff(level,pos,0.1f));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setLooping(level,pos,true));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.playlistQueueNext(level,pos,"foreign"));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.playlistClear(level,pos));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setAccessMode(level,pos,com.nstut.simplyspeakers.SpeakerAccess.PUBLIC));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setNetworkName(level,pos,"renamed"));
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.getSavedPlaylists(level,pos).isEmpty());
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.getLibrary(level,pos).isEmpty());
+        assertEquals(URL,state().getAudioId());assertEquals(16,state().getMaxRange());assertFalse(state().isPlaying());
+        assertTrue(events.isEmpty());assertTrue(packets.isEmpty());
+    }
+    @Test void publicJavaApiStillSeparatesPlaybackFromOwnedManagementAndRejectsNonfiniteValues() {
+        var pos=new net.minecraft.core.BlockPos(0,64,0);ServerSpeakerRegistry.registerSpeaker(level,pos,"net_test");
+        state().setOwnerUuid(UUID.randomUUID());state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.PUBLIC);
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.setVolume(level,pos,0.4f));
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.setRange(level,pos,Integer.MAX_VALUE));
+        assertEquals(com.nstut.simplyspeakers.Config.speakerRange,state().getMaxRange());
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.setAudioDropoff(level,pos,0.3f));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setVolume(level,pos,Float.NaN));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.seek(level,pos,Float.POSITIVE_INFINITY));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setNetworkName(level,pos,"forbidden"));
+        assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.setDirectionality(level,pos,0.7f));
+        assertEquals(0.4f,state().getConfiguredMaxVolume(),0.001f);
+        state().setOwnerUuid(null);
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.setDirectionality(level,pos,0.7f));
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.setConeAngle(level,pos,999));
+        assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.setRearAttenuation(level,pos,0.2f));
+        assertEquals(350,state().getConeAngleDegrees());assertEquals(0.7f,state().getDirectionality(),0.001f);
+    }
+
+    @Test void legacyLoopingApiResynchronizesActivePlaybackThroughRepeat() {
+        player(2);play();scan();packets.clear();
+        assertTrue(ServerSpeakerControlService.setLooping(server,level,KEY,true));
+        assertEquals(com.nstut.simplyspeakers.playlist.RepeatMode.TRACK,state().getPlaylist().getRepeatMode());
+        var updates=packets.stream().filter(PlayAudioPacketS2C.class::isInstance).map(PlayAudioPacketS2C.class::cast).toList();
+        assertFalse(updates.isEmpty());assertTrue(updates.get(updates.size()-1).isLooping());
+        assertTrue(ServerSpeakerControlService.setLooping(server,level,KEY,false));
+        updates=packets.stream().filter(PlayAudioPacketS2C.class::isInstance).map(PlayAudioPacketS2C.class::cast).toList();
+        assertFalse(updates.get(updates.size()-1).isLooping());
+    }
+
+    @Test void serviceSendsAuthoritativeMuteAndNameWithoutStoppingPlayback() {
+        player(1);play();packets.clear();
+        assertTrue(ServerSpeakerControlService.setVolume(server,level,KEY,0));
+        assertTrue(ServerSpeakerControlService.policyControl(server,level,KEY,
+            com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_NETWORK_NAME,"Hall",0,0,null));
+        var updates=packets.stream().filter(com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C.class::isInstance)
+            .map(com.nstut.simplyspeakers.network.SpeakerStateUpdatePacketS2C.class::cast).toList();
+        assertFalse(updates.isEmpty());var latest=updates.get(updates.size()-1).getSettings();
+        assertEquals("Hall",latest.name());assertEquals(0,latest.effectiveVolume());
+        assertTrue(state().isPlaying());assertTrue(packets.stream().noneMatch(StopAudioPacketS2C.class::isInstance));
+        assertTrue(packets.stream().filter(PlayAudioPacketS2C.class::isInstance).map(PlayAudioPacketS2C.class::cast)
+            .anyMatch(p -> p.getMaxVolume()==0));
     }
 }

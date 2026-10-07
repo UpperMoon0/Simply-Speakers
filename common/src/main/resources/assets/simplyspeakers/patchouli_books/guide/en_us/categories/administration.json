@@ -1,0 +1,6 @@
+{
+  "name": "Administration",
+  "description": "Permissions, commands, configuration, and practical fixes.",
+  "icon": "minecraft:command_block",
+  "sortnum": 3
+}

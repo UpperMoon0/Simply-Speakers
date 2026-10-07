@@ -1,0 +1,6 @@
+{
+  "name": "Automation",
+  "description": "Build button panels, announcements, zone controls, and computer systems.",
+  "icon": "simplyspeakers:redstone_controller",
+  "sortnum": 2
+}

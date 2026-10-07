@@ -50,3 +50,10 @@ side = "CLIENT"
     versionRange = "[1.109.2,)"
     ordering = "AFTER"
     side = "BOTH"
+
+[[dependencies.simplyspeakers]]
+modId = "patchouli"
+mandatory = true
+versionRange = "[0,)"
+ordering = "AFTER"
+side = "BOTH"

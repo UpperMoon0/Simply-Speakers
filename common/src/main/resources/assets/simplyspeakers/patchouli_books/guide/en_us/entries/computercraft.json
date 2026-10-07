@@ -1,0 +1,38 @@
+{
+  "name": "CC:Tweaked",
+  "category": "simplyspeakers:automation",
+  "icon": "minecraft:redstone_torch",
+  "sortnum": 17,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Speaker peripheral",
+      "text": "With CC:Tweaked, main speakers expose the simply_speaker peripheral. Optional support covers 1.20.1 and 1.21.1. Anonymous computer control requires Public access."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Playback methods",
+      "text": "play, pause, togglePause, stop, restart, next, previous, seek and setTrack control transport. Local audio must belong to the network owner; remote streams require server permission."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "State and settings",
+      "text": "getLibrary lists owner recordings. getSavedPlaylists lists saved templates; playSavedPlaylist loads a playback copy. getPlaylist and getQueue inspect the speaker. Queue and playlist slots start at 1."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Playback settings",
+      "text": "setVolume and setAudioDropoff use 0–1; setRange uses blocks. setRepeatMode accepts none, track or playlist. setShuffle toggles shuffle. setLooping is a compatibility alias for track Repeat."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Queue and access",
+      "text": "queueNext and queueLast add requests. removeQueued, moveQueued and clearQueue edit them. Calls return false when denied. Computers cannot manage claimed networks or edit personal playlist templates."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Playback events",
+      "text": "Events report started, paused, resumed, stopped, track changed and finished. Arguments are attachment name, audio ID and network name. See the technical reference for method signatures."
+    }
+  ]
+}

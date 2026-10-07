@@ -37,6 +37,12 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
     private final boolean isLooping;
     /** Dimension-qualified registry key of the authoritative state; may be empty. */
     private final String fullStateKey;
+    private com.nstut.simplyspeakers.SpeakerSettingsSnapshot settings;
+    public SpeakerStateUpdatePacketS2C withSettings(SpeakerState state) {
+        settings=com.nstut.simplyspeakers.SpeakerSettingsSnapshot.capture(state);return this;
+    }
+    public com.nstut.simplyspeakers.SpeakerSettingsSnapshot getSettings() { return settings; }
+
 
     public SpeakerStateUpdatePacketS2C(BlockPos blockPos, String speakerId, String action, String audioId, String audioFilename, long playbackStartTick, boolean isLooping) {
         this(blockPos, speakerId, action, audioId, audioFilename, playbackStartTick, isLooping, "");
@@ -72,10 +78,11 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
         buffer.writeLong(packet.playbackStartTick);
         buffer.writeBoolean(packet.isLooping);
         buffer.writeUtf(packet.fullStateKey, 256);
+        buffer.writeBoolean(packet.settings!=null);if(packet.settings!=null)buffer.writeByteArray(packet.settings.encode());
     }
 
     public static SpeakerStateUpdatePacketS2C decode(RegistryFriendlyByteBuf buffer) {
-        return new SpeakerStateUpdatePacketS2C(
+        var packet = new SpeakerStateUpdatePacketS2C(
                 buffer.readBlockPos(),
                 buffer.readBoolean(),
                 buffer.readUtf(),
@@ -86,6 +93,9 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
                 buffer.readBoolean(),
                 buffer.readUtf(256)
         );
+        if(buffer.readBoolean())packet.settings=com.nstut.simplyspeakers.SpeakerSettingsSnapshot.decode(
+            buffer.readByteArray(com.nstut.simplyspeakers.SpeakerSettingsSnapshot.MAX_BYTES));
+        return packet;
     }
 
     public static void handle(SpeakerStateUpdatePacketS2C packet, NetworkManager.PacketContext context) {
@@ -105,10 +115,11 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
         if (linked) {
             String linkKey = "net_" + pkt.speakerId.trim();
             SpeakerState state = ClientSpeakerRegistry.getOrCreateState(linkKey);
+            if(pkt.settings!=null)pkt.settings.apply(state);
             state.setAudioId(pkt.audioId);
             state.setAudioFilename(pkt.audioFilename);
             state.setPlaybackStartTick(pkt.playbackStartTick);
-            state.setLooping(pkt.isLooping);
+            // Repeat preference arrives through PlaylistSync; this flag is decoder state only.
 
             if ("play".equals(pkt.action)) {
                 state.setPlaying(true);
@@ -129,10 +140,11 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
             var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
             if (be instanceof SpeakerBlockEntity speakerBE) {
                 SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
-                state.setAudioId(pkt.audioId);
+                if(pkt.settings!=null)pkt.settings.apply(state);
+            state.setAudioId(pkt.audioId);
                 state.setAudioFilename(pkt.audioFilename);
                 state.setPlaybackStartTick(pkt.playbackStartTick);
-                state.setLooping(pkt.isLooping);
+                // Repeat preference arrives through PlaylistSync; this flag is decoder state only.
 
                 if ("play".equals(pkt.action)) {
                     state.setPlaying(true);

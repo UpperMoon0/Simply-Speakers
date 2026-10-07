@@ -66,4 +66,28 @@ class PlaylistResumeIndexTest {
         assertEquals(1, p.getResumeIndex());
         assertTrue(p.hasQueuedTracks());
     }
+    @Test void removalOfCanonicalAnchorDuringQueueResumesAtItsSuccessor() {
+        for (boolean byId : new boolean[]{false,true}) {
+            Playlist p=playlistWithThreeTracks();p.add("d","d.mp3");p.selectIndex(0);p.queueNext("d");
+            assertEquals("d",p.next().track().getAudioId());
+            if(byId)p.removeByAudioId("a");else p.removeAt(0);
+            assertEquals("b",p.next().track().getAudioId());
+        }
+    }
+    @Test void replacementMapsCanonicalAnchorInsteadOfQueuedSelection() {
+        Playlist p=playlistWithThreeTracks();p.selectIndex(1);p.queueNext("c");p.next();
+        p.setTracks(List.of(PlaylistTrack.of("b","b.mp3"),PlaylistTrack.of("a","a.mp3"),PlaylistTrack.of("c","c.mp3")));
+        assertEquals(0,p.getResumeIndex());assertEquals("a",p.next().track().getAudioId());
+    }
+    @Test void replacingListWithoutAnchorContinuesAfterSurvivingPredecessor() {
+        Playlist p=playlistWithThreeTracks();p.selectIndex(1);p.queueNext("c");p.next();
+        p.setTracks(List.of(PlaylistTrack.of("a","a.mp3"),PlaylistTrack.of("c","c.mp3")));
+        assertEquals("c",p.next().track().getAudioId());
+        p.selectIndex(0);p.queueNext("c");p.next();p.setTracks(List.of(PlaylistTrack.of("c","c.mp3")));
+        assertEquals("c",p.next().track().getAudioId());
+    }
+    @Test void swappingAnchorAndQueuedTrackKeepsCanonicalContinuation() {
+        Playlist p=playlistWithThreeTracks();p.selectIndex(0);p.queueNext("c");p.next();p.moveDown(0);
+        assertEquals(1,p.getResumeIndex());assertEquals("c",p.next().track().getAudioId());
+    }
 }

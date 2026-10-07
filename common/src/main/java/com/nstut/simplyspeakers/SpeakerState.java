@@ -36,7 +36,15 @@ public class SpeakerState {
     private int playbackSessionGeneration = 0;
 
     // --- Playlist / queue (0.8.x) ---
+    private boolean oneShotPlayback;
     private Playlist playlist;
+    private java.util.List<com.nstut.simplyspeakers.playlist.NamedPlaylist> savedPlaylists;
+    private String activePlaylistId;
+    private UUID playlistOwnerUuid;
+    private boolean personalPlaylistSource;
+    public static final int MAX_SAVED_PLAYLISTS=16, MAX_SAVED_TRACKS=512;
+    /** Legacy worlds keep their saved playlist as the active source. */
+    private boolean playlistSourceActive = true;
 
     // --- Network identity (0.8.x) ---
     private String networkName = "";
@@ -118,11 +126,13 @@ public class SpeakerState {
     }
 
     public boolean isLooping() {
-        return isLooping;
+        return getPlaylist().getRepeatMode() == RepeatMode.TRACK;
     }
 
     public void setLooping(boolean looping) {
-        isLooping = looping;
+        // Compatibility API: the taskbar's Repeat preference owns looping now.
+        getPlaylist().setRepeatMode(looping ? RepeatMode.TRACK : RepeatMode.NONE);
+        isLooping = false;
     }
 
     public long getPlaybackStartTick() {
@@ -147,12 +157,21 @@ public class SpeakerState {
     }
 
     public SpeakerState copy() {
-        SpeakerState copy = new SpeakerState(audioId, audioFilename, isPlaying, isLooping,
+        SpeakerState copy = new SpeakerState(audioId, audioFilename, isPlaying, isLooping(),
                 playbackStartTick, maxVolume, maxRange, audioDropoff);
+        copy.controllerVolume = controllerVolume;
+        copy.oneShotPlayback = oneShotPlayback;
         copy.paused = paused;
         copy.pauseOffsetSeconds = pauseOffsetSeconds;
         copy.playbackSessionGeneration = playbackSessionGeneration;
-        copy.playlist = playlist != null ? deepCopy(playlist) : null;
+        ensurePlaylistLibrary();
+        copy.savedPlaylists=new java.util.ArrayList<>();
+        for(var saved:savedPlaylists) copy.savedPlaylists.add(new com.nstut.simplyspeakers.playlist.NamedPlaylist(saved.getId(),saved.getName(),deepCopy(saved.getPlaylist())));
+        copy.activePlaylistId=activePlaylistId;
+        copy.playlistOwnerUuid=playlistOwnerUuid;copy.personalPlaylistSource=personalPlaylistSource;
+        copy.playlist=deepCopy(getPlaylist());
+        copy.ensurePlaylistLibrary();
+        copy.playlistSourceActive = playlistSourceActive;
         copy.networkName = networkName;
         copy.redstoneMode = redstoneMode != null ? redstoneMode : RedstoneMode.DEFAULT;
         copy.ownerUuid = ownerUuid;
@@ -164,16 +183,18 @@ public class SpeakerState {
         return copy;
     }
 
+    public static java.util.List<com.nstut.simplyspeakers.playlist.PlaylistTrack> copyTracks(Playlist source) { return source.getTracks().stream().map(t -> new com.nstut.simplyspeakers.playlist.PlaylistTrack(t.getAudioId(),t.getFilename())).toList(); }
     private static Playlist deepCopy(Playlist source) {
         Playlist copy = new Playlist();
-        copy.setTracks(new ArrayList<>(source.getTracks()));
+        copy.setTracks(copyTracks(source));
         copy.setCurrentIndex(source.getCurrentIndex());
         copy.setRepeatMode(source.getRepeatMode());
         copy.setShuffle(source.isShuffle(), source.getShuffleSeed());
         for (String queued : source.getQueue()) {
-            copy.queueNext(queued);
+            copy.queueLast(queued);
         }
         copy.setResumeIndex(source.getResumeIndex());
+        copy.setQueuedTrackActive(source.isQueuedTrackActive());
         return copy;
     }
 
@@ -228,6 +249,7 @@ public class SpeakerState {
 
     /** Starts (or restarts) a new playback occurrence at {@code offsetSeconds}. */
     public void startPlaybackAt(long currentTick, float offsetSeconds) {
+        oneShotPlayback = false;
         advancePlaybackSessionGeneration();
         this.isPlaying = true;
         this.paused = false;
@@ -274,19 +296,115 @@ public class SpeakerState {
     // ------------------------------------------------------------------
 
     public Playlist getPlaylist() {
-        if (playlist == null) playlist = new Playlist();
+        ensurePlaylistLibrary();
+        // Migrate the old JSON/NBT flag once, never let it override later Repeat edits.
+        if (isLooping) {
+            playlist.setRepeatMode(RepeatMode.TRACK);
+            isLooping = false;
+        }
         return playlist;
     }
 
+    public boolean isOneShotPlayback() { return oneShotPlayback; }
+    public void setOneShotPlayback(boolean value) { oneShotPlayback = value; }
+    public boolean isPlaybackLooping() {
+        // Playlist repetitions advance on the server, so queued requests can interrupt
+        // Repeat track. Standalone sounds may loop in the decoder until a request arrives.
+        return isLooping() && !oneShotPlayback && !getPlaylist().hasQueuedTracks() && !getPlaylist().isQueuedTrackActive()
+                && (!playlistSourceActive || getPlaylist().isEmpty());
+    }
+
     public boolean hasPlaylist() {
-        return playlist != null && !playlist.isEmpty();
+        getPlaylist();
+        return !playlist.isEmpty() || playlist.hasQueuedTracks();
+    }
+
+    public boolean isPlaylistSourceActive() { return playlistSourceActive; }
+    public void setPlaylistSourceActive(boolean active) { playlistSourceActive = active; }
+
+    public boolean hasPlaybackContinuation() {
+        getPlaylist();
+        return playlist.hasQueuedTracks() || (playlistSourceActive && !playlist.isEmpty());
     }
 
     public void setPlaylist(Playlist playlist) {
-        this.playlist = playlist;
+        ensurePlaylistLibrary();
+        var active=findSavedPlaylist(activePlaylistId);
+        this.playlist = playlist == null ? new Playlist() : playlist;
+        if(active!=null && !personalPlaylistSource) active.setPlaylist(this.playlist);
+    }
+
+    /** Lazily migrates the original single playlist, retaining its cursor, modes and queue. */
+    private void ensurePlaylistLibrary() {
+        if(savedPlaylists==null) {
+            savedPlaylists=new java.util.ArrayList<>();
+            savedPlaylists.add(new com.nstut.simplyspeakers.playlist.NamedPlaylist("default","Default",playlist==null?new Playlist():playlist));
+            activePlaylistId="default";
+        }
+        if(personalPlaylistSource || savedPlaylists.isEmpty()) { if(playlist==null)playlist=new Playlist(); if(activePlaylistId==null)activePlaylistId="";return; }
+        var active=savedPlaylists.stream().filter(p -> p.getId().equals(activePlaylistId)).findFirst().orElse(savedPlaylists.get(0));
+        activePlaylistId=active.getId();playlist=active.getPlaylist();
+    }
+    public java.util.List<com.nstut.simplyspeakers.playlist.NamedPlaylist> getSavedPlaylists() { ensurePlaylistLibrary();return java.util.List.copyOf(savedPlaylists); }
+    public String getActivePlaylistId() { ensurePlaylistLibrary();return activePlaylistId; }
+    public com.nstut.simplyspeakers.playlist.NamedPlaylist findSavedPlaylist(String id) {
+        ensurePlaylistLibrary();return savedPlaylists.stream().filter(p -> p.getId().equals(id)).findFirst().orElse(null);
+    }
+    public int savedTrackCount() { return getSavedPlaylists().stream().mapToInt(p -> p.getPlaylist().size()).sum(); }
+    public static boolean validPlaylistName(String name) {
+        return name!=null && !name.trim().isEmpty() && name.trim().length()<=64 && name.codePoints().noneMatch(Character::isISOControl);
+    }
+    private boolean availablePlaylistName(String name,String except) {
+        return validPlaylistName(name) && getSavedPlaylists().stream().noneMatch(p -> !p.getId().equals(except) && p.getName().equalsIgnoreCase(name.trim()));
+    }
+    public String createSavedPlaylist(String name) {
+        if(!availablePlaylistName(name,"") || savedPlaylists.size()>=MAX_SAVED_PLAYLISTS) return null;
+        String id=UUID.randomUUID().toString();savedPlaylists.add(new com.nstut.simplyspeakers.playlist.NamedPlaylist(id,name.trim(),new Playlist()));return id;
+    }
+    public boolean renameSavedPlaylist(String id,String name) {
+        var saved=findSavedPlaylist(id);if(saved==null || !availablePlaylistName(name,id)) return false;
+        saved.setName(name.trim());return true;
+    }
+    public String duplicateSavedPlaylist(String id,String name) {
+        var original=findSavedPlaylist(id);
+        if(original==null || savedTrackCount()+original.getPlaylist().size()>MAX_SAVED_TRACKS) return null;
+        String created=createSavedPlaylist(name);if(created==null) return null;
+        var copy=deepCopy(original.getPlaylist());copy.clearQueue();copy.setResumeIndex(-1);copy.setQueuedTrackActive(false);copy.setCurrentIndex(-1);
+        findSavedPlaylist(created).setPlaylist(copy);return created;
+    }
+    /** Called only when playback is explicitly switched, never when a GUI browses a list. */
+    public boolean activateSavedPlaylist(String id) {
+        var target=findSavedPlaylist(id);if(target==null) return false;
+        if(!activePlaylistId.equals(id)) {
+            playlist.clearQueue();playlist.setResumeIndex(-1);playlist.setQueuedTrackActive(false);
+            activePlaylistId=id;playlist=target.getPlaylist();playlist.clearQueue();playlist.setResumeIndex(-1);playlist.setQueuedTrackActive(false);
+        }
+        return true;
+    }
+    public boolean deleteSavedPlaylist(String id) {
+        var target=findSavedPlaylist(id);if(target==null) return false;
+        boolean active=activePlaylistId.equals(id);savedPlaylists.remove(target);
+        if(active) { activePlaylistId=savedPlaylists.isEmpty()?"":savedPlaylists.get(0).getId();playlist=savedPlaylists.isEmpty()?new Playlist():savedPlaylists.get(0).getPlaylist();playlist.clearQueue();playlist.setResumeIndex(-1);playlist.setQueuedTrackActive(false);stopPlayback();setAudioId("");setAudioFilename(""); }
+        return true;
     }
 
     // ------------------------------------------------------------------
+    public static SpeakerState emptyPlaylistLibrary() {
+        SpeakerState state=new SpeakerState();state.savedPlaylists=new ArrayList<>();state.activePlaylistId="";state.playlist=new Playlist();return state;
+    }
+    public boolean isPersonalPlaylistSource() { return personalPlaylistSource; }
+    public UUID getPlaylistOwnerUuid() { return playlistOwnerUuid; }
+    /** Templates are copied into the speaker; its temporary requests never enter a player's library. */
+    public void usePlayerPlaylist(UUID owner,String id,Playlist template) {
+        Playlist runtime=getPlaylist();
+        personalPlaylistSource=true;playlistOwnerUuid=owner;activePlaylistId=id;
+        runtime.setTracks(copyTracks(template));
+        runtime.setRepeatMode(template.getRepeatMode());runtime.setShuffle(template.isShuffle(),template.getShuffleSeed());
+        playlist=runtime;
+    }
+    public boolean usesPlayerPlaylist(UUID owner,String id) { return personalPlaylistSource && java.util.Objects.equals(owner,playlistOwnerUuid) && java.util.Objects.equals(id,activePlaylistId); }
+    public void detachPlayerPlaylist() { getPlaylist().setTracks(java.util.List.of());activePlaylistId="";playlistSourceActive=false; }
+
     // Network naming (0.8.x)
     // ------------------------------------------------------------------
 
@@ -365,8 +483,13 @@ public class SpeakerState {
     // Settings
     // ------------------------------------------------------------------
 
+    private transient Float controllerVolume;
+
+    public float getConfiguredMaxVolume() { return maxVolume; }
+    public void setControllerVolume(Float value) { controllerVolume = value == null ? null : AudioMath.sanitizeFloat(value, 0.0f, 1.0f, 1.0f); }
+
     public float getMaxVolume() {
-        return maxVolume;
+        return controllerVolume != null ? controllerVolume : maxVolume;
     }
 
     public void setMaxVolume(float maxVolume) {

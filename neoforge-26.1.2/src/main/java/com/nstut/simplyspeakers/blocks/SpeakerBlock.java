@@ -116,40 +116,5 @@ public class SpeakerBlock extends BaseEntityBlock {
         return 0;
     }
 
-    @Override
-    public void neighborChanged(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, 
-                                @NotNull Block block, net.minecraft.world.level.redstone.Orientation orientation, boolean isMoving) {
-        super.neighborChanged(state, level, pos, block, orientation, isMoving);
-
-        if (!level.isClientSide()) {
-            boolean currentPower = state.getValue(POWERED);
-            boolean hasSignal = level.hasNeighborSignal(pos);
-
-            LOGGER.debug("NeighborChanged at {}: currentPower={}, hasSignal={}", pos, currentPower, hasSignal);
-
-            if (currentPower != hasSignal) {
-                LOGGER.info("Power state changed at {}: {} -> {}", pos, currentPower, hasSignal);
-                // Update the block state first (boolean on/off visuals and POWER-mode gating).
-                level.setBlock(pos, state.setValue(POWERED, hasSignal), 3);
-            }
-
-            // 0.8.x: analog redstone modes must observe every raw signal change, independent
-            // of the boolean POWERED property (e.g. 3 -> 8 -> 14 keeps POWERED=true). Feed the
-            // raw strength into the redstone logic whenever it differs from the last observed
-            // value; RedstoneLogic ignores no-op transitions, so boolean-only modes behave
-            // unchanged and no extra block updates (hence no update loops) are scheduled.
-            BlockEntity blockEntity = level.getBlockEntity(pos);
-            if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                int signalStrength = level.getBestNeighborSignal(pos);
-                if (signalStrength != speakerEntity.getLastRedstoneSignal()) {
-                    LOGGER.info("Redstone signal {} at {}", signalStrength, pos);
-                    speakerEntity.handleRedstoneChange(signalStrength);
-                }
-            } else {
-                LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);
-            }
-        }
-    }
+    // Redstone input is handled exclusively by linked Redstone Controllers.
 }
-
-

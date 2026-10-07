@@ -14,6 +14,12 @@ architectury {
 
 loom {
     runs {
+        ccLuaTestServer {
+            server()
+            property "simplyspeakers.ccLuaTest", "true"
+            runDir("run/cc-lua/server")
+            programArg "nogui"
+        }
         liveJoinTestClient {
             client()
             runDir("run/live-join/client")
@@ -62,6 +68,7 @@ repositories {
 }
 
 dependencies {
+    modImplementation "vazkii.patchouli:Patchouli:1.21.1-93-NEOFORGE"
     neoForge "net.neoforged:neoforge:$project.neoforge_version"
 
     // CC:Tweaked API (optional integration; compile-only)
@@ -148,4 +155,12 @@ shadowJar {
 
 remapJar {
     inputFile.set shadowJar.archiveFile
+}
+
+// Patchouli discovers definitions in the physical loader mod root, while the
+// shared resource pack supplies the localized contents and textures.
+processResources {
+    from('../common/src/main/resources/data/simplyspeakers/patchouli_books') {
+        into 'data/simplyspeakers/patchouli_books'
+    }
 }

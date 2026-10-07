@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "simplyspeakers:block/redstone_controller_front",
+    "top": "simplyspeakers:block/redstone_controller_casing",
+    "side": "simplyspeakers:block/redstone_controller_casing"
+  }
+}

@@ -26,7 +26,7 @@ dependencies {
 
     implementation "javazoom:jlayer:1.0.1"
 
-    // OpenUI MC — required client-side UI framework.
+    // OpenUI MC â€” required client-side UI framework.
     // Compile-only here: each loader project declares its matching OpenUI mod on the runtime classpath.
     modCompileOnly "com.nstut:openui-mc-fabric-1.20.1:${project.openui_version}"
 }
@@ -71,8 +71,11 @@ tasks.register('transformRecipes') {
     
     doLast {
         def recipesDir = layout.buildDirectory.dir('transformed-resources/data/simplyspeakers/recipes').get().asFile
-        if (recipesDir.exists()) {
-            recipesDir.eachFileMatch(~/.*\.json/) { recipeFile ->
+        def sourceRecipes = project(':common').file('src/main/resources/data/simplyspeakers/recipe')
+        recipesDir.mkdirs()
+        if (sourceRecipes.exists()) {
+            // Always transform original inputs, never the output of an earlier build.
+            sourceRecipes.eachFileMatch(~/.*\.json/) { recipeFile ->
                 def content = recipeFile.text
                 def json = new JsonSlurper().parseText(content)
                 
@@ -93,8 +96,14 @@ tasks.register('transformRecipes') {
                     transformed.result.count = 1
                 }
                 
+                if (json.result?.components?.get('patchouli:book')) {
+                    transformed.type = 'patchouli:shaped_book_recipe'
+                    transformed.book = json.result.components.get('patchouli:book')
+                    transformed.remove('result')
+                }
+
                 // Write back with proper formatting
-                recipeFile.text = new JsonBuilder(transformed).toPrettyString()
+                new File(recipesDir, recipeFile.name).text = new JsonBuilder(transformed).toPrettyString()
             }
         }
     }
@@ -130,3 +139,6 @@ test {
 
 sourceSets.test.java.srcDir('../shared/integration-tests/src/test/java')
 sourceSets.main.java.srcDir('../shared/runtime-verification/src/main/java')
+
+// Exercise the real icon/focus widget in headless integration tests.
+test { classpath += files(sourceSets.main.compileClasspath.filter { it.name.contains("openui") }) }
