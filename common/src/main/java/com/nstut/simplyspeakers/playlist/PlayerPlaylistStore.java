@@ -25,6 +25,13 @@ public final class PlayerPlaylistStore {
         } catch(IOException | RuntimeException e) { throw new IllegalStateException("Cannot load personal playlists; refusing to overwrite saved data",e); }
     }
     public static synchronized SpeakerState library(UUID player) { return libraries.computeIfAbsent(Objects.requireNonNull(player),id -> SpeakerState.emptyPlaylistLibrary()); }
+    /** Includes offline players whose catalogs are loaded from persistent storage. */
+    public static synchronized boolean purgeAudio(String audioId) {
+        boolean changed=false;
+        for (var catalog : libraries.values()) changed |= catalog.purgeAudioReferences(audioId);
+        if(changed)dirty=true;
+        return changed;
+    }
     public static synchronized void changed() { dirty=true; }
     public static synchronized boolean save() {
         if(!dirty || file==null)return true;

@@ -35,7 +35,7 @@ Lua** and **0-based in Java**. Getters return snapshots, not mutable server obje
 | `playPlaylist()`, `selectPlaylistTrack(slot)` | Start the speaker playlist / select an entry. |
 | `getSavedPlaylists()` | Owner templates as `{id, name, count}` entries; empty when denied. |
 | `playSavedPlaylist(id)` | Load and start a validated playback copy; preserve the speaker queue. |
-| `queueNext(audioId)`, `queueLast(audioId)` | Prepend / append a temporary request. |
+| `queueNext(audioId)`, `queueLast(audioId)` | Prepend / append a temporary request. The queue holds at most 256 entries; missing, unauthorized or excess requests return `false`. |
 | `getQueue()` | Ordered array of audio IDs. |
 | `removeQueued(slot)`, `moveQueued(slot, direction)`, `clearQueue()` | Remove / move by -1 or +1 / clear requests. Out-of-bounds operations return false. |
 | `getNetworkName()`, `setNetworkName(name)` | Display name; does not change Speaker ID. Setter requires management rights. |

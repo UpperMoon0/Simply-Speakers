@@ -481,9 +481,10 @@ public class SpeakerBlockEntity extends BlockEntity {
         lastRedstoneSignal = tag.contains(NBT_LAST_REDSTONE_SIGNAL) ? tag.getInt(NBT_LAST_REDSTONE_SIGNAL) : 0;
 
         if (level != null && !level.isClientSide()) {
+            boolean knownState = ServerSpeakerRegistry.getSpeakerState(level, getStateKey()) != null;
             if (migratedInternalId) ServerSpeakerRegistry.applyLegacyStandaloneTemplate(level, getStateKey());
             SpeakerState persistedState = ServerSpeakerRegistry.getOrCreateSpeakerState(level, getStateKey());
-            SpeakerSettings.read(
+            if (!knownState) SpeakerSettings.read(
                     (key, fallback) -> tag.contains(key) ? tag.getFloat(key) : fallback,
                     (key, fallback) -> tag.contains(key) ? tag.getInt(key) : fallback,
                     SpeakerSettings.from(persistedState)).applyTo(persistedState);

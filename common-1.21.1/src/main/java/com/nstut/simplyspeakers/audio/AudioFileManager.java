@@ -373,41 +373,8 @@ public class AudioFileManager {
         manifest.remove(audioId);
         saveManifest();
 
-        // Cascade delete: stop & clear any active speaker states referencing this audio
-        Map<String, com.nstut.simplyspeakers.SpeakerState> states = ServerSpeakerRegistry.findStatesWithAudioId(audioId);
-        for (com.nstut.simplyspeakers.SpeakerState state : states.values()) {
-            state.setAudioId("");
-            state.setAudioFilename("");
-            state.setPlaying(false);
-            state.setPlaybackStartTick(-1);
-        }
-        ServerSpeakerRegistry.markDirty();
-        broadcastDeletedAudioState(server, states);
-
+        com.nstut.simplyspeakers.speakers.ServerSpeakerControlService.removeDeletedAudio(server, audioId);
         return true;
-    }
-
-    private void broadcastDeletedAudioState(MinecraftServer server, Map<String, com.nstut.simplyspeakers.SpeakerState> affected) {
-        if (server == null) return;
-        for (var level : server.getAllLevels()) {
-            String prefix = level.dimension().location() + "/";
-            for (String fullKey : affected.keySet()) {
-                if (!fullKey.startsWith(prefix)) continue;
-                String stateKey = fullKey.substring(prefix.length());
-                String speakerId = stateKey.startsWith("net_") ? stateKey.substring(4) : "";
-                Set<BlockPos> positions = ServerSpeakerRegistry.getSpeakerPositions(level, stateKey);
-                if (positions.isEmpty()) {
-                    if (!stateKey.startsWith("net_")) continue;
-                    boolean looping = affected.get(fullKey).isLooping();
-                    NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(speakerId, "stop", "", "", -1, looping));
-                    continue;
-                }
-                for (BlockPos pos : positions) {
-                    boolean looping = affected.get(fullKey).isLooping();
-                    NetworkManager.sendToPlayers(level.players(), new SpeakerStateUpdatePacketS2C(pos, speakerId, "stop", "", "", -1, looping));
-                }
-            }
-        }
     }
 
     public List<AudioFileMetadata> getAudioListForPlayer(String playerUUID) {

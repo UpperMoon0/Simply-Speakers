@@ -391,6 +391,11 @@ public final class ServerPlaybackManager {
         // the old streams must not advance a partially rebuilt audience.
         pendingRemoteEof.remove(fullStateKey);
         SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        if (state != null && state.isPlaying() && !state.isPaused()
+                && com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(state.getAudioId())) {
+            state.renewPlaybackReportIdentity();
+            ServerSpeakerRegistry.markDirty();
+        }
         var emitters = ServerSpeakerRegistry.getEmitters().stream()
                 .filter(emitter -> fullStateKey.equals(emitter.fullStateKey())).toList();
         // Linked emitters share one client stream. All old memberships must be

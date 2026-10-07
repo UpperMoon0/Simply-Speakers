@@ -296,8 +296,14 @@ public final class ServerSpeakerControlService {
                     }
                 }
             }
-            case PlaylistControlPacketC2S.OP_QUEUE_NEXT -> playlist.queueNext(audioId);
-            case PlaylistControlPacketC2S.OP_QUEUE_LAST -> playlist.queueLast(audioId);
+            case PlaylistControlPacketC2S.OP_QUEUE_NEXT -> {
+                if(audioId==null || audioId.isEmpty() || audioId.length()>256 || playlist.getQueue().size()>=Playlist.MAX_ENTRIES)return false;
+                playlist.queueNext(audioId);
+            }
+            case PlaylistControlPacketC2S.OP_QUEUE_LAST -> {
+                if(audioId==null || audioId.isEmpty() || audioId.length()>256 || playlist.getQueue().size()>=Playlist.MAX_ENTRIES)return false;
+                playlist.queueLast(audioId);
+            }
             case PlaylistControlPacketC2S.OP_CLEAR_QUEUE -> playlist.clearQueue();
             case PlaylistControlPacketC2S.OP_REMOVE_QUEUED -> playlist.removeQueued(index);
             case PlaylistControlPacketC2S.OP_QUEUE_UP -> playlist.moveQueued(index, -1);
@@ -439,6 +445,29 @@ public final class ServerSpeakerControlService {
         var files = ServerPlaybackEnvironment.audioFiles();
         var metadata = files == null ? null : files.getManifest().get(track.getAudioId());
         return metadata == null ? track.getFilename() : metadata.effectiveDisplayName();
+    }
+
+    /** Cascade file deletion without interrupting speakers playing a different track. */
+    public static void removeDeletedAudio(MinecraftServer server, String audioId) {
+        boolean catalogChanged=com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.purgeAudio(audioId);
+        for (var entry : ServerSpeakerRegistry.getAllSpeakerStates().entrySet()) {
+            String key=entry.getKey();SpeakerState state=entry.getValue();
+            boolean current=audioId.equals(state.getAudioId());
+            boolean changed=state.purgeAudioReferences(audioId);
+            if(!current && !changed && !catalogChanged)continue;
+            if(current) {
+                state.stopPlayback();state.setAudioId("");state.setAudioFilename("");
+                ServerPlaybackManager.beginNewPlaybackSession(key);
+            }
+            if(server!=null)for(var world:server.getAllLevels()) {
+                if(!key.startsWith(ServerSpeakerRegistry.getDimension(world)+"/"))continue;
+                if(current)ServerPlaybackManager.resyncState(server,world,key);
+                if(current || changed)broadcastStateUpdate(world,key,state,current?"stop":"update");
+                else broadcastPlaylistSync(world,key,state);
+            }
+        }
+        ServerSpeakerRegistry.markDirty();
+        com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.save();
     }
 
     private static void broadcastStateUpdate(ServerLevel level, String fullStateKey, SpeakerState state, String action) {

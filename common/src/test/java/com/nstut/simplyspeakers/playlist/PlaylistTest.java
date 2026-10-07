@@ -13,6 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlaylistTest {
     private Playlist playlist;
 
+    @Test void queueBoundsLegacyDataAndRemovesDeletedRequestsWithoutChangingContinuation() {
+        var p=new Playlist();p.add("a","A");p.add("b","B");p.add("c","C");p.selectIndex(0);
+        for(int n=0;n<10000;n++)p.queueLast("b");assertEquals(Playlist.MAX_ENTRIES,p.getQueue().size());
+        assertTrue(p.purgeAudio("b"));assertTrue(p.getQueue().isEmpty());assertEquals("c",p.next().track().getAudioId());
+        String json="{\"queue\":"+new com.google.gson.Gson().toJson(java.util.Collections.nCopies(10000,"request"))+"}";
+        var legacy=new com.google.gson.Gson().fromJson(json,Playlist.class);
+        assertEquals(Playlist.MAX_ENTRIES,legacy.getQueue().size());assertEquals("request",legacy.next().track().getAudioId());
+        assertEquals(Playlist.MAX_ENTRIES-1,legacy.getQueue().size());
+    }
+
     @BeforeEach
     void setUp() {
         playlist = new Playlist();

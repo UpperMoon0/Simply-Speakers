@@ -22,7 +22,7 @@ public class Playlist {
     private int shuffleOrderSize = -1;
 
     /** Tracks queued to play once before normal ordering resumes. */
-    private List<String> queue = new ArrayList<>();
+    private List<String> queue = new java.util.LinkedList<>();
 
     /** Canonical walk position to restore once the one-shot queue drains. */
     private int resumeIndex = -1;
@@ -192,12 +192,14 @@ public class Playlist {
 
     /** Queues a track to be played next (one-shot). */
     public void queueNext(String audioId) {
-        if (audioId != null && !audioId.isEmpty() && queue.size() < MAX_ENTRIES) queue.add(0, audioId);
+        normalizeQueue();
+        if (audioId != null && !audioId.isEmpty() && audioId.length() <= 256 && queue.size() < MAX_ENTRIES) queue.add(0, audioId);
     }
 
     /** Appends a temporary request without changing the saved playlist. */
     public void queueLast(String audioId) {
-        if (audioId != null && !audioId.isEmpty() && queue.size() < MAX_ENTRIES) queue.add(audioId);
+        normalizeQueue();
+        if (audioId != null && !audioId.isEmpty() && audioId.length() <= 256 && queue.size() < MAX_ENTRIES) queue.add(audioId);
     }
 
     public boolean removeQueued(int index) {
@@ -252,7 +254,22 @@ public class Playlist {
     }
 
     public List<String> getQueue() {
-        return queue;
+        normalizeQueue();
+        return java.util.Collections.unmodifiableList(queue);
+    }
+
+    /** Gson may restore a legacy ArrayList; bound it before any queue processing. */
+    private void normalizeQueue() {
+        if (queue == null) queue = new java.util.LinkedList<>();
+        else if (!(queue instanceof java.util.LinkedList<?>) || queue.size() > MAX_ENTRIES)
+            queue = new java.util.LinkedList<>(queue.subList(0, Math.min(queue.size(), MAX_ENTRIES)));
+    }
+
+    /** File deletion removes every saved occurrence and temporary request. */
+    public boolean purgeAudio(String audioId) {
+        normalizeQueue();
+        boolean changed = removeByAudioId(audioId);
+        return queue.removeIf(id -> java.util.Objects.equals(id, audioId)) || changed;
     }
 
     /**
@@ -325,6 +342,7 @@ public class Playlist {
     }
 
     private Advance advance(boolean respectTrackRepeat) {
+        normalizeQueue();
         int canonical = isQueuedTrackActive() ? resumeIndex : currentIndex;
         while (!queue.isEmpty()) {
             String queuedId = queue.remove(0);

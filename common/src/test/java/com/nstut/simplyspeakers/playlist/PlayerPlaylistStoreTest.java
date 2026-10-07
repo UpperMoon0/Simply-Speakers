@@ -7,6 +7,15 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 class PlayerPlaylistStoreTest {
     @AfterEach void cleanup(){PlayerPlaylistStore.reset();}
+    @Test void deletionPurgesOfflineCatalogsAndPersistsAllOccurrences(@TempDir Path world) {
+        var owner=UUID.randomUUID();PlayerPlaylistStore.init(world);
+        var library=PlayerPlaylistStore.library(owner);String first=library.createSavedPlaylist("Clips"),second=library.createSavedPlaylist("Copy");
+        for(String id:List.of(first,second)){var p=library.findSavedPlaylist(id).getPlaylist();p.add("gone","Gone.wav");p.add("keep","Keep.wav");p.add("gone","Gone.wav");}
+        PlayerPlaylistStore.changed();assertTrue(PlayerPlaylistStore.save());PlayerPlaylistStore.init(world);
+        assertTrue(PlayerPlaylistStore.purgeAudio("gone"));assertTrue(PlayerPlaylistStore.save());PlayerPlaylistStore.init(world);
+        for(var list:PlayerPlaylistStore.library(owner).getSavedPlaylists())assertEquals(List.of("keep"),list.getPlaylist().getTracks().stream().map(PlaylistTrack::getAudioId).toList());
+        assertFalse(PlayerPlaylistStore.purgeAudio("gone"));
+    }
     @Test void librariesArePrivateAndTheLastDeletionSurvivesReload(@TempDir Path world) {
         var a=UUID.randomUUID();var b=UUID.randomUUID();PlayerPlaylistStore.init(world);
         var own=PlayerPlaylistStore.library(a);String id=own.createSavedPlaylist("Clips");own.findSavedPlaylist(id).getPlaylist().add("a","A.wav");

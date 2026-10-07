@@ -217,7 +217,7 @@ class ServerPlaybackIntegrationTest {
         assertTrue(ServerPlaybackManager.getSubscribers(location).isEmpty());
         tick = 200;
         assertTrue(ServerSpeakerControlService.play(server, level, KEY));
-        assertEquals(generation, state().getPlaybackSessionGeneration());
+        assertTrue(state().getPlaybackSessionGeneration() > generation);
         assertEquals(5, state().getPlaybackPositionSeconds(tick), 0.001);
         assertTrue(ServerSpeakerControlService.seek(server, level, KEY, 12));
         assertEquals(12, state().getPlaybackPositionSeconds(tick), 0.001);
@@ -248,6 +248,62 @@ class ServerPlaybackIntegrationTest {
                 .map(Object::getClass).toList();
         assertEquals(List.of(StopAudioPacketS2C.class, StopAudioPacketS2C.class,
                 PlayAudioPacketS2C.class, PlayAudioPacketS2C.class), transport);
+    }
+
+    @Test void delayedEofFromBeforeSeekCannotStopReplacementStream() {
+        var listener=player(1);play();
+        int old=state().getPlaybackSessionGeneration();
+        assertTrue(ServerSpeakerControlService.seek(server,level,KEY,4));
+        int replacement=state().getPlaybackSessionGeneration();assertTrue(replacement>old);
+        ServerPlaybackManager.handleRemoteStreamEofReport(listener,KEY,old,URL);
+        assertTrue(state().isPlaying());assertEquals(4,state().getPlaybackPositionSeconds(tick),.001);
+        ServerPlaybackManager.handleRemoteStreamEofReport(listener,KEY,replacement,URL);
+        assertFalse(state().isPlaying());
+    }
+
+    @Test void deletingUpcomingAndQueuedAudioContinuesAtSurvivingTrack(@TempDir Path world) throws Exception {
+        var files=new com.nstut.simplyspeakers.audio.AudioFileManager(world);
+        var owner=UUID.randomUUID();
+        try {
+            var a=files.saveFile(new java.io.ByteArrayInputStream(com.nstut.simplyspeakers.testing.WaveFixture.tone(2)),"a.wav",owner.toString());
+            var b=files.saveFile(new java.io.ByteArrayInputStream(com.nstut.simplyspeakers.testing.WaveFixture.tone(2)),"b.wav",owner.toString());
+            var c=files.saveFile(new java.io.ByteArrayInputStream(com.nstut.simplyspeakers.testing.WaveFixture.tone(2)),"c.wav",owner.toString());
+            environment.when(ServerPlaybackEnvironment::audioFiles).thenReturn(files);
+            for(var metadata:List.of(a,b,c))state().getPlaylist().add(metadata.getUuid(),metadata.getOriginalFilename());
+            state().getPlaylist().selectIndex(0);state().setPlaylistSourceActive(true);
+            state().setAudioId(a.getUuid());state().setAudioFilename("a.wav");player(1);play();
+            state().getPlaylist().queueLast(b.getUuid());state().getPlaylist().queueLast(b.getUuid());
+            int generation=state().getPlaybackSessionGeneration();packets.clear();
+            assertFalse(files.deleteAudioFile(b.getUuid(),UUID.randomUUID().toString(),server));
+            assertEquals(3,state().getPlaylist().size());
+            assertTrue(files.deleteAudioFile(b.getUuid(),owner.toString(),server));
+            assertEquals(List.of(a.getUuid(),c.getUuid()),state().getPlaylist().getTracks().stream().map(com.nstut.simplyspeakers.playlist.PlaylistTrack::getAudioId).toList());
+            assertTrue(state().getPlaylist().getQueue().isEmpty());assertEquals(generation,state().getPlaybackSessionGeneration());
+            assertEquals(0,packets(StopAudioPacketS2C.class));assertEquals(a.getUuid(),state().getAudioId());
+            tick=60;scan();assertEquals(c.getUuid(),state().getAudioId());assertTrue(state().isPlaying());
+            assertTrue(files.deleteAudioFile(c.getUuid(),owner.toString(),server));
+            assertFalse(state().isPlaying());assertEquals("",state().getAudioId());assertTrue(ServerPlaybackManager.getSubscribers(location).isEmpty());
+        } finally {files.shutdown();}
+    }
+
+    @Test void staleBlockSettingsDoNotOverwriteAuthoritativeRegistry() throws Exception {
+        assertTrue(ServerSpeakerControlService.setVolume(server,level,KEY,.25f));
+        assertTrue(ServerSpeakerControlService.setRange(server,level,KEY,32));
+        var type=mock(net.minecraft.world.level.block.entity.BlockEntityType.class);when(type.isValid(any())).thenReturn(true);
+        var constructor=com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity.class.getDeclaredConstructor(net.minecraft.world.level.block.entity.BlockEntityType.class,net.minecraft.core.BlockPos.class,net.minecraft.world.level.block.state.BlockState.class);constructor.setAccessible(true);
+        var speaker=constructor.newInstance(type,new net.minecraft.core.BlockPos(0,64,0),net.minecraft.world.level.block.Blocks.IRON_BLOCK.defaultBlockState());
+        speaker.setLevel(level);
+        var tag=new net.minecraft.nbt.CompoundTag();tag.putString("SpeakerID","test");tag.putString("InternalStateId",UUID.randomUUID().toString());
+        tag.putFloat("MaxVolume",1f);tag.putInt("MaxRange",16);tag.putFloat("AudioDropoff",1f);
+        var loader=Arrays.stream(speaker.getClass().getDeclaredMethods()).filter(m -> m.getName().equals("load") || m.getName().equals("loadAdditional")).findFirst().orElseThrow();loader.setAccessible(true);
+        if(loader.getParameterTypes()[0].getSimpleName().equals("ValueInput")) {
+            var input=Class.forName("net.minecraft.world.level.storage.TagValueInput");
+            var create=Arrays.stream(input.getMethods()).filter(m -> m.getName().equals("create") && m.getParameterCount()==3 && Arrays.stream(m.getParameterTypes()).anyMatch(t -> t.isInstance(tag))).findFirst().orElseThrow();
+            Object[] args=new Object[3];for(int n=0;n<3;n++)args[n]=create.getParameterTypes()[n].isInstance(tag)?tag:mock(create.getParameterTypes()[n]);
+            loader.invoke(speaker,create.invoke(null,args));
+        } else if(loader.getParameterCount()==1)loader.invoke(speaker,tag);
+        else loader.invoke(speaker,tag,mock(loader.getParameterTypes()[1]));
+        assertEquals(.25f,speaker.getMaxVolume(),.0001);assertEquals(32,speaker.getMaxRange());
     }
 
     @Test void resyncCannotAdvanceUsingOldEofAgainstAnAudienceBeingRebuilt() {

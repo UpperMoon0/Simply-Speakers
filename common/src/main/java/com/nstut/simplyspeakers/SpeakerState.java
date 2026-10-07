@@ -305,6 +305,16 @@ public class SpeakerState {
         return playlist;
     }
 
+    /** Removes a deleted recording from runtime playback and every legacy saved list. */
+    public boolean purgeAudioReferences(String audioId) {
+        boolean changed = getPlaylist().purgeAudio(audioId);
+        for (var saved : getSavedPlaylists()) changed |= saved.getPlaylist().purgeAudio(audioId);
+        return changed;
+    }
+
+    /** A rebuilt remote stream must reject EOF reports from its predecessor. */
+    public void renewPlaybackReportIdentity() { advancePlaybackSessionGeneration(); }
+
     public boolean isOneShotPlayback() { return oneShotPlayback; }
     public void setOneShotPlayback(boolean value) { oneShotPlayback = value; }
     public boolean isPlaybackLooping() {
