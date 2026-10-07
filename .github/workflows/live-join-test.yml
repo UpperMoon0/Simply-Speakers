@@ -153,8 +153,12 @@ jobs:
           java-version: 21
           cache: gradle
       - run: chmod +x gradlew
-      - name: Install virtual display
-        run: sudo apt-get update -o Acquire::Retries=3 && sudo apt-get install -y --no-install-recommends xvfb
+      # The ubuntu-24.04 hosted runner already bundles Xvfb. Avoid a
+      # network-dependent apt update, which can hang on its Azure mirror.
+      - name: Verify preinstalled virtual display
+        run: |
+          command -v Xvfb
+          command -v xvfb-run
       - name: Build target
         run: python3 tools/verify.py build --target "${{ matrix.target }}"
       - name: One real playback session per target
