@@ -12,8 +12,8 @@ package com.nstut.simplyspeakers.speakers;
  * @param maxVolume configured maximum volume (0.0 to 1.0)
  * @param dropoff   configured dropoff factor (0.0 to 1.0)
  * @param proxy     true when this emitter is a proxy speaker
- * @param active    last known intent to emit audio (powered/playing flags frozen at last update;
- *                  the authoritative per-network {@code SpeakerState} is still checked live)
+ * @param active    proxy enable state; main speakers are always eligible, with transport
+ *                  checked against the authoritative per-network {@code SpeakerState}
  */
 public record ServerEmitter(
         SpeakerLocation location,
@@ -32,6 +32,8 @@ public record ServerEmitter(
 
     public ServerEmitter {
         networkKey = networkKey != null ? networkKey : "";
+        // Also normalizes retained snapshots written by versions which froze transport state.
+        if (!proxy) active = true;
     }
 
     public ServerEmitter withActive(boolean newActive) {

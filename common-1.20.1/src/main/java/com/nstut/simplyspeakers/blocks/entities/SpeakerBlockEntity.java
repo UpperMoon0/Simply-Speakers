@@ -106,7 +106,9 @@ public class SpeakerBlockEntity extends BlockEntity {
                 ? getBlockState().getValue(SpeakerBlock.FACING)
                 : Direction.NORTH;
 
-        boolean active = state != null && state.isPlaying() && !state.isPaused();
+        // Main emitters remain eligible while stopped or paused, including after chunk unload.
+        // The playback manager reads the live network transport state independently.
+        boolean active = true;
         DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
                 ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
                 : null;

@@ -114,6 +114,54 @@ class ServerPlaybackIntegrationTest {
         ServerPlaybackManager.handleRemoteStreamEofReport(p, KEY, state().getPlaybackSessionGeneration(), URL);
     }
 
+    @ParameterizedTest @ValueSource(strings = {"pause", "stop"})
+    void retainedInactiveMainSnapshotCanRestartWithoutBlockTicks(String action) {
+        player(1); play();
+        if (action.equals("pause")) assertTrue(ServerSpeakerControlService.pause(server, level, KEY));
+        else assertTrue(ServerSpeakerControlService.stop(server, level, KEY));
+        // Reproduce the snapshot saved by an inactive main speaker before its chunk unloads.
+        var retained = new com.google.gson.Gson().fromJson(
+                "{\"location\":{\"dimension\":\"minecraft:overworld\",\"packedPos\":64},\"networkKey\":\"net_test\",\"maxRange\":16,\"maxVolume\":1,\"dropoff\":1,\"proxy\":false,\"active\":false}",
+                ServerEmitter.class);
+        ServerSpeakerRegistry.upsertEmitter(retained);
+        packets.clear();
+        assertTrue(ServerSpeakerControlService.play(server, level, KEY));
+        scan();
+        assertEquals(1, ServerPlaybackManager.getSubscribers(location).size());
+        assertTrue(packets(PlayAudioPacketS2C.class) > 0);
+        // Disabled proxies still remain disabled even when the network is playing.
+        var proxyLocation = new SpeakerLocation("minecraft:overworld", 2, 64, 0);
+        ServerSpeakerRegistry.upsertEmitter(new ServerEmitter(proxyLocation, "net_test", 16, 1, 1, true, false));
+        scan();
+        assertTrue(ServerPlaybackManager.getSubscribers(proxyLocation).isEmpty());
+    }
+
+    @Test void foreignDimensionKeysCannotMutateOrInterruptSameIdNetwork() {
+        player(1); play();
+        String foreignKey = "minecraft:the_nether/net_test";
+        var foreign = new SpeakerState(URL, "one.wav", false, false, -1);
+        foreign.startPlaybackAt(0, 0);
+        ServerSpeakerRegistry.updateSpeakerStateByFullKey(foreignKey, foreign);
+        packets.clear();
+        assertNull(ServerSpeakerControlService.resolveFullStateKeyByNetwork(level, foreignKey));
+        assertEquals(KEY, ServerSpeakerControlService.resolveFullStateKeyByNetwork(level, KEY));
+        for (byte action = 0; action <= 8; action++)
+            assertFalse(ServerSpeakerControlService.applyTransport(server, level, foreignKey, action, 2));
+        assertFalse(ServerSpeakerControlService.setVolume(server, level, foreignKey, 0));
+        assertFalse(ServerSpeakerControlService.setRange(server, level, foreignKey, 32));
+        assertFalse(ServerSpeakerControlService.setAudioDropoff(server, level, foreignKey, 0));
+        assertFalse(ServerSpeakerControlService.setControllerVolume(server, level, foreignKey, 0f));
+        assertFalse(ServerSpeakerControlService.selectAudio(server, level, foreignKey, "other", "other"));
+        assertFalse(ServerSpeakerControlService.playlistControl(server, level, foreignKey,
+                PlaylistControlPacketC2S.OP_SET_SHUFFLE, 0, true, "", ""));
+        assertFalse(ServerSpeakerControlService.policyControl(server, level, foreignKey,
+                com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_NETWORK_NAME, "wrong", 0, 0, null));
+        assertTrue(foreign.isPlaying()); assertFalse(foreign.isPaused());
+        assertEquals(1f, foreign.getMaxVolume()); assertEquals("", foreign.getNetworkName());
+        assertTrue(state().isPlaying()); assertEquals(1, ServerPlaybackManager.getSubscribers(location).size());
+        assertTrue(packets.isEmpty());
+    }
+
     private net.minecraft.commands.CommandSourceStack commandSource(ServerPlayer actor) throws Exception {
         ServerSpeakerRegistry.registerSpeaker(level, new net.minecraft.core.BlockPos(0,64,0), "net_test");
         var source = mock(net.minecraft.commands.CommandSourceStack.class);
@@ -304,6 +352,28 @@ class ServerPlaybackIntegrationTest {
         } else if(loader.getParameterCount()==1)loader.invoke(speaker,tag);
         else loader.invoke(speaker,tag,mock(loader.getParameterTypes()[1]));
         assertEquals(.25f,speaker.getMaxVolume(),.0001);assertEquals(32,speaker.getMaxRange());
+        speaker.updateEmitterSnapshot();
+        assertTrue(ServerSpeakerRegistry.getEmitter(location).active(), "stopped main speaker stays eligible");
+        play();
+        assertTrue(ServerSpeakerControlService.pause(server,level,KEY));
+        speaker.updateEmitterSnapshot();
+        assertTrue(ServerSpeakerRegistry.getEmitter(location).active(), "paused main speaker stays eligible");
+    }
+
+    @Test void renameCommandRejectsOversizedNamesBeforeSaving(@TempDir Path world) throws Exception {
+        var files = new com.nstut.simplyspeakers.audio.AudioFileManager(world);
+        try (var mod = mockStatic(com.nstut.simplyspeakers.SimplySpeakers.class)) {
+            mod.when(com.nstut.simplyspeakers.SimplySpeakers::getAudioFileManager).thenReturn(files);
+            files.updateAudioMetadata("clip",new com.nstut.simplyspeakers.audio.AudioFileMetadata("clip","clip.wav"));
+            var source = commandSource(null);
+            var dispatcher = new com.mojang.brigadier.CommandDispatcher<net.minecraft.commands.CommandSourceStack>();
+            com.nstut.simplyspeakers.commands.SpeakerCommands.register(dispatcher);
+            String accepted = "a".repeat(256);
+            assertEquals(1, dispatcher.execute("ss audio rename clip " + accepted, source));
+            assertEquals(0, dispatcher.execute("ss audio rename clip " + "b".repeat(257), source));
+            assertEquals(accepted, files.getManifest().get("clip").getDisplayName());
+            assertEquals(accepted, new com.nstut.simplyspeakers.audio.AudioFileManager(world).getManifest().get("clip").getDisplayName());
+        } finally { files.shutdown(); }
     }
 
     @Test void resyncCannotAdvanceUsingOldEofAgainstAnAudienceBeingRebuilt() {

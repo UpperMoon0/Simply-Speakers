@@ -34,6 +34,12 @@ public final class ServerSpeakerControlService {
     private ServerSpeakerControlService() {
     }
 
+    /** Network operations are scoped to the supplied level, including explicit full keys. */
+    private static SpeakerState stateInLevel(Level level, String key) {
+        if (level == null || key == null || !key.startsWith(ServerSpeakerRegistry.getDimension(level) + "/")) return null;
+        return ServerSpeakerRegistry.getSpeakerStateByFullKey(key);
+    }
+
     public static String resolveFullStateKey(Level level, BlockPos pos) {
         if (level == null || pos == null) return null;
         return ServerSpeakerRegistry.getFullStateKeyAt(level, pos);
@@ -43,7 +49,7 @@ public final class ServerSpeakerControlService {
         if (level == null || networkOrFullKey == null || networkOrFullKey.trim().isEmpty()) return null;
         String trimmed = networkOrFullKey.trim();
         String dimension = ServerSpeakerRegistry.getDimension(level);
-        if (trimmed.contains("/") && ServerSpeakerRegistry.getSpeakerStateByFullKey(trimmed) != null) return trimmed;
+        if (trimmed.contains("/")) return stateInLevel(level, trimmed) != null ? trimmed : null;
         if (trimmed.startsWith("net_")) {
             String fullKey = dimension + "/" + trimmed;
             return ServerSpeakerRegistry.getSpeakerStateByFullKey(fullKey) != null ? fullKey : null;
@@ -70,7 +76,7 @@ public final class ServerSpeakerControlService {
     /** Starts a local clip once without editing the saved playlist or repeat preference. */
     public static boolean playAnnouncement(MinecraftServer server, ServerLevel level, String key,
                                           String audioId, UUID actor, boolean restart) {
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(key);
+        SpeakerState state = stateInLevel(level, key);
         AudioFileManager files = ServerPlaybackEnvironment.audioFiles();
         AudioFileMetadata meta = files == null ? null : files.getManifest().get(audioId);
         if (actor == null || state == null || meta == null || meta.getDurationSeconds() <= 0
@@ -89,7 +95,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean play(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         if (!state.hasAudio()) return state.hasPlaybackContinuation() && next(server, level, fullStateKey);
         if (state.isPlaying() && !state.isPaused()) return true;
@@ -111,7 +117,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean pause(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         if (state.isPlaying() && !state.isPaused()) {
             state.pauseAt(level != null ? level.getGameTime() : 0);
@@ -126,14 +132,14 @@ public final class ServerSpeakerControlService {
 
     public static boolean togglePause(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         return (!state.isPlaying() || state.isPaused()) ? play(server, level, fullStateKey) : pause(server, level, fullStateKey);
     }
 
     public static boolean stop(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         if (state.isPlaying() || state.isPaused()) {
             state.stopPlayback();
@@ -147,7 +153,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean restart(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null || !state.hasAudio()) return false;
         ServerPlaybackManager.beginNewPlaybackSession(fullStateKey);
         state.startPlaybackAt(level != null ? level.getGameTime() : 0, 0.0f);
@@ -160,7 +166,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean seekRelative(MinecraftServer server, ServerLevel level, String fullStateKey, float deltaSeconds) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null || !state.isPlaying()) return false;
         float current = state.getPlaybackPositionSeconds(level != null ? level.getGameTime() : 0);
         return seek(server, level, fullStateKey, Math.max(0.0f, current + deltaSeconds));
@@ -168,7 +174,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean seek(MinecraftServer server, ServerLevel level, String fullStateKey, float seconds) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null || !state.isPlaying() || !Float.isFinite(seconds)) return false;
         float duration = 0.0f;
         AudioFileManager afm = ServerPlaybackEnvironment.audioFiles();
@@ -185,7 +191,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean next(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null || (!state.hasAudio() && !state.hasPlaybackContinuation())) return false;
         Playlist.Advance adv = state.hasPlaybackContinuation() ? state.getPlaylist().nextRequested()
                 : new Playlist.Advance(Playlist.AdvanceResult.EXHAUSTED, null);
@@ -209,7 +215,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean previous(MinecraftServer server, ServerLevel level, String fullStateKey) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         if (!state.isPlaylistSourceActive() || state.getPlaylist().isEmpty()) return restart(server, level, fullStateKey);
         if (!state.hasPlaylist()) return false;
@@ -234,7 +240,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean selectAudio(MinecraftServer server, ServerLevel level, String fullStateKey, String audioId, String filename) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         state.setAudioId(audioId != null ? audioId : "");
         state.setAudioFilename(filename != null ? filename : "");
@@ -258,7 +264,7 @@ public final class ServerSpeakerControlService {
     }
     public static boolean playlistControl(MinecraftServer server, ServerLevel level, String fullStateKey, byte op, int index, boolean flag, String audioId,String filename,String playlistId) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         boolean queueOperation=op>=PlaylistControlPacketC2S.OP_QUEUE_NEXT && op<=PlaylistControlPacketC2S.OP_QUEUE_DOWN && op!=PlaylistControlPacketC2S.OP_SET_SHUFFLE && op!=PlaylistControlPacketC2S.OP_SET_REPEAT;
         boolean activeOperation=queueOperation || op==PlaylistControlPacketC2S.OP_SET_SHUFFLE || op==PlaylistControlPacketC2S.OP_SET_REPEAT || op==PlaylistControlPacketC2S.OP_PLAY_AUDIO;
@@ -362,7 +368,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean policyControl(MinecraftServer server, ServerLevel level, String fullStateKey, byte op, String strValue, int intValue, float floatValue, UUID playerUuid) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         boolean directional = false;
         switch (op) {
@@ -402,7 +408,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean setVolume(MinecraftServer server, ServerLevel level, String fullStateKey, float volume) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         state.setMaxVolume(Math.max(0.0f, Math.min(1.0f, volume)));
         ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
@@ -413,7 +419,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean setAudioDropoff(MinecraftServer server,ServerLevel level,String key,float value) {
         if (!Float.isFinite(value)) return false;
-        var state=ServerSpeakerRegistry.getSpeakerStateByFullKey(key);if(state==null)return false;
+        var state=stateInLevel(level,key);if(state==null)return false;
         state.setAudioDropoff(Math.max(0,Math.min(1,value)));
         ServerPlaybackManager.refreshSettings(server,level,key);
         broadcastStateUpdate(level,key,state,"update");ServerSpeakerRegistry.markDirty();return true;
@@ -421,7 +427,7 @@ public final class ServerSpeakerControlService {
 
     /** Controller volume is transient; saved/manual volume survives unload and restart. */
     public static boolean setControllerVolume(MinecraftServer server, ServerLevel level, String fullStateKey, Float volume) {
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         state.setControllerVolume(volume);
         ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
@@ -431,7 +437,7 @@ public final class ServerSpeakerControlService {
 
     public static boolean setRange(MinecraftServer server, ServerLevel level, String fullStateKey, int range) {
         if (fullStateKey == null) return false;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state == null) return false;
         state.setMaxRange(Math.max(1, range));
         ServerPlaybackManager.refreshSettings(server, level, fullStateKey);
@@ -447,7 +453,7 @@ public final class ServerSpeakerControlService {
 
     public static void selectPlaylistSlot(MinecraftServer server, ServerLevel level, String fullStateKey, int slotIndex) {
         if (fullStateKey == null) return;
-        SpeakerState state = ServerSpeakerRegistry.getSpeakerStateByFullKey(fullStateKey);
+        SpeakerState state = stateInLevel(level, fullStateKey);
         if (state != null && state.hasPlaylist() && slotIndex >= 0 && slotIndex < state.getPlaylist().size()) {
             playlistControl(server, level, fullStateKey, PlaylistControlPacketC2S.OP_SELECT_INDEX, slotIndex, true, "", "");
         }

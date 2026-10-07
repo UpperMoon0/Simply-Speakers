@@ -326,6 +326,10 @@ public final class SpeakerCommands {
     private static int renameAudio(CommandContext<CommandSourceStack> ctx) {
         String audioId = StringArgumentType.getString(ctx, "audioId");
         String displayName = StringArgumentType.getString(ctx, "displayName");
+        if (displayName.trim().length() > com.nstut.simplyspeakers.audio.AudioLibraryInfo.MAX_DISPLAY_NAME_LENGTH) {
+            ctx.getSource().sendFailure(Component.literal("Audio names must be at most 256 characters."));
+            return 0;
+        }
         var fileManager = SimplySpeakers.getAudioFileManager();
         if (fileManager == null || !fileManager.getManifest().containsKey(audioId)) {
             ctx.getSource().sendFailure(Component.literal("Unknown audio id."));

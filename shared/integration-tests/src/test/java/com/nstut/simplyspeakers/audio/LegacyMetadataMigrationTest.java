@@ -12,6 +12,24 @@ import static org.junit.jupiter.api.Assertions.*;
 class LegacyMetadataMigrationTest {
     @TempDir Path world;
 
+    @Test void nameLimitsProtectNewAndPreviouslyPersistedMetadataOnTheWire() {
+        var original = new AudioFileMetadata("clip", "clip.wav", "owner", 1);
+        assertEquals(256, original.withDisplayName("a".repeat(256)).getDisplayName().length());
+        assertThrows(IllegalArgumentException.class, () -> original.withDisplayName("a".repeat(257)));
+        assertThrows(IllegalArgumentException.class, () -> original.withDisplayName("界".repeat(257)));
+        var legacy = new Gson().fromJson("{\"uuid\":\"clip\",\"originalFilename\":\"clip.wav\",\"durationSeconds\":1,\"library\":{\"displayName\":\"" +
+                "a".repeat(255) + "😀" + "\",\"category\":\"" + "c".repeat(100) +
+                "\",\"uploaderName\":\"" + "u".repeat(100) + "\"}}", AudioFileMetadata.class);
+        var buffer = new net.minecraft.network.FriendlyByteBuf(io.netty.buffer.Unpooled.buffer());
+        try {
+            legacy.encode(buffer);
+            var decoded = AudioFileMetadata.decode(buffer);
+            assertEquals("a".repeat(255), decoded.getDisplayName());
+            assertEquals(64, decoded.getCategory().length()); assertEquals(64, decoded.getUploaderName().length());
+            assertEquals(0, buffer.readableBytes());
+        } finally { buffer.release(); }
+    }
+
     @Test void durationReplacementHandlesMissingAndNullLibraryAndPreservesOrganization() {
         for (String extra : new String[]{"", ",\"library\":null"}) {
             var legacy=new Gson().fromJson("{\"uuid\":\"old\",\"originalFilename\":\"old.wav\",\"ownerUUID\":\"owner\""+extra+"}",AudioFileMetadata.class);

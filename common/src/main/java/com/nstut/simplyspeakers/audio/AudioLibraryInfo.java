@@ -10,6 +10,7 @@ import java.util.Locale;
  * {@code AudioFileMetadata}, which delegates persistence and wire encoding.
  */
 public class AudioLibraryInfo {
+    public static final int MAX_DISPLAY_NAME_LENGTH = 256;
     private String displayName = "";
     private String category = "";
     private List<String> tags = new ArrayList<>();
@@ -17,7 +18,7 @@ public class AudioLibraryInfo {
     private String uploaderName = "";
 
     public String getDisplayName() {
-        return displayName != null ? displayName : "";
+        return bounded(displayName, MAX_DISPLAY_NAME_LENGTH);
     }
 
     /** Name shown in UIs; falls back to the original filename when unset. */
@@ -27,15 +28,17 @@ public class AudioLibraryInfo {
     }
 
     public void setDisplayName(String displayName) {
-        this.displayName = sanitize(displayName);
+        String clean = sanitize(displayName);
+        if (clean.length() > MAX_DISPLAY_NAME_LENGTH) throw new IllegalArgumentException("Audio name exceeds 256 characters");
+        this.displayName = clean;
     }
 
     public String getCategory() {
-        return category != null ? category : "";
+        return bounded(category, 64);
     }
 
     public void setCategory(String category) {
-        this.category = sanitize(category);
+        this.category = bounded(sanitize(category), 64);
     }
 
     public List<String> getTags() {
@@ -78,11 +81,11 @@ public class AudioLibraryInfo {
     }
 
     public String getUploaderName() {
-        return uploaderName != null ? uploaderName : "";
+        return bounded(uploaderName, 64);
     }
 
     public void setUploaderName(String uploaderName) {
-        this.uploaderName = sanitize(uploaderName);
+        this.uploaderName = bounded(sanitize(uploaderName), 64);
     }
 
     /** True when any organizational field differs from its default. */
@@ -103,5 +106,14 @@ public class AudioLibraryInfo {
 
     private static String sanitize(String value) {
         return value != null ? value.trim() : "";
+    }
+
+    /** Gson bypasses setters, so legacy persisted data must also obey wire limits. */
+    private static String bounded(String value, int limit) {
+        if (value == null) return "";
+        if (value.length() <= limit) return value;
+        int end = limit;
+        if (Character.isHighSurrogate(value.charAt(end - 1))) end--;
+        return value.substring(0, end);
     }
 }

@@ -296,3 +296,5 @@ Operator commands enforce access policies even on unowned networks. A player set
 - Preserve legacy audio manifests when duration recovery encounters entries without library metadata. Refresh Play/Pause icons and transport state immediately from authoritative playback updates.
 
 Deleting a recording purges every occurrence from saved player catalogs, runtime playlists and temporary queues. Current playback stops only if it uses the deleted file. Rebuilt remote streams receive a fresh EOF identity, and legacy queues normalize to a bounded list with constant-time head removal. Existing registry settings take precedence over stale block NBT.
+
+Main-speaker emitter eligibility is independent of network transport state, so retained snapshots can resume after chunk unload. Proxy eligibility still follows its local enable state. Control-service operations reject keys outside the supplied level, including fully qualified keys. Audio renames accept at most 256 characters; library getters bound legacy persisted labels to the corresponding packet limits.
