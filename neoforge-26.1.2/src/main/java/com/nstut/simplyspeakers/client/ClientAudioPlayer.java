@@ -91,25 +91,52 @@ public class ClientAudioPlayer {
             this.playbackGeneration = playbackGeneration;
         }
 
+        private final java.util.List<java.io.Closeable> inputs = new java.util.ArrayList<>();
+
+        void checkActive() throws IOException {
+            if (stopFlag.get() || Thread.currentThread().isInterrupted() || networkResources.get(networkKey) != this)
+                throw new java.io.InterruptedIOException("Playback cancelled");
+        }
+
+        void trackInput(java.io.Closeable input) throws IOException {
+            synchronized (inputs) {
+                if (!stopFlag.get()) { inputs.add(input); return; }
+            }
+            input.close();
+            throw new java.io.InterruptedIOException("Playback cancelled");
+        }
+
+        void closeInputs() {
+            java.util.List<java.io.Closeable> closing;
+            synchronized (inputs) { closing = new java.util.ArrayList<>(inputs); inputs.clear(); }
+            for (var input : closing) {
+                try { input.close(); } catch (IOException ignored) {}
+            }
+        }
+
         void stopAndCleanup() {
-            // Transport stop and decoder completion can race. Delete each OpenAL
-            // allocation once so a delayed cleanup cannot delete a reused source ID.
-            if (!cleanupScheduled.compareAndSet(false,true)) return;
+            if (!cleanupScheduled.compareAndSet(false, true)) return;
             stopFlag.set(true);
+            var client = Minecraft.getInstance();
             if (streamingThread != null && streamingThread.isAlive()) {
                 streamingThread.interrupt();
+                // Closing a blocked input and joining must never block the client thread.
                 Thread cleanupThread = new Thread(() -> {
-                    try {
-                        streamingThread.join(500);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
+                    closeInputs();
+                    boolean interrupted = false;
+                    while (streamingThread.isAlive()) {
+                        try { streamingThread.join(); }
+                        catch (InterruptedException e) { interrupted = true; }
                     }
-                    Minecraft.getInstance().execute(this::cleanupOpenALResources);
+                    // No timeout: numeric OpenAL IDs cannot be reused while the worker can access them.
+                    client.execute(this::cleanupOpenALResources);
+                    if (interrupted) Thread.currentThread().interrupt();
                 }, SimplySpeakers.MOD_ID + "-cleanup-" + networkKey);
                 cleanupThread.setDaemon(true);
                 cleanupThread.start();
             } else {
-                Minecraft.getInstance().execute(this::cleanupOpenALResources);
+                closeInputs();
+                client.execute(this::cleanupOpenALResources);
             }
         }
 
@@ -331,6 +358,8 @@ public class ClientAudioPlayer {
                     break;
                 }
 
+                resource.trackInput(pcmAudioStream);
+                resource.checkActive();
                 AudioFormat format = pcmAudioStream.getFormat();
                 if (startPositionSeconds > 0 && continueStreaming) {
                     float frameRate = format.getFrameRate();
@@ -345,6 +374,7 @@ public class ClientAudioPlayer {
                         long bytesToSkip = framesToSkip * frameSize;
                         if (bytesToSkip > 0) {
                             skipFully(pcmAudioStream, bytesToSkip);
+                            resource.checkActive();
                         }
                     }
                     startPositionSeconds = 0;
@@ -364,6 +394,7 @@ public class ClientAudioPlayer {
                     }
 
                     int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
+                    resource.checkActive();
                     if (bytesRead <= 0) {
                         endOfStream = true;
                         break;
@@ -372,12 +403,15 @@ public class ClientAudioPlayer {
                     ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
                     alBuffer.put(bufferData, 0, bytesRead).flip();
 
+                    resource.checkActive();
                     AL10.alBufferData(bufferIDs[i], alFormat, alBuffer, (int) format.getSampleRate());
+                    resource.checkActive();
                     AL10.alSourceQueueBuffers(sourceID, bufferIDs[i]);
                     resource.decodedBytes += bytesRead;
                     initialDataLoaded = true;
 
                     if (!playbackAttempted) {
+                        resource.checkActive();
                         AL10.alSourcePlay(sourceID);
                         playbackAttempted = true;
                     }
@@ -386,8 +420,11 @@ public class ClientAudioPlayer {
 
                 if (!playbackAttempted && initialDataLoaded) {
                     if (!resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+                        resource.checkActive();
                         int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                        resource.checkActive();
                         if (queued > 0 && AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
+                            resource.checkActive();
                             AL10.alSourcePlay(sourceID);
                             playbackAttempted = true;
                         }
@@ -402,16 +439,21 @@ public class ClientAudioPlayer {
                 }
 
                 while (playbackAttempted && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+                    resource.checkActive();
                     int buffersProcessed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
 
                     for (int i = 0; i < buffersProcessed; i++) {
+                        resource.checkActive();
                         int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
                         if (!endOfStream) {
                             int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
+                            resource.checkActive();
                             if (bytesRead > 0) {
                                 ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
                                 alBuffer.put(bufferData, 0, bytesRead).flip();
+                                resource.checkActive();
                                 AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                                resource.checkActive();
                                 AL10.alSourceQueueBuffers(sourceID, bufferID);
                             } else {
                                 endOfStream = true;
@@ -422,6 +464,7 @@ public class ClientAudioPlayer {
                         break;
                     }
 
+                    resource.checkActive();
                     int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
                     if (endOfStream) {
                         SimplySpeakers.LOGGER.debug("Draining queued audio before restart for source {}", sourceID);
@@ -431,8 +474,10 @@ public class ClientAudioPlayer {
                         break;
                     }
 
+                    resource.checkActive();
                     if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
                         if (queuedBuffers > 0) {
+                            resource.checkActive();
                             AL10.alSourcePlay(sourceID);
                         }
                     }
@@ -452,9 +497,13 @@ public class ClientAudioPlayer {
                     boolean currentlyLooping = resource != null ? resource.isLooping.get() : isLooping;
                     if (currentlyLooping) {
                         SimplySpeakers.LOGGER.debug("Audio track finished for {}. Looping enabled, restarting.", networkKey);
+                        resource.checkActive();
                         if (AL10.alIsSource(sourceID)) {
+                            resource.checkActive();
                             AL10.alSourceStop(sourceID);
+                            resource.checkActive();
                             int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                            resource.checkActive();
                             if (queued > 0) AL10.alSourceUnqueueBuffers(sourceID, new int[queued]);
                         }
                         playbackCompletedSuccessfully = false;
@@ -473,7 +522,7 @@ public class ClientAudioPlayer {
                 }
 
             } catch (UnsupportedAudioFileException | IOException e) {
-                SimplySpeakers.LOGGER.error("Streaming thread error for network {} with file {}", networkKey, filePath, e);
+                if (!resource.stopFlag.get()) SimplySpeakers.LOGGER.error("Streaming thread error for network {} with file {}", networkKey, filePath, e);
                 if (resource != null) resource.stopFlag.set(true);
                 continueStreaming = false;
             } catch (Exception e) {
@@ -481,11 +530,7 @@ public class ClientAudioPlayer {
                 if (resource != null) resource.stopFlag.set(true);
                 continueStreaming = false;
             } finally {
-                if (pcmAudioStream != null) {
-                    try {
-                        pcmAudioStream.close();
-                    } catch (IOException ignored) {}
-                }
+                resource.closeInputs();
                 if (!continueStreaming && resource != null && !resource.stopFlag.get()) {
                     resource.stopFlag.set(true);
                 }
@@ -553,11 +598,12 @@ public class ClientAudioPlayer {
      * could rebind the name between them (TOCTOU window); see
      * {@link com.nstut.simplyspeakers.audio.StreamTracks}.
      */
-    private static AudioInputStream openUrlStream(String url) throws IOException {
+    private static AudioInputStream openUrlStream(StreamingAudioResource resource, String url) throws IOException {
         try {
             String currentUrl = url;
             int redirects = 0;
             while (true) {
+                resource.checkActive();
                 if (!com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(currentUrl)) {
                     throw new IOException("Stream URL host is not allowed: " + currentUrl);
                 }
@@ -565,6 +611,7 @@ public class ClientAudioPlayer {
                 connection.setConnectTimeout(8000);
                 connection.setReadTimeout(15000);
                 if (connection instanceof java.net.HttpURLConnection http) {
+                    resource.trackInput(http::disconnect);
                     http.setRequestProperty("Icy-MetaData", "1");
                     http.setRequestProperty("User-Agent", SimplySpeakers.MOD_ID + "/0.8.2");
                     http.setInstanceFollowRedirects(false);
@@ -591,9 +638,15 @@ public class ClientAudioPlayer {
                     if (code / 100 != 2) {
                         throw new IOException("HTTP " + code + " for stream " + currentUrl);
                     }
-                    return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), currentUrl);
+                    InputStream input = connection.getInputStream();
+                    resource.trackInput(input);
+                    resource.checkActive();
+                    return IncrementalAudioDecoders.openPcmStreamFromUrl(input, currentUrl);
                 }
-                return IncrementalAudioDecoders.openPcmStreamFromUrl(connection.getInputStream(), currentUrl);
+                InputStream input = connection.getInputStream();
+                resource.trackInput(input);
+                resource.checkActive();
+                return IncrementalAudioDecoders.openPcmStreamFromUrl(input, currentUrl);
             }
         } catch (javax.sound.sampled.UnsupportedAudioFileException e) {
             throw new IOException("Unsupported internet stream format: " + url, e);
@@ -622,7 +675,9 @@ public class ClientAudioPlayer {
             AudioInputStream pcm = null;
             boolean completed = false;
             try {
-                pcm = openUrlStream(url);
+                pcm = openUrlStream(resource, url);
+                resource.trackInput(pcm);
+                resource.checkActive();
                 AudioFormat format = pcm.getFormat();
                 float startSeconds = com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds);
                 if (startSeconds > 0.0f) {
@@ -634,6 +689,7 @@ public class ClientAudioPlayer {
                     long bytesToSkip = framesToSkip * format.getFrameSize();
                     if (bytesToSkip > 0) {
                         skipFully(pcm, bytesToSkip);
+                        resource.checkActive();
                     }
                 }
                 int alFormat = AL10.AL_FORMAT_MONO16;
@@ -644,45 +700,58 @@ public class ClientAudioPlayer {
                 int prefill = 0;
                 while (prefill < NUM_BUFFERS && !resource.stopFlag.get()) {
                     int read = pcm.read(bufferData, 0, bufferData.length);
+                    resource.checkActive();
                     if (read <= 0) break;
                     ByteBuffer alBuffer = ByteBuffer.allocateDirect(read).order(ByteOrder.nativeOrder());
                     alBuffer.put(bufferData, 0, read).flip();
+                    resource.checkActive();
                     AL10.alBufferData(bufferIDs[prefill], alFormat, alBuffer, (int) format.getSampleRate());
+                    resource.checkActive();
                     AL10.alSourceQueueBuffers(sourceID, bufferIDs[prefill]);
                     prefill++;
                     if (!playbackAttempted && prefill >= 2) {
+                        resource.checkActive();
                         AL10.alSourcePlay(sourceID);
                         playbackAttempted = true;
                     }
                 }
                 if (!playbackAttempted && prefill > 0) {
+                    resource.checkActive();
                     AL10.alSourcePlay(sourceID);
                     playbackAttempted = true;
                 }
 
                 boolean endOfStream = false;
                 while (playbackAttempted && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+                    resource.checkActive();
                     int processed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
                     for (int i = 0; i < processed; i++) {
+                        resource.checkActive();
                         int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
                         if (!endOfStream) {
                             int read = pcm.read(bufferData, 0, bufferData.length);
+                            resource.checkActive();
                             if (read > 0) {
                                 ByteBuffer alBuffer = ByteBuffer.allocateDirect(read).order(ByteOrder.nativeOrder());
                                 alBuffer.put(bufferData, 0, read).flip();
+                                resource.checkActive();
                                 AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                                resource.checkActive();
                                 AL10.alSourceQueueBuffers(sourceID, bufferID);
                             } else {
                                 endOfStream = true;
                             }
                         }
                     }
+                    resource.checkActive();
                     if (endOfStream && AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED) == 0) {
                         completed = true;
                         break;
                     }
+                    resource.checkActive();
                     if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING
                             && AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED) > 0) {
+                        resource.checkActive();
                         AL10.alSourcePlay(sourceID);
                     }
                     Thread.sleep(50);
@@ -692,12 +761,10 @@ public class ClientAudioPlayer {
                 Thread.currentThread().interrupt();
                 if (resource != null) resource.stopFlag.set(true);
             } catch (Exception e) {
-                SimplySpeakers.LOGGER.error("CLIENT: Internet stream error for {}: {}", networkKey, url, e);
+                if (!resource.stopFlag.get()) SimplySpeakers.LOGGER.error("CLIENT: Internet stream error for {}: {}", networkKey, url, e);
                 if (resource != null) resource.stopFlag.set(true);
             } finally {
-                if (pcm != null) {
-                    try { pcm.close(); } catch (IOException ignored) {}
-                }
+                resource.closeInputs();
             }
 
             if (completed && !resource.stopFlag.get() && !resource.isLooping.get()) {
