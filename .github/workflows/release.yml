@@ -16,14 +16,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository/com/nstut
-          key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+          key: openui-maven-0d6e10dad6a5ba8615a5798c4369bc4cd6e73300
       - name: Checkout OpenUI MC
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           repository: UpperMoon0/OpenUI-MC
-          ref: 82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+          ref: 0d6e10dad6a5ba8615a5798c4369bc4cd6e73300
           path: .openui-mc
+      - name: Validate OpenUI dependency version
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        run: python3 tools/check_release_metadata.py --openui-checkout .openui-mc
       - name: Set up JDK 21 for OpenUI
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/setup-java@v5
@@ -103,7 +106,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository/com/nstut
-          key: openui-maven-82a5dd2f0e6c6027f20ca2acf049858f7f96f597
+          key: openui-maven-0d6e10dad6a5ba8615a5798c4369bc4cd6e73300
 
       - name: Download OpenUI Maven Artifacts Fallback
         if: steps.cache-openui.outputs.cache-hit != 'true'
@@ -234,9 +237,9 @@ jobs:
           fi
 
           if [[ "$PLATFORM" == "fabric" ]]; then
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"}]}'
           else
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"}]}'
           fi
 
           changelog="$(<"$CHANGELOG_PATH")"

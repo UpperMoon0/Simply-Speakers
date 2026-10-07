@@ -68,7 +68,7 @@ public class ClientAudioPlayer {
         volatile long decodedBytes;
         float startOffsetSeconds;
         final int[] bufferIDs;
-        final Thread streamingThread;
+        Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
         final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
         final AtomicBoolean isLooping = new AtomicBoolean(false);
@@ -273,11 +273,11 @@ public class ClientAudioPlayer {
                 AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
-                Thread streamingThread = new Thread(() -> streamAudioData(networkKey, sourceID, bufferIDs, filePath, startPositionSeconds, isLooping),
+                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, null, isLooping);
+                Thread streamingThread = new Thread(() -> streamAudioData(resource, filePath, startPositionSeconds),
                         SimplySpeakers.MOD_ID + "-stream-" + networkKey);
                 streamingThread.setDaemon(true);
-
-                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping);
+                resource.streamingThread = streamingThread;
                 resource.startOffsetSeconds = startPositionSeconds;
                 networkResources.put(networkKey, resource);
                 streamingThread.start();
@@ -301,12 +301,15 @@ public class ClientAudioPlayer {
         return n - remaining;
     }
 
-    private static void streamAudioData(String networkKey, int sourceID, int[] bufferIDs, String filePath, float startPositionSeconds, boolean isLooping) {
-        StreamingAudioResource resource = networkResources.get(networkKey);
+    private static void streamAudioData(StreamingAudioResource resource, String filePath, float startPositionSeconds) {
+        boolean isLooping = resource.isLooping.get();
+        String networkKey = resource.networkKey;
+        int sourceID = resource.sourceID;
+        int[] bufferIDs = resource.bufferIDs;
         boolean continueStreaming = true;
 
         while (continueStreaming) {
-            if (resource == null || resource.sourceID != sourceID) {
+            if (networkResources.get(networkKey) != resource || resource.stopFlag.get() || Thread.currentThread().isInterrupted()) {
                 break;
             }
 
@@ -528,11 +531,11 @@ public class ClientAudioPlayer {
                 AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
                 AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
 
-                Thread streamingThread = new Thread(() -> streamUrlAudioData(networkKey, sourceID, bufferIDs, url, startPositionSeconds, isLooping, fullStateKey, playbackGeneration),
+                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, null, isLooping, fullStateKey, playbackGeneration);
+                Thread streamingThread = new Thread(() -> streamUrlAudioData(resource, url, startPositionSeconds),
                         SimplySpeakers.MOD_ID + "-url-stream-" + networkKey);
                 streamingThread.setDaemon(true);
-
-                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, streamingThread, isLooping, fullStateKey, playbackGeneration);
+                resource.streamingThread = streamingThread;
                 resource.startOffsetSeconds = startPositionSeconds;
                 networkResources.put(networkKey, resource);
                 streamingThread.start();
@@ -610,12 +613,12 @@ public class ClientAudioPlayer {
         }
     }
 
-    private static void streamUrlAudioData(String networkKey, int sourceID, int[] bufferIDs,
-                                           String url, float startPositionSeconds, boolean isLooping,
-                                           String fullStateKey, int playbackGeneration) {
-        StreamingAudioResource resource = networkResources.get(networkKey);
+    private static void streamUrlAudioData(StreamingAudioResource resource, String url, float startPositionSeconds) {
+        String networkKey = resource.networkKey;
+        int sourceID = resource.sourceID;
+        int[] bufferIDs = resource.bufferIDs;
 
-        while (resource != null && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
+        while (networkResources.get(networkKey) == resource && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
             AudioInputStream pcm = null;
             boolean completed = false;
             try {
