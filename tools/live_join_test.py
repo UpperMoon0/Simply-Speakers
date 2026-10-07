@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch a real dedicated server and auto-joining client for the join-race smoke test."""
+"""One dedicated server/client session covers join safety, real audio and transport."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from verify import checkout_lock
 
 
 PASS_MARKER = "SIMPLYSPEAKERS_LIVE_JOIN_TEST_PASS"
@@ -25,6 +26,23 @@ TARGETS = {
     "neoforge-1.21.1": "neoforge-1.21.1",
     "neoforge-26.1.2": "neoforge-26.1.2",
 }
+PHASES = ("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone")
+FAIL_MARKER = "SIMPLYSPEAKERS_VERIFY_FAIL"
+CRASH_MARKERS = ("Exception in thread", "FAILURE: Build failed", "Minecraft has crashed", "Unsupported installed optional dependencies:")
+
+
+def reject_failure(prefix: str, line: str) -> None:
+    if FAIL_MARKER in line or any(marker in line for marker in CRASH_MARKERS):
+        raise RuntimeError(f"{prefix}: {line.strip()}")
+
+
+def required_markers(target: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    client = (PASS_MARKER, "SIMPLYSPEAKERS_CONTINUOUS_DRAG_PASS", "SIMPLYSPEAKERS_GUIDE_PASS", "SIMPLYSPEAKERS_CLIENT_PLAYBACK_PASS", *(
+        f"SIMPLYSPEAKERS_CLIENT_PHASE_PASS {phase}" for phase in PHASES))
+    server = ("SIMPLYSPEAKERS_CONTROLLER_COOPERATION_PASS", "SIMPLYSPEAKERS_CONTROLLER_PASS", "SIMPLYSPEAKERS_SERVER_PLAYBACK_PASS", *(
+        f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}" for phase in PHASES))
+    if target != "neoforge-26.1.2": server += ("SIMPLYSPEAKERS_PERIPHERAL_PASS",)
+    return client, server
 
 
 class OutputPump:
@@ -32,6 +50,7 @@ class OutputPump:
         self.process = process
         self.prefix = prefix
         self.lines: queue.Queue[str] = queue.Queue()
+        self.history: list[str] = []
         self.thread = threading.Thread(target=self._read, daemon=True)
         self.thread.start()
 
@@ -39,6 +58,7 @@ class OutputPump:
         assert self.process.stdout is not None
         for line in self.process.stdout:
             print(f"[{self.prefix}] {line}", end="", flush=True)
+            self.history.append(line)
             self.lines.put(line)
 
     def wait_for(self, markers: tuple[str, ...], timeout: int) -> str | None:
@@ -50,9 +70,38 @@ class OutputPump:
                 line = self.lines.get(timeout=min(1.0, deadline - time.monotonic()))
             except queue.Empty:
                 continue
+            reject_failure(self.prefix, line)
             if any(marker in line for marker in markers):
                 return line
         return None
+
+    def wait_for_all(self, markers: tuple[str, ...], timeout: int, peer=None) -> None:
+        deadline = time.monotonic() + timeout
+        missing = set(markers)
+        index = 0
+        while missing:
+            batch = self.history[index:]
+            for line in batch:
+                reject_failure(self.prefix, line)
+                missing.difference_update(marker for marker in tuple(missing) if marker in line)
+            index += len(batch)
+            if peer is not None:
+                for line in peer.history:
+                    reject_failure(peer.prefix, line)
+                if peer.process.poll() is not None:
+                    raise RuntimeError(f"{peer.prefix}: game process exited during verification")
+            if not missing: return
+            if self.process.poll() is not None:
+                self.thread.join(timeout=1)
+                # Drain final buffered output before treating an exit as failure.
+                for line in self.history[index:]:
+                    reject_failure(self.prefix, line)
+                    missing.difference_update(marker for marker in tuple(missing) if marker in line)
+                if not missing: return
+                raise RuntimeError(f"{self.prefix}: exited before evidence: {sorted(missing)}")
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"{self.prefix}: timed out waiting for evidence: {sorted(missing)}")
+            time.sleep(0.05)
 
 
 def command(root: Path, task: str) -> list[str]:
@@ -66,7 +115,7 @@ def command(root: Path, task: str) -> list[str]:
         "--no-daemon",
         "--console=plain",
         "--max-workers=4",
-        "-Dorg.gradle.jvmargs=-Xmx2048m",
+        "-Dorg.gradle.jvmargs=-Xmx" + os.environ.get("SIMPLYSPEAKERS_LIVE_GRADLE_HEAP", "2048m"),
     ]
 
 
@@ -78,6 +127,7 @@ def popen(cmd: list[str], root: Path) -> subprocess.Popen[str]:
         "stderr": subprocess.STDOUT,
         "text": True,
         "bufsize": 1,
+        "env": {**os.environ, "ALSOFT_DRIVERS": "null"},
     }
     if os.name == "nt":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
@@ -104,6 +154,7 @@ def stop_tree(process: subprocess.Popen[str], graceful_server: bool = False) -> 
             stderr=subprocess.DEVNULL,
             check=False,
         )
+        process.wait(timeout=10)
     else:
         try:
             os.killpg(process.pid, signal.SIGTERM)
@@ -113,16 +164,26 @@ def stop_tree(process: subprocess.Popen[str], graceful_server: bool = False) -> 
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+            process.wait(timeout=10)
 
 
 def prepare_server(module_dir: Path) -> None:
     server_dir = module_dir / "run" / "live-join" / "server"
     server_dir.mkdir(parents=True, exist_ok=True)
+    # The fixture owns this exact world. Reusing it can retain extra emitters
+    # and turn a correct linked-speaker count into an order-dependent failure.
+    world = (server_dir / "live-join-world").resolve()
+    if world.parent != server_dir.resolve():
+        raise RuntimeError("Verification world escaped the dedicated run directory")
+    if world.exists():
+        shutil.rmtree(world)
     (server_dir / "eula.txt").write_text("eula=true\n", encoding="utf-8")
     (server_dir / "server.properties").write_text(
         "online-mode=false\n"
         "server-port=25575\n"
         "level-name=live-join-world\n"
+        "level-type=minecraft:flat\n"
+        'generator-settings={"biome":"minecraft:plains","layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"structure_overrides":[]}\n'
         "motd=Simply Speakers live join test\n"
         "spawn-protection=0\n",
         encoding="utf-8",
@@ -150,7 +211,7 @@ def run_target(root: Path, target: str, timeout: int) -> None:
     prepare_client(root / module)
 
     compile_cmd = command(root, f":{module}:classes")
-    subprocess.run(compile_cmd, cwd=root, check=True)
+    subprocess.run(compile_cmd, cwd=root, check=True, timeout=timeout)
 
     server = popen(command(root, f":{module}:runLiveJoinTestServer"), root)
     server_output = OutputPump(server, f"{target}/server")
@@ -168,14 +229,11 @@ def run_target(root: Path, target: str, timeout: int) -> None:
 
         client = popen(client_cmd, root)
         client_output = OutputPump(client, f"{target}/client")
-        if client_output.wait_for((PASS_MARKER,), timeout) is None:
-            raise RuntimeError(f"{target}: client did not report a successful live join")
-        try:
-            exit_code = client.wait(timeout=60)
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(f"{target}: client passed but did not exit") from exc
-        if exit_code != 0:
-            raise RuntimeError(f"{target}: client exited with code {exit_code} after passing")
+        client_markers, server_markers = required_markers(target)
+        client_output.wait_for_all(client_markers, timeout, peer=server_output)
+        server_output.wait_for_all(server_markers, timeout, peer=client_output)
+        if client.poll() is not None or server.poll() is not None:
+            raise RuntimeError(f"{target}: a game process exited before the harness completed verification")
         print(f"{target}: PASS", flush=True)
     finally:
         if client is not None:
@@ -191,14 +249,15 @@ def main() -> int:
 
     root = Path(__file__).resolve().parents[1]
     targets = args.target or list(TARGETS)
-    for target in targets:
-        run_target(root, target, args.timeout)
+    with checkout_lock(root, "live-join.lock"):
+        for target in targets:
+            run_target(root, target, args.timeout)
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (RuntimeError, subprocess.CalledProcessError) as error:
+    except (RuntimeError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         print(f"LIVE JOIN TEST FAILED: {error}", file=sys.stderr)
         raise SystemExit(1)

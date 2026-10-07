@@ -14,14 +14,23 @@ architectury {
 
 loom {
     runs {
+        ccLuaTestServer {
+            server()
+            property "simplyspeakers.ccLuaTest", "true"
+            runDir("run/cc-lua/server")
+            programArg "nogui"
+        }
         liveJoinTestClient {
             client()
             runDir("run/live-join/client")
             property "simplyspeakers.liveJoinTest", "true"
+            property "simplyspeakers.livePlaybackTest", "true"
             programArgs "--quickPlayMultiplayer", "127.0.0.1:25575"
         }
         liveJoinTestServer {
             server()
+            property "simplyspeakers.livePlaybackTest", "true"
+            property "simplyspeakers.requireComputerCraft", "true"
             runDir("run/live-join/server")
             programArg "nogui"
         }
@@ -59,7 +68,14 @@ repositories {
 }
 
 dependencies {
+    modImplementation "vazkii.patchouli:Patchouli:1.21.1-93-NEOFORGE"
     neoForge "net.neoforged:neoforge:$project.neoforge_version"
+
+    // CC:Tweaked API (optional integration; compile-only)
+    compileOnly "cc.tweaked:cc-tweaked-1.21.1-forge-api:1.120.2"
+    modLocalRuntime "cc.tweaked:cc-tweaked-1.21.1-forge:1.120.2"
+    forgeRuntimeLibrary "cc.tweaked:cobalt:0.9.9"
+    forgeRuntimeLibrary "com.jcraft:jzlib:1.1.3"
 
     // OpenUI MC - required client-side UI framework (matching NeoForge 1.21.1 module)
     modImplementation "com.nstut:openui-mc-neoforge-1.21.1:${project.openui_version}"
@@ -139,4 +155,12 @@ shadowJar {
 
 remapJar {
     inputFile.set shadowJar.archiveFile
+}
+
+// Patchouli discovers definitions in the physical loader mod root, while the
+// shared resource pack supplies the localized contents and textures.
+processResources {
+    from('../common/src/main/resources/data/simplyspeakers/patchouli_books') {
+        into 'data/simplyspeakers/patchouli_books'
+    }
 }

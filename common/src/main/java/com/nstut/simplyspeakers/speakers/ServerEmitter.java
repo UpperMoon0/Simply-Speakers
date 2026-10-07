@@ -12,8 +12,8 @@ package com.nstut.simplyspeakers.speakers;
  * @param maxVolume configured maximum volume (0.0 to 1.0)
  * @param dropoff   configured dropoff factor (0.0 to 1.0)
  * @param proxy     true when this emitter is a proxy speaker
- * @param active    last known intent to emit audio (powered/playing flags frozen at last update;
- *                  the authoritative per-network {@code SpeakerState} is still checked live)
+ * @param active    proxy enable state; main speakers are always eligible, with transport
+ *                  checked against the authoritative per-network {@code SpeakerState}
  */
 public record ServerEmitter(
         SpeakerLocation location,
@@ -22,15 +22,26 @@ public record ServerEmitter(
         float maxVolume,
         float dropoff,
         boolean proxy,
-        boolean active
+        boolean active,
+        com.nstut.simplyspeakers.audio.DirectionalAudio.Extras directionalExtras
 ) {
+
+    public ServerEmitter(SpeakerLocation location, String networkKey, int maxRange, float maxVolume, float dropoff, boolean proxy, boolean active) {
+        this(location, networkKey, maxRange, maxVolume, dropoff, proxy, active, null);
+    }
 
     public ServerEmitter {
         networkKey = networkKey != null ? networkKey : "";
+        // Also normalizes retained snapshots written by versions which froze transport state.
+        if (!proxy) active = true;
     }
 
     public ServerEmitter withActive(boolean newActive) {
-        return new ServerEmitter(location, networkKey, maxRange, maxVolume, dropoff, proxy, newActive);
+        return new ServerEmitter(location, networkKey, maxRange, maxVolume, dropoff, proxy, newActive, directionalExtras);
+    }
+
+    public ServerEmitter withDirectionalExtras(com.nstut.simplyspeakers.audio.DirectionalAudio.Extras newExtras) {
+        return new ServerEmitter(location, networkKey, maxRange, maxVolume, dropoff, proxy, active, newExtras);
     }
 
     /** Dimension-prefixed registry key used to look up the live {@code SpeakerState}. */

@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "BA"
+  ],
+  "key": {
+    "B": "minecraft:book",
+    "A": "simplyspeakers:audio_circuit"
+  },
+  "result": {
+    "id": "patchouli:guide_book",
+    "count": 1,
+    "components": {
+      "patchouli:book": "simplyspeakers:guide"
+    }
+  }
+}

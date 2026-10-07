@@ -15,14 +15,23 @@ architectury {
 
 loom {
     runs {
+        ccLuaTestServer {
+            server()
+            property "simplyspeakers.ccLuaTest", "true"
+            runDir("run/cc-lua/server")
+            programArg "nogui"
+        }
         liveJoinTestClient {
             client()
             runDir("run/live-join/client")
             property "simplyspeakers.liveJoinTest", "true"
+            property "simplyspeakers.livePlaybackTest", "true"
             programArgs "--quickPlayMultiplayer", "127.0.0.1:25575"
         }
         liveJoinTestServer {
             server()
+            property "simplyspeakers.livePlaybackTest", "true"
+            property "simplyspeakers.requireComputerCraft", "true"
             runDir("run/live-join/server")
             programArg "nogui"
         }
@@ -47,7 +56,12 @@ configurations {
 }
 
 dependencies {
+    modImplementation "vazkii.patchouli:Patchouli:1.20.1-85-FABRIC"
     modImplementation "net.fabricmc:fabric-loader:$project.fabric_loader_version"
+
+    // CC:Tweaked API (optional integration; compile-only)
+    modCompileOnly "cc.tweaked:cc-tweaked-1.20.1-fabric-api:1.120.2"
+    modLocalRuntime "cc.tweaked:cc-tweaked-1.20.1-fabric:1.120.2"
 
     // Fabric API. This is technically optional, but you probably want it anyway.
     modImplementation "net.fabricmc.fabric-api:fabric-api:$project.fabric_api_version"
@@ -108,4 +122,12 @@ shadowJar {
 
 remapJar {
     inputFile.set shadowJar.archiveFile
+}
+
+// Patchouli discovers definitions in the physical loader mod root, while the
+// shared resource pack supplies the localized contents and textures.
+processResources {
+    from('../common/src/main/resources/data/simplyspeakers/patchouli_books') {
+        into 'data/simplyspeakers/patchouli_books'
+    }
 }

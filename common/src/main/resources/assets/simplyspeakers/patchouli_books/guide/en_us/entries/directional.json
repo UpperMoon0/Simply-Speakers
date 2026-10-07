@@ -1,0 +1,23 @@
+{
+  "name": "Directional Audio",
+  "category": "simplyspeakers:playback",
+  "icon": "minecraft:compass",
+  "sortnum": 8,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Directionality",
+      "text": "0% emits equally in every direction. 100% applies the full forward cone and rear attenuation. Aim the speaker front toward listeners; directionality does not extend range."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Cone and rear volume",
+      "text": "Cone angle sets the width of the forward area. Rear attenuation reduces volume outside it; 100% silences the rear at full Directionality. At 0% Directionality, both are ignored."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Area preview",
+      "text": "The preview lasts eight seconds. Teal marks the boundary; green indicates louder areas and amber quieter areas. It uses the current range, fade and directional settings."
+    }
+  ]
+}

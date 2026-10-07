@@ -10,6 +10,7 @@ public class PacketRegistries {
     );
 
     public static void registerC2S() {
+        CHANNEL.register(ConfigureControllerPacketC2S.class, ConfigureControllerPacketC2S::encode, ConfigureControllerPacketC2S::new, ConfigureControllerPacketC2S::handle);
         // Client to Server packets
         CHANNEL.register(ToggleLoopPacketC2S.class,
                 ToggleLoopPacketC2S::encode,
@@ -86,6 +87,36 @@ public class PacketRegistries {
                 DeleteAudioPacketC2S::new,
                 DeleteAudioPacketC2S::handle
         );
+        CHANNEL.register(TransportControlPacketC2S.class,
+                TransportControlPacketC2S::encode,
+                TransportControlPacketC2S::new,
+                TransportControlPacketC2S::handle
+        );
+        CHANNEL.register(PlaylistControlPacketC2S.class,
+                PlaylistControlPacketC2S::encode,
+                PlaylistControlPacketC2S::new,
+                PlaylistControlPacketC2S::handle
+        );
+        CHANNEL.register(SpeakerPolicyPacketC2S.class,
+                SpeakerPolicyPacketC2S::encode,
+                SpeakerPolicyPacketC2S::new,
+                SpeakerPolicyPacketC2S::handle
+        );
+        CHANNEL.register(UpdateAudioMetaPacketC2S.class,
+                UpdateAudioMetaPacketC2S::encode,
+                UpdateAudioMetaPacketC2S::new,
+                UpdateAudioMetaPacketC2S::handle
+        );
+        CHANNEL.register(RequestPlaylistPacketC2S.class,
+                RequestPlaylistPacketC2S::encode,
+                RequestPlaylistPacketC2S::new,
+                RequestPlaylistPacketC2S::handle
+        );
+        CHANNEL.register(RemoteStreamEofPacketC2S.class,
+                RemoteStreamEofPacketC2S::encode,
+                RemoteStreamEofPacketC2S::new,
+                RemoteStreamEofPacketC2S::handle
+        );
     }
 
     public static void registerS2C() {
@@ -129,6 +160,11 @@ public class PacketRegistries {
                 SyncConfigPacketS2C::encode,
                 SyncConfigPacketS2C::new,
                 SyncConfigPacketS2C::handle
+        );
+        CHANNEL.register(PlaylistSyncPacketS2C.class,
+                PlaylistSyncPacketS2C::encode,
+                PlaylistSyncPacketS2C::new,
+                PlaylistSyncPacketS2C::handle
         );
     }
     

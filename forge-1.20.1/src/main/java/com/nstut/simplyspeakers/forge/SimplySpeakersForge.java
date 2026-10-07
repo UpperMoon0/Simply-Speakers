@@ -31,6 +31,15 @@ public final class SimplySpeakersForge {
         SimplySpeakers.init();
 
         // Register the server starting event
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.RegisterCommandsEvent event) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
+
+        // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        if (net.minecraftforge.fml.ModList.get().isLoaded("computercraft")) {
+            com.nstut.simplyspeakers.forge.compat.computercraft.SimplySpeakersPeripheral.registerProvider();
+        }
+
         MinecraftForge.EVENT_BUS.addListener(this::onServerStarting);
         
         // Register the server stopping event
@@ -48,21 +57,24 @@ public final class SimplySpeakersForge {
     }
     
     public void onServerStopping(ServerStoppingEvent event) {
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.flushDirty();
         SimplySpeakers.shutdownAudio();
     }
 
     public void onServerStopped(ServerStoppedEvent event) {
         ServerPlaybackManager.resetForWorld();
         ServerSpeakerRegistry.resetForWorld();
+        if (net.minecraftforge.fml.ModList.get().isLoaded("computercraft")) {
+            com.nstut.simplyspeakers.forge.compat.computercraft.SimplySpeakersPeripheral.reset();
+        }
     }
 
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             ServerPlaybackManager.serverTick(event.getServer());
-            // Save every 6000 ticks (5 minutes at 20 TPS)
+            // Flush pending registry writes every 6000 ticks (5 minutes at 20 TPS).
             if (event.getServer().getTickCount() % 6000 == 0) {
-                ServerSpeakerRegistry.saveRegistry();
+                ServerSpeakerRegistry.flushDirty();
             }
         }
     }

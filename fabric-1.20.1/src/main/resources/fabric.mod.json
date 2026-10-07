@@ -21,12 +21,16 @@
   "mixins": [
     "simplyspeakers.mixins.json"
   ],
+  "suggests": {
+    "computercraft": "*"
+  },
   "depends": {
     "fabricloader": ">=${fabric_loader_version}",
     "minecraft": "~${minecraft_version}",
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
-    "openui_mc": ">=${openui_version}"
+    "openui_mc": ">=${openui_version}",
+    "patchouli": "*"
   }
 }

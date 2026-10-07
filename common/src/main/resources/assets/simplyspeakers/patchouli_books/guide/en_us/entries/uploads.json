@@ -1,0 +1,18 @@
+{
+  "name": "Audio uploads",
+  "category": "simplyspeakers:getting_started",
+  "icon": "minecraft:paper",
+  "sortnum": 2,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Supported files",
+      "text": "Upload MP3 or WAV audio. Renaming another format to .mp3 or .wav does not convert it. The server validates content and enforces its upload limit."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Upload limits",
+      "text": "The default limit is 5 MiB; administrators can raise it to 100 MiB. Server policy can disable uploads independently of remote streams."
+    }
+  ]
+}

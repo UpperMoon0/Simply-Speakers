@@ -29,6 +29,8 @@ public class SendAudioListPacketS2C {
         context.queue(() -> {
             if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
                 screen.updateAudioList(pkt.audioList);
+            } else if (Minecraft.getInstance().screen instanceof com.nstut.simplyspeakers.client.screens.RedstoneControllerScreen controller) {
+                controller.updateAudioList(pkt.audioList);
             }
         });
     }

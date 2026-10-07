@@ -38,6 +38,8 @@ public class SendAudioListPacketS2C implements CustomPacketPayload {
         context.queue(() -> {
             if (Minecraft.getInstance().screen instanceof SpeakerScreen screen) {
                 screen.updateAudioList(packet.audioList);
+            } else if (Minecraft.getInstance().screen instanceof com.nstut.simplyspeakers.client.screens.RedstoneControllerScreen controller) {
+                controller.updateAudioList(packet.audioList);
             }
         });
     }

@@ -46,6 +46,10 @@ public final class SimplySpeakersForge {
         SimplySpeakers.init();
 
         // Register the server starting event
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.RegisterCommandsEvent event) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
+
         NeoForge.EVENT_BUS.addListener(this::onServerStarting);
         
         // Register the server stopping event
@@ -69,7 +73,7 @@ public final class SimplySpeakersForge {
     }
     
     public void onServerStopping(ServerStoppingEvent event) {
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.flushDirty();
         SimplySpeakers.shutdownAudio();
     }
 
@@ -83,7 +87,7 @@ public final class SimplySpeakersForge {
         // We only want to save periodically, not every tick
         // Save every 6000 ticks (5 minutes at 20 TPS)
         if (event.getServer().getTickCount() % 6000 == 0) {
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.flushDirty();
         }
     }
 }

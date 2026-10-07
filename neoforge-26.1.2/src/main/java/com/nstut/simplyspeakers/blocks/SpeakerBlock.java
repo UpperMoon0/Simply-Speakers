@@ -104,37 +104,17 @@ public class SpeakerBlock extends BaseEntityBlock {
     }
 
     @Override
-    public void neighborChanged(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, 
-                                @NotNull Block block, net.minecraft.world.level.redstone.Orientation orientation, boolean isMoving) {
-        super.neighborChanged(state, level, pos, block, orientation, isMoving);
-
-        if (!level.isClientSide()) {
-            boolean currentPower = state.getValue(POWERED);
-            boolean hasSignal = level.hasNeighborSignal(pos);
-
-            LOGGER.debug("NeighborChanged at {}: currentPower={}, hasSignal={}", pos, currentPower, hasSignal);
-
-            if (currentPower != hasSignal) {
-                LOGGER.info("Power state changed at {}: {} -> {}", pos, currentPower, hasSignal);
-                // Update the block state first
-                level.setBlock(pos, state.setValue(POWERED, hasSignal), 3);
-
-                // Then trigger audio based on the new state
-                BlockEntity blockEntity = level.getBlockEntity(pos);
-                if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                    if (hasSignal) {
-                        LOGGER.info("Triggering playAudio for speaker at {}", pos);
-                        speakerEntity.playAudio();
-                    } else {
-                        LOGGER.info("Triggering stopAudio for speaker at {}", pos);
-                        speakerEntity.detachEmitterForPowerOff();
-                    }
-                } else {
-                    LOGGER.warn("No SpeakerBlockEntity found at {} after power change.", pos);
-                }
-            }
-        }
+    public boolean hasAnalogOutputSignal(@NotNull BlockState state) {
+        return true;
     }
+
+    @Override
+    public int getAnalogOutputSignal(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, @NotNull net.minecraft.core.Direction direction) {
+        if (level.getBlockEntity(pos) instanceof SpeakerBlockEntity speakerEntity) {
+            return speakerEntity.getComparatorOutput();
+        }
+        return 0;
+    }
+
+    // Redstone input is handled exclusively by linked Redstone Controllers.
 }
-
-

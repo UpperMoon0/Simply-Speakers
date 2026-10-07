@@ -1,0 +1,22 @@
+{
+  "name": "Speaker networks",
+  "category": "simplyspeakers:playback",
+  "icon": "simplyspeakers:proxy_speaker",
+  "sortnum": 3,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Speaker ID",
+      "text": "Matching non-empty IDs share playback within one dimension. Blank IDs are standalone. Display name is an optional label for listings and commands; it does not control linking."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Proxy outputs",
+      "text": "Proxies follow the linked playback timeline. Their volume, range and distance fade are independent. They inherit directional settings but aim from their own front face."
+    },
+    {
+      "type": "patchouli:crafting",
+      "recipe": "simplyspeakers:proxy_speaker"
+    }
+  ]
+}

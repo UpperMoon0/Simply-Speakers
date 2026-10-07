@@ -7,9 +7,10 @@ import java.util.function.Consumer;
 
 public interface IClientHelper {
     void openSpeakerScreen(BlockPos pos);
+
+    void openRedstoneControllerScreen(BlockPos pos);
     
     void openProxySpeakerScreen(BlockPos pos);
 
     void openFileDialog(String filter, Consumer<File> callback);
 }
-

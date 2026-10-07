@@ -41,7 +41,7 @@ public class UpdateProxyAudioDropoffPacketC2S implements CustomPacketPayload {
     public static void handle(UpdateProxyAudioDropoffPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
+            if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) {
                 return;
             }
 

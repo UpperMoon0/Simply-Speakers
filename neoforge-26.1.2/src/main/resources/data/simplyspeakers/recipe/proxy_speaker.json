@@ -2,7 +2,7 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "key": {
-    "A": "minecraft:amethyst_shard",
+    "A": "simplyspeakers:audio_circuit",
     "R": "minecraft:redstone",
     "P": "#minecraft:planks"
   },

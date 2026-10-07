@@ -17,6 +17,10 @@ public class ItemRegistries {
     public static final RegistrySupplier<Item> SPEAKER = ITEMS.register("speaker", () -> new BlockItem(BlockRegistries.SPEAKER.get(), new Item.Properties()));
     public static final RegistrySupplier<Item> PROXY_SPEAKER = ITEMS.register("proxy_speaker", () -> new BlockItem(BlockRegistries.PROXY_SPEAKER.get(), new Item.Properties()));
 
+    public static final RegistrySupplier<Item> REDSTONE_CONTROLLER = ITEMS.register("redstone_controller", () -> new BlockItem(BlockRegistries.REDSTONE_CONTROLLER.get(), new Item.Properties()));
+
+    public static final RegistrySupplier<Item> AUDIO_CIRCUIT = ITEMS.register("audio_circuit", () -> new Item(new Item.Properties()));
+
     // Add a list of items for use in creative tab
     public static final List<RegistrySupplier<Item>> ITEM_LIST = new ArrayList<>();
 
@@ -24,6 +28,8 @@ public class ItemRegistries {
         // Add items to the list
         ITEM_LIST.add(SPEAKER);
         ITEM_LIST.add(PROXY_SPEAKER);
+        ITEM_LIST.add(REDSTONE_CONTROLLER);
+        ITEM_LIST.add(AUDIO_CIRCUIT);
     }
 
     public static void init() {

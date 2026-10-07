@@ -1,0 +1,13 @@
+{
+  "name": "Controller rules",
+  "category": "simplyspeakers:automation",
+  "icon": "simplyspeakers:redstone_controller",
+  "sortnum": 15,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Speaker Controllers",
+      "text": "Direct redstone no longer controls speakers or proxies. Replace old wiring with linked Speaker Controllers. Comparator progress output remains available."
+    }
+  ]
+}

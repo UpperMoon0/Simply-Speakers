@@ -30,6 +30,8 @@ public class BlockEntityRegistries {
     /**
      * Initializes the block entity registry.
      */
+    public static final RegistrySupplier<BlockEntityType<RedstoneControllerBlockEntity>> REDSTONE_CONTROLLER = BLOCK_ENTITIES.register("redstone_controller", () -> BlockEntityType.Builder.of(RedstoneControllerBlockEntity::new, BlockRegistries.REDSTONE_CONTROLLER.get()).build(null));
+
     public static void init() {
         BLOCK_ENTITIES.register();
     }

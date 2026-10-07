@@ -14,6 +14,8 @@ public final class BlockRegistries {
     public static final DeferredBlock<Block> PROXY_SPEAKER = BLOCKS.registerBlock("proxy_speaker", ProxySpeakerBlock::new,
             properties -> BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).noOcclusion());
 
+    public static final DeferredBlock<Block> REDSTONE_CONTROLLER = BLOCKS.registerBlock("redstone_controller", RedstoneControllerBlock::new, properties -> BlockBehaviour.Properties.ofFullCopy(Blocks.IRON_BLOCK).noOcclusion());
+
     private BlockRegistries() {
     }
 }

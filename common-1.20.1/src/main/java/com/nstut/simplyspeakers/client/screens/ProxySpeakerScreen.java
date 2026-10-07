@@ -3,11 +3,7 @@ package com.nstut.simplyspeakers.client.screens;
 import com.nstut.openui.api.Ui;
 import com.nstut.openui.api.UIComponent;
 import com.nstut.openui.api.VStack;
-import com.nstut.openui.api.HStack;
-import com.nstut.openui.controls.Card;
-import com.nstut.openui.controls.EmptyState;
 import com.nstut.openui.controls.Slider;
-import com.nstut.openui.controls.TextField;
 import com.nstut.openui.layout.Justification;
 import com.nstut.openui.state.Signal;
 import com.nstut.openui.state.Signals;
@@ -15,6 +11,7 @@ import com.nstut.openui.state.Subscription;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.blocks.entities.ProxySpeakerBlockEntity;
 import com.nstut.simplyspeakers.client.ui.SimplySpeakersUiScreen;
+import com.nstut.simplyspeakers.client.ui.SpeakerButtonWidget;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.SetSpeakerIdPacketC2S;
 import com.nstut.simplyspeakers.network.UpdateProxyAudioDropoffPacketC2S;
@@ -72,9 +69,10 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
     protected UIComponent buildUI() {
         VStack panel = Ui.column(
                 buildHeader(),
-                speaker != null ? buildSettingsCard() : buildNotFound()
+                Ui.divider(),
+                (speaker != null ? buildSettingsView() : buildNotFound()).flex()
         ).gap(10);
-        panel.width(PANEL_WIDTH);
+        panel.width(Math.min(PANEL_WIDTH, width - 40));
         return buildWindow(panel, PANEL_WIDTH);
     }
 
@@ -82,54 +80,49 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
         return Ui.row(
                 Ui.heading(Component.translatable("gui.simplyspeakers.proxy_speaker.title")),
                 buildThemeToggle()
-        ).justify(Justification.SPACE_BETWEEN);
+        ).align(com.nstut.openui.layout.Alignment.CENTER).justify(Justification.SPACE_BETWEEN);
     }
 
     private UIComponent buildNotFound() {
-        return Ui.card(
-                Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"))
-        ).outlined(true).padding(16);
+        return Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"));
     }
 
-    private UIComponent buildSettingsCard() {
-        Card card = Ui.card().outlined(true).padding(12);
-        card.addChild(Ui.column(
+    private UIComponent buildSettingsView() {
+        return Ui.scroll(Ui.column(
                 buildSpeakerIdRow(),
                 Ui.divider(),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_volume"),
-                        () -> Component.translatable("gui.simplyspeakers.max_volume.slider", (int) (maxVolume.get() * 100)),
+                        () -> Component.literal(Math.round(maxVolume.get()*100)+"%"),
                         maxVolume, 0.0, 1.0,
                         Component.translatable("gui.simplyspeakers.proxy_max_volume.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.max_range", (int) Config.speakerRange),
-                        () -> Component.translatable("gui.simplyspeakers.max_range.slider", (int) (double) maxRange.get()),
+                        () -> Component.literal(Math.round(maxRange.get())+" blocks"),
                         maxRange, 1.0, Config.speakerRange,
                         Component.translatable("gui.simplyspeakers.proxy_max_range.tooltip")
                 ),
                 sliderRow(
                         Component.translatable("gui.simplyspeakers.audio_dropoff"),
-                        () -> Component.translatable("gui.simplyspeakers.audio_dropoff.slider", (int) (audioDropoff.get() * 100)),
+                        () -> Component.literal(Math.round(audioDropoff.get()*100)+"%"),
                         audioDropoff, 0.0, 1.0,
                         Component.translatable("gui.simplyspeakers.audio_dropoff.tooltip")
-                ),
-                Ui.text(Component.translatable("gui.simplyspeakers.proxy.helper")).wrap()
-        ).gap(10));
-        return card;
+                )
+        ).gap(10)).fillHeight().key("settings.content");
     }
 
     private UIComponent buildSpeakerIdRow() {
         return Ui.row(
                 Ui.textField(speakerId)
-                        .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
+                        .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString()).key("settings.speaker_id")
                         .tooltip(Component.translatable("gui.simplyspeakers.proxy_speaker_id.tooltip"))
                         .flex(),
-                Ui.button(Component.translatable("gui.simplyspeakers.save"), () -> {
+                SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
                         String newId = speakerId.get();
                         speaker.setSpeakerIdClient(newId);
-                        PacketRegistries.CHANNEL.sendToServer(new SetSpeakerIdPacketC2S(blockEntityPos, newId));
+                        sendToServer(new SetSpeakerIdPacketC2S(blockEntityPos, newId));
                     }
                 }).primary()
         ).gap(6);
@@ -140,11 +133,15 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
         Slider slider = Ui.slider(signal, min, max);
         slider.fillWidth();
         UIComponent row = Ui.column(
-                Ui.row(Ui.text(label), Ui.text(valueSupplier)).justify(Justification.SPACE_BETWEEN),
+                Ui.row(Ui.text(label).nowrap().marquee().flex().tooltip(tooltip), Ui.text(valueSupplier).nowrap().tooltip(tooltip)).align(com.nstut.openui.layout.Alignment.CENTER).justify(Justification.SPACE_BETWEEN),
                 slider
         ).gap(4);
-        if (tooltip != null) row.tooltip(tooltip);
+        if (tooltip != null) { row.tooltip(tooltip); slider.tooltip(tooltip); }
         return row;
+    }
+
+    private void sendToServer(Object packet) {
+        if (Minecraft.getInstance().getConnection() != null) PacketRegistries.CHANNEL.sendToServer(packet);
     }
 
     private void wireControlSubscriptions() {
@@ -161,22 +158,22 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
     private void sendProxyVolume(double v) {
         float f = (float) v;
         if (speaker != null) speaker.setMaxVolumeClient(f);
-        PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxVolumePacketC2S(blockEntityPos, f));
+        sendToServer(new UpdateProxyMaxVolumePacketC2S(blockEntityPos, f));
     }
 
     private void sendProxyRange(double v) {
         int i = (int) Math.round(v);
         if (speaker != null) speaker.setMaxRangeClient(i);
-        PacketRegistries.CHANNEL.sendToServer(new UpdateProxyMaxRangePacketC2S(blockEntityPos, i));
+        sendToServer(new UpdateProxyMaxRangePacketC2S(blockEntityPos, i));
     }
 
     private void sendProxyDropoff(double v) {
         float f = (float) v;
         if (speaker != null) speaker.setAudioDropoffClient(f);
-        PacketRegistries.CHANNEL.sendToServer(new UpdateProxyAudioDropoffPacketC2S(blockEntityPos, f));
+        sendToServer(new UpdateProxyAudioDropoffPacketC2S(blockEntityPos, f));
     }
 
-    private void fetchDataFromBlockEntity() {
+    protected void fetchDataFromBlockEntity() {
         if (Minecraft.getInstance().level == null) {
             this.speaker = null;
             return;

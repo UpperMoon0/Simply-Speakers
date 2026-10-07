@@ -4,6 +4,7 @@ import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SpeakerLink;
 import com.nstut.simplyspeakers.SpeakerSettings;
 import com.nstut.simplyspeakers.SpeakerState;
+import com.nstut.simplyspeakers.audio.DirectionalAudio;
 import com.nstut.simplyspeakers.client.ClientSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.ServerEmitter;
 import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
@@ -11,6 +12,9 @@ import com.nstut.simplyspeakers.speakers.ServerSpeakerRegistry;
 import com.nstut.simplyspeakers.speakers.SpeakerLocation;
 import lombok.Getter;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -20,7 +24,6 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -34,20 +37,39 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
 
     private String speakerId = "";
     private String registeredId = "";
-    private boolean isProxyPlaying = false;
+    private boolean isProxyPlaying = true;
+    private boolean controllerDriven;
     private float maxVolume = 1.0f;
+    private Float controllerVolume;
+    public float getEffectiveVolume() { return controllerVolume != null ? controllerVolume : maxVolume; }
+    public void setControllerVolume(Float value) {
+        controllerVolume=value == null ? null : com.nstut.simplyspeakers.math.AudioMath.sanitizeFloat(value,0,1,1);
+        updateEmitterSnapshot();
+        if (level instanceof ServerLevel serverLevel)
+            ServerPlaybackManager.refreshSettings(serverLevel.getServer(), serverLevel, ServerSpeakerRegistry.getDimension(level) + "/net_" + speakerId.trim());
+    }
     private int maxRange = 16;
     private float audioDropoff = 1.0f;
 
     public ProxySpeakerBlockEntity(BlockPos pos, BlockState state) {
-        super(BlockEntityRegistries.PROXY_SPEAKER.get(), pos, state);
-        if (level != null && !level.isClientSide() && SpeakerLink.isLinkableId(speakerId)) {
-            registeredId = speakerId.trim();
-            ServerSpeakerRegistry.registerProxySpeaker(level, pos, registeredId);
-        }
+        this(BlockEntityRegistries.PROXY_SPEAKER.get(), pos, state);
+    }
+    ProxySpeakerBlockEntity(net.minecraft.world.level.block.entity.BlockEntityType<?> type, BlockPos pos, BlockState state) {
+        super(type, pos, state);
     }
 
     public void setProxyPlaying(boolean proxyPlaying) {
+        controllerDriven = false;
+        updateProxyPlaying(proxyPlaying);
+    }
+
+    /** A linked controller replaces the local power requirement until local control changes. */
+    public void setControllerPlaying(boolean playing) {
+        controllerDriven = true;
+        updateProxyPlaying(playing);
+    }
+
+    private void updateProxyPlaying(boolean proxyPlaying) {
         this.isProxyPlaying = proxyPlaying;
         setChanged();
         if (level != null) {
@@ -70,6 +92,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
+            if (level instanceof ServerLevel serverLevel) ServerPlaybackManager.refreshSettings(serverLevel.getServer(), serverLevel, ServerSpeakerRegistry.getDimension(level) + "/net_" + speakerId.trim());
         } else if (level != null) {
             this.maxVolume = val;
         }
@@ -88,6 +111,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
+            if (level instanceof ServerLevel serverLevel) ServerPlaybackManager.refreshSettings(serverLevel.getServer(), serverLevel, ServerSpeakerRegistry.getDimension(level) + "/net_" + speakerId.trim());
         } else if (level != null) {
             this.maxRange = val;
         }
@@ -106,6 +130,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
+            if (level instanceof ServerLevel serverLevel) ServerPlaybackManager.refreshSettings(serverLevel.getServer(), serverLevel, ServerSpeakerRegistry.getDimension(level) + "/net_" + speakerId.trim());
         } else if (level != null) {
             this.audioDropoff = val;
         }
@@ -122,6 +147,9 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     }
 
     public void setSpeakerId(String speakerId) {
+        String nextId=speakerId == null ? "" : speakerId.trim();
+        if (!nextId.equals(this.speakerId)) { controllerVolume=null; controllerDriven=false; isProxyPlaying=true; }
+
         String newSpeakerId = speakerId == null ? "" : speakerId.trim();
         if (level != null && !level.isClientSide()) {
             String oldSpeakerId = this.speakerId;
@@ -196,16 +224,25 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
      */
     private void updateEmitterSnapshot() {
         if (level == null || level.isClientSide() || !SpeakerLink.isLinkableId(speakerId)) return;
-        boolean powered = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED)
-                && getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.POWERED);
+        Direction facing = getBlockState().hasProperty(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
+                ? getBlockState().getValue(com.nstut.simplyspeakers.blocks.ProxySpeakerBlock.FACING)
+                : Direction.NORTH;
+        // Directional parameters mirror the shared network state instead of forcing
+        // omnidirectional (0 directionality) extras, which previously prevented the
+        // playback manager from applying the network's real directional settings.
+        SpeakerState state = getSpeakerState();
+        DirectionalAudio.Extras extras = state != null && state.getDirectionality() > 0.001f
+                ? new DirectionalAudio.Extras(state.getDirectionality(), state.getConeAngleDegrees(), state.getRearAttenuation(), (byte) facing.ordinal())
+                : null;
         ServerSpeakerRegistry.upsertEmitter(new ServerEmitter(
                 emitterLocation(),
                 "net_" + speakerId.trim(),
                 maxRange,
-                maxVolume,
+                getEffectiveVolume(),
                 audioDropoff,
                 true,
-                isProxyPlaying && powered));
+                isProxyPlaying,
+                extras));
     }
 
     private void startCentralScan() {
@@ -220,20 +257,6 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
     public static void serverTick(Level level, BlockPos pos, BlockState state, ProxySpeakerBlockEntity blockEntity) {
         blockEntity.ensureServerRegistration();
         blockEntity.tick(level, pos, state);
-    }
-
-    @Override
-    public void setRemoved() {
-        super.setRemoved();
-    }
-
-    @Override
-    public void preRemoveSideEffects(BlockPos pos, BlockState state) {
-        if (level != null && !level.isClientSide()) {
-            stopAudio();
-            ServerSpeakerRegistry.unregisterProxySpeaker(level, pos, speakerId);
-        }
-        super.preRemoveSideEffects(pos, state);
     }
 
     public void playAudio() {
@@ -269,7 +292,8 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         super.loadAdditional(tag);
 
         speakerId = tag.getStringOr(NBT_SPEAKER_ID, "");
-        isProxyPlaying = tag.getBooleanOr(NBT_PROXY_PLAYING, false);
+        isProxyPlaying = true; // Loaded controller inputs re-establish their own output intent.
+        controllerDriven = tag.getBooleanOr("ControllerDriven", false);
 
         SpeakerSettings settings = SpeakerSettings.read(tag::getFloatOr, tag::getIntOr, new SpeakerSettings(maxVolume, maxRange, audioDropoff));
         maxVolume = settings.maxVolume();
@@ -289,6 +313,7 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
             tag.putString(NBT_SPEAKER_ID, speakerId);
         }
         tag.putBoolean(NBT_PROXY_PLAYING, isProxyPlaying);
+        tag.putBoolean("ControllerDriven", controllerDriven);
         new SpeakerSettings(maxVolume, maxRange, audioDropoff).write(tag::putFloat, tag::putInt);
     }
 
@@ -297,6 +322,21 @@ public class ProxySpeakerBlockEntity extends BlockEntity {
         // BlockEntity#getUpdateTag is empty by default in 26.1.x. Serialize our
         // custom fields so a joining client receives the persisted settings.
         return saveCustomOnly(registries);
+    }
+
+    @Override
+    public void preRemoveSideEffects(BlockPos pos, BlockState state) {
+        super.preRemoveSideEffects(pos, state);
+        if (level != null && !level.isClientSide()) {
+            stopAudio();
+            ServerSpeakerRegistry.unregisterProxySpeaker(level, pos);
+        }
+    }
+
+    @Override
+    public void setRemoved() {
+        controllerVolume=null; controllerDriven=false; isProxyPlaying=true;
+        super.setRemoved();
     }
 
     @Nullable

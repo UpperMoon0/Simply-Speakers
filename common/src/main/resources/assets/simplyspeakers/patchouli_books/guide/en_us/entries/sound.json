@@ -1,0 +1,18 @@
+{
+  "name": "Sound settings",
+  "category": "simplyspeakers:playback",
+  "icon": "simplyspeakers:speaker",
+  "sortnum": 7,
+  "pages": [
+    {
+      "type": "patchouli:text",
+      "title": "Volume and range",
+      "text": "Volume, range and distance fade adjust live without restarting playback. Range is capped by server policy. Entering range joins the current playback position."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Distance fade",
+      "text": "0% keeps full volume until the range boundary. 100% fades gradually with distance. A linked Volume controller can override manual volume until its last input is removed."
+    }
+  ]
+}

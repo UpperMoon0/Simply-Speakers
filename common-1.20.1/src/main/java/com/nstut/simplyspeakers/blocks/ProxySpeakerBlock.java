@@ -110,37 +110,5 @@ public class ProxySpeakerBlock extends BaseEntityBlock {
         super.onRemove(state, level, pos, newState, isMoving);
     }
 
-    @SuppressWarnings("deprecation")
-    @Override
-    public void neighborChanged(@NotNull BlockState state, @NotNull Level level, @NotNull BlockPos pos, 
-                                @NotNull Block block, @NotNull BlockPos fromPos, boolean isMoving) {
-        super.neighborChanged(state, level, pos, block, fromPos, isMoving);
-
-        if (!level.isClientSide) {
-            boolean currentPower = state.getValue(POWERED);
-            boolean hasSignal = level.hasNeighborSignal(pos);
-
-            LOGGER.debug("NeighborChanged at {}: currentPower={}, hasSignal={}", pos, currentPower, hasSignal);
-
-            if (currentPower != hasSignal) {
-                LOGGER.info("Power state changed at {}: {} -> {}", pos, currentPower, hasSignal);
-                // Update the block state first
-                level.setBlock(pos, state.setValue(POWERED, hasSignal), 3);
-
-                // Then trigger audio based on the new state
-                BlockEntity blockEntity = level.getBlockEntity(pos);
-                if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
-                    if (hasSignal) {
-                        LOGGER.info("Setting proxy speaker at {} to playing state", pos);
-                        proxySpeakerEntity.setProxyPlaying(true);
-                    } else {
-                        LOGGER.info("Setting proxy speaker at {} to stopped state", pos);
-                        proxySpeakerEntity.setProxyPlaying(false);
-                    }
-                } else {
-                    LOGGER.warn("No ProxySpeakerBlockEntity found at {} after power change.", pos);
-                }
-            }
-        }
-    }
+    // Redstone input is handled exclusively by linked Redstone Controllers.
 }

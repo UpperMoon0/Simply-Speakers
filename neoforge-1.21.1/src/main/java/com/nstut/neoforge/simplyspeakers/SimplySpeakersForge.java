@@ -17,6 +17,7 @@ import net.neoforged.neoforge.event.server.ServerStoppingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import com.nstut.neoforge.simplyspeakers.compat.computercraft.SimplySpeakersPeripheral;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 import java.nio.file.Path;
@@ -29,6 +30,17 @@ public final class SimplySpeakersForge {
 
         // Register config event listener manually
         modEventBus.addListener(ForgeConfig::onLoad);
+
+        // 0.8.x: /simplyspeakers command tree (operators only)
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.RegisterCommandsEvent event) ->
+                com.nstut.simplyspeakers.commands.SpeakerCommands.register(event.getDispatcher()));
+
+        // 0.8.x: CC:Tweaked peripheral support (optional dependency)
+        // The CC API references live inside SimplySpeakersPeripheral.registerProvider so
+        // this mod class never resolves CC classes when the mod is absent.
+        if (net.neoforged.fml.ModList.get().isLoaded("computercraft")) {
+            SimplySpeakersPeripheral.registerProvider(modEventBus);
+        }
 
         SimplySpeakers.SOUND_EVENTS.register();
         SimplySpeakers.CREATIVE_TABS.register();
@@ -69,13 +81,16 @@ public final class SimplySpeakersForge {
     }
     
     public void onServerStopping(ServerStoppingEvent event) {
-        ServerSpeakerRegistry.saveRegistry();
+        ServerSpeakerRegistry.flushDirty();
         SimplySpeakers.shutdownAudio();
     }
 
     public void onServerStopped(ServerStoppedEvent event) {
         ServerPlaybackManager.resetForWorld();
         ServerSpeakerRegistry.resetForWorld();
+        if (net.neoforged.fml.ModList.get().isLoaded("computercraft")) {
+            com.nstut.neoforge.simplyspeakers.compat.computercraft.SimplySpeakersPeripheral.reset();
+        }
     }
 
     public void onServerTick(ServerTickEvent.Post event) {
@@ -83,7 +98,7 @@ public final class SimplySpeakersForge {
         // We only want to save periodically, not every tick
         // Save every 6000 ticks (5 minutes at 20 TPS)
         if (event.getServer().getTickCount() % 6000 == 0) {
-            ServerSpeakerRegistry.saveRegistry();
+            ServerSpeakerRegistry.flushDirty();
         }
     }
 }

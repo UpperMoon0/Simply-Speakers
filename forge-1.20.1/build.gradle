@@ -12,14 +12,23 @@ loom {
         mixinConfig "simplyspeakers.mixins.json"
     }
     runs {
+        ccLuaTestServer {
+            server()
+            property "simplyspeakers.ccLuaTest", "true"
+            runDir("run/cc-lua/server")
+            programArg "nogui"
+        }
         liveJoinTestClient {
             client()
             runDir("run/live-join/client")
             property "simplyspeakers.liveJoinTest", "true"
+            property "simplyspeakers.livePlaybackTest", "true"
             programArgs "--quickPlayMultiplayer", "127.0.0.1:25575"
         }
         liveJoinTestServer {
             server()
+            property "simplyspeakers.livePlaybackTest", "true"
+            property "simplyspeakers.requireComputerCraft", "true"
             runDir("run/live-join/server")
             programArg "nogui"
         }
@@ -49,6 +58,7 @@ configurations {
 }
 
 dependencies {
+    modImplementation "vazkii.patchouli:Patchouli:1.20.1-85-FORGE"
     forge "net.minecraftforge:forge:$project.forge_version"
 
     // Architectury API. This is optional, and you can comment it out if you don't need it.
@@ -56,6 +66,19 @@ dependencies {
 
     // JLayer (non-MC dependency)
     implementation "javazoom:jlayer:1.0.1"
+
+    // CC:Tweaked API (optional integration; compile-only)
+    compileOnly "cc.tweaked:cc-tweaked-1.20.1-common-api:1.109.2"
+    compileOnly "cc.tweaked:cc-tweaked-1.20.1-forge-api:1.109.2"
+    // Full mod for dev clients/servers; never bundled or published as required.
+    modLocalRuntime "cc.tweaked:cc-tweaked-1.20.1-forge:1.109.2"
+    // Maven's development artifact leaves plain libraries outside the mod jar.
+    // Forge must expose them through its runtime library loader.
+    forgeRuntimeLibrary "cc.tweaked:cobalt:0.8.1"
+    forgeRuntimeLibrary "com.jcraft:jzlib:1.1.3"
+    ['netty-codec-http', 'netty-codec-socks', 'netty-handler-proxy'].each {
+        forgeRuntimeLibrary("io.netty:${it}:4.1.82.Final") { transitive = false }
+    }
     forgeRuntimeLibrary "javazoom:jlayer:1.0.1"
     shadowBundle "javazoom:jlayer:1.0.1" 
 
@@ -106,4 +129,12 @@ shadowJar {
 
 remapJar {
     inputFile.set shadowJar.archiveFile
+}
+
+// Patchouli discovers definitions in the physical loader mod root, while the
+// shared resource pack supplies the localized contents and textures.
+processResources {
+    from('../common/src/main/resources/data/simplyspeakers/patchouli_books') {
+        into 'data/simplyspeakers/patchouli_books'
+    }
 }

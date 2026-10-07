@@ -15,6 +15,8 @@ public final class BlockEntityRegistries {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<ProxySpeakerBlockEntity>> PROXY_SPEAKER =
             BLOCK_ENTITIES.register("proxy_speaker", () -> new BlockEntityType<>(ProxySpeakerBlockEntity::new, BlockRegistries.PROXY_SPEAKER.get()));
 
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<RedstoneControllerBlockEntity>> REDSTONE_CONTROLLER = BLOCK_ENTITIES.register("redstone_controller", () -> new BlockEntityType<>(RedstoneControllerBlockEntity::new, BlockRegistries.REDSTONE_CONTROLLER.get()));
+
     private BlockEntityRegistries() {
     }
 }

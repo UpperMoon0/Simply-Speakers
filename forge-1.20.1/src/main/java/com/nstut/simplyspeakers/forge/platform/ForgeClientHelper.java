@@ -20,6 +20,11 @@ public class ForgeClientHelper implements IClientHelper {
     }
 
     @Override
+    public void openRedstoneControllerScreen(BlockPos pos) {
+        com.nstut.simplyspeakers.client.ClientEvents.openRedstoneControllerScreen(pos);
+    }
+
+    @Override
     public void openFileDialog(String filter, Consumer<File> callback) {
         new Thread(() -> {
             String result = TinyFileDialogs.tinyfd_openFileDialog("Open Audio File", "", null, filter, false);
