@@ -29,6 +29,7 @@ TARGETS = {
 PHASES = ("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone",
           "portable_started", "portable_moved", "portable_paused", "portable_resumed",
           "portable_stopped", "portable_restarted", "portable_removed")
+RELOAD_CASES = ("normal_playing", "normal_paused", "portable_playing", "portable_paused")
 OBSERVER_PHASES = ("observer_started", "observer_farther", "observer_out_of_range", "observer_reentered",
                    "observer_paused", "observer_resumed", "observer_stopped", "observer_restarted", "observer_removed")
 FAIL_MARKER = "SIMPLYSPEAKERS_VERIFY_FAIL"
@@ -45,6 +46,8 @@ def required_markers(target: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
         f"SIMPLYSPEAKERS_CLIENT_PHASE_PASS {phase}" for phase in PHASES))
     server = ("SIMPLYSPEAKERS_CONTROLLER_COOPERATION_PASS", "SIMPLYSPEAKERS_CONTROLLER_PASS", "SIMPLYSPEAKERS_SERVER_PLAYBACK_PASS", *(
         f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}" for phase in PHASES))
+    client += tuple(f"SIMPLYSPEAKERS_AUDIO_RELOAD_PASS {case}" for case in RELOAD_CASES)
+    server += tuple(f"SIMPLYSPEAKERS_SERVER_AUDIO_RELOAD_PASS {case}" for case in RELOAD_CASES)
     server += tuple(f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}" for phase in OBSERVER_PHASES)
     if target != "neoforge-26.1.2": server += ("SIMPLYSPEAKERS_PERIPHERAL_PASS",)
     return client, server

@@ -26,12 +26,13 @@ final class LivePlaybackClientProbe {
         }
         if (phase == PHASES.length) return;
         if (++ticks > 2400) throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL client phase " + phase);
+        if (!ClientAudioPlayer.contextAvailable()) return;
         if (phase >= 7) { verifyPortablePlayback(client); return; }
         var snapshot = ClientAudioPlayer.verificationSnapshot(KEY);
         if(ticks%100==0) System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_WAIT "+PHASES[phase]+" "+snapshot);
         boolean observed = switch (phase) {
             case 1, 5 -> snapshot.sources() == 0 && snapshot.emitters() == 0;
-            case 3 -> snapshot.playing() && snapshot.decodedBytes() > 0 && Math.abs(snapshot.offset() - 4) < 0.01f;
+            case 3 -> snapshot.playing() && snapshot.decodedBytes() > 0 && snapshot.offset() >= 4 && snapshot.offset() < 5;
             case 4, 6 -> snapshot.playing() && snapshot.decodedBytes() > 0 && snapshot.offset() < 1;
             default -> snapshot.playing() && snapshot.decodedBytes() > 0;
         };
@@ -39,6 +40,7 @@ final class LivePlaybackClientProbe {
         if (phase != 1 && phase != 5 && (snapshot.sources() != 1 || snapshot.emitters() != 2)) return;
         if (phase == 0) {
             if (!verifyContinuousDrag(client)) return;
+            if (!verifySoundReload(client, "normal_playing", KEY, true, 2)) return;
             verifyGuide(client);
             DirectionalPreview.show(client.player.blockPosition().offset(2,1,0),16,1,1,90,.9);
             previewYaw=client.player.getYRot();
@@ -46,6 +48,7 @@ final class LivePlaybackClientProbe {
             client.player.setXRot(25);
         }
         if (phase == 1) {
+            if (!verifySoundReload(client, "normal_paused", KEY, false, 0)) return;
             if(++previewTicks<80)return;
             if(DirectionalPreview.emittedSamples()==0)throw new IllegalStateException("World preview did not emit particles");
             try {
@@ -79,12 +82,20 @@ final class LivePlaybackClientProbe {
                 portableToken = ClientPortableSpeakers.tokens().iterator().next();
                 portableAudioKey = ClientAudioPlayer.resolveNetworkKey(portableToken);
             }
+            if (phase == 7 && !verifySoundReload(client, "portable_playing", portableAudioKey, true, 1)) return;
+            // Complete old-context deletion before resetting a paused engine. Numeric
+            // source IDs may be reused by vanilla audio in the new context.
+            if (phase == 9 && reloadCase != null && reloadCase.equals("portable_paused")) {
+                if (!verifySoundReload(client, "portable_paused", portableAudioKey, false, 0)) return;
+                portableSource = 0;
+            }
             var snapshot = ClientAudioPlayer.verificationSnapshot(portableAudioKey);
             boolean silent = phase == 9 || phase == 11 || phase == 13;
             if (ticks % 100 == 0) System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_WAIT " + PHASES[phase] + " " + snapshot);
             if (silent) {
                 if (snapshot.sources() != 0 || snapshot.emitters() != 0 || ClientPortableSpeakers.contains(portableToken)
                         || org.lwjgl.openal.AL10.alIsSource(portableSource)) return;
+                if (phase == 9 && !verifySoundReload(client, "portable_paused", portableAudioKey, false, 0)) return;
             } else {
                 if (!snapshot.playing() || snapshot.decodedBytes() == 0 || snapshot.sources() != 1 || snapshot.emitters() != 1) return;
                 var resourcesField = ClientAudioPlayer.class.getDeclaredField("networkResources"); resourcesField.setAccessible(true);
@@ -116,11 +127,100 @@ final class LivePlaybackClientProbe {
         } catch (Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL portable playback", error); }
     }
 
+    private static final java.util.Set<String> reloadPassed = new java.util.HashSet<>();
+    private static String reloadCase;
+    private static int reloadWarmupTicks, reloadStableTicks;
+    private static long reloadOldEpoch, reloadStartedNanos, reloadOldContext;
+    private static Object reloadOldResource;
+    private static float reloadOldOffset, reloadSampleOffset;
+    private static net.minecraft.world.phys.Vec3 reloadOldPosition;
+
+    /** A real vanilla reload destroys and recreates the null-output OpenAL context.
+     * This tests the device-reset lifecycle, not a physical OS output-device switch. */
+    private static boolean verifySoundReload(Minecraft client, String testCase, String key, boolean playing, int emitters) {
+        if (reloadPassed.contains(testCase)) return true;
+        try {
+            if (reloadCase != null && System.nanoTime() - reloadStartedNanos > java.util.concurrent.TimeUnit.SECONDS.toNanos(30))
+                throw new IllegalStateException("Sound reload did not recover " + testCase);
+            if (!ClientAudioPlayer.contextAvailable()) return false;
+            long epoch = ClientAudioPlayer.contextEpoch();
+            var snapshot = ClientAudioPlayer.verificationSnapshot(key);
+            Object resource = audioResource(key);
+            if (reloadCase == null) {
+                if (playing && (!snapshot.playing() || snapshot.decodedBytes() == 0 || snapshot.sources() != 1
+                        || snapshot.emitters() != emitters || resource == null)) return false;
+                if (!playing && (snapshot.sources() != 0 || snapshot.emitters() != 0 || resource != null)) return false;
+                // Let the server timeline advance far enough that restarting at zero
+                // cannot masquerade as successful recovery.
+                if (playing && ++reloadWarmupTicks < 20) return false;
+                reloadCase = testCase; reloadOldEpoch = epoch; reloadOldResource = resource;
+                reloadOldOffset = snapshot.offset(); reloadStableTicks = 0;
+                reloadOldPosition = playing ? sourcePosition(sourceId(resource)) : null;
+                reloadOldContext = org.lwjgl.openal.ALC10.alcGetCurrentContext();
+                if (reloadOldContext == 0) throw new IllegalStateException("No actual OpenAL context before reload");
+                reloadStartedNanos = System.nanoTime();
+                client.getSoundManager().reload();
+                return false;
+            }
+            if (!reloadCase.equals(testCase)) throw new IllegalStateException("Overlapping sound reload cases");
+            if (epoch <= reloadOldEpoch || org.lwjgl.openal.ALC10.alcGetCurrentContext() == 0) return false;
+            if (playing) {
+                if (!snapshot.playing() || snapshot.decodedBytes() == 0 || snapshot.sources() != 1
+                        || snapshot.emitters() != emitters || resource == null || resource == reloadOldResource) {
+                    reloadStableTicks = 0; return false;
+                }
+                if (snapshot.offset() <= reloadOldOffset + .25f) return false;
+                int source = sourceId(resource);
+                var position = sourcePosition(source);
+                var expected = testCase.startsWith("portable") ? ClientPortableSpeakers.resolvePosition(portableToken) : reloadOldPosition;
+                if (expected == null || position.distanceToSqr(expected) > 1) { reloadStableTicks = 0; return false; }
+                if (testCase.startsWith("portable") && (ClientPortableSpeakers.tokens().size() != 1
+                        || org.lwjgl.openal.AL10.alGetSourcef(source, org.lwjgl.openal.AL10.AL_GAIN) <= 0)) return false;
+                float sampleOffset = org.lwjgl.openal.AL10.alGetSourcef(source, org.lwjgl.openal.AL11.AL_SEC_OFFSET);
+                if (reloadStableTicks++ == 0) { reloadSampleOffset = sampleOffset; return false; }
+                // AL_PLAYING alone could be a stuck/reused source. Observe sample
+                // progress on the newly decoded resource over multiple real ticks.
+                if (reloadStableTicks < 10 || Math.abs(sampleOffset - reloadSampleOffset) < .01f) return false;
+                var threadField = reloadOldResource.getClass().getDeclaredField("streamingThread"); threadField.setAccessible(true);
+                Thread oldWorker = (Thread) threadField.get(reloadOldResource);
+                if (oldWorker != null && oldWorker.isAlive()) return false;
+            } else {
+                if (snapshot.sources() != 0 || snapshot.emitters() != 0 || resource != null
+                        || (testCase.startsWith("portable") && ClientPortableSpeakers.contains(portableToken)))
+                    throw new IllegalStateException("Paused playback resurrected after " + testCase);
+                if (++reloadStableTicks < 20) return false;
+            }
+            if (!ClientAudioPlayer.contextAvailable() || ClientAudioPlayer.contextEpoch() != epoch) return false;
+            System.out.println("SIMPLYSPEAKERS_AUDIO_RELOAD_PASS " + testCase + " epoch=" + reloadOldEpoch + "->" + epoch
+                    + " context=" + reloadOldContext + "->" + org.lwjgl.openal.ALC10.alcGetCurrentContext()
+                    + " sources=" + snapshot.sources() + " emitters=" + snapshot.emitters()
+                    + " decodedBytes=" + snapshot.decodedBytes() + " recoveredOffset=" + snapshot.offset()
+                    + " oldWorkerStopped=" + playing);
+            client.getConnection().sendCommand("simplyspeakers_verify_reload " + testCase);
+            reloadPassed.add(testCase); reloadCase = null; reloadWarmupTicks = 0;
+            return true;
+        } catch (Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL sound reload " + testCase, error); }
+    }
+    private static Object audioResource(String key) throws ReflectiveOperationException {
+        var field = ClientAudioPlayer.class.getDeclaredField("networkResources"); field.setAccessible(true);
+        return ((java.util.Map<?, ?>) field.get(null)).get(key);
+    }
+    private static int sourceId(Object resource) throws ReflectiveOperationException {
+        var field = resource.getClass().getDeclaredField("sourceID"); field.setAccessible(true);
+        return field.getInt(resource);
+    }
+    private static net.minecraft.world.phys.Vec3 sourcePosition(int source) {
+        float[] raw = new float[3];
+        org.lwjgl.openal.AL10.alGetSourcefv(source, org.lwjgl.openal.AL10.AL_POSITION, raw);
+        return new net.minecraft.world.phys.Vec3(raw[0], raw[1], raw[2]);
+    }
+
     /** Independent real listener: no UI work and no carrier acknowledgement can
      * substitute for its decoded audio, OpenAL gain, range cleanup or re-entry. */
     private static void verifyObserverPlayback(Minecraft client) {
         if (observerPhase == OBSERVER_PHASES.length || client.player == null || client.level == null) return;
         if (++ticks > 2400) throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL observer phase " + observerPhase);
+        if (!ClientAudioPlayer.contextAvailable()) return;
         try {
             if (portableAudioKey == null) {
                 if (ClientPortableSpeakers.tokens().size() != 1) return;

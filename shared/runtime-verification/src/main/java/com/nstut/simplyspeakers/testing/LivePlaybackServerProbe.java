@@ -24,6 +24,8 @@ public final class LivePlaybackServerProbe {
     private static final List<String> PHASES = List.of("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone",
             "portable_started", "portable_moved", "portable_paused", "portable_resumed",
             "portable_stopped", "portable_restarted", "portable_removed");
+    private static final List<String> RELOAD_CASES = List.of("normal_playing", "normal_paused", "portable_playing", "portable_paused");
+    private static int reloadCase;
     private static final List<String> OBSERVER_PHASES = List.of("observer_started", "observer_farther", "observer_out_of_range",
             "observer_reentered", "observer_paused", "observer_resumed", "observer_stopped", "observer_restarted", "observer_removed");
     private static final java.util.Set<String> acknowledgements = new java.util.HashSet<>();
@@ -47,7 +49,7 @@ public final class LivePlaybackServerProbe {
         if (!enabled()) return;
         if (server != currentServer) {
             currentServer = server; player = null; observer = null; first = null; portable = null;
-            phase = 0; observerPhase = 0; portableStage = 0; ticks = 0; joinedTicks = 0; done = false;
+            phase = 0; reloadCase = 0; observerPhase = 0; portableStage = 0; ticks = 0; joinedTicks = 0; done = false;
             acknowledgements.clear();
             server.getCommands().getDispatcher().register(Commands.literal("simplyspeakers_verify")
                     .then(Commands.argument("phase", StringArgumentType.word()).executes(ctx -> {
@@ -56,6 +58,12 @@ public final class LivePlaybackServerProbe {
                         if (sender != null && sender == player) acknowledge(observed);
                         else if (sender != null && sender == observer) acknowledgeObserver(observed);
                         else fail("unexpected acknowledgement sender");
+                        return 1;
+                    })));
+            server.getCommands().getDispatcher().register(Commands.literal("simplyspeakers_verify_reload")
+                    .then(Commands.argument("case", StringArgumentType.word()).executes(ctx -> {
+                        require(player != null && ctx.getSource().getPlayer() == player, "unexpected sound reload acknowledgement sender");
+                        acknowledgeReload(StringArgumentType.getString(ctx, "case"));
                         return 1;
                     })));
         }
@@ -99,8 +107,29 @@ public final class LivePlaybackServerProbe {
         return server.getPlayerList().getPlayers().stream().filter(p -> p.getName().getString().equals(name)).findFirst().orElse(null);
     }
     private static SpeakerState state() { return ServerSpeakerRegistry.getSpeakerStateByFullKey(key); }
+    private static void acknowledgeReload(String observed) {
+        require(!done && reloadCase < RELOAD_CASES.size() && RELOAD_CASES.get(reloadCase).equals(observed),
+                "unexpected sound reload case " + observed);
+        int expectedPhase = switch (reloadCase) { case 0 -> 0; case 1 -> 1; case 2 -> 7; default -> 9; };
+        require(phase == expectedPhase, "sound reload acknowledged in the wrong transport phase");
+        SpeakerState state = reloadCase < 2 ? state() : portable.getSpeakerState();
+        boolean playing = reloadCase % 2 == 0;
+        require(playing ? state.isPlaying() && !state.isPaused() : state.isPaused(),
+                "client sound reload changed authoritative transport");
+        int emitters = ServerPlaybackManager.getEmitterLocationsForPlayer(player.getUUID()).size();
+        require(emitters == (playing ? (reloadCase == 0 ? 2 : 1) : 0),
+                "client sound reload changed server emitter subscriptions");
+        acknowledgements.add("reload_" + observed); reloadCase++;
+        System.out.println("SIMPLYSPEAKERS_SERVER_AUDIO_RELOAD_PASS " + observed + " emitters=" + emitters);
+    }
     private static void acknowledge(String observed) {
         require(!done && phase < PHASES.size() && PHASES.get(phase).equals(observed), "unexpected phase " + observed);
+        String expectedReload = switch (observed) {
+            case "started" -> "normal_playing"; case "paused" -> "normal_paused";
+            case "portable_started" -> "portable_playing"; case "portable_paused" -> "portable_paused";
+            default -> null;
+        };
+        if (expectedReload != null) require(acknowledgements.contains("reload_" + expectedReload), "missing actual sound reload evidence");
         switch (observed) {
             case "started" -> {
                 require(ServerPlaybackManager.getEmitterLocationsForPlayer(player.getUUID()).size() == 2, "linked emitter audience missing");

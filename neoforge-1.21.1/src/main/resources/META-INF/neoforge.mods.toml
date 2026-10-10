@@ -63,3 +63,6 @@ type = "required"
 versionRange = "[0,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[mixins]]
+config = "simplyspeakers.mixins.json"

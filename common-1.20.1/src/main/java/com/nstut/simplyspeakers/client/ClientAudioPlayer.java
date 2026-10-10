@@ -3,9 +3,12 @@ package com.nstut.simplyspeakers.client;
 import com.nstut.simplyspeakers.Config;
 import com.nstut.simplyspeakers.SimplySpeakers;
 import com.nstut.simplyspeakers.audio.AudioFileMetadata;
+import com.nstut.simplyspeakers.audio.AudioContextGate;
 import com.nstut.simplyspeakers.audio.AudioGain;
 import com.nstut.simplyspeakers.audio.IncrementalAudioDecoders;
 import com.nstut.simplyspeakers.audio.PlaybackOffset;
+import com.nstut.simplyspeakers.audio.PlaybackTimeline;
+import com.nstut.simplyspeakers.audio.LoopingSeekRecovery;
 import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
@@ -49,6 +52,61 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class ClientAudioPlayer {
 
     private static final PlaybackMembership<BlockPos> membership = new PlaybackMembership<>();
+    private static final AudioContextGate audioContext = new AudioContextGate();
+    private static final Map<String, PlaybackIntent> playbackIntents = new ConcurrentHashMap<>();
+
+    /** Logical playback survives device changes; numeric OpenAL resources do not. */
+    private static final class PlaybackIntent {
+        final AudioFileMetadata metadata;
+        final PlaybackTimeline timeline;
+        final String fullStateKey;
+        final int generation;
+        volatile boolean looping;
+        volatile long frameLengthHint = -1;
+
+        PlaybackIntent(AudioFileMetadata metadata, float offset, boolean looping, String key, int generation) {
+            this.metadata = metadata;
+            this.timeline = new PlaybackTimeline(offset);
+            this.looping = looping;
+            this.fullStateKey = key;
+            this.generation = generation;
+        }
+
+        float offsetSeconds() {
+            return timeline.offsetSeconds();
+        }
+
+        boolean matches(AudioFileMetadata other, String key, int generation) {
+            return metadata.getUuid().equals(other.getUuid())
+                    && java.util.Objects.equals(fullStateKey, key) && this.generation == generation;
+        }
+    }
+
+    public static long contextEpoch() { return audioContext.epoch(); }
+    public static boolean contextAvailable() { return audioContext.isAvailable(); }
+
+    /** Called before vanilla touches the old context, including device-loss reloads. */
+    public static void soundContextDestroying() {
+        audioContext.suspend(); // Wait only for in-flight AL operations, never decoder/network reads.
+        for (StreamingAudioResource resource : new ArrayList<>(networkResources.values())) {
+            if (networkResources.remove(resource.networkKey, resource)) resource.stopAndCleanup();
+        }
+    }
+
+    /** Called only after vanilla successfully initialized its replacement context. */
+    public static void soundContextReady() {
+        audioContext.resume();
+        long epoch = audioContext.epoch();
+        Minecraft.getInstance().tell(() -> {
+            if (!audioContext.isCurrent(epoch)) return;
+            for (var entry : new ArrayList<>(playbackIntents.entrySet())) {
+                Set<BlockPos> positions = membership.getPositions(entry.getKey());
+                if (!positions.isEmpty()) startIntent(entry.getKey(), positions.iterator().next(), entry.getValue());
+                else playbackIntents.remove(entry.getKey(), entry.getValue());
+            }
+        });
+    }
+
     private static final File CACHE_DIR = new File(Minecraft.getInstance().gameDirectory, "simply_speakers_cache");
     private static final Map<String, StreamingAudioResource> networkResources = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
@@ -64,9 +122,14 @@ public class ClientAudioPlayer {
 
     private static class StreamingAudioResource {
         final String networkKey;
+        final long contextEpoch = audioContext.epoch();
+        final PlaybackIntent intent;
         final int sourceID;
         volatile long decodedBytes;
-        float startOffsetSeconds;
+        volatile float startOffsetSeconds;
+        final LoopingSeekRecovery loopingSeekRecovery = new LoopingSeekRecovery();
+        long seekKnownFrameLength, seekRequestedFrames, seekSkippedFrames;
+        long discoveredFrameLength = -1;
         final int[] bufferIDs;
         Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
@@ -83,6 +146,7 @@ public class ClientAudioPlayer {
         StreamingAudioResource(String networkKey, int sourceID, int[] bufferIDs, Thread streamingThread, boolean initialLooping,
                 String eofFullStateKey, int playbackGeneration) {
             this.networkKey = networkKey;
+            this.intent = playbackIntents.get(networkKey);
             this.sourceID = sourceID;
             this.bufferIDs = bufferIDs;
             this.streamingThread = streamingThread;
@@ -94,8 +158,60 @@ public class ClientAudioPlayer {
         private final java.util.List<java.io.Closeable> inputs = new java.util.ArrayList<>();
 
         void checkActive() throws IOException {
-            if (stopFlag.get() || Thread.currentThread().isInterrupted() || networkResources.get(networkKey) != this)
+            if (!audioContext.isCurrent(contextEpoch) || stopFlag.get() || Thread.currentThread().isInterrupted() || networkResources.get(networkKey) != this)
                 throw new java.io.InterruptedIOException("Playback cancelled");
+        }
+
+        private <T> T al(java.util.function.Supplier<T> operation) {
+            return audioContext.call(contextEpoch, () -> {
+                if (stopFlag.get() || networkResources.get(networkKey) != this
+                        || (intent != null && playbackIntents.get(networkKey) != intent))
+                    throw new AudioContextGate.StaleContextException();
+                return operation.get();
+            });
+        }
+
+        private void al(Runnable operation) { al(() -> { operation.run(); return null; }); }
+        int sourceInt(int parameter) { return al(() -> AL10.alGetSourcei(sourceID, parameter)); }
+        boolean isSource() { return al(() -> AL10.alIsSource(sourceID)); }
+        void playSource() { al(() -> AL10.alSourcePlay(sourceID)); }
+        void stopSource() { al(() -> AL10.alSourceStop(sourceID)); }
+        void bufferData(int buffer, int format, ByteBuffer data, int rate) { al(() -> AL10.alBufferData(buffer, format, data, rate)); }
+        void queueBuffer(int buffer) { al(() -> AL10.alSourceQueueBuffers(sourceID, buffer)); }
+        int unqueueBuffer() { return al(() -> AL10.alSourceUnqueueBuffers(sourceID)); }
+        void unqueueBuffers(int[] buffers) { al(() -> AL10.alSourceUnqueueBuffers(sourceID, buffers)); }
+        void position(float x, float y, float z) { al(() -> AL10.alSource3f(sourceID, AL10.AL_POSITION, x, y, z)); }
+        void gain(float gain) { al(() -> AL10.alSourcef(sourceID, AL10.AL_GAIN, gain)); }
+        void restartLoopTimeline() {
+            al(() -> { if (intent != null) intent.timeline.restartLoop(); });
+        }
+
+        /** Decode/skip outside the context lock. A true result requests one bounded reopen. */
+        boolean seek(AudioInputStream stream, float offset) throws IOException {
+            AudioFormat format = stream.getFormat();
+            int frameSize = format.getFrameSize();
+            seekKnownFrameLength = stream.getFrameLength();
+            if (seekKnownFrameLength <= 0) seekKnownFrameLength = intent == null ? discoveredFrameLength : intent.frameLengthHint;
+            seekRequestedFrames = PlaybackOffset.frameOffset(offset, isLooping.get(), seekKnownFrameLength, format.getFrameRate());
+            seekSkippedFrames = 0;
+            if (frameSize <= 0 || seekRequestedFrames <= 0) return false;
+            seekRequestedFrames = Math.min(seekRequestedFrames, Long.MAX_VALUE / frameSize);
+            long bytesRequested = seekRequestedFrames * frameSize;
+            long skipped = skipFully(stream, bytesRequested);
+            checkActive();
+            seekSkippedFrames = skipped / frameSize;
+            return skipped < bytesRequested && recoverSeekAtEof();
+        }
+
+        boolean recoverSeekAtEof() {
+            long learned = loopingSeekRecovery.discoverFrameLength(isLooping.get(), seekKnownFrameLength,
+                    seekRequestedFrames, seekSkippedFrames, true);
+            if (learned <= 0) return false;
+            al(() -> {
+                discoveredFrameLength = learned;
+                if (intent != null) intent.frameLengthHint = learned;
+            });
+            return true;
         }
 
         void trackInput(java.io.Closeable input) throws IOException {
@@ -142,13 +258,16 @@ public class ClientAudioPlayer {
 
         private void cleanupOpenALResources() {
             try {
-                if (AL10.alIsSource(sourceID)) {
-                    AL10.alSourceStop(sourceID);
-                    AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0);
-                    AL10.alDeleteSources(sourceID);
-                    AL10.alDeleteBuffers(bufferIDs);
-                    SimplySpeakers.LOGGER.debug("Cleanup completed for source {} (network {})", sourceID, networkKey);
-                }
+                audioContext.run(contextEpoch, () -> {
+                    if (AL10.alIsSource(sourceID)) {
+                        AL10.alSourceStop(sourceID);
+                        AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0);
+                        AL10.alDeleteSources(sourceID);
+                        AL10.alDeleteBuffers(bufferIDs);
+                    }
+                });
+            } catch (AudioContextGate.StaleContextException ignored) {
+                // Vanilla destroyed this epoch. Its numeric IDs may now belong to new sources.
             } catch (Exception e) {
                 SimplySpeakers.LOGGER.error("Error during OpenAL cleanup for source {} (network {})", sourceID, networkKey, e);
             }
@@ -160,9 +279,11 @@ public class ClientAudioPlayer {
     static VerificationSnapshot verificationSnapshot(String key) {
         StreamingAudioResource resource = networkResources.get(key);
         if (resource == null) return new VerificationSnapshot(0, membership.getPositions(key).size(), 0, 0, false);
+        boolean playing = false;
+        try { playing = !resource.stopFlag.get() && resource.sourceInt(AL10.AL_SOURCE_STATE) == AL10.AL_PLAYING; }
+        catch (AudioContextGate.StaleContextException ignored) {}
         return new VerificationSnapshot(1, membership.getPositions(key).size(), resource.decodedBytes,
-                resource.startOffsetSeconds, !resource.stopFlag.get() &&
-                AL10.alGetSourcei(resource.sourceID, AL10.AL_SOURCE_STATE) == AL10.AL_PLAYING);
+                resource.startOffsetSeconds, playing);
     }
 
     public static String resolveNetworkKey(BlockPos pos) {
@@ -220,6 +341,7 @@ public class ClientAudioPlayer {
 
         if (oldKey != null && !oldKey.equals(networkKey)) {
             if (membership.getPositions(oldKey).isEmpty()) {
+                playbackIntents.remove(oldKey);
                 StreamingAudioResource oldRes = networkResources.remove(oldKey);
                 if (oldRes != null) {
                     oldRes.stopAndCleanup();
@@ -227,47 +349,56 @@ public class ClientAudioPlayer {
             }
         }
 
+        PlaybackIntent intent = playbackIntents.get(networkKey);
+        if (intent == null || !intent.matches(metadata, remoteFullStateKey, remotePlaybackGeneration)) {
+            intent = new PlaybackIntent(metadata, startPositionSeconds, isLooping, remoteFullStateKey, remotePlaybackGeneration);
+            playbackIntents.put(networkKey, intent);
+            StreamingAudioResource previous = networkResources.remove(networkKey);
+            if (previous != null) previous.stopAndCleanup();
+        }
+        startIntent(networkKey, pos, intent);
+    }
+
+    private static void startIntent(String networkKey, BlockPos pos, PlaybackIntent intent) {
+        if (playbackIntents.get(networkKey) != intent || !networkKey.equals(membership.getNetworkKey(pos))) return;
         StreamingAudioResource existing = networkResources.get(networkKey);
-        if (existing != null && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
-            SimplySpeakers.LOGGER.debug("CLIENT: Network {} already actively streaming. Attached pos {} without duplicate stream.", networkKey, pos);
-            updateSpeakerVolumes();
-            return;
+        if (existing != null) {
+            if (existing.intent == intent && audioContext.isCurrent(existing.contextEpoch)
+                    && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
+                updateSpeakerVolumes();
+                return;
+            }
+            if (networkResources.remove(networkKey, existing)) existing.stopAndCleanup();
         }
-
+        AudioFileMetadata metadata = intent.metadata;
         if (com.nstut.simplyspeakers.audio.StreamTracks.isHttpAudioUrl(metadata.getUuid())) {
-            if (!Config.isRemoteStreamingAllowed()) {
-                SimplySpeakers.LOGGER.warn("CLIENT: Remote audio streams are disabled by server config; ignoring URL track {}", metadata.getUuid());
+            if (!Config.isRemoteStreamingAllowed()
+                    || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(metadata.getUuid(), false)) {
+                playbackIntents.remove(networkKey, intent);
                 return;
             }
-            if (!com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(metadata.getUuid(), false)) {
-                SimplySpeakers.LOGGER.warn("CLIENT: URL host is not allowed: {}", metadata.getUuid());
-                return;
-            }
-            playFromUrl(networkKey, pos, metadata.getUuid(),
-                    com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds), isLooping,
-                    remoteFullStateKey, remotePlaybackGeneration);
+            playFromUrl(networkKey, pos, metadata.getUuid(), intent);
             return;
         }
-
-        if (!CACHE_DIR.exists()) {
-            CACHE_DIR.mkdirs();
-        }
-
+        if (!CACHE_DIR.exists()) CACHE_DIR.mkdirs();
         String extension = com.google.common.io.Files.getFileExtension(metadata.getOriginalFilename());
         File cachedFile = new File(CACHE_DIR, metadata.getUuid() + (extension.isEmpty() ? "" : "." + extension));
         if (cachedFile.exists()) {
             ClientCacheManager.recordAccess(cachedFile);
-            SimplySpeakers.LOGGER.debug("CLIENT: Cached file found for {}. Playing from file.", metadata.getUuid());
-            playFromFile(networkKey, pos, cachedFile.getAbsolutePath(), startPositionSeconds, isLooping);
+            playFromFile(networkKey, pos, cachedFile.getAbsolutePath(), intent);
         } else {
-            SimplySpeakers.LOGGER.info("CLIENT: Cached file not found for {}. Requesting from server.", metadata.getUuid());
-            pendingPlays.computeIfAbsent(metadata.getUuid(), k -> Collections.synchronizedList(new ArrayList<>()))
-                    .add(new PlayRequest(pos, networkKey, startPositionSeconds, isLooping));
+            List<PlayRequest> requests = pendingPlays.computeIfAbsent(metadata.getUuid(), k -> Collections.synchronizedList(new ArrayList<>()));
+            synchronized (requests) {
+                if (requests.stream().noneMatch(request -> request.intent == intent && request.pos.equals(pos)))
+                    requests.add(new PlayRequest(pos, networkKey, intent));
+            }
             requestFileFromServer(metadata.getUuid(), metadata.getOriginalFilename());
         }
     }
 
     public static void setLooping(String networkKey, boolean looping) {
+        PlaybackIntent intent = playbackIntents.get(networkKey);
+        if (intent != null) intent.looping = looping;
         StreamingAudioResource res = networkResources.get(networkKey);
         if (res != null) {
             res.isLooping.set(looping);
@@ -283,37 +414,41 @@ public class ClientAudioPlayer {
         play(pos, null, metadata, startPositionSeconds, isLooping, Config.speakerRange, 1.0f, 1.0f);
     }
 
-    private static void playFromFile(String networkKey, BlockPos pos, String filePath, float startPositionSeconds, boolean isLooping) {
-        SimplySpeakers.LOGGER.debug("CLIENT: playFromFile: networkKey={}, pos={}, filePath={}, start={}, isLooping={}",
-                networkKey, pos, filePath, startPositionSeconds, isLooping);
+    private static void playFromFile(String networkKey, BlockPos pos, String filePath, PlaybackIntent intent) {
+        queueSource(networkKey, pos, intent, false, filePath);
+    }
+
+    private static void queueSource(String networkKey, BlockPos pos, PlaybackIntent intent, boolean remote, String input) {
+        long epoch = audioContext.epoch();
         Minecraft.getInstance().tell(() -> {
             try {
-                if (!networkKey.equals(membership.getNetworkKey(pos))) return;
-                StreamingAudioResource existing = networkResources.get(networkKey);
-                if (existing != null && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
-                    SimplySpeakers.LOGGER.debug("CLIENT: Stream already active for networkKey={}", networkKey);
-                    return;
-                }
-
-                int sourceID = AL10.alGenSources();
-                int[] bufferIDs = new int[NUM_BUFFERS];
-                AL10.alGenBuffers(bufferIDs);
-
-                AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
-                AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
-                AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
-                AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
-
-                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, null, isLooping);
-                Thread streamingThread = new Thread(() -> streamAudioData(resource, filePath, startPositionSeconds),
-                        SimplySpeakers.MOD_ID + "-stream-" + networkKey);
-                streamingThread.setDaemon(true);
-                resource.streamingThread = streamingThread;
-                resource.startOffsetSeconds = startPositionSeconds;
-                networkResources.put(networkKey, resource);
-                streamingThread.start();
-
+                audioContext.run(epoch, () -> {
+                    if (playbackIntents.get(networkKey) != intent || !networkKey.equals(membership.getNetworkKey(pos))) return;
+                    StreamingAudioResource existing = networkResources.get(networkKey);
+                    if (existing != null && existing.intent == intent && !existing.stopFlag.get()
+                            && existing.streamingThread != null && existing.streamingThread.isAlive()) return;
+                    int sourceID = AL10.alGenSources();
+                    int[] bufferIDs = new int[NUM_BUFFERS];
+                    AL10.alGenBuffers(bufferIDs);
+                    AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+                    AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
+                    AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
+                    AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
+                    StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, null,
+                            intent.looping, remote ? intent.fullStateKey : null, intent.generation);
+                    resource.startOffsetSeconds = intent.offsetSeconds();
+                    Thread worker = new Thread(() -> {
+                        if (remote) streamUrlAudioData(resource, input, resource.startOffsetSeconds);
+                        else streamAudioData(resource, input, resource.startOffsetSeconds);
+                    }, SimplySpeakers.MOD_ID + (remote ? "-url-stream-" : "-stream-") + networkKey);
+                    worker.setDaemon(true);
+                    resource.streamingThread = worker;
+                    networkResources.put(networkKey, resource);
+                    worker.start();
+                });
                 updateSpeakerVolumes();
+            } catch (AudioContextGate.StaleContextException ignored) {
+                // A queued start from an old epoch cannot resurrect or touch new IDs.
             } catch (Exception e) {
                 SimplySpeakers.LOGGER.error("CLIENT: Failed to start audio playback for network {}", networkKey, e);
             }
@@ -322,10 +457,14 @@ public class ClientAudioPlayer {
 
     private static long skipFully(InputStream in, long n) throws IOException {
         long remaining = n;
+        byte[] discard = new byte[8192];
         while (remaining > 0) {
             long skipped = in.skip(remaining);
             if (skipped <= 0) {
-                break;
+                int read = in.read(discard, 0, (int) Math.min(discard.length, remaining));
+                if (read < 0) break;
+                if (read == 0) throw new IOException("Audio decoder made no progress while seeking");
+                skipped = read;
             }
             remaining -= skipped;
         }
@@ -365,24 +504,11 @@ public class ClientAudioPlayer {
                 resource.trackInput(pcmAudioStream);
                 resource.checkActive();
                 AudioFormat format = pcmAudioStream.getFormat();
-                if (startPositionSeconds > 0 && continueStreaming) {
-                    float frameRate = format.getFrameRate();
-                    int frameSize = format.getFrameSize();
-
-                    if (frameRate > 0 && frameSize > 0) {
-                        long framesToSkip = PlaybackOffset.frameOffset(
-                                startPositionSeconds,
-                                isLooping,
-                                pcmAudioStream.getFrameLength(),
-                                frameRate);
-                        long bytesToSkip = framesToSkip * frameSize;
-                        if (bytesToSkip > 0) {
-                            skipFully(pcmAudioStream, bytesToSkip);
-                            resource.checkActive();
-                        }
-                    }
-                    startPositionSeconds = 0;
-                }
+                // Decoder/open delay belongs to the authoritative timeline too.
+                if (resource.intent != null) startPositionSeconds = resource.intent.offsetSeconds();
+                resource.startOffsetSeconds = startPositionSeconds;
+                if (resource.seek(pcmAudioStream, startPositionSeconds)) continue;
+                startPositionSeconds = 0;
 
                 boolean playbackAttempted = false;
                 boolean endOfStream = false;
@@ -408,15 +534,15 @@ public class ClientAudioPlayer {
                     alBuffer.put(bufferData, 0, bytesRead).flip();
 
                     resource.checkActive();
-                    AL10.alBufferData(bufferIDs[i], alFormat, alBuffer, (int) format.getSampleRate());
+                    resource.bufferData(bufferIDs[i], alFormat, alBuffer, (int) format.getSampleRate());
                     resource.checkActive();
-                    AL10.alSourceQueueBuffers(sourceID, bufferIDs[i]);
+                    resource.queueBuffer(bufferIDs[i]);
                     resource.decodedBytes += bytesRead;
                     initialDataLoaded = true;
 
                     if (!playbackAttempted) {
                         resource.checkActive();
-                        AL10.alSourcePlay(sourceID);
+                        resource.playSource();
                         playbackAttempted = true;
                     }
                 }
@@ -425,30 +551,31 @@ public class ClientAudioPlayer {
                 if (!playbackAttempted && initialDataLoaded) {
                     if (!resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
                         resource.checkActive();
-                        int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                        int queued = resource.sourceInt(AL10.AL_BUFFERS_QUEUED);
                         resource.checkActive();
-                        if (queued > 0 && AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
+                        if (queued > 0 && resource.sourceInt(AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
                             resource.checkActive();
-                            AL10.alSourcePlay(sourceID);
+                            resource.playSource();
                             playbackAttempted = true;
                         }
                     }
                 }
 
                 if (!playbackAttempted) {
-                    boolean currentlyLooping = resource != null ? resource.isLooping.get() : isLooping;
-                    if (!currentlyLooping) resource.stopFlag.set(true);
-                    continueStreaming = currentlyLooping;
+                    if (resource.recoverSeekAtEof()) continue;
+                    // Empty input (or an unsuccessful bounded retry) cannot spin forever.
+                    resource.stopFlag.set(true);
+                    continueStreaming = false;
                     break;
                 }
 
                 while (playbackAttempted && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
                     resource.checkActive();
-                    int buffersProcessed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
+                    int buffersProcessed = resource.sourceInt(AL10.AL_BUFFERS_PROCESSED);
 
                     for (int i = 0; i < buffersProcessed; i++) {
                         resource.checkActive();
-                        int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
+                        int bufferID = resource.unqueueBuffer();
                         if (!endOfStream) {
                             int bytesRead = pcmAudioStream.read(bufferData, 0, bufferData.length);
                             resource.checkActive();
@@ -456,9 +583,9 @@ public class ClientAudioPlayer {
                                 ByteBuffer alBuffer = ByteBuffer.allocateDirect(bytesRead).order(ByteOrder.nativeOrder());
                                 alBuffer.put(bufferData, 0, bytesRead).flip();
                                 resource.checkActive();
-                                AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                                resource.bufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
                                 resource.checkActive();
-                                AL10.alSourceQueueBuffers(sourceID, bufferID);
+                                resource.queueBuffer(bufferID);
                             } else {
                                 endOfStream = true;
                             }
@@ -469,7 +596,7 @@ public class ClientAudioPlayer {
                     }
 
                     resource.checkActive();
-                    int queuedBuffers = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                    int queuedBuffers = resource.sourceInt(AL10.AL_BUFFERS_QUEUED);
                     if (endOfStream) {
                         SimplySpeakers.LOGGER.debug("Draining queued audio before restart for source {}", sourceID);
                     }
@@ -479,10 +606,10 @@ public class ClientAudioPlayer {
                     }
 
                     resource.checkActive();
-                    if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
+                    if (resource.sourceInt(AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && initialDataLoaded) {
                         if (queuedBuffers > 0) {
                             resource.checkActive();
-                            AL10.alSourcePlay(sourceID);
+                            resource.playSource();
                         }
                     }
 
@@ -502,14 +629,15 @@ public class ClientAudioPlayer {
                     if (currentlyLooping) {
                         SimplySpeakers.LOGGER.debug("Audio track finished for {}. Looping enabled, restarting.", networkKey);
                         resource.checkActive();
-                        if (AL10.alIsSource(sourceID)) {
+                        if (resource.isSource()) {
                             resource.checkActive();
-                            AL10.alSourceStop(sourceID);
+                            resource.stopSource();
                             resource.checkActive();
-                            int queued = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED);
+                            int queued = resource.sourceInt(AL10.AL_BUFFERS_QUEUED);
                             resource.checkActive();
-                            if (queued > 0) AL10.alSourceUnqueueBuffers(sourceID, new int[queued]);
+                            if (queued > 0) resource.unqueueBuffers(new int[queued]);
                         }
+                        resource.restartLoopTimeline();
                         playbackCompletedSuccessfully = false;
                         initialDataLoaded = false;
                         // The outer while loop will re-initialize
@@ -528,6 +656,9 @@ public class ClientAudioPlayer {
             } catch (UnsupportedAudioFileException | IOException e) {
                 if (!resource.stopFlag.get()) SimplySpeakers.LOGGER.error("Streaming thread error for network {} with file {}", networkKey, filePath, e);
                 if (resource != null) resource.stopFlag.set(true);
+                continueStreaming = false;
+            } catch (AudioContextGate.StaleContextException ignored) {
+                resource.stopFlag.set(true);
                 continueStreaming = false;
             } catch (Exception e) {
                 SimplySpeakers.LOGGER.error("Critical error in streaming thread for network {}", networkKey, e);
@@ -550,10 +681,7 @@ public class ClientAudioPlayer {
         }
 
         // Clean up when thread finishes naturally (e.g. non-looping track reached EOF)
-        if (resource != null) {
-            networkResources.remove(networkKey, resource);
-            resource.stopAndCleanup();
-        }
+        finishResource(resource, false);
     }
 
 
@@ -561,40 +689,8 @@ public class ClientAudioPlayer {
     // Internet streams (0.8.x): direct HTTP(S) audio only
     // ------------------------------------------------------------------
 
-    private static void playFromUrl(String networkKey, BlockPos pos, String url,
-                                    float startPositionSeconds, boolean isLooping,
-                                    String fullStateKey, int playbackGeneration) {
-        Minecraft.getInstance().tell(() -> {
-            if (!networkKey.equals(membership.getNetworkKey(pos))) return;
-            StreamingAudioResource existing = networkResources.get(networkKey);
-            if (existing != null && !existing.stopFlag.get()
-                    && existing.streamingThread != null && existing.streamingThread.isAlive()) {
-                return;
-            }
-            try {
-                int sourceID = AL10.alGenSources();
-                int[] bufferIDs = new int[NUM_BUFFERS];
-                AL10.alGenBuffers(bufferIDs);
-
-                AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
-                AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
-                AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
-                AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
-
-                StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, null, isLooping, fullStateKey, playbackGeneration);
-                Thread streamingThread = new Thread(() -> streamUrlAudioData(resource, url, startPositionSeconds),
-                        SimplySpeakers.MOD_ID + "-url-stream-" + networkKey);
-                streamingThread.setDaemon(true);
-                resource.streamingThread = streamingThread;
-                resource.startOffsetSeconds = startPositionSeconds;
-                networkResources.put(networkKey, resource);
-                streamingThread.start();
-
-                updateSpeakerVolumes();
-            } catch (Exception e) {
-                SimplySpeakers.LOGGER.error("CLIENT: Failed to start internet stream {}", url, e);
-            }
-        });
+    private static void playFromUrl(String networkKey, BlockPos pos, String url, PlaybackIntent intent) {
+        queueSource(networkKey, pos, intent, true, url);
     }
 
     /**
@@ -675,6 +771,7 @@ public class ClientAudioPlayer {
         String networkKey = resource.networkKey;
         int sourceID = resource.sourceID;
         int[] bufferIDs = resource.bufferIDs;
+        boolean reportEof = false;
 
         while (networkResources.get(networkKey) == resource && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
             AudioInputStream pcm = null;
@@ -684,19 +781,11 @@ public class ClientAudioPlayer {
                 resource.trackInput(pcm);
                 resource.checkActive();
                 AudioFormat format = pcm.getFormat();
-                float startSeconds = com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds);
-                if (startSeconds > 0.0f) {
-                    long framesToSkip = PlaybackOffset.frameOffset(
-                            startSeconds,
-                            resource.isLooping.get(),
-                            pcm.getFrameLength(),
-                            format.getFrameRate());
-                    long bytesToSkip = framesToSkip * format.getFrameSize();
-                    if (bytesToSkip > 0) {
-                        skipFully(pcm, bytesToSkip);
-                        resource.checkActive();
-                    }
-                }
+                float startSeconds = resource.intent == null
+                        ? com.nstut.simplyspeakers.audio.StreamTracks.sanitizeStartPosition(startPositionSeconds)
+                        : resource.intent.offsetSeconds();
+                resource.startOffsetSeconds = startSeconds;
+                if (resource.seek(pcm, startSeconds)) continue;
                 int alFormat = AL10.AL_FORMAT_MONO16;
                 int bufferSizeBytes = Math.max(4096, (int) (format.getFrameRate() * format.getFrameSize() * BUFFER_SIZE_SECONDS));
                 byte[] bufferData = new byte[bufferSizeBytes];
@@ -710,29 +799,35 @@ public class ClientAudioPlayer {
                     ByteBuffer alBuffer = ByteBuffer.allocateDirect(read).order(ByteOrder.nativeOrder());
                     alBuffer.put(bufferData, 0, read).flip();
                     resource.checkActive();
-                    AL10.alBufferData(bufferIDs[prefill], alFormat, alBuffer, (int) format.getSampleRate());
+                    resource.bufferData(bufferIDs[prefill], alFormat, alBuffer, (int) format.getSampleRate());
                     resource.checkActive();
-                    AL10.alSourceQueueBuffers(sourceID, bufferIDs[prefill]);
+                    resource.queueBuffer(bufferIDs[prefill]);
+                    resource.decodedBytes += read;
                     prefill++;
                     if (!playbackAttempted && prefill >= 2) {
                         resource.checkActive();
-                        AL10.alSourcePlay(sourceID);
+                        resource.playSource();
                         playbackAttempted = true;
                     }
                 }
                 if (!playbackAttempted && prefill > 0) {
                     resource.checkActive();
-                    AL10.alSourcePlay(sourceID);
+                    resource.playSource();
                     playbackAttempted = true;
                 }
 
+                if (!playbackAttempted) {
+                    if (resource.recoverSeekAtEof()) continue;
+                    if (resource.isLooping.get()) resource.stopFlag.set(true); // Empty looping URL: terminate, never busy-reopen.
+                    completed = true;
+                }
                 boolean endOfStream = false;
                 while (playbackAttempted && !resource.stopFlag.get() && !Thread.currentThread().isInterrupted()) {
                     resource.checkActive();
-                    int processed = AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_PROCESSED);
+                    int processed = resource.sourceInt(AL10.AL_BUFFERS_PROCESSED);
                     for (int i = 0; i < processed; i++) {
                         resource.checkActive();
-                        int bufferID = AL10.alSourceUnqueueBuffers(sourceID);
+                        int bufferID = resource.unqueueBuffer();
                         if (!endOfStream) {
                             int read = pcm.read(bufferData, 0, bufferData.length);
                             resource.checkActive();
@@ -740,24 +835,24 @@ public class ClientAudioPlayer {
                                 ByteBuffer alBuffer = ByteBuffer.allocateDirect(read).order(ByteOrder.nativeOrder());
                                 alBuffer.put(bufferData, 0, read).flip();
                                 resource.checkActive();
-                                AL10.alBufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
+                                resource.bufferData(bufferID, alFormat, alBuffer, (int) format.getSampleRate());
                                 resource.checkActive();
-                                AL10.alSourceQueueBuffers(sourceID, bufferID);
+                                resource.queueBuffer(bufferID);
                             } else {
                                 endOfStream = true;
                             }
                         }
                     }
                     resource.checkActive();
-                    if (endOfStream && AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED) == 0) {
+                    if (endOfStream && resource.sourceInt(AL10.AL_BUFFERS_QUEUED) == 0) {
                         completed = true;
                         break;
                     }
                     resource.checkActive();
-                    if (AL10.alGetSourcei(sourceID, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING
-                            && AL10.alGetSourcei(sourceID, AL10.AL_BUFFERS_QUEUED) > 0) {
+                    if (resource.sourceInt(AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING
+                            && resource.sourceInt(AL10.AL_BUFFERS_QUEUED) > 0) {
                         resource.checkActive();
-                        AL10.alSourcePlay(sourceID);
+                        resource.playSource();
                     }
                     Thread.sleep(50);
                 }
@@ -765,6 +860,8 @@ public class ClientAudioPlayer {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 if (resource != null) resource.stopFlag.set(true);
+            } catch (AudioContextGate.StaleContextException ignored) {
+                resource.stopFlag.set(true);
             } catch (Exception e) {
                 if (!resource.stopFlag.get()) SimplySpeakers.LOGGER.error("CLIENT: Internet stream error for {}: {}", networkKey, url, e);
                 if (resource != null) resource.stopFlag.set(true);
@@ -773,19 +870,37 @@ public class ClientAudioPlayer {
             }
 
             if (completed && !resource.stopFlag.get() && !resource.isLooping.get()) {
-                sendRemoteStreamEofReport(resource.eofFullStateKey, resource.playbackGeneration, url);
+                reportEof = true;
             }
             if (completed && resource.isLooping.get() && !resource.stopFlag.get()) {
+                try { resource.restartLoopTimeline(); }
+                catch (AudioContextGate.StaleContextException ignored) { break; }
                 startPositionSeconds = 0.0f;
                 continue;
             }
             break;
         }
 
-        if (resource != null) {
-            networkResources.remove(networkKey, resource);
-            resource.stopAndCleanup();
+        finishResource(resource, reportEof);
+    }
+
+    private static void finishResource(StreamingAudioResource resource, boolean reportEof) {
+        if (resource == null) return;
+        boolean removed = networkResources.remove(resource.networkKey, resource);
+        if (removed && reportEof && resource.intent != null) {
+            Minecraft.getInstance().tell(() -> {
+                if (audioContext.isCurrent(resource.contextEpoch)
+                        && !membership.getPositions(resource.networkKey).isEmpty()
+                        && playbackIntents.remove(resource.networkKey, resource.intent)) {
+                    sendRemoteStreamEofReport(resource.eofFullStateKey, resource.playbackGeneration, resource.intent.metadata.getUuid());
+                }
+            });
+        } else if (removed && resource.intent != null) {
+            synchronized (audioContext) {
+                if (audioContext.isCurrent(resource.contextEpoch)) playbackIntents.remove(resource.networkKey, resource.intent);
+            }
         }
+        resource.stopAndCleanup();
     }
 
     public static void stop(BlockPos pos) {
@@ -798,6 +913,7 @@ public class ClientAudioPlayer {
         PlaybackMembership.DetachResult result = membership.detach(pos);
         if (result.wasTracked()) {
             if (result.networkEmpty()) {
+                playbackIntents.remove(result.networkKey());
                 StreamingAudioResource resource = networkResources.remove(result.networkKey());
                 if (resource != null) {
                     resource.stopAndCleanup();
@@ -809,6 +925,7 @@ public class ClientAudioPlayer {
     }
 
     public static void stopNetwork(String networkKey) {
+        playbackIntents.remove(networkKey);
         for (List<PlayRequest> requests : pendingPlays.values()) {
             requests.removeIf(req -> networkKey.equals(req.networkKey));
         }
@@ -821,6 +938,7 @@ public class ClientAudioPlayer {
     }
 
     public static void stopAll() {
+        playbackIntents.clear();
         ClientPortableSpeakers.clear();
         directionalExtras.clear();
         pendingPlays.clear();
@@ -879,6 +997,7 @@ public class ClientAudioPlayer {
 
             Set<BlockPos> positions = membership.getPositions(networkKey);
             if (positions.isEmpty()) {
+                if (resource.intent != null) playbackIntents.remove(networkKey, resource.intent);
                 resource.stopAndCleanup();
                 networkResources.remove(networkKey);
                 continue;
@@ -925,9 +1044,8 @@ public class ClientAudioPlayer {
                     continue;
                 }
                 mc.tell(() -> {
-                    if (AL10.alIsSource(resource.sourceID)) {
-                        AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, 0.0f);
-                    }
+                    try { if (resource.isSource()) resource.gain(0.0f); }
+                    catch (AudioContextGate.StaleContextException ignored) {}
                 });
                 continue;
             }
@@ -942,12 +1060,13 @@ public class ClientAudioPlayer {
 
             mc.tell(() -> {
                 StreamingAudioResource currentResource = networkResources.get(networkKey);
-                if (currentResource != null && currentResource.sourceID == resource.sourceID && !currentResource.stopFlag.get()) {
+                if (currentResource == resource && !resource.stopFlag.get()) {
                     try {
-                        if (AL10.alIsSource(resource.sourceID)) {
-                            AL10.alSource3f(resource.sourceID, AL10.AL_POSITION, posX, posY, posZ);
-                            AL10.alSourcef(resource.sourceID, AL10.AL_GAIN, finalGain);
+                        if (resource.isSource()) {
+                            resource.position(posX, posY, posZ);
+                            resource.gain(finalGain);
                         }
+                    } catch (AudioContextGate.StaleContextException ignored) {
                     } catch (Exception e) {
                         SimplySpeakers.LOGGER.error("Error setting spatial audio for source {}", resource.sourceID, e);
                     }
@@ -1140,7 +1259,8 @@ public class ClientAudioPlayer {
                     Map<String, PlayRequest> requestsByNetwork = new LinkedHashMap<>();
                     for (PlayRequest req : requests) {
                         String currentNetworkKey = membership.getNetworkKey(req.pos);
-                        if (req.networkKey != null && req.networkKey.equals(currentNetworkKey)) {
+                        if (req.networkKey != null && req.networkKey.equals(currentNetworkKey)
+                                && playbackIntents.get(req.networkKey) == req.intent) {
                             requestsByNetwork.putIfAbsent(req.networkKey, req);
                         }
                     }
@@ -1148,8 +1268,8 @@ public class ClientAudioPlayer {
                     for (Map.Entry<String, PlayRequest> entry : requestsByNetwork.entrySet()) {
                         String netKey = entry.getKey();
                         PlayRequest req = entry.getValue();
-                        boolean liveLooping = ClientSpeakerRegistry.getLooping(netKey, req.isLooping);
-                        playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.startPositionSeconds, liveLooping);
+                        req.intent.looping = ClientSpeakerRegistry.getLooping(netKey, req.intent.looping);
+                        playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.intent);
                     }
                 }
             } catch (IOException e) {
@@ -1162,14 +1282,12 @@ public class ClientAudioPlayer {
     private static class PlayRequest {
         final BlockPos pos;
         final String networkKey;
-        final float startPositionSeconds;
-        final boolean isLooping;
+        final PlaybackIntent intent;
 
-        PlayRequest(BlockPos pos, String networkKey, float startPositionSeconds, boolean isLooping) {
+        PlayRequest(BlockPos pos, String networkKey, PlaybackIntent intent) {
             this.pos = pos;
             this.networkKey = networkKey;
-            this.startPositionSeconds = startPositionSeconds;
-            this.isLooping = isLooping;
+            this.intent = intent;
         }
     }
 }

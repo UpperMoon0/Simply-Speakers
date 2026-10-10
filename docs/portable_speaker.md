@@ -68,7 +68,11 @@ See [TESTING.md](../TESTING.md) for the core, production-adapter and real
 dedicated-server/two-client layers. The runtime gate requires a separate stationary
 listener to observe the carried source moving, decreasing in gain, leaving range,
 and re-entering at the current playback position without duplicates. Pause, stop
-and removal require both clients to delete their OpenAL sources. The automated
+and removal require both clients to delete their OpenAL sources. The carrier also
+reloads Minecraft's actual sound engine during normal and portable playback and
+while paused, requiring recovery at an advancing offset or continued silence.
+This checks OpenAL context recreation; physical output-device switching still
+needs a manual headphones-to-monitor check. The automated
 driver is silent, so a pass establishes decoding, moving source behavior and cleanup,
 not subjective audible quality. Manual multiplayer checks should additionally
 cover sound quality, UI appearance, handoff, portal travel and listening beyond

@@ -59,6 +59,22 @@ runtime supervisors default to 1 GiB and two workers, with 1/2/1 GiB game heap c
 for server/carrier/observer. `SIMPLYSPEAKERS_LIVE_RUN_GRADLE_HEAP` can override the
 runtime supervisor budget independently of `SIMPLYSPEAKERS_LIVE_GRADLE_HEAP`.
 
+The carrier additionally invokes the public `SoundManager.reload()` during normal
+and portable playback and again while each is paused. This executes Minecraft's
+real sound-engine teardown and OpenAL context recreation using the null driver.
+Four `SIMPLYSPEAKERS_AUDIO_RELOAD_PASS` markers and their server acknowledgements
+are mandatory on all five targets. Playing cases require an advanced context epoch,
+a different decoder resource, nonzero decoded samples, one playing source with
+unchanged emitter membership and spatial position, a progressed recovery offset,
+continued OpenAL sample progress, and termination of the old decoder worker. Paused
+cases must remain silent for multiple ticks; the existing resume/seek/stop and
+portable movement checks then continue. Numeric source or context handles may be
+reused, so handle inequality alone is not accepted as proof. This reproduces the
+context-reset lifecycle of an output-device change; it does not establish physical
+headphones-to-monitor switching or subjective audible quality. Deterministic
+pending-download and blocked-worker races belong to the adapter layer, rather than
+a timing-dependent live decoding assertion.
+
 Four targets also load CC:Tweaked and invoke the real peripheral adapter to check
 track ownership, access policy and transport. This checks the adapter's Java API;
 the separate `cc` layer executes the packaged `cc_acceptance.lua` inside placed

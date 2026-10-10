@@ -48,6 +48,7 @@ class StreamingAudioCleanupIntegrationTest {
         var stop=type.getDeclaredMethod("stopAndCleanup");stop.setAccessible(true);
         var worker=ClientAudioPlayer.class.getDeclaredMethod(action.startsWith("url")?"streamUrlAudioData":"streamAudioData",type,String.class,float.class);worker.setAccessible(true);
         var opener=ClientAudioPlayer.class.getDeclaredMethod("openUrlStream",type,String.class);opener.setAccessible(true);
+        var finish=ClientAudioPlayer.class.getDeclaredMethod("finishResource",type,boolean.class);finish.setAccessible(true);
         var file=java.nio.file.Files.createFile(directory.resolve("blocked.wav")).toFile();
         Thread thread=new Thread(() -> {
             try(var audio=mockStatic(ClientAudioPlayer.class);
@@ -61,6 +62,8 @@ class StreamingAudioCleanupIntegrationTest {
                 audio.when(() -> opener.invoke(null,old,input)).thenReturn(pcm);
                 decoder.when(() -> com.nstut.simplyspeakers.audio.IncrementalAudioDecoders.openPcmStream(file)).thenReturn(pcm);
                 audio.when(() -> worker.invoke(null,old,input,0f)).thenCallRealMethod();
+                // Worker finalization moved behind a static helper; keep that production path real too.
+                audio.when(() -> finish.invoke(null,old,false)).thenCallRealMethod();
                 worker.invoke(null,old,input,0f);
             } catch(Throwable e){failure.set(e);}
         },"blocked-decoder-test");

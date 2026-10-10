@@ -38,6 +38,17 @@ class LiveHarnessTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "exited before evidence"):
                     pump(block_evidence, 0).wait_for_all(markers, 1)
 
+    def test_playback_markers_cannot_certify_actual_context_reload(self):
+        self.assertEqual({"normal_playing", "normal_paused", "portable_playing", "portable_paused"}, set(live.RELOAD_CASES))
+        for target in live.TARGETS:
+            client, server = live.required_markers(target)
+            for markers, prefix in ((client, "SIMPLYSPEAKERS_AUDIO_RELOAD_PASS"),
+                                    (server, "SIMPLYSPEAKERS_SERVER_AUDIO_RELOAD_PASS")):
+                for case in live.RELOAD_CASES:
+                    self.assertIn(f"{prefix} {case}", markers)
+                with self.assertRaisesRegex(RuntimeError, "exited before evidence"):
+                    pump([marker for marker in markers if prefix not in marker], 0).wait_for_all(markers, 1)
+
     def test_failure_overrides_pass_evidence(self):
         with self.assertRaisesRegex(RuntimeError, live.FAIL_MARKER):
             pump(["PASS", live.FAIL_MARKER + " decoder failed"], 0).wait_for_all(("PASS",), 1)
