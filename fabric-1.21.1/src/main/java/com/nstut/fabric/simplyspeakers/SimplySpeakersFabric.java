@@ -56,6 +56,7 @@ public class SimplySpeakersFabric implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            com.nstut.simplyspeakers.portable.PortableSpeakerManager.shutdown(server);
             ServerSpeakerRegistry.flushDirty();
             SimplySpeakers.shutdownAudio();
         });

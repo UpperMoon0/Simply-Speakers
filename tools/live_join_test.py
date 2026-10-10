@@ -26,7 +26,9 @@ TARGETS = {
     "neoforge-1.21.1": "neoforge-1.21.1",
     "neoforge-26.1.2": "neoforge-26.1.2",
 }
-PHASES = ("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone")
+PHASES = ("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone",
+          "portable_started", "portable_moved", "portable_paused", "portable_resumed",
+          "portable_stopped", "portable_restarted", "portable_removed")
 FAIL_MARKER = "SIMPLYSPEAKERS_VERIFY_FAIL"
 CRASH_MARKERS = ("Exception in thread", "FAILURE: Build failed", "Minecraft has crashed", "Unsupported installed optional dependencies:")
 

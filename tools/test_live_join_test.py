@@ -28,6 +28,16 @@ class LiveHarnessTest(unittest.TestCase):
                     with self.assertRaises(RuntimeError):
                         pump([marker for marker in markers if marker != absent], 0).wait_for_all(markers, 1)
 
+    def test_block_playback_cannot_certify_portable_inventory_playback(self):
+        portable = {"portable_started", "portable_moved", "portable_paused", "portable_resumed",
+                    "portable_stopped", "portable_restarted", "portable_removed"}
+        self.assertTrue(portable.issubset(live.PHASES))
+        for target in live.TARGETS:
+            for markers in live.required_markers(target):
+                block_evidence = [marker for marker in markers if "portable_" not in marker]
+                with self.assertRaisesRegex(RuntimeError, "exited before evidence"):
+                    pump(block_evidence, 0).wait_for_all(markers, 1)
+
     def test_failure_overrides_pass_evidence(self):
         with self.assertRaisesRegex(RuntimeError, live.FAIL_MARKER):
             pump(["PASS", live.FAIL_MARKER + " decoder failed"], 0).wait_for_all(("PASS",), 1)

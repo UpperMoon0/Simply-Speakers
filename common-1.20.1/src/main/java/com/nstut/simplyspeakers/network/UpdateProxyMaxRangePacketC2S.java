@@ -39,7 +39,7 @@ public class UpdateProxyMaxRangePacketC2S {
             }
 
             ServerLevel level = player.serverLevel();
-            BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+            BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, pkt.pos);
             if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
                 proxySpeakerEntity.setMaxRange(pkt.maxRange);
             }

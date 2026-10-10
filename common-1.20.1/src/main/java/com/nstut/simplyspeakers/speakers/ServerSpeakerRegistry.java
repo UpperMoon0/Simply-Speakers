@@ -64,6 +64,7 @@ public final class ServerSpeakerRegistry {
     }
 
     public static synchronized void resetForWorld() {
+        com.nstut.simplyspeakers.portable.PortableSpeakerManager.resetForWorld();
         com.nstut.simplyspeakers.playlist.PlayerPlaylistStore.reset();
         speakerPositions.clear();
         proxySpeakerPositions.clear();

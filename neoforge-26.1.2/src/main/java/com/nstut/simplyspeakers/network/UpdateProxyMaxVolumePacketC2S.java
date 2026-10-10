@@ -46,7 +46,7 @@ public class UpdateProxyMaxVolumePacketC2S implements CustomPacketPayload {
             }
 
             Level level = player.level();
-            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, packet.pos);
             if (blockEntity instanceof ProxySpeakerBlockEntity proxySpeakerEntity) {
                 proxySpeakerEntity.setMaxVolume(packet.maxVolume);
             }

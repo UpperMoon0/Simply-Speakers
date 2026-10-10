@@ -41,7 +41,7 @@ public class StopPlaybackPacketC2S implements CustomPacketPayload {
             }
 
             ServerLevel level = player.serverLevel();
-            if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, packet.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.stopAudio();
             }
         });

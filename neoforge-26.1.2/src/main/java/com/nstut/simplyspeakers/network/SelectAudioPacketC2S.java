@@ -53,7 +53,7 @@ public class SelectAudioPacketC2S implements CustomPacketPayload {
             }
 
             Level level = player.level();
-            if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, packet.blockPos) instanceof SpeakerBlockEntity speaker) {
                 if (packet.audioId.isEmpty()) {
                     speaker.setSelectedAudio("", "");
                     return;

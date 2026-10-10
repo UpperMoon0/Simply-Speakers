@@ -41,10 +41,12 @@ public class LoadAudioCallPacketC2S {
                     if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) {
                         return;
                     }
-                    BlockEntity blockEntity = serverLevel.getBlockEntity(packet.pos);
+                    SpeakerPacketSecurity.AuthorizedTrack track = SpeakerPacketSecurity.resolveAuthorizedTrack(player, packet.audioId);
+                    if (track == null) return;
+                    BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                         try {
-                            speakerEntity.setAudioId(packet.audioId);
+                            speakerEntity.setSelectedAudio(track.audioId(), track.filename());
                         } catch (Exception e) {
                             LOGGER.severe("Error processing LoadAudioCallPacketC2S for speaker at " + packet.pos + ": " + e.getMessage());
                             e.printStackTrace();

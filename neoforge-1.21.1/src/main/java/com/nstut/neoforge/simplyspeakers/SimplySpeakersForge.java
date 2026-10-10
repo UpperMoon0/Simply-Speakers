@@ -81,6 +81,7 @@ public final class SimplySpeakersForge {
     }
     
     public void onServerStopping(ServerStoppingEvent event) {
+        com.nstut.simplyspeakers.portable.PortableSpeakerManager.shutdown(event.getServer());
         ServerSpeakerRegistry.flushDirty();
         SimplySpeakers.shutdownAudio();
     }

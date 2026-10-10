@@ -6,6 +6,7 @@ import dev.ryanhcode.sable.companion.SableCompanion;
 import dev.ryanhcode.sable.companion.SubLevelAccess;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Position;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
@@ -17,6 +18,33 @@ public final class ClientSpeakerSpatialResolver {
 
     public static @Nullable Vec3 resolveRender(ClientLevel level, BlockPos position) {
         return resolveRender(SABLE, level, position);
+    }
+
+    /** Continuous entity coordinates must not be rounded to a block center. */
+    public static @Nullable Vec3 resolveRender(ClientLevel level, Position position) {
+        return resolveRender(SABLE, level, position);
+    }
+
+    static @Nullable Vec3 resolveRender(SableCompanion sable, ClientLevel level, Position position) {
+        Vec3 local = new Vec3(position.x(), position.y(), position.z());
+        SubLevelAccess subLevel = sable.getContaining(level, position);
+        if (subLevel instanceof ClientSubLevelAccess clientSubLevel) {
+            return clientSubLevel.renderPose().transformPosition(local);
+        }
+        return sable.isInPlotGrid(level, position) ? null : local;
+    }
+
+    public static @Nullable double[] resolveRenderFacing(ClientLevel level, Position position, double facingX, double facingZ) {
+        return resolveRenderFacing(SABLE, level, position, facingX, facingZ);
+    }
+
+    static @Nullable double[] resolveRenderFacing(SableCompanion sable, ClientLevel level, Position position, double facingX, double facingZ) {
+        SubLevelAccess subLevel = sable.getContaining(level, position);
+        if (subLevel instanceof ClientSubLevelAccess clientSubLevel) {
+            Vec3 world = clientSubLevel.renderPose().transformNormal(new Vec3(facingX, 0, facingZ));
+            return DirectionalAudio.normalize(world.x, world.z);
+        }
+        return sable.isInPlotGrid(level, position) ? null : DirectionalAudio.normalize(facingX, facingZ);
     }
 
     static @Nullable Vec3 resolveRender(SableCompanion sable, ClientLevel level, BlockPos position) {

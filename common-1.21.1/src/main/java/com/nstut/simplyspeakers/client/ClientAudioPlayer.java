@@ -166,6 +166,9 @@ public class ClientAudioPlayer {
     }
 
     public static String resolveNetworkKey(BlockPos pos) {
+        String activeKey = membership.getNetworkKey(pos);
+        if (activeKey != null) return activeKey;
+        if (ClientPortableSpeakers.isPortableToken(pos)) return "pos_" + pos.asLong();
         Minecraft mc = Minecraft.getInstance();
         if (mc.level != null) {
             net.minecraft.world.level.block.entity.BlockEntity blockEntity = mc.level.getBlockEntity(pos);
@@ -285,6 +288,7 @@ public class ClientAudioPlayer {
                 networkKey, pos, filePath, startPositionSeconds, isLooping);
         Minecraft.getInstance().tell(() -> {
             try {
+                if (!networkKey.equals(membership.getNetworkKey(pos))) return;
                 StreamingAudioResource existing = networkResources.get(networkKey);
                 if (existing != null && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
                     SimplySpeakers.LOGGER.debug("CLIENT: Stream already active for networkKey={}", networkKey);
@@ -561,6 +565,7 @@ public class ClientAudioPlayer {
                                     float startPositionSeconds, boolean isLooping,
                                     String fullStateKey, int playbackGeneration) {
         Minecraft.getInstance().tell(() -> {
+            if (!networkKey.equals(membership.getNetworkKey(pos))) return;
             StreamingAudioResource existing = networkResources.get(networkKey);
             if (existing != null && !existing.stopFlag.get()
                     && existing.streamingThread != null && existing.streamingThread.isAlive()) {
@@ -784,6 +789,8 @@ public class ClientAudioPlayer {
     }
 
     public static void stop(BlockPos pos) {
+        ClientPortableSpeakers.remove(pos);
+        directionalExtras.remove(pos);
         for (List<PlayRequest> requests : pendingPlays.values()) {
             requests.removeIf(req -> req.pos.equals(pos));
         }
@@ -805,12 +812,17 @@ public class ClientAudioPlayer {
         for (List<PlayRequest> requests : pendingPlays.values()) {
             requests.removeIf(req -> networkKey.equals(req.networkKey));
         }
-        membership.detachNetwork(networkKey);
+        for (BlockPos pos : membership.detachNetwork(networkKey)) {
+            ClientPortableSpeakers.remove(pos);
+            directionalExtras.remove(pos);
+        }
         StreamingAudioResource resource = networkResources.remove(networkKey);
         if (resource != null) resource.stopAndCleanup();
     }
 
     public static void stopAll() {
+        ClientPortableSpeakers.clear();
+        directionalExtras.clear();
         pendingPlays.clear();
         for (DownloadProcess download : activeDownloads.values()) {
             download.cleanup();
@@ -892,13 +904,15 @@ public class ClientAudioPlayer {
             for (BlockPos speakerPos : positions) {
                 com.nstut.simplyspeakers.SpeakerSettings emitter = membership.getSettings(speakerPos);
                 if (emitter == null) continue;
-                Vec3 renderPosition = ClientSpeakerSpatialResolver.resolveRender(mc.level, speakerPos);
+                Vec3 renderPosition = resolveEmitterPosition(mc, speakerPos);
                 if (renderPosition == null) continue;
+                if (firstResolvedPosition == null) firstResolvedPosition = renderPosition;
                 double distance = listenerPosition.distanceTo(renderPosition);
                 float gain;
                 com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);
                 if (cone != null && cone.directionality() > 0.0f) {
-                    double[] facing = ClientSpeakerSpatialResolver.resolveRenderFacing(mc.level, speakerPos, cone.facingOrdinal());
+                    double[] facing = resolveEmitterFacing(mc, speakerPos, cone.facingOrdinal());
+                    if (facing == null) continue;
                     double[] toListener = com.nstut.simplyspeakers.audio.DirectionalAudio.normalize(
                             listenerPosition.x - renderPosition.x,
                             listenerPosition.z - renderPosition.z);
@@ -945,6 +959,16 @@ public class ClientAudioPlayer {
     public static void updateSpeakerVolumes() {
         updateEmitterState();
         updateSpatialAudio();
+    }
+
+    private static Vec3 resolveEmitterPosition(Minecraft mc, BlockPos pos) {
+        return ClientPortableSpeakers.isPortableToken(pos)
+                ? ClientPortableSpeakers.resolvePosition(pos) : ClientSpeakerSpatialResolver.resolveRender(mc.level, pos);
+    }
+
+    private static double[] resolveEmitterFacing(Minecraft mc, BlockPos pos, int ordinal) {
+        return ClientPortableSpeakers.isPortableToken(pos)
+                ? ClientPortableSpeakers.resolveFacing(pos) : ClientSpeakerSpatialResolver.resolveRenderFacing(mc.level, pos, ordinal);
     }
 
     public static UUID startUpload(File file) {

@@ -44,9 +44,11 @@ public class AudioPathPacketC2S implements CustomPacketPayload {
                     if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) {
                         return;
                     }
-                    BlockEntity blockEntity = serverLevel.getBlockEntity(packet.pos);
+                    SpeakerPacketSecurity.AuthorizedTrack track = SpeakerPacketSecurity.resolveAuthorizedTrack(player, packet.audioId);
+                    if (track == null) return;
+                    BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
-                        speakerEntity.setAudioId(packet.audioId);
+                        speakerEntity.setSelectedAudio(track.audioId(), track.filename());
                     }
                 }
             }

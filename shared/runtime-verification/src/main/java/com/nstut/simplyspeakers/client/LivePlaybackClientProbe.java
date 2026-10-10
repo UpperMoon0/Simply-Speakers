@@ -6,7 +6,9 @@ import net.minecraft.client.Minecraft;
 /** Client evidence comes from actual decoder/OpenAL resources, never a synthetic packet. */
 final class LivePlaybackClientProbe {
     private static final String KEY = "net___simplyspeakers_verify";
-    private static final String[] PHASES = {"started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone"};
+    private static final String[] PHASES = {"started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone",
+            "portable_started", "portable_moved", "portable_paused", "portable_resumed",
+            "portable_stopped", "portable_restarted", "portable_removed"};
     private static int phase, ticks;
     private static int settingIndex;
     private static boolean settingSent;
@@ -17,6 +19,7 @@ final class LivePlaybackClientProbe {
     static void tick(Minecraft client) {
         if (!LivePlaybackServerProbe.enabled() || phase == PHASES.length) return;
         if (++ticks > 2400) throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL client phase " + phase);
+        if (phase >= 7) { verifyPortablePlayback(client); return; }
         var snapshot = ClientAudioPlayer.verificationSnapshot(KEY);
         if(ticks%100==0) System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_WAIT "+PHASES[phase]+" "+snapshot);
         boolean observed = switch (phase) {
@@ -54,6 +57,58 @@ final class LivePlaybackClientProbe {
         phase++;
         if (phase == PHASES.length) System.out.println("SIMPLYSPEAKERS_CLIENT_PLAYBACK_PASS");
     }
+    private static String portableAudioKey;
+    private static Object portableResource;
+    private static int portableSource;
+    private static net.minecraft.world.phys.Vec3 portableInitialPosition;
+    private static net.minecraft.core.BlockPos portableToken;
+
+    /** Requires a decoded OpenAL stream, its actual source position and completed deletion.
+     * Pose-cache assertions alone are deliberately insufficient for this live evidence. */
+    private static void verifyPortablePlayback(Minecraft client) {
+        try {
+            if (portableAudioKey == null) {
+                if (ClientPortableSpeakers.tokens().size() != 1) return;
+                portableToken = ClientPortableSpeakers.tokens().iterator().next();
+                portableAudioKey = ClientAudioPlayer.resolveNetworkKey(portableToken);
+            }
+            var snapshot = ClientAudioPlayer.verificationSnapshot(portableAudioKey);
+            boolean silent = phase == 9 || phase == 11 || phase == 13;
+            if (ticks % 100 == 0) System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_WAIT " + PHASES[phase] + " " + snapshot);
+            if (silent) {
+                if (snapshot.sources() != 0 || snapshot.emitters() != 0 || ClientPortableSpeakers.contains(portableToken)
+                        || org.lwjgl.openal.AL10.alIsSource(portableSource)) return;
+            } else {
+                if (!snapshot.playing() || snapshot.decodedBytes() == 0 || snapshot.sources() != 1 || snapshot.emitters() != 1) return;
+                var resourcesField = ClientAudioPlayer.class.getDeclaredField("networkResources"); resourcesField.setAccessible(true);
+                Object resource = ((java.util.Map<?, ?>) resourcesField.get(null)).get(portableAudioKey);
+                if (resource == null) return;
+                var sourceField = resource.getClass().getDeclaredField("sourceID"); sourceField.setAccessible(true);
+                int source = sourceField.getInt(resource);
+                if (ClientPortableSpeakers.tokens().size() != 1) return;
+                var token = ClientPortableSpeakers.tokens().iterator().next();
+                var resolved = ClientPortableSpeakers.resolvePosition(token);
+                float[] raw = new float[3];
+                org.lwjgl.openal.AL10.alGetSourcefv(source, org.lwjgl.openal.AL10.AL_POSITION, raw);
+                var actual = new net.minecraft.world.phys.Vec3(raw[0], raw[1], raw[2]);
+                if (resolved == null || actual.distanceToSqr(resolved) > 1.0) return;
+                if (phase == 8) {
+                    if (actual.distanceToSqr(portableInitialPosition) < 36) return;
+                    if (resource != portableResource || source != portableSource)
+                        throw new IllegalStateException("Moving the inventory holder restarted the portable decoder");
+                }
+                portableResource = resource; portableSource = source; portableToken = token;
+                if (phase == 7) portableInitialPosition = actual;
+            }
+            System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_PASS " + PHASES[phase]
+                    + " sources=" + snapshot.sources() + " emitters=" + snapshot.emitters()
+                    + " decodedBytes=" + snapshot.decodedBytes() + " openAL=" + (silent ? "deleted" : "playing"));
+            client.getConnection().sendCommand("simplyspeakers_verify " + PHASES[phase]);
+            phase++;
+            if (phase == PHASES.length) System.out.println("SIMPLYSPEAKERS_CLIENT_PLAYBACK_PASS");
+        } catch (Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL portable playback", error); }
+    }
+
     private static int dragTicks, dragPolicyTicks;
     private static Object dragResource;
     private static com.nstut.simplyspeakers.client.screens.SpeakerScreen dragScreen;
@@ -157,7 +212,7 @@ final class LivePlaybackClientProbe {
             var entries=(java.util.Map<?,?>)contents.getClass().getField("entries").get(contents);
             var categories=(java.util.Map<?,?>)contents.getClass().getField("categories").get(contents);
             var item=(net.minecraft.world.item.ItemStack)bookType.getMethod("getBookItem").invoke(book);
-            if (entries.size()!=23 || categories.size()!=4 || item.isEmpty()) throw new IllegalStateException("guide did not compile");
+            if (entries.size()!=24 || categories.size()!=4 || item.isEmpty()) throw new IllegalStateException("guide did not compile");
             int pageCount=0;
             Class<?> guiType=Class.forName("vazkii.patchouli.client.book.gui.GuiBookEntry");
             Class<?> withText=Class.forName("vazkii.patchouli.client.book.page.abstr.PageWithText");

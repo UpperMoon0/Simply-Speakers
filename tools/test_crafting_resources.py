@@ -1,4 +1,5 @@
 """Keep device recipes namespaced and equivalent across Minecraft recipe formats."""
+import hashlib
 import json
 from pathlib import Path
 import struct
@@ -8,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 COMMON = ROOT / "common/src/main/resources"
 NEO = ROOT / "neoforge-26.1.2/src/main/resources"
 COMPONENT = "simplyspeakers:audio_circuit"
-DEVICES = ("speaker", "proxy_speaker", "redstone_controller", "guide_book")
+DEVICES = ("speaker", "proxy_speaker", "redstone_controller", "guide_book", "portable_speaker")
 
 
 def recipe(base, name):
@@ -41,6 +42,19 @@ class CraftingResourcesTest(unittest.TestCase):
                                  {k: material(v) for k, v in neo["key"].items()})
                 self.assertTrue(all(1 <= len(row) <= 3 for row in common["pattern"]))
                 self.assertEqual(1, len({len(row) for row in common["pattern"]}))
+
+    def test_portable_speaker_preserves_supplied_sprite_and_model_formats(self):
+        asset = COMMON / "assets/simplyspeakers"
+        png = (asset / "textures/item/portable_speaker.png").read_bytes()
+        self.assertEqual("2884cd85f6ab39d2ebe7a9f64f2425cf08fb4b21a9ed856eff84cd81729641ea",
+                         hashlib.sha256(png).hexdigest())
+        self.assertEqual((16, 16), struct.unpack(">II", png[16:24]))
+        self.assertEqual(6, png[25])
+        model = json.loads((asset / "models/item/portable_speaker.json").read_text())
+        self.assertEqual("minecraft:item/generated", model["parent"])
+        self.assertEqual("simplyspeakers:item/portable_speaker", model["textures"]["layer0"])
+        item = json.loads((asset / "items/portable_speaker.json").read_text())
+        self.assertEqual("simplyspeakers:item/portable_speaker", item["model"]["model"])
 
     def test_component_is_obtainable_without_any_mod_item(self):
         for base in (COMMON, NEO):

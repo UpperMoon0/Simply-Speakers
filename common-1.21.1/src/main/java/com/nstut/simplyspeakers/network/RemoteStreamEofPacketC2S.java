@@ -35,13 +35,13 @@ public class RemoteStreamEofPacketC2S implements CustomPacketPayload {
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, RemoteStreamEofPacketC2S packet) {
-        buffer.writeUtf(packet.fullStateKey);
+        buffer.writeUtf(packet.fullStateKey, 512);
         buffer.writeVarInt(packet.playbackGeneration);
         buffer.writeUtf(packet.audioId);
     }
 
     public static RemoteStreamEofPacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new RemoteStreamEofPacketC2S(buffer.readUtf(), buffer.readVarInt(), buffer.readUtf());
+        return new RemoteStreamEofPacketC2S(buffer.readUtf(512), buffer.readVarInt(), buffer.readUtf());
     }
 
     public static void handle(RemoteStreamEofPacketC2S packet, NetworkManager.PacketContext context) {

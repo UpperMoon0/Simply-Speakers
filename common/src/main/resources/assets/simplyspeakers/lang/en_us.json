@@ -228,5 +228,8 @@
   "gui.simplyspeakers.player.read_only": "Read only",
   "gui.simplyspeakers.close": "Close",
   "gui.simplyspeakers.access.manage": "Manage",
-  "gui.simplyspeakers.access.you": "You"
+  "gui.simplyspeakers.access.you": "You",
+  "item.simplyspeakers.portable_speaker": "Portable Speaker",
+  "gui.simplyspeakers.portable_speaker.title": "Portable Speaker",
+  "tooltip.simplyspeakers.portable_speaker": "Use to open. Plays while carried in your inventory."
 }

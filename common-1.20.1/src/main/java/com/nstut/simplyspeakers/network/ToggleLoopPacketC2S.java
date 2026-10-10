@@ -38,7 +38,7 @@ public class ToggleLoopPacketC2S {
             }
 
             ServerLevel level = player.serverLevel();
-            BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+            BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, pkt.pos);
             if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                 speakerEntity.setLooping(pkt.isLooping);
             }

@@ -2,10 +2,11 @@
 
 CurseForge: https://www.curseforge.com/minecraft/mc-mods/simply-speakers
 
-Simply Speakers is a Minecraft mod that allows players to play custom audio files in-game using speaker blocks.
+Simply Speakers is a Minecraft mod that allows players to play custom audio files in-game using placed and portable speakers.
 
 ## Features
 
+* **Portable Speaker**: Carry custom spatial audio in your inventory using the same Library, Playlist, Queue, transport, Settings and access controls. Nearby players hear the moving source. See [portable speaker behavior](docs/portable_speaker.md).
 * **Speaker Block**: Plays custom audio with configurable range, volume and direction.
 * **Proxy Speaker Block**: Sync audio playback across multiple locations by linking to a main Speaker.
 * **Custom Audio**: Upload or manually add .mp3 and .wav files.

@@ -61,7 +61,7 @@ public class TransportControlPacketC2S implements CustomPacketPayload {
             if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
                 return;
             }
-            if (player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, packet.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
                 if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), player.hasPermissions(2))) {
                     return;

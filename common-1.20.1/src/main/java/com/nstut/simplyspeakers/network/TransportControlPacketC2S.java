@@ -55,7 +55,7 @@ public class TransportControlPacketC2S {
         context.queue(() -> {
             if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) return;
             ServerLevel level = player.serverLevel();
-            if (level.getBlockEntity(pkt.pos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, pkt.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
                 if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), player.hasPermissions(2))) return;
                 speaker.transportAction(level, pkt.action, pkt.seekSeconds);

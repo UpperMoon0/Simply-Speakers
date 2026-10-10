@@ -13,12 +13,15 @@ public class ClientEvents {
 
     public static void register() {
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
+        // Also update mobile poses between ticks for smooth sound while walking.
+        dev.architectury.event.events.client.ClientGuiEvent.RENDER_HUD.register((graphics, delta) -> ClientAudioPlayer.updateSpeakerVolumes());
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(ClientEvents::onPlayerLoggedOut);
         ClientPlayerEvent.CLIENT_PLAYER_RESPAWN.register(ClientEvents::onPlayerRespawn);
         PlayAudioPacketS2C.startLiveJoinProbe();
     }
 
     private static void onClientTick(Minecraft client) {
+        ClientPortableSpeakers.tick();
         SpeakerUiPreviewProbe.tick(client);
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();

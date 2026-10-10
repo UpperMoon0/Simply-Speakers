@@ -20,7 +20,14 @@ import java.util.UUID;
  * Never registers commands or changes worlds outside the dedicated verification run. */
 public final class LivePlaybackServerProbe {
     private static final String ID = "__simplyspeakers_verify";
-    private static final List<String> PHASES = List.of("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone");
+    public static final UUID PORTABLE_ID = UUID.fromString("739eaafe-4c28-4f70-968c-25a4aabb863f");
+    private static final List<String> PHASES = List.of("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone",
+            "portable_started", "portable_moved", "portable_paused", "portable_resumed",
+            "portable_stopped", "portable_restarted", "portable_removed");
+    private static com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint portable;
+    private static net.minecraft.world.phys.Vec3 portableStart;
+    private static String portableKey;
+    private static final int PORTABLE_SLOT = 35;
     private static MinecraftServer currentServer;
     private static ServerLevel level;
     private static ServerPlayer player;
@@ -109,6 +116,34 @@ public final class LivePlaybackServerProbe {
                 require(ServerSpeakerControlService.playlistControl(currentServer, level, key,
                         PlaylistControlPacketC2S.OP_CLEAR, 0, false, "", ""), "playlist clear rejected");
                 require(state().getPlaylist().size() == 0, "playlist did not clear");
+                require(ServerSpeakerControlService.stop(currentServer, level, key), "block fixture stop rejected");
+                startPortableFixture();
+            }
+            case "portable_started" -> {
+                require(ServerPlaybackManager.getSubscribers(portable.location()).contains(player.getUUID()), "portable holder did not subscribe");
+                portableStart = player.position();
+                teleportHolder(portableStart.x + 8, portableStart.y, portableStart.z);
+            }
+            case "portable_moved" -> {
+                require(player.position().distanceToSqr(portableStart) >= 36, "portable holder did not move");
+                var pose = com.nstut.simplyspeakers.portable.PortableSpeakerManager.emitterPosition(level, portable.getBlockPos());
+                require(pose != null && pose.distanceToSqr(player.position().add(0, 1, 0)) < .01, "portable server emitter did not follow inventory holder");
+                require(ServerSpeakerControlService.pause(currentServer, level, portableKey), "portable pause rejected");
+            }
+            case "portable_paused" -> {
+                require(portable.getSpeakerState().isPaused(), "portable paused state missing");
+                require(ServerSpeakerControlService.play(currentServer, level, portableKey), "portable resume rejected");
+            }
+            case "portable_resumed" -> require(ServerSpeakerControlService.stop(currentServer, level, portableKey), "portable stop rejected");
+            case "portable_stopped" -> require(ServerSpeakerControlService.play(currentServer, level, portableKey), "portable restart rejected");
+            case "portable_restarted" -> {
+                player.getInventory().setItem(PORTABLE_SLOT, net.minecraft.world.item.ItemStack.EMPTY);
+                com.nstut.simplyspeakers.portable.PortableSpeakerManager.serverTick(currentServer);
+                require(com.nstut.simplyspeakers.portable.PortableSpeakerManager.getEndpoint(PORTABLE_ID) == null, "removed inventory speaker kept its endpoint");
+                require(ServerPlaybackManager.getSubscribers(portable.location()).isEmpty(), "removed portable retained listeners");
+                require(ServerSpeakerRegistry.getSpeakerStateByFullKey(portableKey).isPaused(), "removed standalone speaker did not preserve paused state");
+            }
+            case "portable_removed" -> {
                 ServerSpeakerRegistry.flushDirty();
                 done = true;
                 System.out.println("SIMPLYSPEAKERS_SERVER_PLAYBACK_PASS");
@@ -116,6 +151,35 @@ public final class LivePlaybackServerProbe {
         }
         System.out.println("SIMPLYSPEAKERS_SERVER_PHASE_PASS " + observed);
         phase++;
+    }
+
+    private static void startPortableFixture() {
+        var stack = new net.minecraft.world.item.ItemStack(com.nstut.simplyspeakers.items.ItemRegistries.PORTABLE_SPEAKER.get());
+        com.nstut.simplyspeakers.items.PortableSpeakerItem.setIdentity(stack, PORTABLE_ID);
+        player.getInventory().setItem(PORTABLE_SLOT, stack);
+        com.nstut.simplyspeakers.portable.PortableSpeakerManager.serverTick(currentServer);
+        portable = com.nstut.simplyspeakers.portable.PortableSpeakerManager.getEndpoint(PORTABLE_ID);
+        require(portable != null, "inventory speaker endpoint was not created");
+        portableKey = portable.getFullStateKey();
+        var state = portable.getSpeakerState();
+        state.setOwnerUuid(player.getUUID()); state.setAudioId(audio.getUuid());
+        state.setAudioFilename(audio.getOriginalFilename()); state.setMaxRange(64);
+        state.setMaxVolume(.5f); state.setLooping(true);
+        ServerSpeakerRegistry.updateSpeakerStateByFullKey(portableKey, state);
+        portable.updateEmitterSnapshot();
+        require(ServerSpeakerControlService.play(currentServer, level, portableKey), "portable initial playback rejected");
+    }
+
+    private static void teleportHolder(double x, double y, double z) {
+        try {
+            // The five-scalar connection teleport exists across the supported versions;
+            // reflection keeps the fixture independent of overload additions in mappings.
+            var teleport = player.connection.getClass().getMethod("teleport", double.class, double.class,
+                    double.class, float.class, float.class);
+            teleport.invoke(player.connection, x, y, z, player.getYRot(), player.getXRot());
+        } catch (ReflectiveOperationException error) {
+            throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL portable holder teleport", error);
+        }
     }
 
     private static void verifyPeripheral() {

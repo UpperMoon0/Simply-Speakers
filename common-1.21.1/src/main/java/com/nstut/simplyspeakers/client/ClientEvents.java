@@ -24,6 +24,7 @@ public class ClientEvents {
     }
 
     private static void onClientTick(Minecraft client) {
+        ClientPortableSpeakers.tick();
         SpeakerUiPreviewProbe.tick(client);
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();

@@ -81,6 +81,7 @@ public final class ServerPlaybackManager {
      * disconnected still advances instead of stalling forever.
      */
     public static void handlePlayerQuit(MinecraftServer server, UUID playerId) {
+        com.nstut.simplyspeakers.portable.PortableSpeakerManager.handlePlayerUnavailable(server, playerId);
         subscriptions.removePlayer(playerId);
         reevaluateAllPendingRemoteEof(server);
     }
@@ -94,6 +95,7 @@ public final class ServerPlaybackManager {
      * {@link #handlePlayerQuit}.
      */
     public static void handlePlayerDimensionChange(MinecraftServer server, UUID playerId) {
+        com.nstut.simplyspeakers.portable.PortableSpeakerManager.handlePlayerUnavailable(server, playerId);
         subscriptions.removePlayer(playerId);
         reevaluateAllPendingRemoteEof(server);
     }
@@ -335,6 +337,7 @@ public final class ServerPlaybackManager {
      */
     public static void serverTick(MinecraftServer server) {
         if (server == null) return;
+        com.nstut.simplyspeakers.portable.PortableSpeakerManager.serverTick(server);
         com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(server);
         if (Boolean.getBoolean("simplyspeakers.ccLuaTest")) com.nstut.simplyspeakers.testing.CcLuaServerProbe.tick(server);
         if (Boolean.getBoolean("simplyspeakers.livePlaybackTest")) com.nstut.simplyspeakers.testing.LivePlaybackServerProbe.tick(server);
@@ -446,6 +449,10 @@ public final class ServerPlaybackManager {
 
         double effectiveRange = SpeakerSettings.effectiveRange(maxRange);
         Vec3 emitterPos = ServerPlaybackEnvironment.emitterPosition(level, new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()));
+        if (emitterPos == null) {
+            stopEmitter(server, emitter.location());
+            return;
+        }
 
         Set<UUID> subscribed = subscriptions.getSubscribers(emitter.location());
         List<ServerPlaybackPlanner.ListenerObservation> observations = new ArrayList<>();
@@ -557,7 +564,21 @@ public final class ServerPlaybackManager {
         } else {
             pendingRemoteEof.remove(emitter.fullStateKey());
         }
+        var portablePose = com.nstut.simplyspeakers.portable.PortableSpeakerManager.snapshot(level,
+                new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()));
+        if (portablePose != null) packet.withPortableEmitter(portablePose);
         return packet;
+    }
+
+    /** Send mobile poses only to authorized playback subscribers, independent of entity tracking. */
+    public static void sendPortablePosition(MinecraftServer server, SpeakerLocation location,
+            com.nstut.simplyspeakers.portable.PortableEmitterSnapshot snapshot) {
+        var packet = new com.nstut.simplyspeakers.network.PortableSpeakerPositionPacketS2C(
+                new BlockPos(location.getX(), location.getY(), location.getZ()), snapshot);
+        for (UUID id : subscriptions.getSubscribers(location)) {
+            ServerPlayer player = server.getPlayerList().getPlayer(id);
+            if (player != null) ServerPlaybackEnvironment.sendPortablePosition(player, packet);
+        }
     }
 
     // ------------------------------------------------------------------

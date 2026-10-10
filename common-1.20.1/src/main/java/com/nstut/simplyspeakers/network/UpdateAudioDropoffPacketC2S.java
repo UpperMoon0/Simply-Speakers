@@ -40,7 +40,7 @@ public class UpdateAudioDropoffPacketC2S {
             }
 
             ServerLevel level = player.serverLevel();
-            BlockEntity blockEntity = level.getBlockEntity(pkt.pos);
+            BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, pkt.pos);
             if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                 speakerEntity.setAudioDropoff(pkt.audioDropoff);
             }

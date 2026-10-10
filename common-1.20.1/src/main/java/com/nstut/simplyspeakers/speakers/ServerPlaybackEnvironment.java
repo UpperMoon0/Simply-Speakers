@@ -12,9 +12,13 @@ import net.minecraft.world.phys.Vec3;
 final class ServerPlaybackEnvironment {
     private ServerPlaybackEnvironment() {}
     static AudioFileManager audioFiles() { return SimplySpeakers.getAudioFileManager(); }
-    static Vec3 emitterPosition(ServerLevel level, BlockPos pos) { return Vec3.atCenterOf(pos); }
+    static Vec3 emitterPosition(ServerLevel level, BlockPos pos) {
+        if (com.nstut.simplyspeakers.portable.PortableSpeakerManager.isPortablePosition(pos))
+            return com.nstut.simplyspeakers.portable.PortableSpeakerManager.emitterPosition(level, pos);
+        return Vec3.atCenterOf(pos); }
     static Vec3 listenerPosition(ServerLevel level, ServerPlayer player) { return player.position(); }
     static void sendPlay(ServerPlayer player, PlayAudioPacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet); }
+    static void sendPortablePosition(ServerPlayer player, PortableSpeakerPositionPacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet); }
     static void sendStop(ServerPlayer player, StopAudioPacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayer(player, packet); }
     static void sendState(ServerLevel level, SpeakerStateUpdatePacketS2C packet) { com.nstut.simplyspeakers.network.PacketRegistries.CHANNEL.sendToPlayers(level.players(), packet); }
     static void sendPlaylist(ServerLevel level, PlaylistSyncPacketS2C packet) { for(var player:level.players()) PlaylistSyncPacketS2C.sendToPlayer(player,packet); }

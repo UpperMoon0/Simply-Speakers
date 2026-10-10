@@ -136,3 +136,29 @@ The `ux_core` native UI audit group covers 176 playlist selection/search, queue 
 
 
 Continuous slider regression: `ServerPlaybackIntegrationTest.continuousSettingsUpdatesPreserveSubscriptionsTransportAndSession` applies 80 gain/controller-gain/cone/range changes and rejects stop packets, session changes, timeline resets or subscription loss. The real client probe uses native screen click/drag/release entry points, checks the drag lifecycle and 24 signal values before release, and requires the identical live decoder resource throughout volume/range/direction updates. `SIMPLYSPEAKERS_CONTINUOUS_DRAG_PASS` is required by the live harness.
+
+## Portable speaker coverage
+
+The shared adapter tests execute actual portable item metadata, inventory reconciliation,
+server endpoints, authorization, packet handlers and playback services on all three
+Minecraft runtimes. They cover stable identity across slots and stack replacement,
+creative-copy isolation, malformed stacks, separate offhand equipment, holder transfers, inventory removal,
+logout/death/spectator cleanup, dimension changes, protected links, linked-block
+continuity, new listeners and range exits. Three distinct mocked players exercise
+carrier/listener separation; these are production-code adapter tests, not a multiplayer
+runtime session. Client adapter tests cover tracked and untracked carrier positions,
+teleports, stale snapshots, dimension cleanup, dead carriers and transport cleanup.
+A real registry save/reload restores settings, playlists and ownership paused while
+retaining item metadata. The real versioned codecs are checked for mobile identities, fractional poses,
+portable screen routing and malformed input.
+
+Every live target additionally requires seven portable phases: start, movement,
+pause, resume, stop, restart and inventory removal. A real registered item in a
+non-hotbar inventory slot drives a downloaded, decoded OpenAL stream. The probe
+reads the actual OpenAL source position after the server teleports its carrier,
+requires the same decoder/source across that movement, and requires source deletion
+and pose/membership cleanup on pause, stop and removal. Both server and client phase
+markers are mandatory. This automated live fixture has one real player, who is both
+carrier and listener; it does not claim a two-player runtime test. OpenAL still uses
+the null output driver, so listening quality and visual portable-screen review need
+manual or focused verification.

@@ -83,7 +83,7 @@ public class PlaylistControlPacketC2S implements CustomPacketPayload {
             if (!SpeakerPacketSecurity.canModify(player, packet.pos)) {
                 return;
             }
-            if (player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, packet.pos) instanceof SpeakerBlockEntity speaker) {
                 SpeakerState state = speaker.getSpeakerState();
                 boolean isOp = player.level().getServer() != null && player.level().getServer().getPlayerList().isOp(player.nameAndId());
                 if (state == null || !SpeakerPermissions.canControl(state, player.getUUID(), isOp)) {

@@ -14,8 +14,9 @@ public final class ItemRegistries {
     public static final DeferredItem<BlockItem> SPEAKER = ITEMS.registerSimpleBlockItem("speaker", BlockRegistries.SPEAKER);
     public static final DeferredItem<BlockItem> PROXY_SPEAKER = ITEMS.registerSimpleBlockItem("proxy_speaker", BlockRegistries.PROXY_SPEAKER);
     public static final DeferredItem<BlockItem> REDSTONE_CONTROLLER = ITEMS.registerSimpleBlockItem("redstone_controller", BlockRegistries.REDSTONE_CONTROLLER);
+    public static final DeferredItem<PortableSpeakerItem> PORTABLE_SPEAKER = ITEMS.registerItem("portable_speaker", PortableSpeakerItem::new);
     public static final DeferredItem<Item> AUDIO_CIRCUIT = ITEMS.registerSimpleItem("audio_circuit");
-    public static final List<DeferredItem<? extends Item>> ITEM_LIST = List.of(SPEAKER, PROXY_SPEAKER, REDSTONE_CONTROLLER, AUDIO_CIRCUIT);
+    public static final List<DeferredItem<? extends Item>> ITEM_LIST = List.of(SPEAKER, PROXY_SPEAKER, REDSTONE_CONTROLLER, PORTABLE_SPEAKER, AUDIO_CIRCUIT);
 
     private ItemRegistries() {
     }
