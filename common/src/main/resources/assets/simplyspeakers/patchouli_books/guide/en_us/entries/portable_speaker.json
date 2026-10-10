@@ -6,7 +6,7 @@
   "pages": [
     {
       "type": "patchouli:text",
-      "title": "Take the music with you",
+      "title": "Take it along",
       "text": "Use a Portable Speaker to open the player. It plays while carried in your inventory, including the hotbar or off hand. Nearby players hear spatial audio from your moving position."
     },
     {
@@ -15,17 +15,17 @@
     },
     {
       "type": "patchouli:text",
-      "title": "Same player controls",
+      "title": "Player controls",
       "text": "Use Library, Playlist, Queue and Settings just like a placed Speaker. Upload MP3/WAV, choose recordings or direct stream URLs, and control transport, repeat, range, volume and dropoff."
     },
     {
       "type": "patchouli:text",
-      "title": "Access and networks",
+      "title": "Access & links",
       "text": "Ownership and access rules still apply when an item changes hands. Matching Speaker IDs link within one dimension. The item has no block face, comparator output or adjacent ComputerCraft peripheral."
     },
     {
       "type": "patchouli:text",
-      "title": "Leaving your inventory",
+      "title": "Stored items",
       "text": "Dropped items and stored items are silent. Death, logout and dimension changes remove the old moving source. Saved settings and playlists stay with the speaker identity. Use Play to resume when necessary."
     }
   ]

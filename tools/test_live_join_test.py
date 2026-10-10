@@ -120,6 +120,74 @@ class LiveHarnessTest(unittest.TestCase):
             self.assertIn(":forge-1.20.1:runLiveJoinTestObserver",
                           live.client_command(Path("fixture"), "forge-1.20.1", observer=True))
 
+    def test_both_client_runtime_dependency_graphs_are_prepared_serially(self):
+        from pathlib import Path
+        for module in live.TARGETS:
+            with patch.object(live.subprocess, "run") as run:
+                live.prepare_client_runtimes(Path("fixture"), module, 30)
+            self.assertEqual(2, run.call_count)
+            for call, task in zip(run.call_args_list, ("runLiveJoinTestClient", "runLiveJoinTestObserver")):
+                cmd = call.args[0]
+                self.assertIn(f":{module}:{task}", cmd)
+                self.assertEqual(["--init-script", str(Path("fixture/tools/prepare_live_clients.gradle"))], cmd[-2:])
+                self.assertNotIn("--dry-run", cmd)
+                self.assertNotIn("-x", cmd)
+                self.assertEqual({"cwd": Path("fixture"), "check": True, "timeout": 30}, call.kwargs)
+
+    def test_preflight_disables_only_launch_actions_not_dependency_tasks(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "tools" / "prepare_live_clients.gradle").read_text()
+        self.assertIn("['runLiveJoinTestClient', 'runLiveJoinTestObserver']", script)
+        self.assertIn("task.enabled = false", script)
+        self.assertNotIn("excludeTask", script)
+        with patch.dict(live.os.environ, {"DISPLAY": ":test"}):
+            for observer in (False, True):
+                self.assertNotIn("--init-script", live.client_command(root, "forge-1.20.1", observer))
+
+    def test_preflight_failure_or_timeout_prevents_any_game_launch(self):
+        from pathlib import Path
+        for failed_step in (1, 2):
+            for error in (live.subprocess.CalledProcessError(1, "preflight"),
+                          live.subprocess.TimeoutExpired("preflight", 30)):
+                outcomes = [None] * failed_step + [error]
+                with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
+                     patch.object(live.subprocess, "run", side_effect=outcomes) as run, \
+                     patch.object(live, "popen") as launch:
+                    with self.assertRaises(type(error)):
+                        live.run_target(Path("fixture"), "forge-1.20.1", 30)
+                    self.assertEqual(failed_step + 1, run.call_count)
+                    launch.assert_not_called()
+
+    def test_both_preflights_finish_before_server_and_two_real_clients_launch(self):
+        from pathlib import Path
+        events = []
+        processes = [Mock(), Mock(), Mock()]
+        for process in processes: process.poll.return_value = None
+        outputs = [Mock(), Mock(), Mock()]
+        outputs[0].wait_for.return_value = "Done ("
+        def prepare(cmd, **kwargs):
+            events.append(("prepare", cmd[1]))
+        def launch(cmd, root):
+            events.append(("launch", cmd[1]))
+            return processes[len([event for event in events if event[0] == "launch"]) - 1]
+        with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
+             patch.object(live.subprocess, "run", side_effect=prepare), \
+             patch.dict(live.os.environ, {"DISPLAY": ":test"}), \
+             patch.object(live, "popen", side_effect=launch), \
+             patch.object(live, "OutputPump", side_effect=outputs), patch.object(live, "stop_tree"):
+            live.run_target(Path("fixture"), "forge-1.20.1", 30)
+        self.assertEqual([
+            ("prepare", ":forge-1.20.1:classes"),
+            ("prepare", ":forge-1.20.1:runLiveJoinTestClient"),
+            ("prepare", ":forge-1.20.1:runLiveJoinTestObserver"),
+            ("launch", ":forge-1.20.1:runLiveJoinTestServer"),
+            ("launch", ":forge-1.20.1:runLiveJoinTestClient"),
+            ("launch", ":forge-1.20.1:runLiveJoinTestObserver"),
+        ], events)
+        for output in outputs:
+            output.wait_for_all.assert_called_once()
+
     def test_three_process_cleanup_runs_after_carrier_failure(self):
         from pathlib import Path
         server, carrier, observer = Mock(), Mock(), Mock()

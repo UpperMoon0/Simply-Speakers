@@ -244,6 +244,18 @@ def client_command(root: Path, module: str, observer: bool = False) -> list[str]
     return cmd
 
 
+def prepare_client_runtimes(root: Path, module: str, timeout: int) -> None:
+    # The two real launches use separate Gradle processes but share loader asset
+    # caches. Prepare BOTH exact run-task dependency graphs serially first: the
+    # observer can have its own run-directory/configuration prerequisites.
+    # A classes build alone does not fetch assets or prepare the game runtimes.
+    init_script = root / "tools" / "prepare_live_clients.gradle"
+    for task in ("runLiveJoinTestClient", "runLiveJoinTestObserver"):
+        print(f"Preparing {module}:{task} runtime dependencies", flush=True)
+        cmd = command(root, f":{module}:{task}") + ["--init-script", str(init_script)]
+        subprocess.run(cmd, cwd=root, check=True, timeout=timeout)
+
+
 def run_target(root: Path, target: str, timeout: int) -> None:
     module = TARGETS[target]
     print(f"Preparing {target} live join test", flush=True)
@@ -253,6 +265,7 @@ def run_target(root: Path, target: str, timeout: int) -> None:
 
     compile_cmd = command(root, f":{module}:classes")
     subprocess.run(compile_cmd, cwd=root, check=True, timeout=timeout)
+    prepare_client_runtimes(root, module, timeout)
 
     server = popen(command(root, f":{module}:runLiveJoinTestServer"), root)
     server_output = OutputPump(server, f"{target}/server")

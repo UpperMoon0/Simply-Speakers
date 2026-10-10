@@ -1,0 +1,11 @@
+// Execute each client's complete prerequisite graph without starting Minecraft.
+// Disabling a task preserves its dependencies; excluding it with -x does not.
+// This script is used only by the serial live-harness preflight. Real launches
+// omit it and must still provide all carrier and observer runtime evidence.
+gradle.beforeProject { project ->
+    project.tasks.configureEach { task ->
+        if (task.name in ['runLiveJoinTestClient', 'runLiveJoinTestObserver']) {
+            task.enabled = false
+        }
+    }
+}
