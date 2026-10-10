@@ -7,7 +7,6 @@ import com.nstut.simplyspeakers.network.*;
 import com.nstut.simplyspeakers.speakers.*;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.MinecraftServer;
@@ -30,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 /** Actual item metadata, inventory reconciliation, endpoint, authorization and playback services.
- * Only Minecraft world/player objects, loader delivery and the endpoint's registered type are supplied. */
+ * Only Minecraft world/player objects, loader delivery and item/block-entity registration are supplied. */
 class PortableSpeakerIntegrationTest {
     private static final String URL = "https://example.invalid/portable.wav";
     private MinecraftServer server;
@@ -95,19 +94,28 @@ class PortableSpeakerIntegrationTest {
         when(world.getGameTime()).thenAnswer(call -> time); when(world.players()).thenReturn(players);
         return world;
     }
-    private PortableSpeakerItem makeItem() throws Exception {
-        Item.Properties properties = new Item.Properties();
-        try {
-            var setId = Item.Properties.class.getMethod("setId", ResourceKey.class);
-            Class<?> identifier;
-            try { identifier = Class.forName("net.minecraft.resources.Identifier"); }
-            catch (ClassNotFoundException old) { identifier = Class.forName("net.minecraft.resources.ResourceLocation"); }
-            Object location = identifier.getMethod("fromNamespaceAndPath", String.class, String.class)
-                    .invoke(null, "simplyspeakers", "portable_test");
-            var key = ResourceKey.class.getMethod("create", ResourceKey.class, identifier).invoke(null, Registries.ITEM, location);
-            setId.invoke(properties, key);
-        } catch (NoSuchMethodException legacy) { /* Before 1.21.2, item properties do not need registry ids. */ }
-        return new PortableSpeakerItem(properties);
+    /** Minecraft freezes intrusive item registries during bootstrap. Substitute only
+     * registration: real ItemStacks still run all production metadata/copy operations.
+     * A registered minecart supplies ordinary one-stack defaults on every version;
+     * the holder's value retains the portable type, including the 26.1.2 holder API.
+     * The live fixture separately asserts the real registered portable item's cap. */
+    @SuppressWarnings("unchecked")
+    private PortableSpeakerItem makeItem() {
+        Item defaults = net.minecraft.world.item.Items.MINECART;
+        var identity = new java.util.concurrent.atomic.AtomicReference<PortableSpeakerItem>();
+        var holder = (net.minecraft.core.Holder.Reference<Item>) mock(net.minecraft.core.Holder.Reference.class, call -> {
+            if (call.getMethod().getName().equals("value")) return identity.get();
+            return call.getMethod().invoke(defaults.builtInRegistryHolder(), call.getArguments());
+        });
+        PortableSpeakerItem portable = mock(PortableSpeakerItem.class, call -> {
+            if (call.getMethod().getName().equals("asItem")) return call.getMock();
+            if (call.getMethod().getName().equals("builtInRegistryHolder")) return holder;
+            if (call.getMethod().getDeclaringClass().isInstance(defaults))
+                return call.getMethod().invoke(defaults, call.getArguments());
+            return RETURNS_DEFAULTS.answer(call);
+        });
+        identity.set(portable);
+        return portable;
     }
     private ServerPlayer player(double x) {
         ServerPlayer player = mock(ServerPlayer.class); Inventory inventory = mock(Inventory.class);

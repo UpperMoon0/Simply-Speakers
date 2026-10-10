@@ -114,7 +114,16 @@ neoForge {
             gameDirectory = project.file("run/live-join/client")
             systemProperty 'simplyspeakers.liveJoinTest', 'true'
             systemProperty 'simplyspeakers.livePlaybackTest', 'true'
-            programArguments.addAll '--quickPlayMultiplayer', '127.0.0.1:25575'
+            programArguments.addAll '--username', 'SSCarrier', '--quickPlayMultiplayer', '127.0.0.1:25575'
+        }
+
+        liveJoinTestObserver {
+            client()
+            gameDirectory = project.file("run/live-join/observer")
+            systemProperty 'simplyspeakers.liveJoinTest', 'true'
+            systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+            systemProperty 'simplyspeakers.livePlaybackRole', 'observer'
+            programArguments.addAll '--username', 'SSObserver', '--quickPlayMultiplayer', '127.0.0.1:25575'
         }
 
         server {

@@ -129,6 +129,7 @@ subprojects {
     tasks.withType(JavaExec).configureEach {
         if (name == 'runLiveJoinTestServer') maxHeapSize = '1G'
         if (name == 'runLiveJoinTestClient') maxHeapSize = '2G'
+        if (name == 'runLiveJoinTestObserver') maxHeapSize = '1G'
     }
 }
 

@@ -18,7 +18,7 @@ class AccessPolicyPacketTest {
     @BeforeEach void setup()throws Exception {
         state=new SpeakerState();state.setOwnerUuid(owner);state.setAccessMode(SpeakerAccess.PUBLIC);
         speaker=mock(SpeakerBlockEntity.class);when(speaker.getSpeakerState()).thenReturn(state);
-        var level=mock(ServerLevel.class);var server=mock(MinecraftServer.class);when(level.getServer()).thenReturn(server);when(server.getPlayerList()).thenReturn(mock(PlayerList.class));when(level.getBlockEntity(BlockPos.ZERO)).thenReturn(speaker);
+        var level=mock(ServerLevel.class);var server=mock(MinecraftServer.class);when(level.getServer()).thenReturn(server);when(server.getPlayerList()).thenReturn(mock(PlayerList.class));when(level.hasChunkAt(BlockPos.ZERO)).thenReturn(true);when(level.getBlockEntity(BlockPos.ZERO)).thenReturn(speaker);
         player=mock(ServerPlayer.class);when(player.getUUID()).thenReturn(owner);when(player.level()).thenReturn(level);
         try{var method=ServerPlayer.class.getMethod("serverLevel");when(method.invoke(player)).thenReturn(level);}catch(NoSuchMethodException ignored){}
         context=mock(NetworkManager.PacketContext.class);when(context.getPlayer()).thenReturn(player);doAnswer(inv->{((Runnable)inv.getArgument(0)).run();return null;}).when(context).queue(any(Runnable.class));

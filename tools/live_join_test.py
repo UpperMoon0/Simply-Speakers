@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One dedicated server/client session covers join safety, real audio and transport."""
+"""One dedicated server and two real clients verify join safety and spatial playback."""
 
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ TARGETS = {
 PHASES = ("started", "paused", "resumed", "seeked", "restarted", "stopped", "redstone",
           "portable_started", "portable_moved", "portable_paused", "portable_resumed",
           "portable_stopped", "portable_restarted", "portable_removed")
+OBSERVER_PHASES = ("observer_started", "observer_farther", "observer_out_of_range", "observer_reentered",
+                   "observer_paused", "observer_resumed", "observer_stopped", "observer_restarted", "observer_removed")
 FAIL_MARKER = "SIMPLYSPEAKERS_VERIFY_FAIL"
 CRASH_MARKERS = ("Exception in thread", "FAILURE: Build failed", "Minecraft has crashed", "Unsupported installed optional dependencies:")
 
@@ -43,8 +45,14 @@ def required_markers(target: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
         f"SIMPLYSPEAKERS_CLIENT_PHASE_PASS {phase}" for phase in PHASES))
     server = ("SIMPLYSPEAKERS_CONTROLLER_COOPERATION_PASS", "SIMPLYSPEAKERS_CONTROLLER_PASS", "SIMPLYSPEAKERS_SERVER_PLAYBACK_PASS", *(
         f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}" for phase in PHASES))
+    server += tuple(f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}" for phase in OBSERVER_PHASES)
     if target != "neoforge-26.1.2": server += ("SIMPLYSPEAKERS_PERIPHERAL_PASS",)
     return client, server
+
+
+def required_observer_markers() -> tuple[str, ...]:
+    return (PASS_MARKER, "SIMPLYSPEAKERS_OBSERVER_PLAYBACK_PASS", *(
+        f"SIMPLYSPEAKERS_OBSERVER_PHASE_PASS {phase}" for phase in OBSERVER_PHASES))
 
 
 class OutputPump:
@@ -77,9 +85,11 @@ class OutputPump:
                 return line
         return None
 
-    def wait_for_all(self, markers: tuple[str, ...], timeout: int, peer=None) -> None:
+    def wait_for_all(self, markers: tuple[str, ...], timeout: float, peer=None, peers=()) -> None:
         deadline = time.monotonic() + timeout
         missing = set(markers)
+        watched_peers = tuple(peers) + ((peer,) if peer is not None else ())
+        peer_indexes = [0] * len(watched_peers)
         index = 0
         while missing:
             batch = self.history[index:]
@@ -87,11 +97,13 @@ class OutputPump:
                 reject_failure(self.prefix, line)
                 missing.difference_update(marker for marker in tuple(missing) if marker in line)
             index += len(batch)
-            if peer is not None:
-                for line in peer.history:
-                    reject_failure(peer.prefix, line)
-                if peer.process.poll() is not None:
-                    raise RuntimeError(f"{peer.prefix}: game process exited during verification")
+            for peer_index, watched in enumerate(watched_peers):
+                peer_batch = watched.history[peer_indexes[peer_index]:]
+                for line in peer_batch:
+                    reject_failure(watched.prefix, line)
+                peer_indexes[peer_index] += len(peer_batch)
+                if watched.process.poll() is not None:
+                    raise RuntimeError(f"{watched.prefix}: game process exited during verification")
             if not missing: return
             if self.process.poll() is not None:
                 self.thread.join(timeout=1)
@@ -108,16 +120,17 @@ class OutputPump:
 
 def command(root: Path, task: str) -> list[str]:
     wrapper = root / ("gradlew.bat" if os.name == "nt" else "gradlew")
-    # The server and client builds overlap. Keep their supervising Gradle JVMs
-    # bounded so they do not starve Minecraft's login/registry threads, but
-    # large enough that compiling the migrated screens does not OOM (768m did).
+    # Compile once at the original budget. Runtime supervisors still configure
+    # loaders, but use a smaller independent budget while three game JVMs run.
+    running_game = ":runLiveJoinTest" in task
+    heap = os.environ.get("SIMPLYSPEAKERS_LIVE_RUN_GRADLE_HEAP", "1024m") if running_game else os.environ.get("SIMPLYSPEAKERS_LIVE_GRADLE_HEAP", "2048m")
     return [
         str(wrapper),
         task,
         "--no-daemon",
         "--console=plain",
-        "--max-workers=4",
-        "-Dorg.gradle.jvmargs=-Xmx" + os.environ.get("SIMPLYSPEAKERS_LIVE_GRADLE_HEAP", "2048m"),
+        "--max-workers=2" if running_game else "--max-workers=4",
+        "-Dorg.gradle.jvmargs=-Xmx" + heap,
     ]
 
 
@@ -140,6 +153,12 @@ def popen(cmd: list[str], root: Path) -> subprocess.Popen[str]:
 
 def stop_tree(process: subprocess.Popen[str], graceful_server: bool = False) -> None:
     if process.poll() is not None:
+        # A failed supervising Gradle process can leave its game child alive.
+        if os.name != "nt":
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
         return
     if graceful_server and process.stdin is not None:
         try:
@@ -192,8 +211,10 @@ def prepare_server(module_dir: Path) -> None:
     )
 
 
-def prepare_client(module_dir: Path) -> None:
-    client_dir = module_dir / "run" / "live-join" / "client"
+def prepare_client(module_dir: Path, role: str = "client") -> None:
+    if role not in ("client", "observer"):
+        raise ValueError("Unknown live client role")
+    client_dir = module_dir / "run" / "live-join" / role
     client_dir.mkdir(parents=True, exist_ok=True)
     # A fresh Minecraft directory otherwise opens the accessibility/narrator
     # onboarding screen, which blocks quick-play and makes the test interactive.
@@ -201,9 +222,26 @@ def prepare_client(module_dir: Path) -> None:
         "narrator:0\n"
         "narratorHotkey:false\n"
         "onboardAccessibility:false\n"
-        "skipMultiplayerWarning:true\n",
+        "skipMultiplayerWarning:true\n"
+        "pauseOnLostFocus:false\n"
+        "renderDistance:4\n"
+        "simulationDistance:4\n"
+        "maxFps:30\n"
+        "soundCategory_master:1.0\n"
+        "soundCategory_record:1.0\n",
         encoding="utf-8",
     )
+
+
+def client_command(root: Path, module: str, observer: bool = False) -> list[str]:
+    task = "runLiveJoinTestObserver" if observer else "runLiveJoinTestClient"
+    cmd = command(root, f":{module}:{task}")
+    if os.name != "nt" and not os.environ.get("DISPLAY"):
+        xvfb = shutil.which("xvfb-run")
+        if xvfb is None:
+            raise RuntimeError("DISPLAY is unset and xvfb-run is not installed")
+        cmd = [xvfb, "-a", *cmd]
+    return cmd
 
 
 def run_target(root: Path, target: str, timeout: int) -> None:
@@ -211,36 +249,54 @@ def run_target(root: Path, target: str, timeout: int) -> None:
     print(f"Preparing {target} live join test", flush=True)
     prepare_server(root / module)
     prepare_client(root / module)
+    prepare_client(root / module, "observer")
 
     compile_cmd = command(root, f":{module}:classes")
     subprocess.run(compile_cmd, cwd=root, check=True, timeout=timeout)
 
     server = popen(command(root, f":{module}:runLiveJoinTestServer"), root)
     server_output = OutputPump(server, f"{target}/server")
-    client: subprocess.Popen[str] | None = None
+    clients: list[subprocess.Popen[str]] = []
     try:
         if server_output.wait_for(SERVER_READY_MARKERS, timeout) is None:
             raise RuntimeError(f"{target}: server did not become ready")
 
-        client_cmd = command(root, f":{module}:runLiveJoinTestClient")
-        if os.name != "nt" and not os.environ.get("DISPLAY"):
-            xvfb = shutil.which("xvfb-run")
-            if xvfb is None:
-                raise RuntimeError("DISPLAY is unset and xvfb-run is not installed")
-            client_cmd = [xvfb, "-a", *client_cmd]
-
-        client = popen(client_cmd, root)
-        client_output = OutputPump(client, f"{target}/client")
+        carrier = popen(client_command(root, module), root)
+        clients.append(carrier)
+        carrier_output = OutputPump(carrier, f"{target}/carrier")
+        observer = popen(client_command(root, module, observer=True), root)
+        clients.append(observer)
+        observer_output = OutputPump(observer, f"{target}/observer")
         client_markers, server_markers = required_markers(target)
-        client_output.wait_for_all(client_markers, timeout, peer=server_output)
-        server_output.wait_for_all(server_markers, timeout, peer=client_output)
-        if client.poll() is not None or server.poll() is not None:
+        deadline = time.monotonic() + timeout
+        # Each role has independent evidence. One client's markers cannot certify
+        # another listener, and either client crashing fails every wait promptly.
+        carrier_output.wait_for_all(client_markers, max(0, deadline - time.monotonic()),
+                                    peers=(server_output, observer_output))
+        observer_output.wait_for_all(required_observer_markers(), max(0, deadline - time.monotonic()),
+                                     peers=(server_output, carrier_output))
+        server_output.wait_for_all(server_markers, max(0, deadline - time.monotonic()),
+                                   peers=(carrier_output, observer_output))
+        if any(process.poll() is not None for process in (*clients, server)):
             raise RuntimeError(f"{target}: a game process exited before the harness completed verification")
         print(f"{target}: PASS", flush=True)
     finally:
-        if client is not None:
-            stop_tree(client)
-        stop_tree(server, graceful_server=True)
+        cleanup_errors = []
+        for process in reversed(clients):
+            try:
+                stop_tree(process)
+            except Exception as error:
+                cleanup_errors.append(str(error))
+        try:
+            stop_tree(server, graceful_server=True)
+        except Exception as error:
+            cleanup_errors.append(str(error))
+        if cleanup_errors:
+            message = f"{target}: cleanup failed: " + "; ".join(cleanup_errors)
+            if sys.exc_info()[0] is None:
+                raise RuntimeError(message)
+            print(message, file=sys.stderr, flush=True)
+
 
 
 def main() -> int:

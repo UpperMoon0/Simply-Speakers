@@ -65,7 +65,11 @@ creative tab. The in-game guide includes the recipe and a short usage entry.
 ## Verification
 
 See [TESTING.md](../TESTING.md) for the core, production-adapter and real
-dedicated-server/client layers. The automated OpenAL driver is silent; a runtime
-pass establishes decoding, moving source behavior and cleanup, not subjective
-audible quality. Manual multiplayer checks should additionally cover sound
-quality and UI appearance during movement, handoff and portal travel.
+dedicated-server/two-client layers. The runtime gate requires a separate stationary
+listener to observe the carried source moving, decreasing in gain, leaving range,
+and re-entering at the current playback position without duplicates. Pause, stop
+and removal require both clients to delete their OpenAL sources. The automated
+driver is silent, so a pass establishes decoding, moving source behavior and cleanup,
+not subjective audible quality. Manual multiplayer checks should additionally
+cover sound quality, UI appearance, handoff, portal travel and listening beyond
+entity-tracking distance.

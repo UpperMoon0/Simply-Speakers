@@ -44,7 +44,7 @@ public final class ClientPortableSpeakers {
     private static boolean inCurrentDimension(PortableEmitterSnapshot snapshot) {
         var client = Minecraft.getInstance();
         return client != null && client.level != null
-                && client.level.dimension().location().toString().equals(snapshot.dimension());
+                && client.level.dimension().identifier().toString().equals(snapshot.dimension());
     }
 
     /** Only an authoritative play packet may create an audible portable emitter. */

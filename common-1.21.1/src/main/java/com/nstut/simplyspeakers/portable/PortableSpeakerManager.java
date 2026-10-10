@@ -114,6 +114,11 @@ public final class PortableSpeakerManager {
     }
     private static String backupKey(UUID identity) { return BACKUP_DIMENSION + "/portable_" + identity; }
 
+    /** Persistence snapshots are not independently addressable speaker networks. */
+    public static boolean isBackupStateKey(String fullStateKey) {
+        return fullStateKey != null && fullStateKey.startsWith(BACKUP_DIMENSION + "/portable_");
+    }
+
     /** An independent paused snapshot keeps settings, ownership and all playlists on handoff/restart. */
     public static void persist(PortableSpeakerEndpoint endpoint) {
         if (endpoint == null || endpoint.getLevel() == null || endpoint.getLevel().isClientSide()) return;

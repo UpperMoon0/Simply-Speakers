@@ -146,7 +146,7 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
         context.queue(() -> {
             var client=Minecraft.getInstance();
             if(!packet.catalogOnly && client.level!=null) {
-                String prefix=client.level.dimension().location().toString()+"/";
+                String prefix=client.level.dimension().identifier().toString()+"/";
                 String stateKey=packet.fullStateKey.startsWith(prefix)?packet.fullStateKey.substring(prefix.length()):"";
                 if(stateKey.isEmpty() && !com.nstut.simplyspeakers.client.ClientPortableSpeakers.isPortableToken(packet.pos) && client.level.getBlockEntity(packet.pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker) stateKey=speaker.getStateKey();
                 if(!stateKey.isEmpty()) {

@@ -139,7 +139,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
             if ("stop".equals(pkt.action) || "pause".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
             String stateKey = "";
             if (!pkt.fullStateKey.isEmpty()) {
-                String prefix = Minecraft.getInstance().level.dimension().location().toString() + "/";
+                String prefix = Minecraft.getInstance().level.dimension().identifier().toString() + "/";
                 if (pkt.fullStateKey.startsWith(prefix)) stateKey = pkt.fullStateKey.substring(prefix.length());
             }
             if (stateKey.isEmpty() && !com.nstut.simplyspeakers.client.ClientPortableSpeakers.isPortableToken(pkt.blockPos)) {

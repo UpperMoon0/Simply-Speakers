@@ -64,6 +64,115 @@ class LiveHarnessTest(unittest.TestCase):
         command = live.command(Path("fixture"), ":forge-1.20.1:classes")
         self.assertIn("--max-workers=4", command)
 
+    def test_each_observer_phase_is_independently_required(self):
+        markers = live.required_observer_markers()
+        self.assertEqual(9, len(live.OBSERVER_PHASES))
+        pump(list(markers), 0).wait_for_all(markers, 1)
+        for absent in markers:
+            with self.assertRaisesRegex(RuntimeError, "exited before evidence"):
+                pump([marker for marker in markers if marker != absent], 0).wait_for_all(markers, 1)
+
+    def test_carrier_evidence_cannot_certify_second_listener(self):
+        client, server = live.required_markers("forge-1.20.1")
+        with self.assertRaisesRegex(RuntimeError, "exited before evidence"):
+            pump(list(client) + list(server), 0).wait_for_all(live.required_observer_markers(), 1)
+        for phase in live.OBSERVER_PHASES:
+            self.assertIn(f"SIMPLYSPEAKERS_SERVER_PHASE_PASS {phase}", server)
+
+    def test_failure_of_either_peer_interrupts_the_wait(self):
+        for failed in (0, 1):
+            peers = [pump([]), pump([])]
+            peers[failed].history.append(live.FAIL_MARKER + " peer failed")
+            with self.assertRaisesRegex(RuntimeError, "peer failed"):
+                pump([]).wait_for_all(("PASS",), 1, peers=peers)
+        with self.assertRaisesRegex(RuntimeError, "game process exited"):
+            pump([]).wait_for_all(("PASS",), 1, peers=(pump([]), pump([], 1)))
+
+    def test_runtime_supervisors_have_lower_independent_heap_and_worker_limits(self):
+        from pathlib import Path
+        with patch.dict(live.os.environ, {}, clear=True):
+            compiled = live.command(Path("fixture"), ":forge-1.20.1:classes")
+            observer = live.command(Path("fixture"), ":forge-1.20.1:runLiveJoinTestObserver")
+        self.assertIn("--max-workers=4", compiled)
+        self.assertIn("-Dorg.gradle.jvmargs=-Xmx2048m", compiled)
+        self.assertIn("--max-workers=2", observer)
+        self.assertIn("-Dorg.gradle.jvmargs=-Xmx1024m", observer)
+
+    def test_clients_have_isolated_directories_and_audible_test_options(self):
+        from pathlib import Path
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            module = Path(directory)
+            live.prepare_client(module)
+            live.prepare_client(module, "observer")
+            for role in ("client", "observer"):
+                options = module / "run" / "live-join" / role / "options.txt"
+                self.assertIn("pauseOnLostFocus:false", options.read_text())
+                self.assertIn("soundCategory_master:1.0", options.read_text())
+                self.assertIn("soundCategory_record:1.0", options.read_text())
+            with self.assertRaises(ValueError):
+                live.prepare_client(module, "../other")
+            self.assertFalse((module / "run" / "other").exists())
+
+    def test_observer_launch_uses_its_distinct_task(self):
+        from pathlib import Path
+        with patch.dict(live.os.environ, {"DISPLAY": ":test"}):
+            self.assertIn(":forge-1.20.1:runLiveJoinTestObserver",
+                          live.client_command(Path("fixture"), "forge-1.20.1", observer=True))
+
+    def test_three_process_cleanup_runs_after_carrier_failure(self):
+        from pathlib import Path
+        server, carrier, observer = Mock(), Mock(), Mock()
+        for process in (server, carrier, observer): process.poll.return_value = None
+        server_output, carrier_output, observer_output = Mock(), Mock(), Mock()
+        server_output.wait_for.return_value = "Done ("
+        carrier_output.wait_for_all.side_effect = RuntimeError("fixture failure")
+        with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
+             patch.object(live.subprocess, "run"), patch.object(live, "client_command", return_value=["client"]), \
+             patch.object(live, "popen", side_effect=[server, carrier, observer]), \
+             patch.object(live, "OutputPump", side_effect=[server_output, carrier_output, observer_output]), \
+             patch.object(live, "stop_tree") as stop:
+            with self.assertRaisesRegex(RuntimeError, "fixture failure"):
+                live.run_target(Path("fixture"), "forge-1.20.1", 30)
+            self.assertEqual([unittest.mock.call(observer), unittest.mock.call(carrier),
+                              unittest.mock.call(server, graceful_server=True)], stop.call_args_list)
+        self.assertEqual((server_output, observer_output), carrier_output.wait_for_all.call_args.kwargs["peers"])
+
+    def test_failed_client_cleanup_does_not_skip_other_processes(self):
+        from pathlib import Path
+        server, carrier, observer = Mock(), Mock(), Mock()
+        for process in (server, carrier, observer): process.poll.return_value = None
+        server_output, carrier_output, observer_output = Mock(), Mock(), Mock()
+        server_output.wait_for.return_value = "Done ("
+        with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
+             patch.object(live.subprocess, "run"), patch.object(live, "client_command", return_value=["client"]), \
+             patch.object(live, "popen", side_effect=[server, carrier, observer]), \
+             patch.object(live, "OutputPump", side_effect=[server_output, carrier_output, observer_output]), \
+             patch.object(live, "stop_tree", side_effect=[RuntimeError("cleanup error"), None, None]) as stop:
+            with self.assertRaisesRegex(RuntimeError, "cleanup failed"):
+                live.run_target(Path("fixture"), "forge-1.20.1", 30)
+            self.assertEqual(3, stop.call_count)
+            self.assertEqual(unittest.mock.call(server, graceful_server=True), stop.call_args_list[-1])
+
+    @unittest.skipIf(live.os.name == "nt", "POSIX process-group behavior")
+    def test_exited_supervisor_still_terminates_its_game_process_group(self):
+        process = Mock(); process.poll.return_value = 1; process.pid = 12345
+        with patch.object(live.os, "killpg") as kill:
+            live.stop_tree(process)
+        kill.assert_called_once_with(12345, live.signal.SIGTERM)
+
+    def test_all_five_loader_configs_keep_player_names_and_directories_distinct(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        for target in live.TARGETS:
+            config = (root / target / "build.gradle").read_text()
+            self.assertIn("liveJoinTestObserver", config)
+            self.assertIn("SSCarrier", config)
+            self.assertIn("SSObserver", config)
+            self.assertIn("run/live-join/client", config)
+            self.assertIn("run/live-join/observer", config)
+            self.assertIn("simplyspeakers.livePlaybackRole", config)
+
     def test_server_preparation_resets_only_the_owned_fixture_world(self):
         from pathlib import Path
         import tempfile

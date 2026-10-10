@@ -161,7 +161,7 @@ jobs:
           command -v xvfb-run
       - name: Build target
         run: python3 tools/verify.py build --target "${{ matrix.target }}"
-      - name: One real playback session per target
+      - name: One real two-listener playback session per target
         run: python3 tools/verify.py live --target "${{ matrix.target }}"
       - name: Real ComputerCraft Lua acceptance
         if: matrix.target != 'neoforge-26.1.2'
@@ -182,6 +182,7 @@ jobs:
           name: game-logs-${{ matrix.target }}
           path: |
             ${{ matrix.target }}/run/live-join/client/logs
+            ${{ matrix.target }}/run/live-join/observer/logs
             ${{ matrix.target }}/run/live-join/server/logs
             ${{ matrix.target }}/run/cc-lua/server/logs
           if-no-files-found: ignore
