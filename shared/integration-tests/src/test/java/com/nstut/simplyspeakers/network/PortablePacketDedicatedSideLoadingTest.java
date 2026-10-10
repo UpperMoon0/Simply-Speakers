@@ -1,7 +1,12 @@
 package com.nstut.simplyspeakers.network;
 
 import org.junit.jupiter.api.Test;
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.regex.Pattern;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -16,7 +21,23 @@ class PortablePacketDedicatedSideLoadingTest {
 
     private static final class DedicatedSideLoader extends ClassLoader {
         final List<String> clientLoads = new ArrayList<>();
-        DedicatedSideLoader() { super(PortablePacketDedicatedSideLoadingTest.class.getClassLoader()); }
+        private final List<Path> mainClasses;
+        DedicatedSideLoader(List<Path> mainClasses) {
+            super(PortablePacketDedicatedSideLoadingTest.class.getClassLoader());
+            this.mainClasses = mainClasses;
+        }
+        private byte[] originalBytecode(String name) throws ClassNotFoundException {
+            String relativePath = name.replace('.', '/') + ".class";
+            for (Path directory : mainClasses) {
+                Path file = directory.resolve(relativePath);
+                if (!Files.isRegularFile(file)) continue;
+                try { return Files.readAllBytes(file); }
+                catch (IOException error) { throw new ClassNotFoundException("Cannot read original payload " + file, error); }
+            }
+            // Do not fall back to getResourceAsStream: NeoForge transforms those
+            // bytes and injects a guardian accessible only to its own classloader.
+            throw new ClassNotFoundException("Original compiled payload missing: " + name + " in " + mainClasses);
+        }
         @Override protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
             synchronized (getClassLoadingLock(name)) {
                 if (name.startsWith("net.minecraft.client.") || name.startsWith("com.nstut.simplyspeakers.client.")) {
@@ -26,11 +47,8 @@ class PortablePacketDedicatedSideLoadingTest {
                 if (!PAYLOADS.contains(name)) return super.loadClass(name, resolve);
                 Class<?> loaded = findLoadedClass(name);
                 if (loaded == null) {
-                    try (var input = getParent().getResourceAsStream(name.replace('.', '/') + ".class")) {
-                        if (input == null) throw new ClassNotFoundException(name);
-                        byte[] bytes = input.readAllBytes();
-                        loaded = defineClass(name, bytes, 0, bytes.length);
-                    } catch (IOException error) { throw new ClassNotFoundException(name, error); }
+                    byte[] bytes = originalBytecode(name);
+                    loaded = defineClass(name, bytes, 0, bytes.length);
                 }
                 if (resolve) resolveClass(loaded);
                 return loaded;
@@ -38,8 +56,18 @@ class PortablePacketDedicatedSideLoadingTest {
         }
     }
 
+    @Test void absentCompiledOutputCannotFallBackToTransformedResources(@org.junit.jupiter.api.io.TempDir Path directory) {
+        var loader = new DedicatedSideLoader(List.of(directory));
+        assertThrows(ClassNotFoundException.class,
+                () -> Class.forName(PREFIX + "OpenPortableSpeakerPacketS2C", true, loader));
+    }
+
     @Test void portablePayloadsAndModernCodecsInitializeWithoutClientClasses() throws Exception {
-        var loader = new DedicatedSideLoader();
+        List<Path> mainClasses = Arrays.stream(System.getProperty("simplyspeakers.testMainClasses", "")
+                        .split(Pattern.quote(File.pathSeparator)))
+                .filter(path -> !path.isBlank()).map(Path::of).toList();
+        assertFalse(mainClasses.isEmpty(), "Gradle must supply the original compiled main classes directories");
+        var loader = new DedicatedSideLoader(mainClasses);
         for (String name : List.of("OpenPortableSpeakerPacketS2C", "PortableSpeakerPositionPacketS2C")) {
             Class<?> payload = assertDoesNotThrow(() -> Class.forName(PREFIX + name, true, loader));
             assertSame(loader, payload.getClassLoader());

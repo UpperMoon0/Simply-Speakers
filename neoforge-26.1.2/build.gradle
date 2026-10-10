@@ -244,6 +244,8 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    // Side-isolation tests need javac output, not bytes transformed by a game classloader.
+    systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath
     systemProperty 'net.bytebuddy.experimental', 'true'
 }
 

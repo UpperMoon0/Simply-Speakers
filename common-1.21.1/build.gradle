@@ -55,6 +55,8 @@ jar {
 
 test {
     useJUnitPlatform()
+    // Side-isolation tests need javac output, not bytes transformed by a game classloader.
+    systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath
 }
 
 sourceSets.test.java.srcDir('../shared/integration-tests/src/test/java')
