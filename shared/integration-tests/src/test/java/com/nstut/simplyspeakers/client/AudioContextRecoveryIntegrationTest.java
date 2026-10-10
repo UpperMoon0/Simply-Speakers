@@ -39,6 +39,7 @@ class AudioContextRecoveryIntegrationTest {
     private final BlockPos second = first.offset(1, 0, 0);
     private final ConcurrentLinkedQueue<Runnable> tasks = new ConcurrentLinkedQueue<>();
     private final List<String> downloads = new ArrayList<>();
+    private final List<BlockPos> queuedSourcePositions = new ArrayList<>();
     private final List<List<Object>> eofReports = new ArrayList<>();
     private final List<File> createdFiles = new ArrayList<>();
     private MockedStatic<Minecraft> minecraft;
@@ -64,6 +65,7 @@ class AudioContextRecoveryIntegrationTest {
         // Keep all lifecycle/transport code real. Intercept the two network boundaries,
         // including their first invocation, rather than executing I/O while stubbing.
         audio = mockStatic(ClientAudioPlayer.class, call -> {
+            if (call.getMethod().getName().equals("queueSource")) queuedSourcePositions.add(call.getArgument(1));
             if (call.getMethod().getName().equals("requestFileFromServer")) {
                 downloads.add(call.getArgument(0));
                 return null;
@@ -119,6 +121,10 @@ class AudioContextRecoveryIntegrationTest {
             Object old = resources().get(KEY);
             assertNotNull(old);
             long oldEpoch = ClientAudioPlayer.contextEpoch();
+            // Model decoder exit while its client-thread native cleanup is still queued.
+            // Blocked live-worker cleanup is covered separately by StreamingAudioCleanupIntegrationTest.
+            Thread oldWorker = (Thread) field(resourceType, "streamingThread").get(old);
+            when(oldWorker.isAlive()).thenReturn(false);
 
             ClientAudioPlayer.soundContextDestroying();
             assertFalse(ClientAudioPlayer.contextAvailable());
@@ -401,6 +407,55 @@ class AudioContextRecoveryIntegrationTest {
                     second.getX() + 0.5f, second.getY() + 0.5f, second.getZ() + 0.5f));
             assertEquals(1, workers.constructed().size());
             verify(workers.constructed().get(0)).start();
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void detachBetweenRestoreScanAndAllocationUsesSurvivorButNeverRevivesEmptyNetwork(boolean detachLast) throws Exception {
+        AudioFileMetadata metadata = missingTrack();
+        Object intent = trackedIntent(metadata, 5f);
+        membership().track(second, KEY, new SpeakerSettings(1.0f, 16, 1.0f));
+        File cacheDir = (File) field(ClientAudioPlayer.class, "CACHE_DIR").get(null);
+        Files.createDirectories(cacheDir.toPath());
+        File cached = new File(cacheDir, metadata.getUuid() + ".wav");
+        Files.write(cached.toPath(), new byte[]{1, 2, 3, 4});
+        createdFiles.add(cached);
+
+        try (var workers = mockConstruction(Thread.class, (thread, context) -> {
+                 AtomicBoolean alive = new AtomicBoolean();
+                 when(thread.isAlive()).thenAnswer(call -> alive.get());
+                 doAnswer(call -> { alive.set(true); return null; }).when(thread).start();
+             });
+             var cache = mockStatic(ClientCacheManager.class)) {
+            ClientAudioPlayer.soundContextDestroying();
+            ClientAudioPlayer.soundContextReady();
+            takeTask().run(); // Real restore scan chooses and queues one representative.
+            assertEquals(1, queuedSourcePositions.size());
+            BlockPos selected = queuedSourcePositions.get(0);
+            BlockPos survivor = selected.equals(first) ? second : first;
+            Runnable allocation = takeTask();
+            ClientAudioPlayer.stop(selected);
+            if (detachLast) ClientAudioPlayer.stop(survivor);
+            al.when(AL10::alGenSources).thenReturn(74);
+            allocation.run();
+
+            if (detachLast) {
+                assertTrue(resources().isEmpty());
+                assertFalse(intents().containsKey(KEY));
+                assertTrue(membership().getPositions(KEY).isEmpty());
+                assertTrue(workers.constructed().isEmpty());
+                al.verifyNoInteractions();
+            } else {
+                Object restored = resources().get(KEY);
+                assertNotNull(restored, "a detached representative must not strand its still-active network intent");
+                assertSame(intent, field(resourceType, "intent").get(restored));
+                assertEquals(java.util.Set.of(survivor), membership().getPositions(KEY));
+                assertEquals(1, workers.constructed().size());
+                al.verify(AL10::alGenSources, times(1));
+                al.verify(() -> AL10.alSource3f(74, AL10.AL_POSITION,
+                        survivor.getX() + 0.5f, survivor.getY() + 0.5f, survivor.getZ() + 0.5f));
+            }
         }
     }
 

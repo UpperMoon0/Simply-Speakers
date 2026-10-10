@@ -423,14 +423,21 @@ public class ClientAudioPlayer {
         Minecraft.getInstance().execute(() -> {
             try {
                 audioContext.run(epoch, () -> {
-                    if (playbackIntents.get(networkKey) != intent || !networkKey.equals(membership.getNetworkKey(pos))) return;
+                    if (playbackIntents.get(networkKey) != intent) return;
+                    // The restore/download scan and this allocation are separate client tasks.
+                    // Its chosen emitter may have detached while the same network is still active.
+                    BlockPos activePos = networkKey.equals(membership.getNetworkKey(pos)) ? pos
+                            : membership.getPositions(networkKey).stream()
+                                    .filter(candidate -> networkKey.equals(membership.getNetworkKey(candidate)))
+                                    .findFirst().orElse(null);
+                    if (activePos == null) return;
                     StreamingAudioResource existing = networkResources.get(networkKey);
                     if (existing != null && existing.intent == intent && !existing.stopFlag.get()
                             && existing.streamingThread != null && existing.streamingThread.isAlive()) return;
                     int sourceID = AL10.alGenSources();
                     int[] bufferIDs = new int[NUM_BUFFERS];
                     AL10.alGenBuffers(bufferIDs);
-                    AL10.alSource3f(sourceID, AL10.AL_POSITION, pos.getX() + 0.5f, pos.getY() + 0.5f, pos.getZ() + 0.5f);
+                    AL10.alSource3f(sourceID, AL10.AL_POSITION, activePos.getX() + 0.5f, activePos.getY() + 0.5f, activePos.getZ() + 0.5f);
                     AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
                     AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
                     AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
