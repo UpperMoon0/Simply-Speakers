@@ -1,13 +1,10 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.client.ClientPortableSpeakers;
 import com.nstut.simplyspeakers.portable.PortableEmitterSnapshot;
 import dev.architectury.networking.NetworkManager;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import java.util.UUID;
 import net.minecraft.network.FriendlyByteBuf;
 import java.util.function.Supplier;
 
@@ -26,9 +23,7 @@ public final class PortableSpeakerPositionPacketS2C {
         PortableEmitterCodec.write(buffer, packet.snapshot);
     }
     public static void handle(PortableSpeakerPositionPacketS2C packet, Supplier<NetworkManager.PacketContext> context) {
-        context.get().queue(() -> {
-            ClientPortableSpeakers.update(packet.pos, packet.snapshot);
-        });
+        context.get().queue(() -> com.nstut.simplyspeakers.client.ClientPortableSpeakerPackets.position(packet));
     }
     public static void sendToPlayer(ServerPlayer player, PortableSpeakerPositionPacketS2C packet) { PacketRegistries.CHANNEL.sendToPlayer(player, packet); }
     public BlockPos getPos() { return pos; }

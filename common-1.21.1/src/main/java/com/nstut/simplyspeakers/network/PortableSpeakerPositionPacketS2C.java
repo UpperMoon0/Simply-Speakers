@@ -1,13 +1,10 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.client.ClientPortableSpeakers;
 import com.nstut.simplyspeakers.portable.PortableEmitterSnapshot;
 import dev.architectury.networking.NetworkManager;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import java.util.UUID;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -32,9 +29,7 @@ public final class PortableSpeakerPositionPacketS2C implements CustomPacketPaylo
         return new PortableSpeakerPositionPacketS2C(buffer.readBlockPos(), PortableEmitterCodec.read(buffer));
     }
     public static void handle(PortableSpeakerPositionPacketS2C packet, NetworkManager.PacketContext context) {
-        context.queue(() -> {
-            ClientPortableSpeakers.update(packet.pos, packet.snapshot);
-        });
+        context.queue(() -> com.nstut.simplyspeakers.client.ClientPortableSpeakerPackets.position(packet));
     }
     public static void sendToPlayer(ServerPlayer player, PortableSpeakerPositionPacketS2C packet) { NetworkManager.sendToPlayer(player, packet); }
     @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }

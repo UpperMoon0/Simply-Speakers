@@ -1,10 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import com.nstut.simplyspeakers.SimplySpeakers;
-import com.nstut.simplyspeakers.client.ClientPortableSpeakers;
-import com.nstut.simplyspeakers.portable.PortableEmitterSnapshot;
 import dev.architectury.networking.NetworkManager;
-import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import java.util.UUID;
@@ -38,17 +35,7 @@ public final class OpenPortableSpeakerPacketS2C implements CustomPacketPayload {
         return new OpenPortableSpeakerPacketS2C(buffer.readBlockPos(), buffer.readUUID(), buffer.readUtf(256), buffer.readUtf(512));
     }
     public static void handle(OpenPortableSpeakerPacketS2C packet, NetworkManager.PacketContext context) {
-        context.queue(() -> {
-            var client = Minecraft.getInstance();
-            if (client.level == null || client.player == null || !ClientPortableSpeakers.isPortableToken(packet.pos)) return;
-            var endpoint = new com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint(packet.identity, packet.pos, packet.speakerId);
-            endpoint.setLevel(client.level);
-            // Ignore delayed opens after the client changed dimensions.
-            if (!endpoint.getFullStateKey().equals(packet.fullStateKey)) return;
-            if (client.screen instanceof com.nstut.simplyspeakers.client.screens.SpeakerScreen screen
-                    && screen.refreshPortableEndpoint(endpoint)) return;
-            client.setScreen(new com.nstut.simplyspeakers.client.screens.SpeakerScreen(endpoint));
-        });
+        context.queue(() -> com.nstut.simplyspeakers.client.ClientPortableSpeakerPackets.open(packet));
     }
     public static void sendToPlayer(ServerPlayer player, OpenPortableSpeakerPacketS2C packet) { NetworkManager.sendToPlayer(player, packet); }
     @Override public Type<? extends CustomPacketPayload> type() { return TYPE; }
