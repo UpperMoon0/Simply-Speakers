@@ -110,9 +110,27 @@ class LiveHarnessTest(unittest.TestCase):
                 self.assertIn("pauseOnLostFocus:false", options.read_text())
                 self.assertIn("soundCategory_master:1.0", options.read_text())
                 self.assertIn("soundCategory_record:1.0", options.read_text())
+                self.assertTrue((options.parent / "tmp" / "lwjgl").is_dir())
             with self.assertRaises(ValueError):
                 live.prepare_client(module, "../other")
             self.assertFalse((module / "run" / "other").exists())
+
+    def test_native_extraction_and_temp_properties_target_each_game_not_gradle(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        config = (root / "build.gradle").read_text()
+        isolated = config.split("if (name in ['runLiveJoinTestClient', 'runLiveJoinTestObserver']) {", 1)[1]
+        isolated = isolated.split("tasks.register('testCore')", 1)[0]
+        self.assertIn("name == 'runLiveJoinTestClient' ? 'client' : 'observer'", isolated)
+        self.assertIn('project.file("run/live-join/${role}/tmp")', isolated)
+        self.assertIn("systemProperty 'java.io.tmpdir', scratchDir.absolutePath", isolated)
+        self.assertIn("systemProperty 'org.lwjgl.system.SharedLibraryExtractPath', nativeDir.absolutePath", isolated)
+        self.assertIn("nativeDir.mkdirs()", isolated)
+        self.assertIn("systemProperty 'org.lwjgl.util.DebugLoader', 'true'", isolated)
+        for role in ("Client", "Observer"):
+            supervisor = live.command(root, ":fabric-1.21.1:runLiveJoinTest" + role)
+            self.assertFalse(any("SharedLibraryExtractPath" in argument or "java.io.tmpdir" in argument
+                                 for argument in supervisor))
 
     def test_observer_launch_uses_its_distinct_task(self):
         from pathlib import Path

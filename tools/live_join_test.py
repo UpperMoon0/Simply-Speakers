@@ -216,6 +216,9 @@ def prepare_client(module_dir: Path, role: str = "client") -> None:
         raise ValueError("Unknown live client role")
     client_dir = module_dir / "run" / "live-join" / role
     client_dir.mkdir(parents=True, exist_ok=True)
+    # Match the per-game JavaExec properties: no native extraction or general
+    # Java temporary files are shared between the carrier and observer JVMs.
+    (client_dir / "tmp" / "lwjgl").mkdir(parents=True, exist_ok=True)
     # A fresh Minecraft directory otherwise opens the accessibility/narrator
     # onboarding screen, which blocks quick-play and makes the test interactive.
     (client_dir / "options.txt").write_text(

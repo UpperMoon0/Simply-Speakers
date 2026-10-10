@@ -134,6 +134,23 @@ subprojects {
         if (name == 'runLiveJoinTestServer') maxHeapSize = '1G'
         if (name == 'runLiveJoinTestClient') maxHeapSize = '2G'
         if (name == 'runLiveJoinTestObserver') maxHeapSize = '1G'
+        if (name in ['runLiveJoinTestClient', 'runLiveJoinTestObserver']) {
+            def role = name == 'runLiveJoinTestClient' ? 'client' : 'observer'
+            def scratchDir = project.file("run/live-join/${role}/tmp")
+            def nativeDir = new File(scratchDir, 'lwjgl')
+            // LWJGL 3.3.1+ otherwise extracts into a user-wide temporary path.
+            // Apply to the GAME JavaExec, not the supervising Gradle JVM.
+            // https://javadoc.lwjgl.org/org/lwjgl/system/Configuration.html#SHARED_LIBRARY_EXTRACT_PATH
+            systemProperty 'java.io.tmpdir', scratchDir.absolutePath
+            systemProperty 'org.lwjgl.system.SharedLibraryExtractPath', nativeDir.absolutePath
+            systemProperty 'org.lwjgl.util.Debug', 'true'
+            systemProperty 'org.lwjgl.util.DebugLoader', 'true'
+            doFirst {
+                if (!nativeDir.isDirectory() && !nativeDir.mkdirs()) {
+                    throw new GradleException("Cannot create isolated client native directory: ${nativeDir}")
+                }
+            }
+        }
     }
 }
 
