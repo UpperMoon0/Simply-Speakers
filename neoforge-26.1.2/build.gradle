@@ -246,6 +246,9 @@ test {
     useJUnitPlatform()
     // Side-isolation tests need javac output, not bytes transformed by a game classloader.
     systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath
+    // NeoForge injects a loader-private guardian into <clinit>, even for original bytes.
+    // The rejecting-loader test verifies linkage only; live dedicated startup validates codecs.
+    systemProperty 'simplyspeakers.testPayloadVerificationOnly', 'true'
     systemProperty 'net.bytebuddy.experimental', 'true'
 }
 

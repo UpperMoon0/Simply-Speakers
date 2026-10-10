@@ -12,7 +12,14 @@ import java.util.List;
 import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
-/** Verifies real payload bytecode without any client classes visible to its loader. */
+/**
+ * Verifies real payload bytecode without any client classes visible to its loader.
+ * Common 1.20.1/1.21.1 also initialize payloads and their codec fields here. NeoForge
+ * 26 instruments class initialization with a loader-private guardian, so its Gradle
+ * task requests load/resolve/signature verification without initialization. That
+ * still exercises the original ClientLevel verifier hazard; the actual dedicated
+ * runtime harness independently checks NeoForge payload/codec initialization.
+ */
 class PortablePacketDedicatedSideLoadingTest {
     private static final String PREFIX = "com.nstut.simplyspeakers.network.";
     private static final Set<String> PAYLOADS = Set.of(
@@ -62,22 +69,28 @@ class PortablePacketDedicatedSideLoadingTest {
                 () -> Class.forName(PREFIX + "OpenPortableSpeakerPacketS2C", true, loader));
     }
 
-    @Test void portablePayloadsAndModernCodecsInitializeWithoutClientClasses() throws Exception {
+    @Test void portablePayloadsVerifyWithoutClientClassesAndInitializeWhereSupported() throws Exception {
         List<Path> mainClasses = Arrays.stream(System.getProperty("simplyspeakers.testMainClasses", "")
                         .split(Pattern.quote(File.pathSeparator)))
                 .filter(path -> !path.isBlank()).map(Path::of).toList();
         assertFalse(mainClasses.isEmpty(), "Gradle must supply the original compiled main classes directories");
         var loader = new DedicatedSideLoader(mainClasses);
+        boolean verificationOnly = Boolean.getBoolean("simplyspeakers.testPayloadVerificationOnly");
         for (String name : List.of("OpenPortableSpeakerPacketS2C", "PortableSpeakerPositionPacketS2C")) {
-            Class<?> payload = assertDoesNotThrow(() -> Class.forName(PREFIX + name, true, loader));
+            Class<?> payload = assertDoesNotThrow(() -> loader.loadClass(PREFIX + name, true));
+            if (!verificationOnly)
+                assertSame(payload, assertDoesNotThrow(() -> Class.forName(PREFIX + name, true, loader)));
             assertSame(loader, payload.getClassLoader());
             assertNotNull(payload.getDeclaredMethods());
             assertNotNull(payload.getDeclaredConstructors());
-            // Modern payloads initialize their real method-reference codecs. Legacy
-            // payloads have constructors/encode methods instead of these fields.
-            for (var field : payload.getDeclaredFields()) {
-                if (field.getName().equals("TYPE") || field.getName().equals("STREAM_CODEC"))
-                    assertNotNull(field.get(null));
+            // Reading a static field initializes the class. Never do that in the
+            // NeoForge rejecting loader: its injected guardian requires the real
+            // game loader. The dedicated runtime harness checks those real codecs.
+            if (!verificationOnly) {
+                for (var field : payload.getDeclaredFields()) {
+                    if (field.getName().equals("TYPE") || field.getName().equals("STREAM_CODEC"))
+                        assertNotNull(field.get(null));
+                }
             }
         }
         assertTrue(loader.clientLoads.isEmpty(), "Payload loading touched client classes: " + loader.clientLoads);
