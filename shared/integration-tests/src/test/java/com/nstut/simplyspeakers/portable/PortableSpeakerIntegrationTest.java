@@ -96,26 +96,48 @@ class PortableSpeakerIntegrationTest {
     }
     /** Minecraft freezes intrusive item registries during bootstrap. Substitute only
      * registration: real ItemStacks still run all production metadata/copy operations.
-     * A registered minecart supplies ordinary one-stack defaults on every version;
-     * the holder's value retains the portable type, including the 26.1.2 holder API.
+     * A registered minecart supplies ordinary item behavior. Component-era stacks
+     * use real common components capped at one: 26.1.2 does not bind item-holder
+     * components until a datapack reload, which this bootstrap-only fixture lacks.
+     * The holder's value retains the portable type, including the 26.1.2 holder API.
      * The live fixture separately asserts the real registered portable item's cap. */
     @SuppressWarnings("unchecked")
     private PortableSpeakerItem makeItem() {
         Item defaults = net.minecraft.world.item.Items.MINECART;
+        Object components = oneStackComponents();
         var identity = new java.util.concurrent.atomic.AtomicReference<PortableSpeakerItem>();
         var holder = (net.minecraft.core.Holder.Reference<Item>) mock(net.minecraft.core.Holder.Reference.class, call -> {
             if (call.getMethod().getName().equals("value")) return identity.get();
+            if (call.getMethod().getName().equals("components")) return components;
+            if (call.getMethod().getName().equals("areComponentsBound")) return true;
             return call.getMethod().invoke(defaults.builtInRegistryHolder(), call.getArguments());
         });
         PortableSpeakerItem portable = mock(PortableSpeakerItem.class, call -> {
             if (call.getMethod().getName().equals("asItem")) return call.getMock();
             if (call.getMethod().getName().equals("builtInRegistryHolder")) return holder;
+            if (call.getMethod().getName().equals("components")) return components;
             if (call.getMethod().getDeclaringClass().isInstance(defaults))
                 return call.getMethod().invoke(defaults, call.getArguments());
             return RETURNS_DEFAULTS.answer(call);
         });
         identity.set(portable);
         return portable;
+    }
+    /** Reflection keeps the same fixture source compilable before data components. */
+    private Object oneStackComponents() {
+        try {
+            Class<?> map = Class.forName("net.minecraft.core.component.DataComponentMap");
+            Class<?> types = Class.forName("net.minecraft.core.component.DataComponents");
+            Class<?> type = Class.forName("net.minecraft.core.component.DataComponentType");
+            Object builder = map.getMethod("builder").invoke(null);
+            builder.getClass().getMethod("addAll", map).invoke(builder, types.getField("COMMON_ITEM_COMPONENTS").get(null));
+            builder.getClass().getMethod("set", type, Object.class).invoke(builder, types.getField("MAX_STACK_SIZE").get(null), 1);
+            return builder.getClass().getMethod("build").invoke(builder);
+        } catch (ClassNotFoundException legacy) {
+            return null; // 1.20.1 stores metadata in NBT and never requests components.
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError("Could not build real one-stack fixture components", error);
+        }
     }
     private ServerPlayer player(double x) {
         ServerPlayer player = mock(ServerPlayer.class); Inventory inventory = mock(Inventory.class);

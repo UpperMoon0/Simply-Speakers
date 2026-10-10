@@ -126,6 +126,10 @@ tasks.register('testAllVersions') {
 }
 
 subprojects {
+    tasks.withType(Test).configureEach {
+        // Preserve actionable adapter failures in CI logs, not only ephemeral HTML.
+        testLogging.exceptionFormat = 'full'
+    }
     tasks.withType(JavaExec).configureEach {
         if (name == 'runLiveJoinTestServer') maxHeapSize = '1G'
         if (name == 'runLiveJoinTestClient') maxHeapSize = '2G'
