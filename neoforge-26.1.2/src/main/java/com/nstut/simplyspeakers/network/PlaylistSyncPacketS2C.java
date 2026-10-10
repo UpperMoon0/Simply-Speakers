@@ -112,7 +112,7 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
 
     public static void encode(RegistryFriendlyByteBuf buffer, PlaylistSyncPacketS2C packet) {
         buffer.writeBlockPos(packet.pos);
-        buffer.writeUtf(packet.fullStateKey, 256);
+        buffer.writeUtf(packet.fullStateKey, 512);
         buffer.writeBoolean(packet.catalogOnly);buffer.writeBoolean(packet.hasLibrary);
         buffer.writeByteArray(packet.library.encode());
         buffer.writeVarInt(packet.audioIds.size());for(int i=0;i<packet.audioIds.size();i++){buffer.writeUtf(packet.audioIds.get(i),256);buffer.writeUtf(i<packet.filenames.size()?packet.filenames.get(i):"",256);}
@@ -127,7 +127,7 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
 
     public static PlaylistSyncPacketS2C decode(RegistryFriendlyByteBuf buffer) {
         BlockPos pos = buffer.readBlockPos();
-        String fullStateKey = buffer.readUtf(256);
+        String fullStateKey = buffer.readUtf(512);
         boolean catalogOnly=buffer.readBoolean(),hasLibrary=buffer.readBoolean();
         var library=com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.decode(buffer.readByteArray(com.nstut.simplyspeakers.playlist.PlaylistLibrarySnapshot.MAX_BYTES));
         int count=buffer.readVarInt();if(count<0 || count>Playlist.MAX_ENTRIES)throw new IllegalArgumentException("Track count");
@@ -146,8 +146,9 @@ public class PlaylistSyncPacketS2C implements CustomPacketPayload {
         context.queue(() -> {
             var client=Minecraft.getInstance();
             if(!packet.catalogOnly && client.level!=null) {
-                String stateKey=packet.fullStateKey.contains("/")?packet.fullStateKey.substring(packet.fullStateKey.indexOf('/')+1):"";
-                if(stateKey.isEmpty() && client.level.getBlockEntity(packet.pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker) stateKey=speaker.getStateKey();
+                String prefix=client.level.dimension().identifier().toString()+"/";
+                String stateKey=packet.fullStateKey.startsWith(prefix)?packet.fullStateKey.substring(prefix.length()):"";
+                if(stateKey.isEmpty() && !com.nstut.simplyspeakers.client.ClientPortableSpeakers.isPortableToken(packet.pos) && client.level.getBlockEntity(packet.pos) instanceof com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity speaker) stateKey=speaker.getStateKey();
                 if(!stateKey.isEmpty()) {
                     var state=com.nstut.simplyspeakers.client.ClientSpeakerRegistry.getOrCreateState(stateKey);
                     state.getPlaylist().setRepeatMode(com.nstut.simplyspeakers.playlist.RepeatMode.fromIndex(packet.repeatOrdinal));

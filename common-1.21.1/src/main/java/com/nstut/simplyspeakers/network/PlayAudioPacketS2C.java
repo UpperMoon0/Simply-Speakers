@@ -42,6 +42,7 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
      */
     private String fullStateKey;
     private int playbackGeneration;
+    private com.nstut.simplyspeakers.portable.PortableEmitterSnapshot portableEmitter;
 
 
     public PlayAudioPacketS2C(BlockPos pos, String speakerId, String audioId, String audioFilename, float playbackPositionSeconds, boolean isLooping, int maxRange, float maxVolume, float audioDropoff) {
@@ -85,9 +86,11 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         boolean hasRemoteIdentity = packet.fullStateKey != null && !packet.fullStateKey.isEmpty();
         buffer.writeBoolean(hasRemoteIdentity);
         if (hasRemoteIdentity) {
-            buffer.writeUtf(packet.fullStateKey);
+            buffer.writeUtf(packet.fullStateKey, 512);
             buffer.writeVarInt(packet.playbackGeneration);
         }
+        buffer.writeBoolean(packet.portableEmitter != null);
+        if (packet.portableEmitter != null) PortableEmitterCodec.write(buffer, packet.portableEmitter);
     }
 
     public static PlayAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
@@ -107,9 +110,10 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
                     buffer.readFloat(), buffer.readFloat(), buffer.readFloat(), buffer.readByte());
         }
         if (buffer.readableBytes() >= 1 && buffer.readBoolean()) {
-            packet.fullStateKey = buffer.readUtf();
+            packet.fullStateKey = buffer.readUtf(512);
             packet.playbackGeneration = buffer.readVarInt();
         }
+        if (buffer.readableBytes() >= 1 && buffer.readBoolean()) packet.portableEmitter = PortableEmitterCodec.read(buffer);
         return packet;
     }
 
@@ -137,6 +141,8 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
         }
         SimplySpeakers.LOGGER.info("CLIENT: Received PlayAudioPacketS2C for pos: {}, speakerId: '{}', audioId: {}, filename: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
                 packet.pos, packet.speakerId, packet.audioId, packet.audioFilename, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff);
+        if (com.nstut.simplyspeakers.client.ClientPortableSpeakers.isPortableToken(packet.pos)
+                && !com.nstut.simplyspeakers.client.ClientPortableSpeakers.begin(packet.pos, packet.portableEmitter)) return;
         AudioFileMetadata metadata = new AudioFileMetadata(packet.audioId, packet.audioFilename);
         ClientAudioPlayer.play(packet.pos, packet.speakerId, metadata, packet.playbackPositionSeconds, packet.isLooping, packet.maxRange, packet.maxVolume, packet.audioDropoff, packet.getExtras(),
                 packet.getFullStateKey(), packet.getPlaybackGeneration());
@@ -162,6 +168,13 @@ public class PlayAudioPacketS2C implements CustomPacketPayload {
                     BlockPos.ZERO, "", LiveJoinTestProtocol.PROBE_AUDIO_ID, "probe.wav", 0.0f, false, 64, 1.0f, 1.0f));
         }
     }
+
+    public PlayAudioPacketS2C withPortableEmitter(com.nstut.simplyspeakers.portable.PortableEmitterSnapshot snapshot) {
+        this.portableEmitter = snapshot;
+        return this;
+    }
+
+    public com.nstut.simplyspeakers.portable.PortableEmitterSnapshot getPortableEmitter() { return portableEmitter; }
 
     public BlockPos getPos() {
         return pos;

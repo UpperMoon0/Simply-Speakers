@@ -46,7 +46,7 @@ public class UpdateMaxVolumePacketC2S implements CustomPacketPayload {
             }
 
             Level level = player.level();
-            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, packet.pos);
             if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                 speakerEntity.setMaxVolume(packet.maxVolume);
             }

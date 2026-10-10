@@ -45,7 +45,7 @@ public class ToggleLoopPacketC2S implements CustomPacketPayload {
             }
 
             ServerLevel level = player.serverLevel();
-            BlockEntity blockEntity = level.getBlockEntity(packet.pos);
+            BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, packet.pos);
             if (blockEntity instanceof SpeakerBlockEntity speakerEntity) {
                 speakerEntity.setLooping(packet.isLooping);
             }

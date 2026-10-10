@@ -72,6 +72,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
+    private com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint portableSpeaker;
 
     private final Signal<SpeakerTab> tab = Signals.of(SpeakerTab.AUDIO);
     private final Signal<String> search = Signals.of("");
@@ -135,6 +136,13 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         this.blockEntityPos = blockEntityPos;
     }
 
+    /** Keeps the full normal player UI while targeting an inventory-owned endpoint. */
+    public SpeakerScreen(com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint endpoint) {
+        super(Component.translatable("gui.simplyspeakers.portable_speaker.title"));
+        this.blockEntityPos = endpoint.getBlockPos();
+        this.portableSpeaker = endpoint;
+        this.speaker = endpoint;
+    }
     @Override
     protected void init() {
         closeControlSubscriptions();
@@ -207,7 +215,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     private UIComponent buildHeader() {
-        return Ui.row(Ui.heading(Component.translatable("gui.simplyspeakers.speaker.title")),
+        return Ui.row(Ui.heading(getTitle()),
                 Ui.spacer().flex(), buildThemeToggle()).align(Alignment.CENTER).gap(8);
     }
 
@@ -330,7 +338,9 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
                         String newId = speakerId.get();
-                        speaker.setSpeakerId(newId);
+                        // Inventory endpoints keep their authoritative target until the server
+                        // acknowledges a permitted link; denied links must not retarget this UI.
+                        if (portableSpeaker == null) speaker.setSpeakerId(newId);
                         sendToServer(new SetSpeakerIdPacketC2S(blockEntityPos, newId));
                     }
                 }).primary().enabledWhen(() -> accessView.get().canManage())
@@ -956,6 +966,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     public void refreshFromState(SpeakerStateUpdatePacketS2C packet) {
         applyingRemoteState = true;
         try {
+            if (portableSpeaker != null) portableSpeaker.setSpeakerIdClient(packet.getSpeakerId());
             String audioId = packet.getAudioId();
             playingAudioId.set(audioId);
             playingFilename.set(packet.getAudioFilename());
@@ -983,6 +994,29 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         status.set(statusMessage);
     }
 
+    /** Apply a relink acknowledgement without losing the active tab or open player screen. */
+    public boolean refreshPortableEndpoint(com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint endpoint) {
+        if (portableSpeaker == null || !portableSpeaker.getIdentity().equals(endpoint.getIdentity())
+                || !blockEntityPos.equals(endpoint.getBlockPos())) return false;
+        portableSpeaker = endpoint;
+        speaker = endpoint;
+        applyingRemoteState = true;
+        try {
+            speakerId.set(endpoint.getSpeakerId());
+            maxVolume.set((double) endpoint.getMaxVolume());
+            maxRange.set((double) endpoint.getMaxRange());
+            audioDropoff.set((double) endpoint.getAudioDropoff());
+            networkName.set(endpoint.getNetworkName());
+            var state = endpoint.getSpeakerState();
+            if (state != null) {
+                directionality.set((double) state.getDirectionality());
+                coneAngle.set((double) state.getConeAngleDegrees());
+                rearAttenuation.set((double) state.getRearAttenuation());
+            }
+        } finally { applyingRemoteState = false; }
+        return true;
+    }
+
     public BlockPos getBlockEntityPos() {
         return blockEntityPos;
     }
@@ -997,6 +1031,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     }
 
     protected void fetchDataFromBlockEntity() {
+        if (portableSpeaker != null) {
+            this.speaker = portableSpeaker;
+            return;
+        }
         if (Minecraft.getInstance().level == null) {
             this.speaker = null;
             return;

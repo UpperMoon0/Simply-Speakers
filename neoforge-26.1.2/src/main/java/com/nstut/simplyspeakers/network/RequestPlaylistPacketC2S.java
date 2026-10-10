@@ -43,7 +43,7 @@ public class RequestPlaylistPacketC2S implements CustomPacketPayload {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             if (!SpeakerPacketSecurity.canModify(player, packet.pos)) return;
-            if (!(player.level().getBlockEntity(packet.pos) instanceof SpeakerBlockEntity speaker)) return;
+            if (!(SpeakerPacketSecurity.resolveTarget(player, packet.pos) instanceof SpeakerBlockEntity speaker)) return;
             if(!SpeakerPacketSecurity.canControlSpeaker(player,packet.pos)
                     && !com.nstut.simplyspeakers.SpeakerPermissions.canManage(speaker.getSpeakerState(),player.getUUID(),player.level().getServer().getPlayerList().isOp(player.nameAndId())))return;
             sendSnapshot(player, speaker, packet.pos);

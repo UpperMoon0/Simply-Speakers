@@ -24,6 +24,14 @@ public final class SpeakerPacketSecurity {
     private SpeakerPacketSecurity() {
     }
 
+    /** Resolve a physical block or an inventory-authorized portable session token. */
+    public static BlockEntity resolveTarget(ServerPlayer player, BlockPos pos) {
+        if (player == null || pos == null || player.isRemoved() || player.level() == null) return null;
+        if (com.nstut.simplyspeakers.portable.PortableSpeakerManager.isPortablePosition(pos))
+            return com.nstut.simplyspeakers.portable.PortableSpeakerManager.resolve(player, pos);
+        return player.level().hasChunkAt(pos) ? player.level().getBlockEntity(pos) : null;
+    }
+
     /**
      * Validates that a player is authorized to modify the speaker or proxy speaker block entity at pos.
      */
@@ -35,6 +43,10 @@ public final class SpeakerPacketSecurity {
         Level level = player.level();
         if (level == null || level.isClientSide()) {
             return false;
+        }
+
+        if (com.nstut.simplyspeakers.portable.PortableSpeakerManager.isPortablePosition(pos)) {
+            return com.nstut.simplyspeakers.portable.PortableSpeakerManager.resolve(player, pos) != null;
         }
 
         // Distance validation
@@ -81,7 +93,7 @@ public final class SpeakerPacketSecurity {
         return null;
     }
 
-    private static boolean isOperator(ServerPlayer player) {
+    public static boolean isOperator(ServerPlayer player) {
         return player.level().getServer() != null
                 && player.level().getServer().getPlayerList().isOp(player.nameAndId());
     }
@@ -98,7 +110,7 @@ public final class SpeakerPacketSecurity {
         if (!canModify(player, pos)) {
             return false;
         }
-        BlockEntity be = player.level().getBlockEntity(pos);
+        BlockEntity be = resolveTarget(player, pos);
         SpeakerState state = resolveSpeakerState(be);
         if (state == null) {
             return be instanceof ProxySpeakerBlockEntity;
@@ -117,7 +129,7 @@ public final class SpeakerPacketSecurity {
         if (!canModify(player, pos)) {
             return false;
         }
-        BlockEntity be = player.level().getBlockEntity(pos);
+        BlockEntity be = resolveTarget(player, pos);
         if (!(be instanceof SpeakerBlockEntity) && !(be instanceof ProxySpeakerBlockEntity)) {
             return false;
         }
@@ -127,6 +139,8 @@ public final class SpeakerPacketSecurity {
             return false;
         }
         String newId = newSpeakerId == null ? "" : newSpeakerId.trim();
+        if (be instanceof com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint
+                && newId.length() > com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint.MAX_SPEAKER_ID_LENGTH) return false;
         if (SpeakerLink.isLinkableId(newId)) {
             SpeakerState destination = ServerSpeakerRegistry.getSpeakerState(player.level(), "net_" + newId);
             if (destination != null && !SpeakerPermissions.canManage(destination, player.getUUID(), isOp)) {

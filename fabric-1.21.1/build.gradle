@@ -26,7 +26,15 @@ loom {
             runDir("run/live-join/client")
             property "simplyspeakers.liveJoinTest", "true"
             property "simplyspeakers.livePlaybackTest", "true"
-            programArgs "--quickPlayMultiplayer", "127.0.0.1:25575"
+            programArgs "--username", "SSCarrier", "--quickPlayMultiplayer", "127.0.0.1:25575"
+        }
+        liveJoinTestObserver {
+            client()
+            runDir("run/live-join/observer")
+            property "simplyspeakers.liveJoinTest", "true"
+            property "simplyspeakers.livePlaybackTest", "true"
+            property "simplyspeakers.livePlaybackRole", "observer"
+            programArgs "--username", "SSObserver", "--quickPlayMultiplayer", "127.0.0.1:25575"
         }
         liveJoinTestServer {
             server()

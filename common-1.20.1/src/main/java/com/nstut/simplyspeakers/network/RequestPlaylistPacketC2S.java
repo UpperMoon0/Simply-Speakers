@@ -34,7 +34,7 @@ public class RequestPlaylistPacketC2S {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
             if (!SpeakerPacketSecurity.canModify(player, pkt.pos)) return;
-            if (!(player.serverLevel().getBlockEntity(pkt.pos) instanceof SpeakerBlockEntity speaker)) return;
+            if (!(SpeakerPacketSecurity.resolveTarget(player, pkt.pos) instanceof SpeakerBlockEntity speaker)) return;
             if(!SpeakerPacketSecurity.canControlSpeaker(player,pkt.pos)
                     && !com.nstut.simplyspeakers.SpeakerPermissions.canManage(speaker.getSpeakerState(),player.getUUID(),player.hasPermissions(2)))return;
             sendSnapshot(player, speaker, pkt.pos);

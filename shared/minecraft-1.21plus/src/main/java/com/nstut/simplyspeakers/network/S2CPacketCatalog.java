@@ -1,6 +1,7 @@
 package com.nstut.simplyspeakers.network;
 
 import dev.architectury.networking.NetworkManager;
+import java.util.function.Supplier;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -11,7 +12,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
  * <p>Dedicated servers register payload types so they can encode packets,
  * while clients register receivers as well. Keeping both paths backed by this
  * catalog prevents a new S2C packet from working on clients but crashing a
- * dedicated server with a missing codec.</p>
+ * dedicated server with a missing codec. Receiver factories are lazy so server
+ * codec registration never resolves a client handler.</p>
  */
 public final class S2CPacketCatalog {
     private S2CPacketCatalog() {
@@ -23,7 +25,7 @@ public final class S2CPacketCatalog {
             public <T extends CustomPacketPayload> void register(
                     CustomPacketPayload.Type<T> type,
                     StreamCodec<? super RegistryFriendlyByteBuf, T> codec,
-                    NetworkManager.NetworkReceiver<T> receiver) {
+                    Supplier<NetworkManager.NetworkReceiver<T>> receiver) {
                 NetworkManager.registerS2CPayloadType(type, codec);
             }
         });
@@ -35,28 +37,30 @@ public final class S2CPacketCatalog {
             public <T extends CustomPacketPayload> void register(
                     CustomPacketPayload.Type<T> type,
                     StreamCodec<? super RegistryFriendlyByteBuf, T> codec,
-                    NetworkManager.NetworkReceiver<T> receiver) {
-                NetworkManager.registerReceiver(NetworkManager.s2c(), type, codec, receiver);
+                    Supplier<NetworkManager.NetworkReceiver<T>> receiver) {
+                NetworkManager.registerReceiver(NetworkManager.s2c(), type, codec, receiver.get());
             }
         });
     }
 
     static void registerAll(Registrar registrar) {
-        registrar.register(StopAudioPacketS2C.TYPE, StopAudioPacketS2C.STREAM_CODEC, StopAudioPacketS2C::handle);
-        registrar.register(PlayAudioPacketS2C.TYPE, PlayAudioPacketS2C.STREAM_CODEC, PlayAudioPacketS2C::handle);
-        registrar.register(RespondUploadAudioPacketS2C.TYPE, RespondUploadAudioPacketS2C.STREAM_CODEC, RespondUploadAudioPacketS2C::handle);
-        registrar.register(AcknowledgeUploadPacketS2C.TYPE, AcknowledgeUploadPacketS2C.STREAM_CODEC, AcknowledgeUploadPacketS2C::handle);
-        registrar.register(SendAudioListPacketS2C.TYPE, SendAudioListPacketS2C.STREAM_CODEC, SendAudioListPacketS2C::handle);
-        registrar.register(SendAudioFilePacketS2C.TYPE, SendAudioFilePacketS2C.STREAM_CODEC, SendAudioFilePacketS2C::handle);
-        registrar.register(SpeakerStateUpdatePacketS2C.TYPE, SpeakerStateUpdatePacketS2C.STREAM_CODEC, SpeakerStateUpdatePacketS2C::handle);
-        registrar.register(SyncConfigPacketS2C.TYPE, SyncConfigPacketS2C.STREAM_CODEC, SyncConfigPacketS2C::handle);
-        registrar.register(PlaylistSyncPacketS2C.TYPE, PlaylistSyncPacketS2C.STREAM_CODEC, PlaylistSyncPacketS2C::handle);
+        registrar.register(PortableSpeakerPositionPacketS2C.TYPE, PortableSpeakerPositionPacketS2C.STREAM_CODEC, () -> PortableSpeakerPositionPacketS2C::handle);
+        registrar.register(OpenPortableSpeakerPacketS2C.TYPE, OpenPortableSpeakerPacketS2C.STREAM_CODEC, () -> OpenPortableSpeakerPacketS2C::handle);
+        registrar.register(StopAudioPacketS2C.TYPE, StopAudioPacketS2C.STREAM_CODEC, () -> StopAudioPacketS2C::handle);
+        registrar.register(PlayAudioPacketS2C.TYPE, PlayAudioPacketS2C.STREAM_CODEC, () -> PlayAudioPacketS2C::handle);
+        registrar.register(RespondUploadAudioPacketS2C.TYPE, RespondUploadAudioPacketS2C.STREAM_CODEC, () -> RespondUploadAudioPacketS2C::handle);
+        registrar.register(AcknowledgeUploadPacketS2C.TYPE, AcknowledgeUploadPacketS2C.STREAM_CODEC, () -> AcknowledgeUploadPacketS2C::handle);
+        registrar.register(SendAudioListPacketS2C.TYPE, SendAudioListPacketS2C.STREAM_CODEC, () -> SendAudioListPacketS2C::handle);
+        registrar.register(SendAudioFilePacketS2C.TYPE, SendAudioFilePacketS2C.STREAM_CODEC, () -> SendAudioFilePacketS2C::handle);
+        registrar.register(SpeakerStateUpdatePacketS2C.TYPE, SpeakerStateUpdatePacketS2C.STREAM_CODEC, () -> SpeakerStateUpdatePacketS2C::handle);
+        registrar.register(SyncConfigPacketS2C.TYPE, SyncConfigPacketS2C.STREAM_CODEC, () -> SyncConfigPacketS2C::handle);
+        registrar.register(PlaylistSyncPacketS2C.TYPE, PlaylistSyncPacketS2C.STREAM_CODEC, () -> PlaylistSyncPacketS2C::handle);
     }
 
     interface Registrar {
         <T extends CustomPacketPayload> void register(
                 CustomPacketPayload.Type<T> type,
                 StreamCodec<? super RegistryFriendlyByteBuf, T> codec,
-                NetworkManager.NetworkReceiver<T> receiver);
+                Supplier<NetworkManager.NetworkReceiver<T>> receiver);
     }
 }

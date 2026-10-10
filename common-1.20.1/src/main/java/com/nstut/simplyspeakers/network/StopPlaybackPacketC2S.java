@@ -33,7 +33,7 @@ public class StopPlaybackPacketC2S {
             }
 
             ServerLevel level = player.serverLevel();
-            if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.stopAudio();
             }
         });

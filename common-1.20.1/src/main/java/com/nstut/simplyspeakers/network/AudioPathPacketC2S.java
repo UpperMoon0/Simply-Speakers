@@ -38,9 +38,11 @@ public class AudioPathPacketC2S {
                     if (!SpeakerPacketSecurity.canControlSpeaker(player, packet.pos)) {
                         return;
                     }
-                    BlockEntity blockEntity = serverLevel.getBlockEntity(packet.pos);
+                    SpeakerPacketSecurity.AuthorizedTrack track = SpeakerPacketSecurity.resolveAuthorizedTrack(player, packet.audioId);
+                    if (track == null) return;
+                    BlockEntity blockEntity = SpeakerPacketSecurity.resolveTarget(player, packet.pos);
                     if (blockEntity instanceof SpeakerBlockEntity) {
-                        ((SpeakerBlockEntity) blockEntity).setAudioId(packet.audioId);
+                        ((SpeakerBlockEntity) blockEntity).setSelectedAudio(track.audioId(), track.filename());
                     }
                 }
             }

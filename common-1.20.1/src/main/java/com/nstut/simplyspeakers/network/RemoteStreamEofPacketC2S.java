@@ -26,13 +26,13 @@ public class RemoteStreamEofPacketC2S {
     }
 
     public RemoteStreamEofPacketC2S(FriendlyByteBuf buf) {
-        this.fullStateKey = buf.readUtf();
+        this.fullStateKey = buf.readUtf(512);
         this.playbackGeneration = buf.readVarInt();
         this.audioId = buf.readUtf();
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeUtf(this.fullStateKey);
+        buf.writeUtf(this.fullStateKey, 512);
         buf.writeVarInt(this.playbackGeneration);
         buf.writeUtf(this.audioId);
     }

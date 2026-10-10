@@ -10,7 +10,7 @@ Run Gradle with JDK 21. Its toolchains run Minecraft 1.20.1 on Java 17,
 | `python tools/verify.py core` | Pure behavior, WAV decode/seek, cross-version contracts, verification harness regressions | No Minecraft configuration or game launch |
 | `python tools/verify.py adapters` | Actual playback manager, control service, registry disk reload, packet codecs on all three versions; logical/render Sable transforms on 1.21.1 | Minecraft classes and supported NeoForge JUnit loader; no client/server process |
 | `python tools/verify.py build --target forge-1.20.1` | Loader compilation, resource processing, remapping and packaging | Only the requested loader/version is configured |
-| `python tools/verify.py live --target forge-1.20.1` | Actual dedicated server and client, network transfer, decoder and OpenAL playback, linked emitters, controls, redstone and peripheral adapter | One server/client launch |
+| `python tools/verify.py live --target forge-1.20.1` | Actual dedicated server and two clients, network transfer, decoder and OpenAL playback, linked emitters, controls, redstone and peripheral adapter | One server and two client launches |
 | `python tools/verify.py cc --target forge-1.20.1` | Real CC computers execute Lua: discovery, calls, events, permissions, catalog/queue changes, detach and reboot | One isolated dedicated server; no client |
 | `python tools/verify.py full` | All layers, all five targets | Cheap checks first; local game sessions run sequentially |
 | `python tools/verify.py gate` | Checks successful receipts match current commit and source contents | Does not rerun tests |
@@ -42,12 +42,38 @@ remain where they check version/loader wiring, including request authorization.
 
 ## What a live pass proves
 
-The opt-in fixture places two linked speaker blocks and saves a generated WAV on
-the server. The client must download it, decode nonzero samples and report an
+The opt-in fixture launches a dedicated server, carrier `SSCarrier`, and a separate
+listener `SSObserver`, with isolated game directories and audio caches. It places
+two linked speaker blocks and saves a generated WAV on the server. The carrier
+must download it, decode nonzero samples and report an
 actual OpenAL playing source shared by both emitters. Each acknowledgement then
 advances the server through pause, resume, seek, restart, stop and a real block
 entity Redstone Controller pulse. Every phase requires separate client and server evidence.
-The initial pre-world join guard is also required; it cannot certify playback.
+Both clients must pass the initial pre-world join guard; it cannot certify playback.
+The observer independently checks portable playback while the carrier moves,
+including actual OpenAL position/gain changes, range exit cleanup and current-offset
+re-entry. Neither the carrier's markers nor server-only subscriptions can certify
+observer playback. All three process logs are monitored for crashes and all process
+groups are torn down on failure. Compilation keeps its 2 GiB Gradle budget;
+runtime supervisors default to 1 GiB and two workers, with 1/2/1 GiB game heap caps
+for server/carrier/observer. `SIMPLYSPEAKERS_LIVE_RUN_GRADLE_HEAP` can override the
+runtime supervisor budget independently of `SIMPLYSPEAKERS_LIVE_GRADLE_HEAP`.
+
+The carrier additionally invokes the public `SoundManager.reload()` during normal
+and portable playback and again while each is paused. This executes Minecraft's
+real sound-engine teardown and OpenAL context recreation using the null driver.
+Four `SIMPLYSPEAKERS_AUDIO_RELOAD_PASS` markers and their server acknowledgements
+are mandatory on all five targets. Playing cases require an advanced context epoch,
+a different decoder resource, nonzero decoded samples, one playing source with
+unchanged emitter membership and spatial position, a progressed recovery offset,
+continued OpenAL sample progress, and termination of the old decoder worker. Paused
+cases must remain silent for multiple ticks; the existing resume/seek/stop and
+portable movement checks then continue. Numeric source or context handles may be
+reused, so handle inequality alone is not accepted as proof. This reproduces the
+context-reset lifecycle of an output-device change; it does not establish physical
+headphones-to-monitor switching or subjective audible quality. Deterministic
+pending-download and blocked-worker races belong to the adapter layer, rather than
+a timing-dependent live decoding assertion.
 
 Four targets also load CC:Tweaked and invoke the real peripheral adapter to check
 track ownership, access policy and transport. This checks the adapter's Java API;
@@ -136,3 +162,37 @@ The `ux_core` native UI audit group covers 176 playlist selection/search, queue 
 
 
 Continuous slider regression: `ServerPlaybackIntegrationTest.continuousSettingsUpdatesPreserveSubscriptionsTransportAndSession` applies 80 gain/controller-gain/cone/range changes and rejects stop packets, session changes, timeline resets or subscription loss. The real client probe uses native screen click/drag/release entry points, checks the drag lifecycle and 24 signal values before release, and requires the identical live decoder resource throughout volume/range/direction updates. `SIMPLYSPEAKERS_CONTINUOUS_DRAG_PASS` is required by the live harness.
+
+## Portable speaker coverage
+
+The shared adapter tests execute actual portable item metadata, inventory reconciliation,
+server endpoints, authorization, packet handlers and playback services on all three
+Minecraft runtimes. They cover stable identity across slots and stack replacement,
+creative-copy isolation, malformed stacks, separate offhand equipment, holder transfers, inventory removal,
+logout/death/spectator cleanup, dimension changes, protected links, linked-block
+continuity, new listeners and range exits. Three distinct mocked players exercise
+carrier/listener separation; these are production-code adapter tests, not a multiplayer
+runtime session. Client adapter tests cover tracked and untracked carrier positions,
+teleports, stale snapshots, dimension cleanup, dead carriers and transport cleanup.
+A real registry save/reload restores settings, playlists and ownership paused while
+retaining item metadata. The real versioned codecs are checked for mobile identities, fractional poses,
+portable screen routing and malformed input.
+
+Every live target additionally requires seven portable phases: start, movement,
+pause, resume, stop, restart and inventory removal. A real registered item in a
+non-hotbar inventory slot drives a downloaded, decoded OpenAL stream. The probe
+reads the actual OpenAL source position after the server teleports its carrier,
+requires the same decoder/source across that movement, and requires source deletion
+and pose/membership cleanup on pause, stop and removal. Both server and client phase
+markers are mandatory. This automated live fixture has two real clients: the
+carrier and a separate listener. The observer must independently pass nine phases:
+start, farther movement, range exit, re-entry, pause, resume, stop, restart and item
+removal. The stationary listener starts eight blocks from the carrier, sees the same
+decoder move to 32 blocks with lower gain, loses/deletes the source beyond the
+64-block range plus hysteresis at 96 blocks, and receives one current-offset source
+when the carrier returns to 12 blocks. Pause, stop and item removal require completed
+OpenAL deletion for both clients. This does not by itself establish playback beyond
+entity-tracking range, inventory handoff or portal travel in two live clients; those
+paths retain adapter coverage and need dedicated runtime scenarios. OpenAL uses
+the null output driver, so listening quality and visual portable-screen review need
+manual or focused verification.

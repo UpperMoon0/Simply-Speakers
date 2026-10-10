@@ -39,9 +39,9 @@ public class SetSpeakerIdPacketC2S {
 
             ServerLevel level = player.serverLevel();
             // Handle both speaker block entity types
-            if (level.getBlockEntity(pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, pkt.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.setSpeakerId(pkt.speakerId);
-            } else if (level.getBlockEntity(pkt.blockPos) instanceof ProxySpeakerBlockEntity proxySpeaker) {
+            } else if (SpeakerPacketSecurity.resolveTarget(player, pkt.blockPos) instanceof ProxySpeakerBlockEntity proxySpeaker) {
                 proxySpeaker.setSpeakerId(pkt.speakerId);
             }
         });

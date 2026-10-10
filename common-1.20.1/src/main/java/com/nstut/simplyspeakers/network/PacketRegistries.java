@@ -120,6 +120,8 @@ public class PacketRegistries {
     }
 
     public static void registerS2C() {
+        CHANNEL.register(PortableSpeakerPositionPacketS2C.class, PortableSpeakerPositionPacketS2C::encode, PortableSpeakerPositionPacketS2C::new, PortableSpeakerPositionPacketS2C::handle);
+        CHANNEL.register(OpenPortableSpeakerPacketS2C.class, OpenPortableSpeakerPacketS2C::encode, OpenPortableSpeakerPacketS2C::new, OpenPortableSpeakerPacketS2C::handle);
         // Server to Client packets
         CHANNEL.register(StopAudioPacketS2C.class,
                 StopAudioPacketS2C::encode,

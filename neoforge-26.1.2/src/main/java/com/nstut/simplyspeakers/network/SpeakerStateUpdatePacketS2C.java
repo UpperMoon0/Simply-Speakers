@@ -77,7 +77,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
         buffer.writeUtf(packet.audioFilename);
         buffer.writeLong(packet.playbackStartTick);
         buffer.writeBoolean(packet.isLooping);
-        buffer.writeUtf(packet.fullStateKey, 256);
+        buffer.writeUtf(packet.fullStateKey, 512);
         buffer.writeBoolean(packet.settings!=null);if(packet.settings!=null)buffer.writeByteArray(packet.settings.encode());
     }
 
@@ -91,7 +91,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
                 buffer.readUtf(),
                 buffer.readLong(),
                 buffer.readBoolean(),
-                buffer.readUtf(256)
+                buffer.readUtf(512)
         );
         if(buffer.readBoolean())packet.settings=com.nstut.simplyspeakers.SpeakerSettingsSnapshot.decode(
             buffer.readByteArray(com.nstut.simplyspeakers.SpeakerSettingsSnapshot.MAX_BYTES));
@@ -137,15 +137,21 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
             ClientSpeakerRegistry.updateState(linkKey, state);
         } else if (pkt.hasBlockPos && Minecraft.getInstance().level != null) {
             if ("stop".equals(pkt.action) || "pause".equals(pkt.action)) ClientAudioPlayer.stop(pkt.blockPos);
-            var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
-            if (be instanceof SpeakerBlockEntity speakerBE) {
-                SpeakerState state = ClientSpeakerRegistry.getOrCreateState(speakerBE.getStateKey());
-                if(pkt.settings!=null)pkt.settings.apply(state);
-            state.setAudioId(pkt.audioId);
+            String stateKey = "";
+            if (!pkt.fullStateKey.isEmpty()) {
+                String prefix = Minecraft.getInstance().level.dimension().identifier().toString() + "/";
+                if (pkt.fullStateKey.startsWith(prefix)) stateKey = pkt.fullStateKey.substring(prefix.length());
+            }
+            if (stateKey.isEmpty() && !com.nstut.simplyspeakers.client.ClientPortableSpeakers.isPortableToken(pkt.blockPos)) {
+                var be = Minecraft.getInstance().level.getBlockEntity(pkt.blockPos);
+                if (be instanceof SpeakerBlockEntity speakerBE) stateKey = speakerBE.getStateKey();
+            }
+            if (!stateKey.isEmpty()) {
+                SpeakerState state = ClientSpeakerRegistry.getOrCreateState(stateKey);
+                if (pkt.settings != null) pkt.settings.apply(state);
+                state.setAudioId(pkt.audioId);
                 state.setAudioFilename(pkt.audioFilename);
                 state.setPlaybackStartTick(pkt.playbackStartTick);
-                // Repeat preference arrives through PlaylistSync; this flag is decoder state only.
-
                 if ("play".equals(pkt.action)) {
                     state.setPlaying(true);
                     state.setPaused(false);
@@ -157,7 +163,7 @@ public class SpeakerStateUpdatePacketS2C implements CustomPacketPayload {
                     state.setPaused(false);
                     state.setPlaybackStartTick(-1);
                 }
-                ClientSpeakerRegistry.updateState(speakerBE.getStateKey(), state);
+                ClientSpeakerRegistry.updateState(stateKey, state);
             }
         }
 

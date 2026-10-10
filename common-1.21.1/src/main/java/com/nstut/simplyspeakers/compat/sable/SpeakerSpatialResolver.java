@@ -44,12 +44,27 @@ public final class SpeakerSpatialResolver {
         return resolveLogicalFacing(SABLE, level, position, facingOrdinal);
     }
 
+    /** Continuous holder facing, transformed independently of its session routing token. */
+    public static @Nullable double[] resolveLogicalFacing(Level level, Position position, double facingX, double facingZ) {
+        return resolveLogicalFacing(SABLE, level, position, facingX, facingZ);
+    }
+
     static @Nullable double[] resolveLogicalFacing(SableCompanion sable, Level level, BlockPos position, int facingOrdinal) {
         double[] local = DirectionalAudio.facingFromOrdinal(facingOrdinal);
         SubLevelAccess subLevel = sable.getContaining(level, position);
         if (subLevel != null) {
-            Vec3 world = subLevel.logicalPose().transformNormal(
-                    new Vec3(local[0], 0.0, local[1]));
+            Vec3 world = subLevel.logicalPose().transformNormal(new Vec3(local[0], 0.0, local[1]));
+            return DirectionalAudio.normalize(world.x, world.z);
+        }
+        return sable.isInPlotGrid(level, position) ? null : local;
+    }
+
+    static @Nullable double[] resolveLogicalFacing(SableCompanion sable, Level level, Position position,
+                                                   double facingX, double facingZ) {
+        double[] local = DirectionalAudio.normalize(facingX, facingZ);
+        SubLevelAccess subLevel = sable.getContaining(level, position);
+        if (subLevel != null) {
+            Vec3 world = subLevel.logicalPose().transformNormal(new Vec3(local[0], 0.0, local[1]));
             return DirectionalAudio.normalize(world.x, world.z);
         }
         return sable.isInPlotGrid(level, position) ? null : local;

@@ -46,9 +46,9 @@ public class SetSpeakerIdPacketC2S implements CustomPacketPayload {
 
             ServerLevel level = player.serverLevel();
             // Handle both speaker block entity types
-            if (level.getBlockEntity(packet.blockPos) instanceof SpeakerBlockEntity speaker) {
+            if (SpeakerPacketSecurity.resolveTarget(player, packet.blockPos) instanceof SpeakerBlockEntity speaker) {
                 speaker.setSpeakerId(packet.speakerId);
-            } else if (level.getBlockEntity(packet.blockPos) instanceof ProxySpeakerBlockEntity proxySpeaker) {
+            } else if (SpeakerPacketSecurity.resolveTarget(player, packet.blockPos) instanceof ProxySpeakerBlockEntity proxySpeaker) {
                 proxySpeaker.setSpeakerId(packet.speakerId);
             }
         });

@@ -370,6 +370,7 @@ public final class SpeakerApi {
     public static Map<String, String> listNamedNetworks(Level level) {
         Map<String, String> result = new LinkedHashMap<>();
         for (Map.Entry<String, SpeakerState> entry : ServerSpeakerRegistry.getAllSpeakerStates().entrySet()) {
+            if (com.nstut.simplyspeakers.portable.PortableSpeakerManager.isBackupStateKey(entry.getKey())) continue;
             SpeakerState state = entry.getValue();
             if (state == null || !state.hasNetworkName()) continue;
             String status = !state.hasAudio() ? "empty"
@@ -392,6 +393,7 @@ public final class SpeakerApi {
         if (networkName == null || networkName.isBlank()) return null;
         String prefix = ServerSpeakerRegistry.getDimension(level) + "/";
         for (Map.Entry<String, SpeakerState> entry : ServerSpeakerRegistry.getAllSpeakerStates().entrySet()) {
+            if (com.nstut.simplyspeakers.portable.PortableSpeakerManager.isBackupStateKey(entry.getKey())) continue;
             SpeakerState state = entry.getValue();
             if (state == null || !networkName.equalsIgnoreCase(state.getNetworkName())) continue;
             if (!entry.getKey().startsWith(prefix)) continue;

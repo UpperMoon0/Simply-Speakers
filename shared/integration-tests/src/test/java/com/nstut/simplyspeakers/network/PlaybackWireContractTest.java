@@ -26,7 +26,8 @@ class PlaybackWireContractTest {
             Class<?> type = packet.getClass();
             T decoded;
             if (bufferType == FriendlyByteBuf.class) {
-                if (packet instanceof PlayAudioPacketS2C || packet instanceof SpeakerStateUpdatePacketS2C) {
+                if (packet instanceof PlayAudioPacketS2C || packet instanceof SpeakerStateUpdatePacketS2C
+                        || packet instanceof PortableSpeakerPositionPacketS2C || packet instanceof OpenPortableSpeakerPacketS2C) {
                     type.getMethod("encode", type, bufferType).invoke(null, packet, buffer);
                 } else { type.getMethod("encode", bufferType).invoke(packet, buffer); }
                 decoded = (T) type.getConstructor(bufferType).newInstance(buffer);
@@ -63,6 +64,53 @@ class PlaybackWireContractTest {
         assertEquals(0.3f, decoded.getAudioDropoff()); assertEquals(packet.getExtras(), decoded.getExtras());
         assertEquals("minecraft:the_nether/net_station", decoded.getFullStateKey());
         assertEquals(17, decoded.getPlaybackGeneration());
+    }
+
+    @Test void portablePlayCarriesStableItemAndCarrierIdentityWithFractionalPose() throws Exception {
+        var token = new BlockPos(178, -2048, -390);
+        var snapshot = new com.nstut.simplyspeakers.portable.PortableEmitterSnapshot(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "minecraft:overworld", 3.25, 68.75, -42.125, 137.5f);
+        var packet = new PlayAudioPacketS2C(token, "station", "clip", "clip.wav", 1.5f, true, 32, .7f, .4f)
+                .withPortableEmitter(snapshot);
+        var decoded = roundTrip(packet);
+        assertEquals(token, decoded.getPos());
+        assertEquals(snapshot, decoded.getPortableEmitter());
+        assertEquals(1.5f, decoded.getPlaybackPositionSeconds());
+        assertTrue(decoded.isLooping());
+    }
+
+    @Test void portableMovementWirePreservesIdentityAndNeverUsesRoundedCarrierBlockPosition() throws Exception {
+        var token = new BlockPos(178, -2048, -390);
+        var snapshot = new com.nstut.simplyspeakers.portable.PortableEmitterSnapshot(
+                java.util.UUID.randomUUID(), java.util.UUID.randomUUID(), "minecraft:the_nether", -88.125, 125.875, 43.625, -70.5f);
+        var decoded = roundTrip(new PortableSpeakerPositionPacketS2C(token, snapshot));
+        assertEquals(token, decoded.getPos());
+        assertEquals(snapshot, decoded.getSnapshot());
+    }
+
+    @Test void portableOpenWireBindsTheScreenToItsExactItemAndDimension() throws Exception {
+        var token = new BlockPos(99, -2048, 1); var id = java.util.UUID.randomUUID();
+        var key = "test:" + "d".repeat(240) + "/net_" + "n".repeat(128);
+        var decoded = roundTrip(new OpenPortableSpeakerPacketS2C(token, id, "", key));
+        assertEquals(token, decoded.getPos()); assertEquals(id, decoded.getIdentity());
+        assertEquals("", decoded.getSpeakerId()); assertEquals(key, decoded.getFullStateKey());
+    }
+
+    @Test void malformedPortableWirePosesAreRejectedBeforeReachingClientAudio() {
+        var buffer = new FriendlyByteBuf(Unpooled.buffer());
+        try {
+            buffer.writeUUID(java.util.UUID.randomUUID()); buffer.writeUUID(java.util.UUID.randomUUID());
+            buffer.writeUtf("minecraft:overworld"); buffer.writeDouble(Double.NaN);
+            buffer.writeDouble(64); buffer.writeDouble(0); buffer.writeFloat(0);
+            assertThrows(IllegalArgumentException.class, () -> PortableEmitterCodec.read(buffer));
+            buffer.clear(); buffer.writeUUID(java.util.UUID.randomUUID());
+            assertThrows(IndexOutOfBoundsException.class, () -> PortableEmitterCodec.read(buffer));
+        } finally { buffer.release(); }
+    }
+
+    @Test void ordinaryBlockPlaybackDoesNotAcquirePortableIdentity() throws Exception {
+        var decoded = roundTrip(new PlayAudioPacketS2C(BlockPos.ZERO, "station", "clip", "clip.wav", 0, false, 16, 1, 1));
+        assertNull(decoded.getPortableEmitter());
     }
 
     @Test void emptyPlaylistIsARealWireSnapshotWithPausedAndPlayingIndex() throws Exception {

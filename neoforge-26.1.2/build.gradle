@@ -114,7 +114,16 @@ neoForge {
             gameDirectory = project.file("run/live-join/client")
             systemProperty 'simplyspeakers.liveJoinTest', 'true'
             systemProperty 'simplyspeakers.livePlaybackTest', 'true'
-            programArguments.addAll '--quickPlayMultiplayer', '127.0.0.1:25575'
+            programArguments.addAll '--username', 'SSCarrier', '--quickPlayMultiplayer', '127.0.0.1:25575'
+        }
+
+        liveJoinTestObserver {
+            client()
+            gameDirectory = project.file("run/live-join/observer")
+            systemProperty 'simplyspeakers.liveJoinTest', 'true'
+            systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+            systemProperty 'simplyspeakers.livePlaybackRole', 'observer'
+            programArguments.addAll '--username', 'SSObserver', '--quickPlayMultiplayer', '127.0.0.1:25575'
         }
 
         server {
@@ -235,6 +244,11 @@ dependencies {
 
 test {
     useJUnitPlatform()
+    // Side-isolation tests need javac output, not bytes transformed by a game classloader.
+    systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath
+    // NeoForge injects a loader-private guardian into <clinit>, even for original bytes.
+    // The rejecting-loader test verifies linkage only; live dedicated startup validates codecs.
+    systemProperty 'simplyspeakers.testPayloadVerificationOnly', 'true'
     systemProperty 'net.bytebuddy.experimental', 'true'
 }
 

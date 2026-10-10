@@ -67,13 +67,16 @@ public class SpeakerBlockEntity extends BlockEntity {
     public SpeakerBlockEntity(BlockPos pos, BlockState state) {
         this(BlockEntityRegistries.SPEAKER.get(), pos, state);
     }
-    SpeakerBlockEntity(net.minecraft.world.level.block.entity.BlockEntityType<?> type, BlockPos pos, BlockState state) {
+    protected SpeakerBlockEntity(net.minecraft.world.level.block.entity.BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
         if (level != null && !level.isClientSide()) {
             registeredKey = getStateKey();
             ServerSpeakerRegistry.registerSpeaker(level, pos, registeredKey);
         }
     }
+
+    /** Detached item endpoints override this to avoid block/chunk I/O. */
+    protected boolean isPhysicalSpeaker() { return true; }
 
     public void ensureServerRegistration() {
         if (level != null && !level.isClientSide()) {
@@ -151,7 +154,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             String newKey = getStateKey();
 
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
 
             if (!oldKey.equals(newKey)) {
                 ServerSpeakerRegistry.updateSpeakerId(level, worldPosition, oldKey, newKey);
@@ -191,7 +194,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.selectAudio(serverLevel.getServer(), serverLevel, getFullStateKey(), audioId, filename);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -208,7 +211,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (currentLevel instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.applyTransport(serverLevel.getServer(), serverLevel, getFullStateKey(), action, seekSeconds);
             setChanged();
-            currentLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) currentLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -216,7 +219,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.pause(serverLevel.getServer(), serverLevel, getFullStateKey());
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
         updateComparatorOutput();
     }
@@ -225,7 +228,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -233,7 +236,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.togglePause(serverLevel.getServer(), serverLevel, getFullStateKey());
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -241,7 +244,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.seek(serverLevel.getServer(), serverLevel, getFullStateKey(), seconds);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -249,7 +252,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.next(serverLevel.getServer(), serverLevel, getFullStateKey());
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -257,7 +260,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.previous(serverLevel.getServer(), serverLevel, getFullStateKey());
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -266,7 +269,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             ServerSpeakerControlService.selectAudio(serverLevel.getServer(), serverLevel, getFullStateKey(), audioId, filename);
             ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -280,7 +283,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             boolean changed=ServerSpeakerControlService.playlistControl(serverLevel.getServer(), serverLevel, getFullStateKey(), op, index, flagValue, audioId, filename,playlistId);
             if(!changed)return false;
             setChanged();
-            currentLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) currentLevel.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             return true;
         }
         return false;
@@ -303,6 +306,7 @@ public class SpeakerBlockEntity extends BlockEntity {
     }
 
     private void updateComparatorOutput() {
+        if (!isPhysicalSpeaker()) return;
         if (level == null || level.isClientSide()) return;
         long now = level.getGameTime();
         if (now - lastComparatorCheckTick < COMPARATOR_UPDATE_INTERVAL_TICKS) return;
@@ -331,7 +335,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_NETWORK_NAME,
                     networkName, 0, 0.0f, null);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -341,7 +345,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_REDSTONE_MODE,
                     "", mode != null ? mode.ordinal() : 0, 0.0f, null);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -351,7 +355,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_ACCESS_MODE,
                     "", access != null ? access.ordinal() : 0, 0.0f, null);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -385,7 +389,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_DIRECTIONALITY,
                     "", 0, directionality, null);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
         }
     }
@@ -396,7 +400,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_CONE_ANGLE,
                     "", coneAngleDegrees, 0.0f, null);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
         }
     }
@@ -407,7 +411,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                     com.nstut.simplyspeakers.network.SpeakerPolicyPacketC2S.OP_REAR_ATTENUATION,
                     "", 0, rearAttenuation, null);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
         }
     }
@@ -418,7 +422,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             ServerSpeakerControlService.play(serverLevel.getServer(), serverLevel, getFullStateKey());
             updateEmitterSnapshot();
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -428,7 +432,7 @@ public class SpeakerBlockEntity extends BlockEntity {
             ServerSpeakerControlService.stop(serverLevel.getServer(), serverLevel, getFullStateKey());
             updateEmitterSnapshot();
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
         updateComparatorOutput();
     }
@@ -538,7 +542,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.setLooping(serverLevel.getServer(), serverLevel, getFullStateKey(), looping);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
         }
     }
 
@@ -665,7 +669,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.setVolume(serverLevel.getServer(), serverLevel, getFullStateKey(), maxVolume);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
         }
     }
@@ -674,7 +678,7 @@ public class SpeakerBlockEntity extends BlockEntity {
         if (level instanceof ServerLevel serverLevel) {
             ServerSpeakerControlService.setRange(serverLevel.getServer(), serverLevel, getFullStateKey(), maxRange);
             setChanged();
-            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+            if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
             updateEmitterSnapshot();
         }
     }
@@ -686,7 +690,7 @@ public class SpeakerBlockEntity extends BlockEntity {
                 state.setAudioDropoff(audioDropoff);
                 updateSpeakerState(state);
                 setChanged();
-                level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+                if (isPhysicalSpeaker()) level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
                 updateEmitterSnapshot();
                 if (level instanceof ServerLevel serverLevel)
                     com.nstut.simplyspeakers.speakers.ServerPlaybackManager.refreshSettings(serverLevel.getServer(), serverLevel, getFullStateKey());
