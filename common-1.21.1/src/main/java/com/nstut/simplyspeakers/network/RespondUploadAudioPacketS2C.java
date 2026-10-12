@@ -23,8 +23,14 @@ public class RespondUploadAudioPacketS2C implements CustomPacketPayload {
     private final boolean allowed;
     private final int maxChunkSize;
     private final Component message;
+    private final long committedBytes;
 
     public RespondUploadAudioPacketS2C(UUID transactionId, boolean allowed, int maxChunkSize, Component message) {
+        this(transactionId, allowed, maxChunkSize, message, 0);
+    }
+
+    public RespondUploadAudioPacketS2C(UUID transactionId, boolean allowed, int maxChunkSize, Component message, long committedBytes) {
+        this.committedBytes = committedBytes;
         this.transactionId = transactionId;
         this.allowed = allowed;
         this.maxChunkSize = maxChunkSize;
@@ -36,6 +42,7 @@ public class RespondUploadAudioPacketS2C implements CustomPacketPayload {
         buffer.writeBoolean(packet.allowed);
         buffer.writeInt(packet.maxChunkSize);
         buffer.writeUtf(packet.message.getString());
+        buffer.writeLong(packet.committedBytes);
     }
 
     public static RespondUploadAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
@@ -43,13 +50,16 @@ public class RespondUploadAudioPacketS2C implements CustomPacketPayload {
             buffer.readUUID(),
             buffer.readBoolean(),
             buffer.readInt(),
-            Component.literal(buffer.readUtf())
+            Component.literal(buffer.readUtf()),
+            buffer.readLong()
         );
     }
 
     public static void handle(RespondUploadAudioPacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
-            ClientAudioPlayer.handleUploadResponse(packet.transactionId, packet.allowed, packet.maxChunkSize, packet.message);
+            if (packet.allowed && packet.maxChunkSize == 0)
+                ClientAudioPlayer.handleUploadReceipt(packet.transactionId, packet.committedBytes);
+            else ClientAudioPlayer.handleUploadResponse(packet.transactionId, packet.allowed, packet.maxChunkSize, packet.message);
         });
     }
 

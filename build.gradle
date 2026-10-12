@@ -40,7 +40,7 @@ afterEvaluate {
     }
 
     subprojects {
-        if (project.name == 'neoforge-26.1.2' || project.name == 'common') {
+        if (project.name == 'neoforge-26.1.2' || project.name == 'common' || project.name == 'packetweave-api') {
             return
         }
         apply plugin: 'dev.architectury.loom'
@@ -166,6 +166,20 @@ subprojects {
         if (name == 'runClient' && rootProject.findProperty('uiPreview') == 'true') {
             systemProperty 'simplyspeakers.uiPreview', 'true'
             systemProperty 'simplyspeakers.uiAuditGroup', rootProject.findProperty('uiAuditGroup') ?: 'all'
+        }
+    }
+}
+
+// PacketWeave is a standalone required mod. The pinned core project is API-only;
+// production jars must never package com.nstut.packetweave classes.
+subprojects {
+    if (name != 'packetweave-api') {
+        plugins.withId('java') {
+            dependencies {
+                compileOnly project(':packetweave-api')
+                testCompileOnly project(':packetweave-api')
+                if (project.name != 'neoforge-26.1.2') testRuntimeOnly project(':packetweave-api')
+            }
         }
     }
 }

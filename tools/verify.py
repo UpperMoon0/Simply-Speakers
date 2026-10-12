@@ -29,6 +29,12 @@ def checkout_identity(root: Path = ROOT) -> dict:
         digest.update(name.encode("utf-8"))
         digest.update(b"\0")
         digest.update(path.read_bytes() if path.is_file() else b"<missing>")
+        if path.is_dir() and (path / ".git").exists():
+            subpaths = subprocess.check_output(["git", "ls-files", "-z"], cwd=path).decode().split("\0")
+            for subname in sorted(filter(None, subpaths)):
+                subpath = path / subname
+                digest.update(subname.encode())
+                digest.update(subpath.read_bytes() if subpath.is_file() else b"<missing>")
     dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], cwd=root, text=True).strip())
     return {"commit": commit, "source_sha256": digest.hexdigest(), "dirty": dirty}
 
@@ -157,6 +163,10 @@ def main() -> int:
     targets = list(dict.fromkeys(args.target or TARGETS))
     directory = ROOT / "build" / "verification"
     with checkout_lock():
+        if args.mode in ("adapters", "build", "live", "cc", "full"):
+            from prepare_packetweave import prepare
+            for target in (("neoforge-26.1.2",) if args.mode == "adapters" else targets):
+                prepare(target)
         identity = checkout_identity()
         if args.mode == "gate":
             if args.core_only and args.release: raise RuntimeError("Release verification cannot skip runtime layers")

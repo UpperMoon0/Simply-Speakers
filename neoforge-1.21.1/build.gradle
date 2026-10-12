@@ -172,3 +172,6 @@ processResources {
         into 'data/simplyspeakers/patchouli_books'
     }
 }
+
+// Prepared by tools/prepare_packetweave.py; standalone mod, never shaded.
+dependencies { modLocalRuntime files('../vendor/packetweave/targets/neoforge-1.21.1/build/libs/packetweave-neoforge-1.21.1-0.2.0.jar') }

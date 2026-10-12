@@ -11,6 +11,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Cache OpenUI Maven Local
         id: cache-openui
         uses: actions/cache@v4
@@ -21,6 +23,7 @@ jobs:
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           repository: UpperMoon0/OpenUI-MC
           ref: 0d6e10dad6a5ba8615a5798c4369bc4cd6e73300
           path: .openui-mc
@@ -237,9 +240,9 @@ jobs:
           fi
 
           if [[ "$PLATFORM" == "fabric" ]]; then
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
           else
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
           fi
 
           changelog="$(<"$CHANGELOG_PATH")"

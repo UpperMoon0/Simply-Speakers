@@ -11,20 +11,24 @@ import java.util.function.Supplier;
 
 public class UploadAudioDataPacketC2S {
     private final UUID transactionId;
+    private final int index;
     private final byte[] data;
 
-    public UploadAudioDataPacketC2S(UUID transactionId, byte[] data) {
+    public UploadAudioDataPacketC2S(UUID transactionId, int index, byte[] data) {
         this.transactionId = transactionId;
+        this.index = index;
         this.data = data;
     }
 
     public UploadAudioDataPacketC2S(FriendlyByteBuf buf) {
         this.transactionId = buf.readUUID();
-        this.data = buf.readByteArray();
+        this.index = buf.readVarInt();
+        this.data = buf.readByteArray(32000);
     }
 
     public void encode(FriendlyByteBuf buf) {
         buf.writeUUID(transactionId);
+        buf.writeVarInt(index);
         buf.writeByteArray(data);
     }
 
@@ -32,12 +36,8 @@ public class UploadAudioDataPacketC2S {
         NetworkManager.PacketContext context = ctxSupplier.get();
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            // Check if uploads are disabled
-            if (Config.disableUpload) {
-                return;
-            }
-
-            SimplySpeakers.getAudioFileManager().handleUploadData(player, pkt.transactionId, pkt.data);
+            if (SimplySpeakers.getAudioFileManager() != null)
+                SimplySpeakers.getAudioFileManager().handleUploadData(player, pkt.transactionId, pkt.index, pkt.data);
         });
     }
 }

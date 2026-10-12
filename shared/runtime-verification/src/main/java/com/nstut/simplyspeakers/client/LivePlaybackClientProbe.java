@@ -21,6 +21,7 @@ final class LivePlaybackClientProbe {
     private LivePlaybackClientProbe() {}
     static void tick(Minecraft client) {
         if (!LivePlaybackServerProbe.enabled()) return;
+        LiveUploadClientProbe.tick(client);
         if ("observer".equals(System.getProperty("simplyspeakers.livePlaybackRole", "carrier"))) {
             verifyObserverPlayback(client); return;
         }

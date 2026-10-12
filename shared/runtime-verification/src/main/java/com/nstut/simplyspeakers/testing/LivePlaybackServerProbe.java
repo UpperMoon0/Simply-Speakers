@@ -47,7 +47,9 @@ public final class LivePlaybackServerProbe {
 
     public static void tick(MinecraftServer server) {
         if (!enabled()) return;
+        LiveUploadServerProbe.tick(server);
         if (server != currentServer) {
+            com.nstut.simplyspeakers.Config.maxUploadSize = com.nstut.simplyspeakers.Config.MAX_FILE_SIZE;
             currentServer = server; player = null; observer = null; first = null; portable = null;
             phase = 0; reloadCase = 0; observerPhase = 0; portableStage = 0; ticks = 0; joinedTicks = 0; done = false;
             acknowledgements.clear();

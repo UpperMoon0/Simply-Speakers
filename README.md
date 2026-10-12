@@ -212,3 +212,7 @@ and copper to its left and right. Speakers, proxy speakers, redstone controllers
 and the guide book each consume a circuit, giving their recipes a mod-specific
 ingredient. The circuit is also in the Simply Speakers creative tab.
 The guide's first chapter shows its crafting recipe.
+
+## Dependencies
+
+Simply Speakers 0.10.0 requires **PacketWeave 0.2.0 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.
