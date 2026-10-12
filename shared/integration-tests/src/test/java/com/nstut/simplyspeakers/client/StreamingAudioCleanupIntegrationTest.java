@@ -9,6 +9,54 @@ import static org.mockito.Mockito.*;
 
 class StreamingAudioCleanupIntegrationTest {
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans={false,true})
+    void cleanupEvidenceTracksOwnedDeletionNotReusedNumericNames(boolean failDeletion) throws Exception {
+        var tasks = new ArrayList<Runnable>();
+        Minecraft client = mock(Minecraft.class, call -> {
+            if ((call.getMethod().getName().equals("tell") || call.getMethod().getName().equals("execute"))
+                    && call.getArguments().length == 1 && call.getArgument(0) instanceof Runnable task) {
+                tasks.add(task); return null;
+            }
+            return RETURNS_DEFAULTS.answer(call);
+        });
+        try (var minecraft = mockStatic(Minecraft.class);
+             var al = mockStatic(org.lwjgl.openal.AL10.class)) {
+            minecraft.when(Minecraft::getInstance).thenReturn(client);
+            ClientAudioPlayer.soundContextReady();
+            tasks.clear();
+            Class<?> type = Class.forName("com.nstut.simplyspeakers.client.ClientAudioPlayer$StreamingAudioResource");
+            var constructor = type.getDeclaredConstructor(String.class, int.class, int[].class, Thread.class, boolean.class);
+            constructor.setAccessible(true);
+            Object resource = constructor.newInstance("owned-cleanup-test", 17, new int[]{1,2,3}, null, false);
+            var sourcePresent = new AtomicBoolean(true);
+            al.when(() -> org.lwjgl.openal.AL10.alIsSource(17)).thenAnswer(call -> sourcePresent.get());
+            al.when(() -> org.lwjgl.openal.AL10.alDeleteSources(17)).thenAnswer(call -> {
+                if (!failDeletion) sourcePresent.set(false);
+                return null;
+            });
+            al.when(org.lwjgl.openal.AL10::alGetError).thenReturn(org.lwjgl.openal.AL10.AL_NO_ERROR,
+                    failDeletion ? org.lwjgl.openal.AL10.AL_INVALID_OPERATION : org.lwjgl.openal.AL10.AL_NO_ERROR);
+            var stop = type.getDeclaredMethod("stopAndCleanup"); stop.setAccessible(true);
+            assertFalse(LivePlaybackClientProbe.cleanupFinished(resource));
+            stop.invoke(resource);
+            assertEquals(1, tasks.size());
+            assertFalse(LivePlaybackClientProbe.cleanupFinished(resource), "scheduled is not completed");
+            tasks.remove(0).run();
+            assertEquals(!failDeletion, LivePlaybackClientProbe.cleanupFinished(resource));
+            if (!failDeletion) {
+                assertFalse(sourcePresent.get());
+                // Vanilla allocates an unrelated sound with the same numeric source ID.
+                sourcePresent.set(true);
+                assertTrue(org.lwjgl.openal.AL10.alIsSource(17));
+                assertTrue(LivePlaybackClientProbe.cleanupFinished(resource), "ID reuse cannot undo owned cleanup");
+                stop.invoke(resource);
+                assertTrue(tasks.isEmpty(), "never delete the recycled ID a second time");
+                al.verify(() -> org.lwjgl.openal.AL10.alDeleteSources(17), times(1));
+            }
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(strings={"url-stop","url-restart","url-seek","file-stop","file-restart","file-seek"})
     void blockedReadCannotWriteOrDeleteBeforeWorkerExits(String action, @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
         var tasks=new java.util.concurrent.ConcurrentLinkedQueue<Runnable>();
