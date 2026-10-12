@@ -1,0 +1,6 @@
+{
+  "version": "0.9.1",
+  "before_sha": "2fca2a71f7450800aca95bb508b596ec207d314c",
+  "failed_run_id": 38301609532,
+  "reason": "The previous release failed live verification before any CurseForge or GitHub publication job; permit only its immediate corrected successor to publish the same unreleased version."
+}

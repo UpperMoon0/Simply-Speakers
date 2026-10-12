@@ -10,6 +10,20 @@ class ReleasePlanTest(unittest.TestCase):
     def test_same_version_never_republishes(self):
         self.assertEqual(('0.9.1', False), plan('mod_version = 0.9.1', 'mod_version = 0.9.1', ['v0.9.1']))
 
+    def test_explicit_prepublication_recovery_is_source_and_version_bound(self):
+        recovery = {'version': '0.9.1', 'before_sha': 'a' * 40, 'failed_run_id': 38301609532}
+        source = 'mod_version = 0.9.1'
+        self.assertEqual(('0.9.1', True), plan(source, source, ['v0.9.0'], before='a' * 40, recovery=recovery))
+        for before, declaration, tags in (
+                ('b' * 40, recovery, []), ('a' * 40, None, []),
+                ('a' * 40, recovery, ['v0.9.1']),
+                ('a' * 40, {**recovery, 'version': '0.9.2'}, []),
+                ('a' * 40, {**recovery, 'failed_run_id': None}, [])):
+            self.assertEqual(('0.9.1', False), plan(source, source, tags, before=before, recovery=declaration))
+
+    def test_untagged_unchanged_version_does_not_automatically_republish(self):
+        self.assertEqual(('0.9.1', False), plan('mod_version = 0.9.1', 'mod_version = 0.9.1', []))
+
     def test_existing_version_rejected(self):
         with self.assertRaisesRegex(ValueError, 'already exists'):
             plan('mod_version = 0.9.1', 'mod_version = 0.9.0', ['v0.9.1'])

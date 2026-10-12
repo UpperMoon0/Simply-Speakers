@@ -136,6 +136,8 @@ public class ClientAudioPlayer {
         Thread streamingThread;
         final AtomicBoolean stopFlag = new AtomicBoolean(false);
         final AtomicBoolean cleanupScheduled = new AtomicBoolean(false);
+        // Belongs to this resource, never to a numeric OpenAL name which may be reused.
+        volatile boolean cleanupComplete;
         final AtomicBoolean isLooping = new AtomicBoolean(false);
         /** Server-provided state identity reported back on remote stream EOF; null for local files. */
         final String eofFullStateKey;
@@ -261,15 +263,22 @@ public class ClientAudioPlayer {
         private void cleanupOpenALResources() {
             try {
                 audioContext.run(contextEpoch, () -> {
+                    AL10.alGetError(); // Isolate errors from this deletion group.
                     if (AL10.alIsSource(sourceID)) {
                         AL10.alSourceStop(sourceID);
                         AL10.alSourcei(sourceID, AL10.AL_BUFFER, 0);
                         AL10.alDeleteSources(sourceID);
                         AL10.alDeleteBuffers(bufferIDs);
                     }
+                    int error = AL10.alGetError();
+                    if (error != AL10.AL_NO_ERROR)
+                        throw new IllegalStateException("OpenAL cleanup error " + error);
+                    cleanupComplete = true;
                 });
             } catch (AudioContextGate.StaleContextException ignored) {
-                // Vanilla destroyed this epoch. Its numeric IDs may now belong to new sources.
+                // Vanilla retired this epoch. Once the replacement context is ready,
+                // its numeric IDs may belong to entirely different sources.
+                cleanupComplete = true;
             } catch (Exception e) {
                 SimplySpeakers.LOGGER.error("Error during OpenAL cleanup for source {} (network {})", sourceID, networkKey, e);
             }

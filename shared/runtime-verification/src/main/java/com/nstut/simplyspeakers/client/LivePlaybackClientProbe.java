@@ -93,10 +93,11 @@ final class LivePlaybackClientProbe {
             }
             var snapshot = ClientAudioPlayer.verificationSnapshot(portableAudioKey);
             boolean silent = phase == 9 || phase == 11 || phase == 13;
-            if (ticks % 100 == 0) System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_WAIT " + PHASES[phase] + " " + snapshot);
+            if (ticks % 100 == 0) System.out.println("SIMPLYSPEAKERS_CLIENT_PHASE_WAIT " + PHASES[phase] + " " + snapshot
+                    + " " + cleanupDiagnostics());
             if (silent) {
                 if (snapshot.sources() != 0 || snapshot.emitters() != 0 || ClientPortableSpeakers.contains(portableToken)
-                        || org.lwjgl.openal.AL10.alIsSource(portableSource)) return;
+                        || !cleanupFinished(portableResource)) return;
                 if (phase == 9 && !verifySoundReload(client, "portable_paused", portableAudioKey, false, 0)) return;
             } else {
                 if (!snapshot.playing() || snapshot.decodedBytes() == 0 || snapshot.sources() != 1 || snapshot.emitters() != 1) return;
@@ -231,12 +232,13 @@ final class LivePlaybackClientProbe {
             }
             var snapshot = ClientAudioPlayer.verificationSnapshot(portableAudioKey);
             String observed = OBSERVER_PHASES[observerPhase];
-            if (ticks % 100 == 0) System.out.println("SIMPLYSPEAKERS_OBSERVER_PHASE_WAIT " + observed + " " + snapshot);
+            if (ticks % 100 == 0) System.out.println("SIMPLYSPEAKERS_OBSERVER_PHASE_WAIT " + observed + " " + snapshot
+                    + " " + cleanupDiagnostics());
             boolean silent = observerPhase == 2 || observerPhase == 4 || observerPhase == 6 || observerPhase == 8;
             float gain = 0; double distance = 0;
             if (silent) {
                 if (snapshot.sources() != 0 || snapshot.emitters() != 0 || ClientPortableSpeakers.contains(portableToken)
-                        || org.lwjgl.openal.AL10.alIsSource(portableSource)) return;
+                        || !cleanupFinished(portableResource)) return;
             } else {
                 if (!snapshot.playing() || snapshot.decodedBytes() == 0 || snapshot.sources() != 1 || snapshot.emitters() != 1) return;
                 var resourcesField = ClientAudioPlayer.class.getDeclaredField("networkResources"); resourcesField.setAccessible(true);
@@ -274,6 +276,25 @@ final class LivePlaybackClientProbe {
             observerPhase++; observerStableTicks = 0;
             if (observerPhase == OBSERVER_PHASES.length) System.out.println("SIMPLYSPEAKERS_OBSERVER_PLAYBACK_PASS");
         } catch (Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL observer playback", error); }
+    }
+
+    // Native source names can be reused by vanilla between deletion and this tick.
+    // Require the exact stopped resource's completed deletion, not a later alIsSource(id).
+    static boolean cleanupFinished(Object resource) throws ReflectiveOperationException {
+        if (resource == null || !ClientAudioPlayer.contextAvailable()) return false;
+        var complete = resource.getClass().getDeclaredField("cleanupComplete");
+        complete.setAccessible(true);
+        var thread = resource.getClass().getDeclaredField("streamingThread");
+        thread.setAccessible(true);
+        Thread worker = (Thread) thread.get(resource);
+        return complete.getBoolean(resource) && (worker == null || !worker.isAlive());
+    }
+
+    private static String cleanupDiagnostics() throws ReflectiveOperationException {
+        return "tokenPresent=" + ClientPortableSpeakers.contains(portableToken)
+                + " sourceId=" + portableSource
+                + " numericSourcePresent=" + org.lwjgl.openal.AL10.alIsSource(portableSource)
+                + " ownedCleanupComplete=" + cleanupFinished(portableResource);
     }
 
     private static int dragTicks, dragPolicyTicks;

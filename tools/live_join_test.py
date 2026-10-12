@@ -206,6 +206,9 @@ def prepare_server(module_dir: Path) -> None:
         "online-mode=false\n"
         "server-port=25575\n"
         "level-name=live-join-world\n"
+        "difficulty=peaceful\n"
+        "spawn-monsters=false\n"
+        "spawn-animals=false\n"
         "level-type=minecraft:flat\n"
         'generator-settings={"biome":"minecraft:plains","layers":[{"block":"minecraft:bedrock","height":1},{"block":"minecraft:dirt","height":2},{"block":"minecraft:grass_block","height":1}],"structure_overrides":[]}\n'
         "motd=Simply Speakers live join test\n"

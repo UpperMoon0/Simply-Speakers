@@ -284,7 +284,10 @@ class LiveHarnessTest(unittest.TestCase):
             live.prepare_server(module)
             self.assertFalse(world.exists())
             self.assertTrue(other.exists())
-            self.assertIn("minecraft:flat", (server / "server.properties").read_text())
+            properties = (server / "server.properties").read_text()
+            self.assertIn("minecraft:flat", properties)
+            for setting in ("difficulty=peaceful", "spawn-monsters=false", "spawn-animals=false"):
+                self.assertIn(setting, properties)
 
 
 if __name__ == "__main__": unittest.main()
