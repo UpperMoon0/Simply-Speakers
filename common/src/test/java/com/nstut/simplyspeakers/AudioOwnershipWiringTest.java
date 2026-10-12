@@ -24,7 +24,7 @@ class AudioOwnershipWiringTest {
 
             String manager = read(root, module, "audio/AudioFileManager.java");
             assertContains(manager, "player.getUUID().toString()", module + " must capture the uploader");
-            assertContains(manager, "state.ownerUUID", module + " must save the uploader");
+            assertContains(manager, "new AudioFileMetadata(session.audioId, session.fileName, session.ownerUUID, duration)", module + " must save the uploader");
             assertContains(manager, "AudioOwnership.ownedBy", module + " must use shared list privacy");
             assertContains(manager, "AudioOwnership.isOwnedBy", module + " must use shared delete privacy");
         }

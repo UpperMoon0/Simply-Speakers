@@ -47,7 +47,9 @@ public final class LivePlaybackServerProbe {
 
     public static void tick(MinecraftServer server) {
         if (!enabled()) return;
+        LiveUploadServerProbe.tick(server);
         if (server != currentServer) {
+            com.nstut.simplyspeakers.Config.maxUploadSize = com.nstut.simplyspeakers.Config.MAX_FILE_SIZE;
             currentServer = server; player = null; observer = null; first = null; portable = null;
             phase = 0; reloadCase = 0; observerPhase = 0; portableStage = 0; ticks = 0; joinedTicks = 0; done = false;
             acknowledgements.clear();
@@ -91,7 +93,7 @@ public final class LivePlaybackServerProbe {
             level.setBlockAndUpdate(origin.offset(0,0,3),BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
             require(first != null && second != null, "speaker block entities were not created");
             first.setSpeakerId(ID); second.setSpeakerId(ID); key = first.getFullStateKey();
-            audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.tone(30)),
+            audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.toneBytes(60 * 1024 * 1024)),
                     "verification.wav", player.getUUID().toString());
             SpeakerState state = state();
             state.setOwnerUuid(player.getUUID()); state.setRedstoneMode(RedstoneMode.PULSE);

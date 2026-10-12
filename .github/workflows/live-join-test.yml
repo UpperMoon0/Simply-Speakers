@@ -17,6 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - id: policy
         env:
@@ -28,6 +29,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
       - name: Cache OpenUI Maven Local
         id: cache-openui
         uses: actions/cache@v4
@@ -38,6 +42,7 @@ jobs:
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           repository: UpperMoon0/OpenUI-MC
           ref: 0d6e10dad6a5ba8615a5798c4369bc4cd6e73300
           path: .openui-mc
@@ -77,6 +82,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -98,6 +106,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
       - name: Restore OpenUI Maven Local Cache
         id: cache-openui
         uses: actions/cache@v4
@@ -135,6 +146,9 @@ jobs:
       matrix: ${{ fromJSON(needs.policy.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
       - name: Restore OpenUI Maven Local Cache
         id: cache-openui
         uses: actions/cache@v4
@@ -193,6 +207,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
       - name: Require successful jobs
         env:
           CORE: ${{ needs.test-core.result }}

@@ -84,7 +84,10 @@ public class SimplySpeakers {
         });
 
         // Drop centralized playback subscriptions when a player disconnects or changes dimension
-        PlayerEvent.PLAYER_QUIT.register(player -> ServerPlaybackManager.handlePlayerQuit(player.getServer(), player.getUUID()));
+        PlayerEvent.PLAYER_QUIT.register(player -> {
+            if (audioFileManager != null) audioFileManager.cancelUploads(player.getUUID());
+            ServerPlaybackManager.handlePlayerQuit(player.getServer(), player.getUUID());
+        });
         PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getServer(), player.getUUID()));
         PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd, removalReason) -> ServerPlaybackManager.handlePlayerDimensionChange(player.getServer(), player.getUUID()));
 

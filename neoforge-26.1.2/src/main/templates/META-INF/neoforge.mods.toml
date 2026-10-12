@@ -112,3 +112,10 @@ side = "BOTH"
 
 [[mixins]]
 config = "simplyspeakers.mixins.json"
+
+[[dependencies.simplyspeakers]]
+modId = "packetweave"
+type = "required"
+versionRange = "[0.1.2,)"
+ordering = "NONE"
+side = "BOTH"

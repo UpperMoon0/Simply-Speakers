@@ -13,8 +13,14 @@ public class RespondUploadAudioPacketS2C {
     private final boolean allowed;
     private final int maxChunkSize;
     private final Component message;
+    private final long committedBytes;
 
     public RespondUploadAudioPacketS2C(UUID transactionId, boolean allowed, int maxChunkSize, Component message) {
+        this(transactionId, allowed, maxChunkSize, message, 0);
+    }
+
+    public RespondUploadAudioPacketS2C(UUID transactionId, boolean allowed, int maxChunkSize, Component message, long committedBytes) {
+        this.committedBytes = committedBytes;
         this.transactionId = transactionId;
         this.allowed = allowed;
         this.maxChunkSize = maxChunkSize;
@@ -26,6 +32,7 @@ public class RespondUploadAudioPacketS2C {
         this.allowed = buf.readBoolean();
         this.maxChunkSize = buf.readInt();
         this.message = buf.readComponent();
+        this.committedBytes = buf.readLong();
     }
 
     public void encode(FriendlyByteBuf buf) {
@@ -33,12 +40,15 @@ public class RespondUploadAudioPacketS2C {
         buf.writeBoolean(allowed);
         buf.writeInt(maxChunkSize);
         buf.writeComponent(message);
+        buf.writeLong(committedBytes);
     }
 
     public static void handle(RespondUploadAudioPacketS2C pkt, Supplier<NetworkManager.PacketContext> ctxSupplier) {
         NetworkManager.PacketContext context = ctxSupplier.get();
         context.queue(() -> {
-            ClientAudioPlayer.handleUploadResponse(pkt.transactionId, pkt.allowed, pkt.maxChunkSize, pkt.message);
+            if (pkt.allowed && pkt.maxChunkSize == 0)
+                ClientAudioPlayer.handleUploadReceipt(pkt.transactionId, pkt.committedBytes);
+            else ClientAudioPlayer.handleUploadResponse(pkt.transactionId, pkt.allowed, pkt.maxChunkSize, pkt.message);
         });
     }
 

@@ -20,31 +20,30 @@ public class UploadAudioDataPacketC2S implements CustomPacketPayload {
         StreamCodec.of(UploadAudioDataPacketC2S::encode, UploadAudioDataPacketC2S::decode);
 
     private final UUID transactionId;
+    private final int index;
     private final byte[] data;
 
-    public UploadAudioDataPacketC2S(UUID transactionId, byte[] data) {
+    public UploadAudioDataPacketC2S(UUID transactionId, int index, byte[] data) {
         this.transactionId = transactionId;
+        this.index = index;
         this.data = data;
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, UploadAudioDataPacketC2S packet) {
         buffer.writeUUID(packet.transactionId);
+        buffer.writeVarInt(packet.index);
         buffer.writeByteArray(packet.data);
     }
 
     public static UploadAudioDataPacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new UploadAudioDataPacketC2S(buffer.readUUID(), buffer.readByteArray());
+        return new UploadAudioDataPacketC2S(buffer.readUUID(), buffer.readVarInt(), buffer.readByteArray(32000));
     }
 
     public static void handle(UploadAudioDataPacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            // Check if uploads are disabled
-            if (Config.disableUpload) {
-                return;
-            }
-
-            SimplySpeakers.getAudioFileManager().handleUploadData(player, packet.transactionId, packet.data);
+            if (SimplySpeakers.getAudioFileManager() != null)
+                SimplySpeakers.getAudioFileManager().handleUploadData(player, packet.transactionId, packet.index, packet.data);
         });
     }
 

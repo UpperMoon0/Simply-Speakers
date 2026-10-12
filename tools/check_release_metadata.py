@@ -13,7 +13,7 @@ TARGETS = {
     "neoforge-26.1.2": "src/main/templates/META-INF/neoforge.mods.toml",
 }
 BUILTINS = {"minecraft", "java", "fabricloader", "forge", "neoforge"}
-SLUGS = {"architectury": "architectury-api", "fabric-api": "fabric-api", "openui_mc": "openui-mc", "patchouli": "patchouli"}
+SLUGS = {"architectury": "architectury-api", "fabric-api": "fabric-api", "openui_mc": "openui-mc", "patchouli": "patchouli", "packetweave": "packetweave"}
 
 def property_value(path, name):
     match = re.search(r"^" + re.escape(name) + r"\s*=\s*(\S+)", path.read_text(encoding="utf-8"), re.M)

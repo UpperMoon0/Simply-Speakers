@@ -10,3 +10,6 @@ plugins {
 }
 
 rootProject.name = 'simplyspeakers-neoforge-26.1.2'
+
+include 'packetweave-api'
+project(':packetweave-api').projectDir = file('../packetweave-api')

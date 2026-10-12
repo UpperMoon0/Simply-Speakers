@@ -57,3 +57,10 @@ mandatory = true
 versionRange = "[0,)"
 ordering = "AFTER"
 side = "BOTH"
+
+[[dependencies.simplyspeakers]]
+modId = "packetweave"
+mandatory = true
+versionRange = "[0.1.2,)"
+ordering = "NONE"
+side = "BOTH"

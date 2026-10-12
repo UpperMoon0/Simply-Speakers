@@ -65,3 +65,5 @@ if (!onlyNeoForge2612) {
 
 // Minecraft 26.1.2 module (NeoForge, standalone ModDevGradle project)
 if (!onlyCore && (!onlyLoaders || selectedLoaders.contains('neoforge-26.1.2'))) include 'neoforge-26.1.2'
+
+include 'packetweave-api'
