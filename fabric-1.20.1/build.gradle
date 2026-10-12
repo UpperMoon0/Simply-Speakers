@@ -141,4 +141,4 @@ processResources {
 }
 
 // Prepared by tools/prepare_packetweave.py; standalone mod, never shaded.
-dependencies { modLocalRuntime files('../vendor/packetweave/targets/fabric-1.20.1/build/libs/packetweave-fabric-1.20.1-0.2.0.jar') }
+dependencies { modLocalRuntime files('../vendor/packetweave/targets/fabric-1.20.1/build/libs/packetweave-fabric-1.20.1-0.1.2.jar') }

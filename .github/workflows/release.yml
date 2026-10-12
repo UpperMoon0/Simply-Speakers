@@ -5,8 +5,31 @@ on:
     branches:
       - main 
 
+permissions:
+  contents: read
+
+concurrency:
+  group: simplyspeakers-release
+  cancel-in-progress: false
+
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      publish: ${{ steps.plan.outputs.publish }}
+      version: ${{ steps.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: plan
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: python3 tools/release_plan.py
+
   prepare-openui:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -59,10 +82,12 @@ jobs:
           if-no-files-found: error
 
   test-shared:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
     uses: ./.github/workflows/live-join-test.yml
 
   build:
-    needs: prepare-openui
+    needs: [plan, prepare-openui]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -103,6 +128,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Restore OpenUI Maven Local Cache
         id: cache-openui
@@ -128,6 +155,9 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
+      - name: Prepare native PacketWeave dependency
+        run: python3 tools/prepare_packetweave.py --target "${{ matrix.project }}"
+
       - name: Test and Build ${{ matrix.platform }} ${{ matrix.version }}
         run: ./gradlew :${{ matrix.project }}:test :${{ matrix.project }}:build
 
@@ -143,7 +173,7 @@ jobs:
 
   publish-curseforge:
     name: Publish ${{ matrix.platform }} ${{ matrix.version }} to CurseForge
-    needs: [test-shared, build]
+    needs: [plan, test-shared, build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -289,7 +319,7 @@ jobs:
           echo "Published ${JAR_PATH} to CurseForge as file ID ${file_id}."
 
   release:
-    needs: [test-shared, build]
+    needs: [plan, test-shared, build, publish-curseforge]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -317,6 +347,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.get_version.outputs.mod_version }}
+          target_commitish: ${{ github.sha }}
+          overwrite_files: false
           name: "Simply Speakers v${{ steps.get_version.outputs.mod_version }}"
           body: |
             ## Simply Speakers v${{ steps.get_version.outputs.mod_version }}

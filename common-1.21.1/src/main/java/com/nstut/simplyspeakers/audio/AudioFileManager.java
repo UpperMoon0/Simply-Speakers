@@ -49,6 +49,9 @@ public class AudioFileManager {
     private static final long UPLOAD_TIMEOUT_MS = 60_000L;
 
     private volatile boolean stopped;
+    // Lifecycle transitions never hold a filesystem lock or perform disk I/O.
+    private final Object uploadLifecycle = new Object();
+    private final Object manifestPersistence = new Object();
     private final BoundedFileReceiver uploadReceiver = new BoundedFileReceiver(
             MAX_CHUNK_SIZE, Config.MAX_FILE_SIZE, MAX_CONCURRENT_UPLOADS, 1, Duration.ofMillis(UPLOAD_TIMEOUT_MS));
     private final Map<UUID, UploadSession> activeUploads = new ConcurrentHashMap<>();
@@ -120,32 +123,43 @@ public class AudioFileManager {
         }
     }
 
-    private synchronized void saveManifest() {
-        Path tmpPath = audioDirPath.resolve(MANIFEST_FILE_NAME + ".tmp");
-        try {
-            try (Writer writer = Files.newBufferedWriter(tmpPath)) {
-                GSON.toJson(manifest, writer);
-            }
-            try {
-                Files.move(tmpPath, manifestPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (Exception e) {
-                Files.move(tmpPath, manifestPath, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            LOGGER.error("Failed to save audio manifest", e);
-            try {
-                Files.deleteIfExists(tmpPath);
-            } catch (IOException ignored) {}
+    private void saveManifest() {
+        synchronized (manifestPersistence) {
+            try { persistManifest(new java.util.HashMap<>(manifest)); }
+            catch (IOException error) { LOGGER.error("Failed to save audio manifest", error); }
         }
     }
 
-    public synchronized void shutdown() {
-        stopped = true;
-        uploadReceiver.close();
-        activeUploads.clear();
+    // Caller serializes manifest snapshots. Upload failures must propagate to PacketWeave,
+    // which retains ownership of the unpublished file and retries cleanup when needed.
+    void persistManifest(Map<String, AudioFileMetadata> snapshot) throws IOException {
+        Path tmpPath = audioDirPath.resolve(MANIFEST_FILE_NAME + ".tmp");
+        try {
+            try (Writer writer = Files.newBufferedWriter(tmpPath)) { GSON.toJson(snapshot, writer); }
+            try {
+                Files.move(tmpPath, manifestPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException error) {
+                Files.move(tmpPath, manifestPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } catch (IOException | RuntimeException error) {
+            try { Files.deleteIfExists(tmpPath); }
+            catch (IOException cleanup) { error.addSuppressed(cleanup); }
+            throw error;
+        }
+    }
+
+    public void shutdown() {
+        synchronized (uploadLifecycle) {
+            if (stopped) return;
+            stopped = true;
+            for (UploadSession session : activeUploads.values()) cancelUpload(session);
+            // A commit already claimed before shutdown is allowed to finish. No later
+            // commit can start. This does not wait for blocked validation or filesystem I/O.
+            uploadReceiver.drainAndClose();
+        }
         activeDownloads.clear();
         audioFileExecutor.shutdownNow();
-        LOGGER.info("AudioFileManager shut down cleanly.");
+        LOGGER.info("AudioFileManager stopped admission; accepted commits are draining.");
     }
 
     public boolean validateFile(String filename) {
@@ -209,8 +223,36 @@ public class AudioFileManager {
     }
 
     public void cancelUploads(UUID owner) {
-        uploadReceiver.cancelOwner(owner);
-        activeUploads.entrySet().removeIf(entry -> entry.getValue().ownerUUID.equals(owner.toString()));
+        synchronized (uploadLifecycle) {
+            for (UploadSession session : activeUploads.values()) {
+                if (session.ownerUUID.equals(owner.toString())) cancelUpload(session);
+            }
+        }
+    }
+
+    private boolean cancelUpload(UploadSession session) {
+        synchronized (uploadLifecycle) {
+            if (session.committing) return false; // The atomic terminal claim already won.
+            activeUploads.remove(session.key.transaction(), session);
+            uploadReceiver.cancel(session.key);
+            return true;
+        }
+    }
+
+    UploadSession createUploadSession(UUID transactionId, String fileName, long fileSize,
+                                      BlockPos blockPos, UUID owner) {
+        synchronized (uploadLifecycle) {
+            if (stopped || activeUploads.containsKey(transactionId) || activeUploads.size() >= MAX_CONCURRENT_UPLOADS
+                    || activeUploads.values().stream().anyMatch(s -> s.ownerUUID.equals(owner.toString()))) return null;
+            // The manifest is the publication boundary. A unique unpublished path needs
+            // no rename, so PacketWeave owns the same cleanup path on every failure.
+            String audioId = UUID.randomUUID().toString();
+            Path path = audioDirPath.resolve(audioId + "." + FilenameUtils.getExtension(fileName));
+            UploadSession session = new UploadSession(transactionId, fileName, fileSize, blockPos,
+                    owner.toString(), path, audioId);
+            activeUploads.put(transactionId, session);
+            return session;
+        }
     }
 
     public void handleUploadRequest(ServerPlayer player, BlockPos blockPos, UUID transactionId, String fileName, long fileSize) {
@@ -247,17 +289,14 @@ public class AudioFileManager {
 
         MinecraftServer server = player.getServer();
         if (server == null) return;
-        Path tmpPath = audioDirPath.resolve(transactionId.toString() + ".tmp");
-        UploadSession session = new UploadSession(transactionId, fileName, fileSize, blockPos, player.getUUID().toString(), tmpPath);
-        activeUploads.put(transactionId, session);
+        UploadSession session = createUploadSession(transactionId, fileName, fileSize, blockPos, player.getUUID());
+        if (session == null) return;
         com.nstut.simplyspeakers.testing.LiveUploadServerProbe.begin(transactionId, fileName);
-        boolean admitted = uploadReceiver.begin(session.key, tmpPath, fileSize, new BoundedFileReceiver.Listener() {
-            public void committed(long bytes, boolean complete) {
+        boolean admitted = uploadReceiver.begin(session.key, session.tempFilePath, fileSize, new BoundedFileReceiver.Listener() {
+            public void committed(long bytes, boolean complete) throws Exception {
                 com.nstut.simplyspeakers.testing.LiveUploadServerProbe.committed(transactionId, bytes);
                 if (stopped || activeUploads.get(transactionId) != session) {
-                    session.cleanup();
-                    uploadReceiver.cancel(session.key);
-                    return;
+                    throw new IOException("Upload cancelled before validation");
                 }
                 server.execute(() -> {
                     if (!stopped)
@@ -290,55 +329,50 @@ public class AudioFileManager {
         if (session == null || !session.ownerUUID.equals(player.getUUID().toString())) return;
         if (stopped || Config.disableUpload || session.declaredFileSize > Config.maxUploadSize ||
                 !uploadReceiver.accept(session.key, index, data)) {
-            uploadReceiver.cancel(session.key);
-            activeUploads.remove(transactionId, session);
+            if (!cancelUpload(session)) return;
             NetworkManager.sendToPlayer(player, new RespondUploadAudioPacketS2C(transactionId, false, 0,
                     Component.literal("Upload rejected: invalid chunk, size limit, or server busy.")));
         }
     }
 
-    private void finishUpload(ServerPlayer player, MinecraftServer server, UUID transactionId, UploadSession session) {
+    private void finishUpload(ServerPlayer player, MinecraftServer server, UUID transactionId, UploadSession session) throws IOException {
+        AudioFileMetadata metadata = publishUpload(session);
+        // Publication has succeeded. A stopped/rejecting notification executor cannot
+        // retroactively fail the receiver and delete a file referenced by the manifest.
         try {
-
-            if (!validateAudioContent(session.tempFilePath, session.fileName)) {
-                session.cleanup();
-                LOGGER.warn("Rejecting upload {}: invalid or corrupt audio content", transactionId);
-                if (server != null) {
-                    server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Uploaded file is corrupt or not a valid audio file."), session.blockPos)));
-                }
-                return;
-            }
-
-            if (stopped || activeUploads.get(transactionId) != session) { session.cleanup(); return; }
-            String uuid = UUID.randomUUID().toString();
-            String extension = FilenameUtils.getExtension(session.fileName);
-            Path finalPath = audioDirPath.resolve(uuid + (extension.isEmpty() ? "" : "." + extension));
-
-            try {
-                Files.move(session.tempFilePath, finalPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (Exception e) {
-                Files.move(session.tempFilePath, finalPath, StandardCopyOption.REPLACE_EXISTING);
-            }
-            float durationSeconds = AudioDurationCalculator.calculateDurationSeconds(finalPath);
-
-            UploadSession state = session;
-            AudioFileMetadata metadata = new AudioFileMetadata(uuid, state.fileName, state.ownerUUID, durationSeconds);
-            manifest.put(uuid, metadata);
-            saveManifest();
-
             com.nstut.simplyspeakers.testing.LiveUploadServerProbe.completed(transactionId, true);
-            LOGGER.info("Upload completed for transaction {}. Saved as {} (duration: {}s)", transactionId, uuid, durationSeconds);
-            if (server != null) {
-                server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true, Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), session.blockPos)));
-            }
-        } catch (Exception e) {
-            session.cleanup();
-            LOGGER.error("Failed to complete upload for transaction {}", transactionId, e);
-            if (server != null) {
-                server.execute(() -> NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, false, Component.literal("Failed to save uploaded file on server."), session.blockPos)));
-            }
+            LOGGER.info("Upload completed for transaction {}. Saved as {}", transactionId, metadata.getUuid());
+            server.execute(() -> {
+                if (!stopped) NetworkManager.sendToPlayer(player, new AcknowledgeUploadPacketS2C(transactionId, true,
+                        Component.literal("File uploaded successfully: " + metadata.getOriginalFilename()), session.blockPos));
+            });
+        } catch (RuntimeException error) {
+            LOGGER.warn("Upload {} was saved, but completion notification failed", transactionId, error);
         }
     }
+
+    AudioFileMetadata publishUpload(UploadSession session) throws IOException {
+        if (!validateAudioContent(session.tempFilePath, session.fileName))
+            throw new IOException("Uploaded file is corrupt or not a valid audio file");
+        float duration = AudioDurationCalculator.calculateDurationSeconds(session.tempFilePath);
+        beforeUploadCommit();
+        synchronized (uploadLifecycle) {
+            if (stopped || session.committing || activeUploads.get(session.key.transaction()) != session)
+                throw new IOException("Upload cancelled before publication");
+            session.committing = true;
+        }
+        AudioFileMetadata metadata = new AudioFileMetadata(session.audioId, session.fileName, session.ownerUUID, duration);
+        synchronized (manifestPersistence) {
+            Map<String, AudioFileMetadata> snapshot = new java.util.HashMap<>(manifest);
+            snapshot.put(session.audioId, metadata);
+            persistManifest(snapshot); // Failure keeps the file unpublished and propagates to its receiver.
+            manifest.put(session.audioId, metadata);
+        }
+        return metadata;
+    }
+
+    // Package boundary for deterministic validation-versus-disconnect/shutdown regression tests.
+    void beforeUploadCommit() throws IOException { }
 
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
         List<AudioFileMetadata> audioList = getAudioListForPlayer(player.getUUID().toString());
@@ -420,10 +454,11 @@ public class AudioFileManager {
             }
 
             if (server == null) return;
-            ChunkedTransfer.streamFile(filePath, MAX_CHUNK_SIZE, Config.MAX_FILE_SIZE,
-                    ChunkedTransfer.onExecutor(server::execute, Duration.ofSeconds(30), (index, total, chunk) -> {
+            ChunkedTransfer.streamFileBatched(filePath, MAX_CHUNK_SIZE, Config.MAX_FILE_SIZE,
+                    16, server::execute, Duration.ofSeconds(30), (index, total, chunk) -> {
+                        if (stopped) throw new IOException("Audio manager stopped");
                         NetworkManager.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, index == total - 1));
-                    }));
+                    });
         } catch (IOException e) {
             activeDownloads.release(transferKey);
             LOGGER.error("Failed to stream audio file for download", e);
@@ -447,21 +482,19 @@ public class AudioFileManager {
     }
 
     /** Audio metadata only; PacketWeave owns receive state and the file writer. */
-    private static class UploadSession {
-        private final TransferId key;
+    static final class UploadSession {
+        final TransferId key;
         private final String fileName;
         private final long declaredFileSize;
         private final BlockPos blockPos;
         private final String ownerUUID;
-        private final Path tempFilePath;
-        UploadSession(UUID transactionId, String fileName, long size, BlockPos blockPos, String ownerUUID, Path path) {
+        final Path tempFilePath;
+        final String audioId;
+        boolean committing; // Guarded by uploadLifecycle.
+        UploadSession(UUID transactionId, String fileName, long size, BlockPos blockPos, String ownerUUID, Path path, String audioId) {
             this.key = new TransferId("simplyspeakers", UUID.fromString(ownerUUID), transactionId);
             this.fileName = fileName; this.declaredFileSize = size; this.blockPos = blockPos;
-            this.ownerUUID = ownerUUID; this.tempFilePath = path;
-        }
-        // Invoked exclusively on the PacketWeave worker during audio validation.
-        void cleanup() {
-            try { Files.deleteIfExists(tempFilePath); } catch (IOException ignored) { }
+            this.ownerUUID = ownerUUID; this.tempFilePath = path; this.audioId = audioId;
         }
     }
 }

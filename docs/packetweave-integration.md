@@ -1,6 +1,6 @@
 # PacketWeave integration
 
-Simply Speakers 0.10.0 requires PacketWeave 0.2.0 or later on both sides.
+Simply Speakers 0.9.1 requires PacketWeave 0.1.2 or later on both sides.
 Install the native PacketWeave jar matching the Minecraft version and loader.
 The upload protocol changed; update clients and server together.
 
@@ -34,16 +34,29 @@ The per-chunk acknowledgement naturally limits ordinary gameplay-thread dispatch
 Untrusted connections still need the loader/server's ordinary packet flood policy.
 
 Cancellation on disconnect, disabled-upload policy, invalid data, idle timeout
-or shutdown stops admission immediately. File cleanup occurs after any current
+or shutdown stops admission immediately. Cancellation wins until the worker atomically
+claims the terminal commit after validation and duration calculation. A commit already
+claimed finishes off-thread even if disconnect/shutdown follows; shutdown drains these
+commits without blocking the server. Unpublished files use unique paths and remain owned
+by PacketWeave until manifest persistence succeeds. Persistence failure propagates and
+cleanup is retried without exposing a manifest entry. File cleanup occurs after any current
 filesystem call returns. Final audio validation is serialized on the upload
 worker, isolated from the download executor. Downloads use PacketWeave chunking
-and bounded game-thread dispatch; audio-specific cache/playback state remains here.
+and bounded game-thread dispatch: at most 16 packets (512,000 payload bytes) per
+dispatch, with one outstanding batch per download worker. A 60 MiB download takes
+123 dispatches rather than 1,967. This is a dispatch bound, not a measured network
+throughput guarantee. Audio-specific cache/playback state remains here.
 
 ## Verification
 PacketWeave tests cover 60 MiB receive/content parity, an intentionally blocked
 writer, fixed session/owner/window limits, ordering/replay, existing-file safety,
 disconnect, expiry and shutdown cleanup. These are JVM/disk regression tests,
 not multiplayer tick-time measurements.
+
+The fixture also serves an uncached 60 MiB WAV to both real clients. Each must
+report `SIMPLYSPEAKERS_DOWNLOAD_PLAY_PASS` with download time and request-to-decoded
+OpenAL playback time, within the isolated fixture's 30-second budget. A cached
+playback or server-only dispatch timing cannot satisfy this marker.
 
 The existing two-player live harness now uploads a valid 60 MiB WAV using real
 request/data/receipt packets while the second player exercises spatial playback.

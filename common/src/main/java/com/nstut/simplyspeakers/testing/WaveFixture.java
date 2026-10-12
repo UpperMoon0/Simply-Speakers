@@ -17,4 +17,19 @@ public final class WaveFixture {
         for (int i = 0; i < samples; i++) buffer.putShort((short) (1200 * Math.sin(2 * Math.PI * 440 * i / rate)));
         return buffer.array();
     }
+    /** Exact-size large fixture without a trigonometric call for every sample. */
+    public static byte[] toneBytes(int totalBytes) {
+        if (totalBytes < 46 || (totalBytes & 1) != 0) throw new IllegalArgumentException("Invalid WAV size");
+        byte[] second = tone(1);
+        byte[] result = new byte[totalBytes];
+        System.arraycopy(second, 0, result, 0, 44);
+        ByteBuffer.wrap(result).order(ByteOrder.LITTLE_ENDIAN).putInt(4, totalBytes - 8).putInt(40, totalBytes - 44);
+        for (int offset = 44; offset < totalBytes;) {
+            int count = Math.min(second.length - 44, totalBytes - offset);
+            System.arraycopy(second, 44, result, offset, count);
+            offset += count;
+        }
+        return result;
+    }
+
 }

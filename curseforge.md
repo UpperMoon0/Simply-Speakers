@@ -82,4 +82,4 @@ Sable integration is currently available only on the Minecraft 1.21.1 builds.
 
 ## Dependencies
 
-Simply Speakers 0.10.0 requires **PacketWeave 0.2.0 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.
+Simply Speakers 0.9.1 requires **PacketWeave 0.1.2 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.

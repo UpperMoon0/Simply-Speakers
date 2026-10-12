@@ -93,7 +93,7 @@ public final class LivePlaybackServerProbe {
             level.setBlockAndUpdate(origin.offset(0,0,3),BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
             require(first != null && second != null, "speaker block entities were not created");
             first.setSpeakerId(ID); second.setSpeakerId(ID); key = first.getFullStateKey();
-            audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.tone(30)),
+            audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.toneBytes(60 * 1024 * 1024)),
                     "verification.wav", player.getUUID().toString());
             SpeakerState state = state();
             state.setOwnerUuid(player.getUUID()); state.setRedstoneMode(RedstoneMode.PULSE);

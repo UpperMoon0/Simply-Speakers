@@ -32,6 +32,6 @@
     "fabric-api": "*",
     "openui_mc": ">=${openui_version}",
     "patchouli": "*",
-    "packetweave": ">=0.2.0"
+    "packetweave": ">=0.1.2"
   }
 }

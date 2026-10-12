@@ -1146,6 +1146,7 @@ public class ClientAudioPlayer {
         }
         try {
             activeDownloads.put(audioId, new DownloadProcess(audioId, filename));
+            LiveDownloadClientProbe.requested(audioId, filename);
             PacketRegistries.CHANNEL.sendToServer(new RequestAudioFilePacketC2S(audioId));
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to initialize download process for {}", audioId, e);
@@ -1264,6 +1265,7 @@ public class ClientAudioPlayer {
                 } catch (AtomicMoveNotSupportedException e) {
                     Files.move(partFile.toPath(), cachedFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 }
+                LiveDownloadClientProbe.downloaded(audioId, cachedFile.length());
                 ClientCacheManager.recordAccess(cachedFile);
                 ClientCacheManager.enforceBudget(CACHE_DIR);
 
@@ -1282,6 +1284,7 @@ public class ClientAudioPlayer {
                         String netKey = entry.getKey();
                         PlayRequest req = entry.getValue();
                         req.intent.looping = ClientSpeakerRegistry.getLooping(netKey, req.intent.looping);
+                        LiveDownloadClientProbe.playing(audioId, netKey);
                         playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.intent);
                     }
                 }
