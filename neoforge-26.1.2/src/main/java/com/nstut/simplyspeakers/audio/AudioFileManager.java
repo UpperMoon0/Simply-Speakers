@@ -51,7 +51,8 @@ public class AudioFileManager {
     private volatile boolean stopped;
     // Lifecycle transitions never hold a filesystem lock or perform disk I/O.
     private final Object uploadLifecycle = new Object();
-    private final Object manifestPersistence = new Object();
+    private final ManifestState manifestState;
+    private final Object manifestPersistence;
     private final BoundedFileReceiver uploadReceiver = new BoundedFileReceiver(
             MAX_CHUNK_SIZE, Config.MAX_FILE_SIZE, MAX_CONCURRENT_UPLOADS, 1, Duration.ofMillis(UPLOAD_TIMEOUT_MS));
     private final Map<UUID, UploadSession> activeUploads = new ConcurrentHashMap<>();
@@ -67,18 +68,47 @@ public class AudioFileManager {
 
     private final Path audioDirPath;
     private final Path manifestPath;
-    private final Map<String, AudioFileMetadata> manifest = new ConcurrentHashMap<>();
+    private final Map<String, AudioFileMetadata> manifest;
+
+    // A replacement manager for the same world must observe accepted commits still
+    // draining from its predecessor. Weak values retain no abandoned world's catalog.
+    private static final Map<Path, java.lang.ref.WeakReference<ManifestState>> WORLD_MANIFESTS = new java.util.HashMap<>();
+    private static synchronized ManifestState manifestState(Path root) {
+        WORLD_MANIFESTS.entrySet().removeIf(entry -> entry.getValue().get() == null);
+        java.lang.ref.WeakReference<ManifestState> reference = WORLD_MANIFESTS.get(root);
+        ManifestState state = reference == null ? null : reference.get();
+        if (state == null) {
+            state = new ManifestState();
+            WORLD_MANIFESTS.put(root, new java.lang.ref.WeakReference<>(state));
+        }
+        return state;
+    }
+    private static final class ManifestState {
+        final Map<String, AudioFileMetadata> entries = new ConcurrentHashMap<>();
+        final Object initialization = new Object();
+        volatile boolean initialized;
+    }
     private final Map<String, Long> playbackGrants = new ConcurrentHashMap<>();
     private volatile long nextPlaybackGrantCleanupTime;
 
     public AudioFileManager(Path worldSavePath) {
         this.audioDirPath = worldSavePath.resolve(AUDIO_DIR_NAME);
         this.manifestPath = audioDirPath.resolve(MANIFEST_FILE_NAME);
-        try {
-            Files.createDirectories(audioDirPath);
-            loadManifest();
-        } catch (IOException e) {
-            LOGGER.error("Failed to create audio directory", e);
+        this.manifestState = manifestState(audioDirPath.toAbsolutePath().normalize());
+        this.manifestPersistence = manifestState;
+        this.manifest = manifestState.entries;
+        // Initialization and later persistence use different locks: reopening a world
+        // never waits for an old manager's blocked accepted publication to finish.
+        synchronized (manifestState.initialization) {
+            if (!manifestState.initialized) {
+                try {
+                    Files.createDirectories(audioDirPath);
+                    loadManifest();
+                    manifestState.initialized = true;
+                } catch (IOException error) {
+                    LOGGER.error("Failed to create audio directory", error);
+                }
+            }
         }
     }
 

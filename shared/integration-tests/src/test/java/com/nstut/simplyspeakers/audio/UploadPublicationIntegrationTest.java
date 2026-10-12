@@ -64,6 +64,9 @@ class UploadPublicationIntegrationTest {
                 assertEquals(0, upload.failures.get());
                 assertEquals(1, upload.successes.get());
                 assertEquals(1, manager.getManifest().size());
+                assertEquals(owner.toString(), manager.getManifest().get(upload.session.audioId).getOwnerUUID());
+                assertEquals(1, manager.getAudioListForPlayer(owner.toString()).size());
+                assertTrue(manager.getAudioListForPlayer(UUID.randomUUID().toString()).isEmpty());
                 assertTrue(Files.exists(manager.getAudioFilePath(upload.session.audioId)));
                 AudioFileManager reloaded = new AudioFileManager(root);
                 try { assertEquals(1, reloaded.getManifest().size()); }
@@ -87,6 +90,41 @@ class UploadPublicationIntegrationTest {
                 assertTrue(manager.getManifest().isEmpty());
                 assertFalse(Files.exists(upload.session.tempFilePath));
             } finally { manager.shutdown(); }
+        }
+    }
+
+    @Test void reopeningWorldWhileOldCommitDrainsSharesPublishedCatalogWithoutWaiting() throws Exception {
+        CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+        AudioFileManager old = new AudioFileManager(world) {
+            @Override void persistManifest(Map<String, AudioFileMetadata> snapshot) throws IOException {
+                block(entered, release);
+                super.persistManifest(snapshot);
+            }
+        };
+        AudioFileManager replacement = null;
+        ExecutorService constructor = Executors.newSingleThreadExecutor();
+        try {
+            Upload upload = start(old, UUID.randomUUID(), wav());
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            old.shutdown();
+            replacement = constructor.submit(() -> new AudioFileManager(world)).get(1, TimeUnit.SECONDS);
+            assertTrue(replacement.getManifest().isEmpty());
+            release.countDown();
+            awaitFinished(upload.receiver);
+            assertEquals(1, replacement.getManifest().size());
+            var second = replacement.saveFile(new java.io.ByteArrayInputStream(wav()), "new.wav", UUID.randomUUID().toString());
+            assertEquals(2, replacement.getManifest().size());
+            assertNotNull(replacement.getAudioFilePath(upload.session.audioId));
+            assertNotNull(replacement.getAudioFilePath(second.getUuid()));
+            // Read actual persisted bytes; a shared in-memory lookup cannot prove this.
+            String persisted = Files.readString(world.resolve("simply_speakers_audios/audio_manifest.json"));
+            assertTrue(persisted.contains(upload.session.audioId));
+            assertTrue(persisted.contains(second.getUuid()));
+            assertEquals(0, upload.failures.get());
+        } finally {
+            release.countDown(); old.shutdown();
+            if (replacement != null) replacement.shutdown();
+            constructor.shutdownNow();
         }
     }
 
