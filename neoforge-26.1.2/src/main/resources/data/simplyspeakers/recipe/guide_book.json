@@ -14,5 +14,11 @@
     "components": {
       "patchouli:book": "simplyspeakers:guide"
     }
-  }
+  },
+  "neoforge:conditions": [
+    {
+      "type": "neoforge:mod_loaded",
+      "modid": "patchouli"
+    }
+  ]
 }

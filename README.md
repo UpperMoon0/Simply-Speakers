@@ -12,7 +12,7 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 * **Custom Audio**: Upload or manually add .mp3 and .wav files.
 * **Per-Speaker Audio Settings**: Fine-tune max volume (0-100%), max range (1-512 blocks), and audio dropoff (0-100%) per speaker.
 * **Speaker Controllers**: Link dedicated controllers by Speaker ID for buttons, announcements, lever playback, and analog volume. Each controller has one job and accepts input from any side.
-* **In-Game Guide**: A Patchouli book in the Simply Speakers creative tab documents setup, playback, automation, permissions, and integrations.
+* **In-Game Guide**: An optional Patchouli book in the Simply Speakers creative tab documents setup, playback, automation, permissions, and integrations.
 * **Range-based Audio**: Volume fades with distance; players entering/leaving range automatically start/stop hearing audio.
 * **Repeat Playback**: Use the player bar to repeat the current track or the active playlist. Queued requests play once and take priority.
 * **Moving Speakers (1.21.1)**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
@@ -101,7 +101,7 @@ Edit the mod config file to adjust:
 - **Architectury API** (matching your Minecraft version and loader)
 - **Fabric API** (for Fabric versions)
 - **OpenUI MC 0.0.12 or newer** (matching your Minecraft version and loader)
-- **Patchouli** (matching your Minecraft version and loader; required on clients and servers, installed automatically in every development environment)
+- **Patchouli** (optional, matching your Minecraft version and loader; enables the in-game guide and its recipe. Included in development environments for guide verification)
 
 ## Speaker Controllers and Guide
 

@@ -270,9 +270,9 @@ jobs:
           fi
 
           if [[ "$PLATFORM" == "fabric" ]]; then
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"optionalDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
           else
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"requiredDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
+            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"optionalDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
           fi
 
           changelog="$(<"$CHANGELOG_PATH")"

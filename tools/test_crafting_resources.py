@@ -43,6 +43,16 @@ class CraftingResourcesTest(unittest.TestCase):
                 self.assertTrue(all(1 <= len(row) <= 3 for row in common["pattern"]))
                 self.assertEqual(1, len({len(row) for row in common["pattern"]}))
 
+    def test_optional_guide_recipe_conditions(self):
+        common, neo = recipe(COMMON, "guide_book"), recipe(NEO, "guide_book")
+        self.assertEqual([{"condition": "fabric:all_mods_loaded", "values": ["patchouli"]}],
+                         common["fabric:load_conditions"])
+        self.assertEqual([{"type": "forge:mod_loaded", "modid": "patchouli"}],
+                         common["conditions"])
+        for data in (common, neo):
+            self.assertEqual([{"type": "neoforge:mod_loaded", "modid": "patchouli"}],
+                             data["neoforge:conditions"])
+
     def test_portable_speaker_preserves_supplied_sprite_and_model_formats(self):
         asset = COMMON / "assets/simplyspeakers"
         png = (asset / "textures/item/portable_speaker.png").read_bytes()
@@ -95,3 +105,4 @@ class CraftingResourcesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
