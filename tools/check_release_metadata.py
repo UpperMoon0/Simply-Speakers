@@ -35,7 +35,19 @@ def validate(root=ROOT):
     if len(lists) != 2: raise ValueError("Expected Fabric and Forge/NeoForge publication relation lists")
     for target, path in TARGETS.items():
         published = {item["slug"] for item in lists[0 if target.startswith("fabric-") else 1] if item["type"] == "requiredDependency"}
-        required = required_mods(root / target / path)
+        metadata = root / target / path
+        required = required_mods(metadata)
+        if "patchouli" in required:
+            raise ValueError(f"patchouli must be optional on {target}")
+        if metadata.suffix == ".json":
+            optional = "patchouli" in json.loads(metadata.read_text()).get("suggests", {})
+        else:
+            optional = bool(re.search(r'modId\s*=\s*"patchouli"\s*\n(?:mandatory\s*=\s*false|type\s*=\s*"optional")', metadata.read_text()))
+        if not optional:
+            raise ValueError(f"Missing optional patchouli declaration on {target}")
+        relations = lists[0 if target.startswith("fabric-") else 1]
+        if [item["type"] for item in relations if item["slug"] == "patchouli"] != ["optionalDependency"]:
+            raise ValueError(f"patchouli publication relation must be optional on {target}")
         unknown = required - SLUGS.keys()
         if unknown: raise ValueError(f"Unmapped required mods on {target}: {sorted(unknown)}")
         missing = {SLUGS[mod] for mod in required} - published

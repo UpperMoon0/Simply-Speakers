@@ -82,6 +82,10 @@ tasks.register('transformRecipes') {
                 // Transform recipe format
                 def transformed = [:]
                 transformed.type = json.type
+                // Keep loader conditions before parsing optional integration serializers/items.
+                ['fabric:load_conditions', 'conditions', 'neoforge:conditions'].each { key ->
+                    if (json.containsKey(key)) transformed[key] = json[key]
+                }
                 transformed.pattern = json.pattern
                 transformed.key = json.key
                 

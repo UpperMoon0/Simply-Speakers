@@ -59,7 +59,7 @@ side = "BOTH"
 
 [[dependencies.simplyspeakers]]
 modId = "patchouli"
-type = "required"
+type = "optional"
 versionRange = "[0,)"
 ordering = "AFTER"
 side = "BOTH"

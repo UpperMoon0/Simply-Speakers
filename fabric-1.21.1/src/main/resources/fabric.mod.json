@@ -31,11 +31,11 @@
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
     "openui_mc": ">=${openui_version}",
-    "patchouli": "*",
     "packetweave": ">=0.1.2"
   },
   "suggests": {
     "computercraft": "*",
+    "patchouli": "*",
     "sable": "=2.0.5"
   }
 }

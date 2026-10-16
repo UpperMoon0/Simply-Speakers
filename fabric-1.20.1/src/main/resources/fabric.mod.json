@@ -22,7 +22,8 @@
     "simplyspeakers.mixins.json"
   ],
   "suggests": {
-    "computercraft": "*"
+    "computercraft": "*",
+    "patchouli": "*"
   },
   "depends": {
     "fabricloader": ">=${fabric_loader_version}",
@@ -31,7 +32,6 @@
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
     "openui_mc": ">=${openui_version}",
-    "patchouli": "*",
     "packetweave": ">=0.1.2"
   }
 }

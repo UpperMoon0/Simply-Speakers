@@ -5,7 +5,7 @@ from unittest.mock import patch
 import check_release_metadata as check
 
 class ReleaseMetadataTest(unittest.TestCase):
-    def test_all_loader_dependencies_are_required_in_publication(self):
+    def test_loader_and_publication_dependency_contracts(self):
         check.validate()
 
     def test_missing_patchouli_is_rejected(self):
@@ -13,7 +13,19 @@ class ReleaseMetadataTest(unittest.TestCase):
         def read(path, *args, **kwargs):
             text = original(path, *args, **kwargs)
             if path.name == "release.yml":
-                text = text.replace(',{"slug":"patchouli","type":"requiredDependency"}', '')
+                text = text.replace(',{"slug":"patchouli","type":"optionalDependency"}', '')
+            return text
+        with patch.object(Path, "read_text", read):
+            with self.assertRaisesRegex(ValueError, "patchouli"):
+                check.validate()
+
+    def test_required_patchouli_publication_is_rejected(self):
+        original = Path.read_text
+        def read(path, *args, **kwargs):
+            text = original(path, *args, **kwargs)
+            if path.name == "release.yml":
+                text = text.replace('"slug":"patchouli","type":"optionalDependency"',
+                                    '"slug":"patchouli","type":"requiredDependency"')
             return text
         with patch.object(Path, "read_text", read):
             with self.assertRaisesRegex(ValueError, "patchouli"):

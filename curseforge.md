@@ -24,6 +24,10 @@ Simply Speakers adds configurable speaker blocks that play your own MP3 and WAV 
 5. Add **Proxy Speakers** with the same Speaker ID wherever you want synchronized playback.
 6. Use the interface or redstone to control playback.
 
+## Optional In-Game Guide
+
+Install **Patchouli** for your Minecraft version and loader to enable the Simply Speakers guide and its crafting recipe. Patchouli is optional on clients and servers; audio features work without it.
+
 ## Optional Sable Integration
 
 On Minecraft 1.21.1, installing **Sable 2.0.5** enables correct spatial audio for speakers placed on Sable physics bodies. Audio follows moving, rotating, and scaled bodies without restarting playback. Networks can span multiple moving bodies and ordinary world speakers.
