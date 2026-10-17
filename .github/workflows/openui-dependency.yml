@@ -1,0 +1,23 @@
+name: OpenUI client dependency
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Test server metadata and client dependency enforcement
+        run: python3 -m unittest discover -s tools -p test_openui_dependency.py -v

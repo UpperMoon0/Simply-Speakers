@@ -216,3 +216,10 @@ The guide's first chapter shows its crafting recipe.
 ## Dependencies
 
 Simply Speakers 0.9.1 requires **PacketWeave 0.1.2 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.
+
+### OpenUI on clients and dedicated servers
+
+OpenUI MC is required on clients only. Dedicated servers can run without it.
+On Fabric, the client requirement is checked before client initialization; missing or
+incompatible OpenUI versions produce an installation error before the UI loads.
+Forge and NeoForge declare the dependency with `side="CLIENT"`.

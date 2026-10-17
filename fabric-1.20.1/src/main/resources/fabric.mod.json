@@ -16,6 +16,9 @@
   "entrypoints": {
     "main": [
       "com.nstut.simplyspeakers.fabric.SimplySpeakersFabric"
+    ],
+    "preLaunch": [
+      "com.nstut.fabric.simplyspeakers.OpenUiDependencyCheck"
     ]
   },
   "mixins": [
@@ -23,7 +26,8 @@
   ],
   "suggests": {
     "computercraft": "*",
-    "patchouli": "*"
+    "patchouli": "*",
+    "openui_mc": ">=${openui_version}"
   },
   "depends": {
     "fabricloader": ">=${fabric_loader_version}",
@@ -31,7 +35,6 @@
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
-    "openui_mc": ">=${openui_version}",
     "packetweave": ">=0.1.2"
   }
 }

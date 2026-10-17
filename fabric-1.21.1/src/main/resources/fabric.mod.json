@@ -19,6 +19,9 @@
     ],
     "client": [
       "com.nstut.fabric.simplyspeakers.SimplySpeakersFabricClient"
+    ],
+    "preLaunch": [
+      "com.nstut.fabric.simplyspeakers.OpenUiDependencyCheck"
     ]
   },
   "mixins": [
@@ -30,12 +33,12 @@
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
-    "openui_mc": ">=${openui_version}",
     "packetweave": ">=0.1.2"
   },
   "suggests": {
     "computercraft": "*",
     "patchouli": "*",
-    "sable": "=2.0.5"
+    "sable": "=2.0.5",
+    "openui_mc": ">=${openui_version}"
   }
 }
