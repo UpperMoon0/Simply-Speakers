@@ -121,7 +121,7 @@ OpenUI MC is distributed as a separate mod and is not bundled into Simply Speake
 
 ### Optional integrations
 
-- **Sable 2.0.5** (Minecraft 1.21.1): Enables correct spatial audio for speakers mounted on Sable physics bodies. Simply Speakers works normally without Sable.
+- **Sable 2.0.5 / 2.0.6** (Minecraft 1.21.1): Enables correct spatial audio for speakers mounted on Sable physics bodies. Simply Speakers works normally without Sable. Later 2.x releases are allowed through the same Companion 1.6.0 API, but future releases are not yet runtime-verified; Sable 3 requires a new compatibility review.
 - **Create Aeronautics** (NeoForge 1.21.1): Required only if you want Aeronautics' blocks and physics-body gameplay. It is not required for Simply Speakers or basic Sable compatibility.
 
 Sable Companion is bundled with Simply Speakers, and Sable's official jar includes its physics backend. Do not install either component separately.
@@ -142,7 +142,7 @@ Development clients and servers automatically load CC:Tweaked on Fabric/Forge
 1.20.1 and Fabric/NeoForge 1.21.1. These runtime dependencies are development-only
 and are not bundled in release jars or published as required dependencies.
 
-For moving-speaker testing, both 1.21.1 loaders load Sable 2.0.5 when its matching
+For moving-speaker testing, both 1.21.1 loaders load Sable 2.0.6 (overridable with `-Psable_version=<version>`) when its matching
 jar exists under `../sable/<loader>/build/libs/`. Fabric also exposes Sable's
 nested physics backend, Veil, and Forge Config API Port to the dev runtime.
 NeoForge additionally loads Create and its dependencies, and the Simulated,

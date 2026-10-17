@@ -87,7 +87,7 @@ dependencies {
 
     // Match the NeoForge dev environment when the sibling Sable build exists.
     // Expose its nested mods explicitly: Loom dev runs do not load nested jars.
-    def localSableJar = rootProject.file('../sable/fabric/build/libs/sable-fabric-1.21.1-2.0.5.jar')
+    def localSableJar = rootProject.file("../sable/fabric/build/libs/sable-fabric-1.21.1-${rootProject.sable_version}.jar")
     if (localSableJar.exists()) {
         // The Veil bundled in this Sable build requires these dev runtime minima.
         modLocalRuntime 'net.fabricmc:fabric-loader:0.18.4'
