@@ -64,3 +64,9 @@ sourceSets.main.java.srcDir('../shared/runtime-verification/src/main/java')
 
 // Exercise the real icon/focus widget in headless integration tests.
 test { classpath += files(sourceSets.main.compileClasspath.filter { it.name.contains("openui") }) }
+
+// Exercise NeoForge's Maven version-range semantics alongside Fabric's parser.
+dependencies {
+    testImplementation 'org.apache.maven:maven-artifact:3.8.5'
+}
+test { systemProperty 'sable.compat.root', rootProject.projectDir.absolutePath }

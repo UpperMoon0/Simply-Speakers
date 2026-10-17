@@ -196,3 +196,22 @@ entity-tracking range, inventory handoff or portal travel in two live clients; t
 paths retain adapter coverage and need dedicated runtime scenarios. OpenAL uses
 the null output driver, so listening quality and visual portable-screen review need
 manual or focused verification.
+
+## Sable version compatibility
+
+Run `./gradlew :common-1.21.1:test --tests '*SableCompatibilityMetadataTest'`
+for loader metadata regression coverage, and the complete `:common-1.21.1:test`
+suite for the existing spatial transform tests. The range tests read both actual
+loader declarations and use Fabric Loader's `VersionPredicate` and the Maven
+`VersionRange` semantics used by NeoForge. They admit 2.0.5, stable 2.0.6 and
+later 2.x examples, reject older versions and Sable 3, and retain optional loading.
+Fabric's `suggests` declaration is advisory; NeoForge's optional dependency is
+checked when Sable is installed.
+
+Sable release tags `mc1.21.1-2.0.5-neoforge` and
+`mc1.21.1-2.0.6-neoforge` use the same Companion 1.6.0 dependency, and their
+`ActiveSableCompanion` and `ClientSubLevel` implementations are unchanged.
+Those files and the Companion dependency are also unchanged on upstream main
+`227077f7f528c9beab1336a9fad2e27b754e4e70`. This supports the 2.x range;
+it does not prove compatibility with every future release. The metadata tests
+and transform tests do not establish a full All of Create Aeronautics 2.8 playtest.
