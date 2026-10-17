@@ -69,4 +69,10 @@ test { classpath += files(sourceSets.main.compileClasspath.filter { it.name.cont
 dependencies {
     testImplementation 'org.apache.maven:maven-artifact:3.8.5'
 }
-test { systemProperty 'sable.compat.root', rootProject.projectDir.absolutePath }
+test {
+    systemProperty 'sable.compat.root', rootProject.projectDir.absolutePath
+    inputs.files(
+        rootProject.file('fabric-1.21.1/src/main/resources/fabric.mod.json'),
+        rootProject.file('neoforge-1.21.1/src/main/resources/META-INF/neoforge.mods.toml')
+    )
+}
