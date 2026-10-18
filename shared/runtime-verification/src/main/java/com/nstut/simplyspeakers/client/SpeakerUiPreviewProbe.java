@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 final class SpeakerUiPreviewProbe {
     private static int ticks, phase, oldScale, oldWidth, oldHeight;
     private static SpeakerScreen screen;
+    private static com.nstut.simplyspeakers.client.ListeningPreferencesStore.Preferences originalListening;
     private static com.nstut.simplyspeakers.client.ui.SimplySpeakersUiScreen current;
     private static boolean ready, finished, oldFullscreen;
     private static long lastStepNanos;
@@ -29,7 +30,8 @@ final class SpeakerUiPreviewProbe {
                 CASES.add(new Case(view,size,light));
             for(var action:com.nstut.simplyspeakers.control.ControllerAction.values()) { CASES.add(new Case("Controller_"+action.id(),size,light)); CASES.add(new Case("Controller_"+action.id()+"Scrolled",size,light)); CASES.add(new Case("Controller_"+action.id()+"Picker",size,light)); }
             for(String name:new String[]{"PlaylistMany","PlaylistLongNames","PlaylistBrowse","PlaylistCreateDialog","PlaylistRenameDialog","PlaylistDuplicateDialog","PlaylistDeleteDialog","PlaylistChooser","PlaylistSearch","PlaylistSearchNone","PlaylistFullLibrary","AddToPlaylistDialog"})CASES.add(new Case(name,size,light));
-            for(String help:new String[]{"directionality","cone_angle","rear_attenuation","network_name","directional_preview","max_range","audio_dropoff","speaker_id","save_network_name","save_speaker_id","owner","change_owner","trusted","access_mode","claim_owner"}) CASES.add(new Case("SettingsHelp"+help,size,light));
+            for(String help:new String[]{"directionality","cone_angle","rear_attenuation","network_name","directional_preview","max_range","audio_dropoff","speaker_id","save_network_name","save_speaker_id","owner","change_owner","trusted","access_mode","claim_owner","listening_stereo","listening_fade_in","listening_fade_out","listening_cache"}) CASES.add(new Case("SettingsHelp"+help,size,light));
+            CASES.add(new Case("ListeningPreferences",size,light));
             CASES.add(new Case("ProxyVolume",size,light)); CASES.add(new Case("ProxyEnabled",size,light)); CASES.add(new Case("ProxyVolumePicker",size,light)); CASES.add(new Case("ProxyEnabledPicker",size,light));
         }
     }
@@ -71,6 +73,10 @@ final class SpeakerUiPreviewProbe {
             !c.name.startsWith("Playlist") && !c.name.equals("Queue") && !c.name.equals("EmptyQueue")
             && !c.name.startsWith("Settings") && !c.name.equals("ScrolledSettings") && !c.name.equals("TooltipRestart"));
     }
+    static {
+        if("personal_settings".equals(System.getProperty("simplyspeakers.uiAuditGroup")))
+            CASES.removeIf(c -> !c.name.startsWith("SettingsHelplistening_") && !c.name.equals("ListeningPreferences"));
+    }
     private SpeakerUiPreviewProbe() { }
     static void tick(Minecraft client) {
         if (!Boolean.getBoolean("simplyspeakers.uiPreview") || finished) return;
@@ -91,6 +97,27 @@ final class SpeakerUiPreviewProbe {
             if(now-lastStepNanos<50_000_000L) return;
             lastStepNanos=now;
             ticks++;
+            if(c.name.equals("ListeningPreferences")) {
+                String target = ticks<=6?"stereo":ticks<=10?"fade_in":ticks<=14?"fade_out":"cache";
+                var control=keyed(current.uiRuntime().root(),"settings.listening_"+target);
+                if(ticks>=3 && ticks<=18) revealSetting(client,control);
+                if(ticks==6 || ticks==10 || ticks==14 || ticks==18) click(control);
+                if(ticks==22) {
+                    var expected=new com.nstut.simplyspeakers.client.ListeningPreferencesStore.Preferences(
+                        com.nstut.simplyspeakers.Config.stereoPlayback,com.nstut.simplyspeakers.Config.rangeFadeInMillis,
+                        com.nstut.simplyspeakers.Config.rangeFadeOutMillis,(int)(com.nstut.simplyspeakers.Config.clientCacheLimitBytes/(1024L*1024)));
+                    if(expected.stereo()==originalListening.stereo() || expected.fadeInMillis()<1000 || expected.fadeOutMillis()<1000 || expected.cacheMiB()<1000)
+                        throw new IllegalStateException("Personal controls did not accept read-only viewer input: "+expected);
+                    String override=System.getProperty("simplyspeakers.ui.config.dir");
+                    var directory=override==null?client.gameDirectory.toPath().resolve("config"):java.nio.file.Path.of(override);
+                    if(!expected.equals(com.nstut.simplyspeakers.client.ListeningPreferencesStore.load(directory)))
+                        throw new IllegalStateException("Personal controls did not persist");
+                    com.nstut.simplyspeakers.Config.applyServerConfig(128,true,1024,false);
+                    com.nstut.simplyspeakers.Config.restoreLocalConfig();
+                    if(com.nstut.simplyspeakers.Config.rangeFadeInMillis!=expected.fadeInMillis() || com.nstut.simplyspeakers.Config.stereoPlayback!=expected.stereo())
+                        throw new IllegalStateException("Server policy replaced personal preferences");
+                }
+            }
             if(c.name.startsWith("SettingsHelp")) {
                 String key = c.name.startsWith("SettingsHelpMode_") || c.name.equals("SettingsHelpCycle") ? "settings.redstone" : "settings."+c.name.substring("SettingsHelp".length());
                 var target=keyed(current.uiRuntime().root(),key);
@@ -178,7 +205,7 @@ final class SpeakerUiPreviewProbe {
                 if(overlay==null) throw new IllegalStateException("Timestamp dialog failed to open before submission");var button=findIcon(overlay); if(button==null)throw new IllegalStateException("Missing timestamp confirmation");click(button);
             }
             if(ticks==2 && c.name.startsWith("Tooltip")) { var controls=keyed(current.uiRuntime().root(),"player.transport");var button=controls.child(c.name.equals("TooltipPlay")?3:c.name.equals("TooltipRestart")?7:6);moveMouse(client,button.getX()+button.getWidth()/2.0,button.getY()+button.getHeight()/2.0); }
-            if(ticks<(c.name.endsWith("Picker")?18:c.name.startsWith("SettingsHelp")?28:c.name.startsWith("Tooltip")?24:c.name.startsWith("Jump")?16:10)) return;
+            if(ticks<(c.name.endsWith("Picker")?18:c.name.equals("ListeningPreferences")?24:c.name.startsWith("SettingsHelp")?28:c.name.startsWith("Tooltip")?24:c.name.startsWith("Jump")?16:10)) return;
             if(c.name.equals("JumpDialog") && !current.uiRuntime().overlays().hasModal()) throw new IllegalStateException("Timestamp dialog did not open");
             if(c.name.equals("JumpInvalid") && (!current.uiRuntime().overlays().hasModal() || !containsText(current.uiRuntime().overlays().topBlockingComponent(),Component.translatable("gui.simplyspeakers.player.invalid_timestamp").getString())))throw new IllegalStateException("Timestamp error not visible");
             if(c.name.equals("JumpValid") && current.uiRuntime().overlays().hasModal())throw new IllegalStateException("Valid timestamp did not close dialog");
@@ -188,13 +215,16 @@ final class SpeakerUiPreviewProbe {
                 verifyPlayer();
                 var f=SpeakerScreen.class.getDeclaredField("tab");f.setAccessible(true);
                 String actual=((com.nstut.openui.state.Signal<?>)f.get(screen)).get().toString();
-                String expected=c.name.equals("Settings") || c.name.equals("ScrolledSettings") || c.name.startsWith("SettingsHelp") ? "SETTINGS" : c.name.startsWith("Playlist") || c.name.equals("EmptyPlaylist") ? "PLAYLIST" : c.name.equals("Queue") || c.name.equals("EmptyQueue") ? "QUEUE" : "AUDIO";
+                String expected=c.name.equals("Settings") || c.name.equals("ScrolledSettings") || (c.name.startsWith("SettingsHelp") || c.name.equals("ListeningPreferences")) ? "SETTINGS" : c.name.startsWith("Playlist") || c.name.equals("EmptyPlaylist") ? "PLAYLIST" : c.name.equals("Queue") || c.name.equals("EmptyQueue") ? "QUEUE" : "AUDIO";
                 if(!actual.equals(expected)) throw new IllegalStateException("Wrong view: "+actual+" expected "+expected);
             }
             if(c.name.equals("Library")) verifySeek();
             String id="audit-"+c.size+"-"+(c.light?"light":"dark")+"-"+c.name.toLowerCase(java.util.Locale.ROOT);
             capture(client,id+".png");
             System.out.println("SIMPLYSPEAKERS_UI_CASE_PASS "+id+" viewport="+current.width+"x"+current.height);
+            if(c.name.equals("ListeningPreferences"))
+                com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.setListeningPreferences(
+                    originalListening.stereo(),originalListening.fadeInMillis(),originalListening.fadeOutMillis(),originalListening.cacheMiB());
             phase++;ready=false;
             if(phase==CASES.size()) {
                 finished=true;
@@ -276,13 +306,23 @@ final class SpeakerUiPreviewProbe {
         if(c.name.equals("DeleteDialog")){var m=SpeakerScreen.class.getDeclaredMethod("confirmDelete",AudioFileMetadata.class);m.setAccessible(true);m.invoke(screen,new AudioFileMetadata("a","Long recording name that should wrap safely inside the confirmation dialog.wav","",272));}
         if(c.name.equals("ClearDialog"))invoke(screen,"confirmClearPlaylist");
         if(c.name.equals("ScrolledSettings"))navigate("Settings",3);
-        if(c.name.startsWith("SettingsHelp")) {
+        if(c.name.startsWith("SettingsHelp") || c.name.equals("ListeningPreferences")) {
+            originalListening=new com.nstut.simplyspeakers.client.ListeningPreferencesStore.Preferences(
+                com.nstut.simplyspeakers.Config.stereoPlayback,com.nstut.simplyspeakers.Config.rangeFadeInMillis,
+                com.nstut.simplyspeakers.Config.rangeFadeOutMillis,(int)(com.nstut.simplyspeakers.Config.clientCacheLimitBytes/(1024L*1024)));
             screen.updateAccessModel(new com.nstut.simplyspeakers.permissions.AccessViewSnapshot(
                 c.name.endsWith("claim_owner")?null:java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),"Preview owner",
-                com.nstut.simplyspeakers.SpeakerAccess.PUBLIC,java.util.List.of(),true,true,true));
+                com.nstut.simplyspeakers.SpeakerAccess.PUBLIC,java.util.List.of(),!c.name.contains("listening_") && !c.name.equals("ListeningPreferences"),!c.name.contains("listening_") && !c.name.equals("ListeningPreferences"),true));
             navigate("Settings",3);
         }
         moveMouse(client,2,2);
+    }
+    private static void revealSetting(Minecraft client, UIComponent target) {
+        if(target==null)throw new IllegalStateException("Personal setting missing");
+        var scroll=keyed(current.uiRuntime().root(),"settings.content");
+        double center=target.getY()+target.getHeight()/2.0, viewport=scroll.getY()+scroll.getHeight()/2.0;
+        if(center<scroll.getY() || center>=scroll.getY()+scroll.getHeight())
+            current.uiRuntime().mouseScrolled(scroll.getX()+scroll.getWidth()-1,viewport,(viewport-center)/24.0);
     }
     private static String screenPlayingSource(SpeakerScreen screen)throws Exception {
         var f=SpeakerScreen.class.getDeclaredField("activePlaylistId");f.setAccessible(true);return ((com.nstut.openui.state.Signal<?>)f.get(screen)).get().toString();

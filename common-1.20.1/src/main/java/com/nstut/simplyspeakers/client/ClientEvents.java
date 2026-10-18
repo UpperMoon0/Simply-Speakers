@@ -12,6 +12,7 @@ import com.nstut.simplyspeakers.testing.LiveJoinTestProtocol;
 public class ClientEvents {
 
     public static void register() {
+        com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.applyListeningPreferences();
         ClientTickEvent.CLIENT_POST.register(ClientEvents::onClientTick);
         dev.architectury.event.events.client.ClientGuiEvent.RENDER_HUD.register((graphics, delta) -> DirectionalPreview.renderHud(graphics));
         // Also update mobile poses between ticks for smooth sound while walking.

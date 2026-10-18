@@ -1,7 +1,7 @@
 package com.nstut.simplyspeakers;
 
 /**
- * Configuration for Simply Speakers.
+ * Active server policy and local runtime preference values for Simply Speakers.
  */
 public class Config {
     /** Local listener preferences; never overwritten by server configuration sync. */
@@ -66,7 +66,7 @@ public class Config {
     /**
      * Maximum client-side audio cache size in bytes before LRU eviction.
      */
-    public static long clientCacheLimitBytes = 500L * 1024L * 1024L; // 500MB
+    public static volatile long clientCacheLimitBytes = 500L * 1024L * 1024L; // 500MB
 
     // Local configuration cache for client restoration after disconnecting from a server
     private static int localSpeakerRange = 64;

@@ -70,6 +70,11 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
     private enum AudioViewState { EMPTY, NO_MATCHES, RESULTS }
     private record AudioRowModel(AudioFileMetadata audio, boolean selected, boolean playing) { }
 
+    private final Signal<Boolean> listeningStereo = Signals.of(Config.stereoPlayback);
+    private final Signal<Double> listeningFadeIn = Signals.of((double) Config.rangeFadeInMillis);
+    private final Signal<Double> listeningFadeOut = Signals.of((double) Config.rangeFadeOutMillis);
+    private final Signal<Double> listeningCache = Signals.of(Config.clientCacheLimitBytes / (1024.0 * 1024.0));
+
     private final BlockPos blockEntityPos;
     private SpeakerBlockEntity speaker;
     private com.nstut.simplyspeakers.portable.PortableSpeakerEndpoint portableSpeaker;
@@ -167,6 +172,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         }
         super.init();
         wireControlSubscriptions();
+        wireListeningSettings();
         guiReady = true;
         sendToServer(new com.nstut.simplyspeakers.network.RequestAudioListPacketC2S(blockEntityPos));
         sendToServer(new RequestPlaylistPacketC2S(blockEntityPos));
@@ -290,11 +296,51 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 .separator().item(tr("delete_server"), () -> confirmDelete(audio)).show(uiRuntime().overlays());
     }
 
+    private static Component listeningText(String key) {
+        return Component.translatable("gui.simplyspeakers.listening." + key);
+    }
+    private UIComponent buildListeningSettings() {
+        var help = listeningText("stereo.help");
+        return Ui.card(Ui.column(
+            Ui.heading(listeningText("title")),
+            Ui.text(listeningText("scope")).wrap(),
+            Ui.row(Ui.toggle(listeningStereo).tooltip(help).key("settings.listening_stereo"),
+                Ui.text(listeningText("stereo")).wrap().tooltip(help)).align(Alignment.CENTER).gap(7),
+            listeningSlider("fade_in", listeningFadeIn, 0, 5000),
+            listeningSlider("fade_out", listeningFadeOut, 0, 5000),
+            listeningSlider("cache", listeningCache, 64, 4096)
+        ).gap(8)).outlined(true).padding(10).key("settings.listening");
+    }
+    private UIComponent listeningSlider(String name, Signal<Double> value, double min, double max) {
+        Component help = listeningText(name + ".help");
+        return Ui.column(
+            Ui.row(Ui.text(listeningText(name)).wrap().flex().tooltip(help),
+                Ui.text(() -> Component.literal(Math.round(value.get()) + (name.equals("cache") ? " MiB" : " ms")))
+                    .nowrap().tooltip(help)).gap(6).align(Alignment.CENTER),
+            Ui.slider(value, min, max).fillWidth().tooltip(help).key("settings.listening_" + name)
+        ).gap(3);
+    }
+    private void wireListeningSettings() {
+        guiSubs.add(listeningStereo.subscribe(v -> saveListeningSettings()));
+        guiSubs.add(listeningFadeIn.subscribe(v -> saveListeningSettings()));
+        guiSubs.add(listeningFadeOut.subscribe(v -> saveListeningSettings()));
+        guiSubs.add(listeningCache.subscribe(v -> saveListeningSettings()));
+    }
+    private void saveListeningSettings() {
+        if (!guiReady) return;
+        if (!com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.setListeningPreferences(
+                listeningStereo.get(), (int)Math.round(listeningFadeIn.get()),
+                (int)Math.round(listeningFadeOut.get()), (int)Math.round(listeningCache.get())))
+            setStatusMessage(listeningText("save_failed"));
+    }
+
     private UIComponent buildSettingsView() {
         if (speaker == null) {
             return Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"));
         }
         return Ui.scroll(Ui.column(
+                buildListeningSettings(),
+                Ui.heading(listeningText("speaker_settings")),
                 buildDisplayNameRow(),
                 buildSpeakerIdRow(),
                 Ui.divider(),

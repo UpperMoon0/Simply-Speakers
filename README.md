@@ -96,7 +96,22 @@ Audio files are stored in `simply_speakers_audios/` inside your world's save fol
 }
 ```
 
-## Configuration
+## Personal listening settings
+
+Open any main or portable speaker, choose **Settings**, then **Your listening settings**.
+Stereo playback, entry/exit fade durations (0-5000 ms), and the audio-cache disk budget
+(64-4096 MiB) apply only to you across all speakers. Read-only users can change them too.
+Changes save automatically on your device and survive reconnecting, switching servers and
+restarting the game. Stereo applies to newly started playback; stop and play again to apply now. Fades apply immediately.
+
+The existing **Distance fade (%)** slider changes volume with distance for one speaker.
+The new entry/exit durations control timed transitions when crossing audible range;
+setting either duration to 0 disables only that timed transition. Stereo preserves left/right
+channels and centres playback on you while range and cone attenuation still apply.
+Existing personal values are imported from the old mod config once; afterward the UI owns them.
+See [the settings audit](docs/settings.md) for personal, speaker and administrator settings.
+
+## Administrator configuration
 
 Edit the mod config file to adjust:
 - `speakerRange`: Server ceiling for per-speaker range (1–512, default: 64)

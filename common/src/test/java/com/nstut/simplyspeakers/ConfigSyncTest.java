@@ -24,14 +24,17 @@ class ConfigSyncTest {
 
     @Test
     void listenerPreferencesStayLocalAndClampFadeDurations() {
+        long cache = Config.clientCacheLimitBytes;
         try {
+            Config.clientCacheLimitBytes = 1024L * 1024 * 1024;
             Config.setPlaybackPreferences(true, -1, 99999);
             Config.applyServerConfig(32, true, 1024, false);
             Config.restoreLocalConfig();
             assertTrue(Config.stereoPlayback);
             assertEquals(0, Config.rangeFadeInMillis);
             assertEquals(5000, Config.rangeFadeOutMillis);
-        } finally { Config.setPlaybackPreferences(false, 250, 250); }
+            assertEquals(1024L * 1024 * 1024, Config.clientCacheLimitBytes);
+        } finally { Config.setPlaybackPreferences(false, 250, 250); Config.clientCacheLimitBytes = cache; }
     }
 
     @Test

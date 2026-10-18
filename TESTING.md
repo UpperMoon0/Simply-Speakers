@@ -98,7 +98,7 @@ restart test.
 Run `./gradlew :forge-1.20.1:runClient -PuiPreview=true` for the opt-in native
 screen audit. It opens the real Speaker, Proxy and Redstone Controller screens
 with sample data and no world. Four UI sizes (320×240, 427×240, 640×360,
-854×480) and both themes cover 664 cases per Minecraft runtime. Cases include
+854×480) and both themes cover 704 cases per Minecraft runtime. Cases include
 all four player views, empty/search/long-name states, paused and stream playback,
 track menus, delete/clear/timestamp dialogs, hover tooltips, scrolled Settings,
 proxies and every controller action.
@@ -108,7 +108,7 @@ centered timeline endpoints, track-row baselines, truncated title widths, square
 icon targets and nonempty tooltips. It drags the timeline and requires the timestamp
 dialog to open, reject invalid input, and close after a valid submission. It also
 checks that controller help text has enough height for its wrapped lines. Screenshots go in the selected loader's `run/screenshots/` folder;
-`SIMPLYSPEAKERS_UI_AUDIT_PASS cases=664` confirms completion. Review those images
+`SIMPLYSPEAKERS_UI_AUDIT_PASS cases=704` confirms completion. Review those images
 visually as well: these assertions alone do not establish visual quality.
 
 Run the same opt-in command against `fabric-1.20.1`, `fabric-1.21.1` and
@@ -120,7 +120,7 @@ timestamp submission, scrolling and transport hover contrast.
 selection, management dialogs, long names, a full catalog and destination picking.
 `-PuiAuditGroup=playlist_picker` checks 40 focused selector/destination-picker cases.
 `-PuiAuditGroup=settings_layout` checks 48 Library/Settings/scrolled Settings and jump-dialog cases.
-`-PuiAuditGroup=settings_help` checks 120 speaker-setting hover explanations, including the preview legend and scrolled controls.
+`-PuiAuditGroup=settings_help` checks 152 speaker-setting hover explanations, including the preview legend and scrolled controls.
 `-PuiAuditGroup=interaction` checks 40 timestamp/focus/hover cases;
 `-PuiAuditGroup=forms_scrolled` checks the bottom of each controller form in 72 cases. See
 [the visual audit report](docs/ui_audit.md) for the recorded scope and findings.
@@ -152,7 +152,7 @@ Build 1.20.1 targets as well to exercise the legacy recipe transformation.
 
 `RedstoneControllerIntegrationTest` runs on all three Minecraft runtimes and drives configured block entities through duplicate/conflicting pulses, OR playback inputs, maximum volume arbitration, permission revocation, removal, retargeting, proxy isolation, missing chunks and proxy reloads. Controller NBT round trips verify held pulse inputs do not retrigger and analog jobs restore their input. Registry serialization verifies temporary volume never replaces saved volume. Legacy speaker modes are exercised as inert inputs, with unpowered network playback still emitting.
 
-The native UI matrix has 664 cases per runtime. Retired native redstone-mode fixtures have been replaced by 72 network mode-picker interactions, plus 16 proxy mode-picker interactions, covering every job in both themes and four window-size requests. Each picker opens through the actual UI input path, checks every choice fits without scrolling, checks hover help, selects it and verifies the form mode. The live dedicated-server/client fixture starts playback through an actual powered Redstone Controller and checks decoded playback independently on client and server.
+The native UI matrix has 704 cases per runtime. Retired native redstone-mode fixtures have been replaced by 72 network mode-picker interactions, plus 16 proxy mode-picker interactions, covering every job in both themes and four window-size requests. Each picker opens through the actual UI input path, checks every choice fits without scrolling, checks hover help, selects it and verifies the form mode. The live dedicated-server/client fixture starts playback through an actual powered Redstone Controller and checks decoded playback independently on client and server.
 
 The `redstone_rework` native group combines every controller form and mode picker with proxy forms, player transport/tooltips, Settings layout/help and timestamp dialogs. The physical live fixture requires `SIMPLYSPEAKERS_CONTROLLER_COOPERATION_PASS`, covering duplicate toggles, Stop priority, OR playback, maximum volume, saved-volume restoration and analog track selection.
 
@@ -221,3 +221,5 @@ and transform tests do not establish a full All of Create Aeronautics 2.8 playte
 Core tests decode generated asymmetric stereo MP3 and WAV fixtures through local and URL decoder entry points, verify exact PCM bytes, mono defaults, stereo frame-aligned seeking, mono compatibility and deterministic timed entry/exit fade, reversal and disable behavior independently of distance gain. Adapter tests on all three Minecraft runtimes drive the production WAV playback loop to verify mono/stereo OpenAL buffer selection, and check stop-reason codecs, server range-exit vs transport-stop reasons, retained fade tails, immediate cancellation, same-occurrence resource reuse and stereo source coordinates. Native OpenAL is mocked in these adapter tests; they do not establish physical left/right output or subjective fade quality.
 
 A focused audio-zone visual check is available with JVM flag `-Dsimplyspeakers.zonePreviewTest=true`. Enter a disposable world with that flag: the client captures normal and narrow world/HUD views, verifies markers and the HUD actually render, checks that opening a menu dismisses the preview, prints `SIMPLYSPEAKERS_ZONE_PREVIEW_PASS`, and exits. This check is independent of the full download/playback fixture.
+
+`-PuiAuditGroup=personal_settings` checks 40 personal listening cases: native input and hover help in both themes and four sizes. Read-only viewers change stereo, fades and cache budget through real controls; saved values and server-sync isolation are checked.

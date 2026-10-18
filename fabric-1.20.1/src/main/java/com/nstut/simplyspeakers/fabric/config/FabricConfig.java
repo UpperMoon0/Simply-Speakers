@@ -55,8 +55,6 @@ public class FabricConfig {
             boolean allowRemoteStreams = Boolean.parseBoolean(props.getProperty("allowRemoteStreams", String.valueOf(Config.isLocalAllowRemoteStreams())));
 
             Config.setLocalConfig(range, disableUpload, size, allowRemoteStreams);
-            Config.setPlaybackPreferences(Boolean.parseBoolean(props.getProperty("stereoPlayback", "false")),
-                    readFade(props, "rangeFadeInMillis"), readFade(props, "rangeFadeOutMillis"));
             
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read config file", e);
@@ -64,10 +62,6 @@ public class FabricConfig {
         }
     }
     
-    private static int readFade(Properties props, String key) {
-        try { return Integer.parseInt(props.getProperty(key, "250")); }
-        catch (NumberFormatException ignored) { return 250; }
-    }
 
     private static void writeConfig() {
         try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
@@ -77,13 +71,7 @@ public class FabricConfig {
             props.setProperty("maxUploadSize", String.valueOf(Config.maxUploadSize));
             props.setProperty("allowRemoteStreams", String.valueOf(Config.allowRemoteStreams));
             
-            props.setProperty("stereoPlayback", String.valueOf(Config.stereoPlayback));
-            props.setProperty("rangeFadeInMillis", String.valueOf(Config.rangeFadeInMillis));
-            props.setProperty("rangeFadeOutMillis", String.valueOf(Config.rangeFadeOutMillis));
-            props.store(writer, "Simply Speakers Configuration\n"
-                    + "rangeFadeInMillis: Entry fade duration (ms). rangeFadeOutMillis: Exit fade duration (ms).\n"
-                    + "These local timed transitions are independent of the existing in-game Distance fade (%) slider.\n"
-                    + "Set either duration to 0 to disable that timed transition.");
+            props.store(writer, "Simply Speakers server configuration");
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to write config file", e);
         }

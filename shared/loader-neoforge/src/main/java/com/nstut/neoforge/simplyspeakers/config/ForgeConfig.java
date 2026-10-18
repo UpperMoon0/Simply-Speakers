@@ -11,6 +11,10 @@ import org.apache.logging.log4j.core.config.Configurator;
  * Forge-specific configuration handler.
  */
 public class ForgeConfig {
+    static {
+        if (dev.architectury.platform.Platform.getEnv().toString().equals("CLIENT"))
+            com.nstut.simplyspeakers.client.ListeningPreferencesStore.migrateLegacy(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get());
+    }
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.IntValue SPEAKER_RANGE = BUILDER
@@ -33,16 +37,6 @@ public class ForgeConfig {
             .comment("Enable debug logging for troubleshooting audio/settings issues")
             .define("debugLogging", Config.debugLogging);
 
-    public static final ModConfigSpec.BooleanValue STEREO_PLAYBACK = BUILDER
-            .comment("Local listener: preserve stereo channels; disables directional positioning. Applies to new playback.")
-            .define("stereoPlayback", false);
-    public static final ModConfigSpec.IntValue RANGE_FADE_IN = BUILDER
-            .comment("Entry fade duration (ms): timed ramp on entering audible range. Independent of Distance fade (%); 0 disables this timed fade.")
-            .defineInRange("rangeFadeInMillis", 250, 0, 5000);
-    public static final ModConfigSpec.IntValue RANGE_FADE_OUT = BUILDER
-            .comment("Exit fade duration (ms): timed ramp on leaving audible range. Independent of Distance fade (%); 0 disables this timed fade.")
-            .defineInRange("rangeFadeOutMillis", 250, 0, 5000);
-
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -53,7 +47,6 @@ public class ForgeConfig {
         if (event.getConfig().getSpec() == SPEC) {
             Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get(), ALLOW_REMOTE_STREAMS.get());
             Config.debugLogging = DEBUG_LOGGING.get();
-            Config.setPlaybackPreferences(STEREO_PLAYBACK.get(), RANGE_FADE_IN.get(), RANGE_FADE_OUT.get());
             
             // Set logger level based on debug config
             // The logger name is the MOD_ID ("simplyspeakers")
@@ -73,4 +66,3 @@ public class ForgeConfig {
         }
     }
 }
-
