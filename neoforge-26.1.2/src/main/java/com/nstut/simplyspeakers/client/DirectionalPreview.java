@@ -71,11 +71,11 @@ public final class DirectionalPreview {
         if(remaining<=0 || client.level==null || client.player==null || renderOrigin==null || client.screen!=null || client.options.hideGui) return;
         hudFrames++;
         var font=client.font;
-        int x=8, y=8, width=Math.min(310,client.getWindow().getGuiScaledWidth()-16);
-        g.fill(x,y,x+width,y+139,0xE619232E);
-        g.fill(x,y,x+3,y+139,0xFF5EE3CB);
+        int x=8, y=8, width=Math.min(230,client.getWindow().getGuiScaledWidth()-16);
+        g.fill(x,y,x+width,y+107,0xE619232E);
+        g.fill(x,y,x+3,y+107,0xFF5EE3CB);
         g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.title",(remaining+19)/20),x+10,y+9,0xFFF4F7FF);
-        int cx=x+45, cy=y+65, radius=31;
+        int cx=x+31, cy=y+50, radius=21;
         for(var point:samples) {
             if(Math.abs(point.y())>.001) continue;
             double px=point.x()*Math.cos(rotation)-point.z()*Math.sin(rotation);
@@ -96,15 +96,15 @@ public final class DirectionalPreview {
         int playerX=cx+(int)Math.round(dx/mapScale*radius), playerY=cy+(int)Math.round(dz/mapScale*radius);
         g.fill(playerX-2,playerY-2,playerX+3,playerY+3,0xFFFFD166);
         g.text(font,"N",cx-2,cy-radius-10,0xFFB7C7D8);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(distance<rangeBlocks?"inside":"outside")),x+91,y+30,distance<rangeBlocks?0xFF5EE3CB:0xFFFFD166);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.distance",Math.round(distance),rangeBlocks),x+91,y+44,0xFFF4F7FF);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.gain",Math.round(gain*100)),x+91,y+58,0xFFF4F7FF);
-        g.fill(x+91,y+73,x+width-10,y+77,0xFF394857);
-        g.fill(x+91,y+73,x+91+Math.round((width-101)*gain),y+77,0xFF5EE3CB);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.you"),x+91,y+84,0xFFFFD166);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.legend"),x+10,y+105,0xFFB7C7D8);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(strength>0?"direction":"omni")),x+10,y+117,0xFFB7C7D8);
-        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.dismiss"),x+10,y+129,0xFFB7C7D8);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(distance<rangeBlocks?"inside":"outside")),x+64,y+26,distance<rangeBlocks?0xFF5EE3CB:0xFFFFD166);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.distance",Math.round(distance),rangeBlocks),x+64,y+38,0xFFF4F7FF);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.gain",Math.round(gain*100)),x+64,y+50,0xFFF4F7FF);
+        g.fill(x+64,y+60,x+width-10,y+63,0xFF394857);
+        g.fill(x+64,y+60,x+64+Math.round((width-74)*gain),y+63,0xFF5EE3CB);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.you"),x+64,y+64,0xFFFFD166);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.legend"),x+10,y+75,0xFFB7C7D8);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(strength>0?"direction":"omni")),x+10,y+85,0xFFB7C7D8);
+        g.text(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.dismiss"),x+10,y+95,0xFFB7C7D8);
     }
     public static void clear() { remaining=0;origin=null;dimension=null;portableHolder=null;samples=List.of(); }
 }

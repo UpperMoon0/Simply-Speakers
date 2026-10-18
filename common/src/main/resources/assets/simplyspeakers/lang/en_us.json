@@ -252,9 +252,9 @@
   "gui.simplyspeakers.preview.outside": "Outside range",
   "gui.simplyspeakers.preview.distance": "Distance: %s / %s blocks",
   "gui.simplyspeakers.preview.gain": "Spatial volume: %s%%",
-  "gui.simplyspeakers.preview.you": "Gold: you  /  centre: speaker",
-  "gui.simplyspeakers.preview.legend": "Cyan: range  |  Green > amber: quieter",
-  "gui.simplyspeakers.preview.direction": "White: forward/cone; quieter beyond",
-  "gui.simplyspeakers.preview.omni": "Sound spreads equally in every direction",
-  "gui.simplyspeakers.preview.dismiss": "Spatial gain only. Open a menu to hide."
+  "gui.simplyspeakers.preview.you": "Gold: you  |  +: speaker",
+  "gui.simplyspeakers.preview.legend": "Cyan: range  |  White: direction",
+  "gui.simplyspeakers.preview.direction": "Cone: stronger inside, quieter beyond",
+  "gui.simplyspeakers.preview.omni": "Sound spreads in every direction",
+  "gui.simplyspeakers.preview.dismiss": "Green > amber: quieter  |  Menu: hide"
 }
