@@ -38,8 +38,13 @@ public final class ClientCacheManager {
     }
 
     public static void enforceBudget(File cacheDir) {
+        enforceBudget(cacheDir, null);
+    }
+
+    /** Keep a completed download available until its queued playback opens it. */
+    public static void enforceBudget(File cacheDir, File completedDownload) {
         long limit = com.nstut.simplyspeakers.Config.clientCacheLimitBytes;
-        enforceCacheLimit(cacheDir, limit > 0 ? limit : DEFAULT_MAX_CACHE_BYTES);
+        enforceCacheLimit(cacheDir, limit > 0 ? limit : DEFAULT_MAX_CACHE_BYTES, completedDownload);
     }
 
     /**
@@ -49,6 +54,10 @@ public final class ClientCacheManager {
      * @param maxBytes Maximum allowed total size in bytes (defaults to 500 MB if <= 0)
      */
     public static void enforceCacheLimit(File cacheDir, long maxBytes) {
+        enforceCacheLimit(cacheDir, maxBytes, null);
+    }
+
+    private static void enforceCacheLimit(File cacheDir, long maxBytes, File keep) {
         if (cacheDir == null || !cacheDir.exists() || !cacheDir.isDirectory()) {
             return;
         }
@@ -77,6 +86,7 @@ public final class ClientCacheManager {
             if (totalSize <= budget) {
                 break;
             }
+            if (keep != null && f.toPath().toAbsolutePath().normalize().equals(keep.toPath().toAbsolutePath().normalize())) continue;
             long len = f.length();
             if (f.delete()) {
                 totalSize -= len;

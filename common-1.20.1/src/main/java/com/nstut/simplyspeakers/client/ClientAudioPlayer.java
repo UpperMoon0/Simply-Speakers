@@ -1343,7 +1343,7 @@ public class ClientAudioPlayer {
                 }
                 LiveDownloadClientProbe.downloaded(audioId, cachedFile.length());
                 ClientCacheManager.recordAccess(cachedFile);
-                ClientCacheManager.enforceBudget(CACHE_DIR);
+                ClientCacheManager.enforceBudget(CACHE_DIR, cachedFile);
 
                 List<PlayRequest> requests = pendingPlays.remove(audioId);
                 if (requests != null && !requests.isEmpty()) {

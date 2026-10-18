@@ -31,6 +31,7 @@ dependencies {
 
     compileOnly "javazoom:jlayer:1.0.1"
     testImplementation "javazoom:jlayer:1.0.1"
+    testRuntimeOnly "org.slf4j:slf4j-api:2.0.9"
 
     testImplementation platform("org.junit:junit-bom:5.11.4")
     testImplementation "org.junit.jupiter:junit-jupiter"

@@ -6,7 +6,7 @@ Audited all fields in Config and every Fabric/Forge/NeoForge config writer.
 | --- | --- |
 | Stereo playback | Personal; Settings > Your listening settings. Applies to new playback. |
 | Entry/exit fade durations | Personal; same card. Apply immediately, 0 disables that timed transition. |
-| Audio cache budget | Personal; same card, 64-4096 MiB. Enforced by existing download/cache cleanup. |
+| Audio cache budget | Personal; same card, 64-4096 MiB. Enforced at download/cache cleanup; the completed track is protected even when larger than the target. |
 | Theme | Personal; existing header theme toggle. |
 | Volume, range, Distance fade, directionality, cone and rear attenuation | Speaker settings; existing controls and server authority. |
 | Linking, ownership and trusted players | Network settings; existing management UI and server authority. |

@@ -266,7 +266,7 @@
   "gui.simplyspeakers.listening.fade_out": "Exit fade duration",
   "gui.simplyspeakers.listening.fade_out.help": "Time in milliseconds to fade out when you leave audible range. 0 disables the timed fade. Stop and disconnect still end playback immediately.",
   "gui.simplyspeakers.listening.cache": "Audio cache size",
-  "gui.simplyspeakers.listening.cache.help": "Disk budget for downloaded audio on this device, in MiB. Old cached files are removed as downloads finish; original server files are kept.",
+  "gui.simplyspeakers.listening.cache.help": "Disk target for downloaded audio on this device, in MiB. Older cached files are removed as downloads finish. The current download is kept even if larger than the target; server originals are kept.",
   "gui.simplyspeakers.listening.save_failed": "Could not save your listening settings. Check that the config folder is writable.",
   "gui.simplyspeakers.listening.speaker_settings": "This speaker"
 }
