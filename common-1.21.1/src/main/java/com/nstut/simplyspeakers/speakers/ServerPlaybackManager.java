@@ -486,6 +486,7 @@ public final class ServerPlaybackManager {
             if (player == null) continue;
             if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
             PacketSenders.sendPlay(player, buildPlayPacket(emitter, state, level, effectiveRange, maxVolume, dropoff));
+            rangeFadeAudience.reenter(emitter.location(), startId);
             subscriptions.subscribe(startId, emitter.location());
         }
 
@@ -493,7 +494,7 @@ public final class ServerPlaybackManager {
             ServerPlayer player = server.getPlayerList().getPlayer(stopId);
             if (player != null) {
                 boolean rangeExit = ServerSpeakerRegistry.getDimension(player.level()).equals(emitter.location().dimension());
-                if (rangeExit) rangeFadeAudience.leave(emitter.location(), removeId, System.nanoTime());
+                if (rangeExit) rangeFadeAudience.leave(emitter.location(), stopId, System.nanoTime());
                 PacketSenders.sendStop(player, new StopAudioPacketS2C(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()),
                         rangeExit));
             }
