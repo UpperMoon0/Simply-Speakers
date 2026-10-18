@@ -34,4 +34,20 @@ class BoundaryFadeTest {
         assertTrue(fade.silent());
         assertEquals(0f, fade.gain(true, .5f, ms(10), 250, 250));
     }
+    @Test void resetDiscardsCachedSpatialGainAndRestartsEntry() {
+        BoundaryFade fade = new BoundaryFade();
+        assertEquals(0.8f, fade.gain(true, 0.8f, 0L, 0, 5000));
+        fade.reset();
+        assertTrue(fade.silent());
+        assertEquals(0f, fade.gain(false, 0f, 10_000_000L, 250, 5000));
+        assertEquals(0f, fade.gain(true, 0.6f, 20_000_000L, 250, 5000));
+        assertEquals(0.6f, fade.gain(true, 0.6f, 270_000_000L, 250, 5000));
+    }
+    @Test void immediateRemovalDiscardsTailWithoutFadingSurvivingEmitter() {
+        BoundaryFade fade = new BoundaryFade();
+        fade.gain(true, 0.8f, 0L, 0, 5000);
+        fade.clearSpatialGain();
+        assertEquals(0f, fade.gain(false, 0f, 0L, 250, 5000));
+        assertEquals(0.6f, fade.gain(true, 0.6f, 0L, 250, 5000));
+    }
 }

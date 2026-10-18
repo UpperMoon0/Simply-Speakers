@@ -354,7 +354,13 @@ public class ClientAudioPlayer {
 
         // A detached range tail still owns its old network until it reaches silence.
         for (StreamingAudioResource tail : new ArrayList<>(networkResources.values())) {
-            if (tail.fadingPositions.contains(pos) && !tail.networkKey.equals(networkKey)) stopNetwork(tail.networkKey);
+            if (!tail.networkKey.equals(networkKey) && tail.fadingPositions.remove(pos)) {
+                if (membership.getPositions(tail.networkKey).isEmpty()) stopNetwork(tail.networkKey);
+                else {
+                    tail.boundaryFade.clearSpatialGain();
+                    updateSpeakerVolumes();
+                }
+            }
         }
         String oldKey = membership.getNetworkKey(pos);
         membership.track(pos, networkKey, new com.nstut.simplyspeakers.SpeakerSettings(maxVolume, Math.min(maxRange, Config.speakerRange), audioDropoff));
@@ -365,6 +371,8 @@ public class ClientAudioPlayer {
         }
 
         if (oldKey != null && !oldKey.equals(networkKey)) {
+            StreamingAudioResource oldResource = networkResources.get(oldKey);
+            if (oldResource != null) oldResource.boundaryFade.clearSpatialGain();
             if (membership.getPositions(oldKey).isEmpty()) {
                 playbackIntents.remove(oldKey);
                 StreamingAudioResource oldRes = networkResources.remove(oldKey);
@@ -373,6 +381,8 @@ public class ClientAudioPlayer {
                 }
             }
         }
+
+        if (oldKey != null && !oldKey.equals(networkKey)) updateSpeakerVolumes();
 
         PlaybackIntent intent = playbackIntents.get(networkKey);
         if (intent == null || !intent.matches(metadata, remoteFullStateKey, remotePlaybackGeneration)) {
@@ -391,7 +401,7 @@ public class ClientAudioPlayer {
             if (existing.intent == intent && audioContext.isCurrent(existing.contextEpoch)
                     && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
                 existing.rangeStopping = false;
-                existing.fadingPositions.clear();
+                existing.fadingPositions.remove(pos);
                 updateSpeakerVolumes();
                 return;
             }
@@ -925,8 +935,8 @@ public class ClientAudioPlayer {
         if (removed && reportEof && resource.intent != null) {
             Minecraft.getInstance().tell(() -> {
                 if (audioContext.isCurrent(resource.contextEpoch)
-                        && !membership.getPositions(resource.networkKey).isEmpty()
-                        && playbackIntents.remove(resource.networkKey, resource.intent)) {
+                        && playbackIntents.remove(resource.networkKey, resource.intent)
+                        && !membership.getPositions(resource.networkKey).isEmpty()) {
                     sendRemoteStreamEofReport(resource.eofFullStateKey, resource.playbackGeneration, resource.intent.metadata.getUuid());
                 }
             });
@@ -949,11 +959,25 @@ public class ClientAudioPlayer {
 
         if (!rangeExit) {
             for (StreamingAudioResource tail : new ArrayList<>(networkResources.values())) {
-                if (tail.fadingPositions.contains(pos)) stopNetwork(tail.networkKey);
+                if (tail.fadingPositions.remove(pos)) {
+                    if (membership.getPositions(tail.networkKey).isEmpty()) stopNetwork(tail.networkKey);
+                    else {
+                        tail.boundaryFade.clearSpatialGain();
+                        updateSpeakerVolumes();
+                    }
+                }
             }
         }
         PlaybackMembership.DetachResult result = membership.detach(pos);
         if (result.wasTracked()) {
+            StreamingAudioResource tracked = networkResources.get(result.networkKey());
+            if (rangeExit && tracked != null && Config.rangeFadeOutMillis > 0 && tracked.playbackStarted) {
+                tracked.fadingPositions.add(pos);
+            }
+            if (!rangeExit) {
+                StreamingAudioResource remaining = networkResources.get(result.networkKey());
+                if (remaining != null) remaining.boundaryFade.clearSpatialGain();
+            }
             if (result.networkEmpty()) {
                 StreamingAudioResource resource = networkResources.get(result.networkKey());
                 if (rangeExit && resource != null && Config.rangeFadeOutMillis > 0 && resource.playbackStarted) {
@@ -1083,21 +1107,21 @@ public class ClientAudioPlayer {
             float totalWeight = 0.0f;
             float maxGain = 0.0f;
             boolean inRange = false;
+            boolean unresolvedEmitter = false;
             Vec3 firstResolvedPosition = null;
 
             for (BlockPos speakerPos : positions) {
                 com.nstut.simplyspeakers.SpeakerSettings emitter = membership.getSettings(speakerPos);
                 if (emitter == null) continue;
                 Vec3 renderPosition = resolveEmitterPosition(mc, speakerPos);
-                if (renderPosition == null) continue;
+                if (renderPosition == null) { unresolvedEmitter = true; continue; }
                 if (firstResolvedPosition == null) firstResolvedPosition = renderPosition;
                 double distance = listenerPosition.distanceTo(renderPosition);
-                if (distance < emitter.maxRange()) inRange = true;
                 float gain;
                 com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);
                 if (cone != null && cone.directionality() > 0.0f) {
                     double[] facing = resolveEmitterFacing(mc, speakerPos, cone.facingOrdinal());
-                    if (facing == null) continue;
+                    if (facing == null) { unresolvedEmitter = true; continue; }
                     double[] toListener = com.nstut.simplyspeakers.audio.DirectionalAudio.normalize(
                             listenerPosition.x - renderPosition.x,
                             listenerPosition.z - renderPosition.z);
@@ -1110,6 +1134,7 @@ public class ClientAudioPlayer {
                     gain = SpatialAudioCalculator.calculateDistanceGain(
                             distance, emitter.maxRange(), emitter.maxVolume(), emitter.audioDropoff());
                 }
+                if (distance < emitter.maxRange()) inRange = true;
                 if (gain <= 0.0f) continue;
                 weightedX += renderPosition.x * gain;
                 weightedY += renderPosition.y * gain;
@@ -1118,6 +1143,9 @@ public class ClientAudioPlayer {
                 maxGain = Math.max(maxGain, gain);
             }
 
+            // A missing transform is not a range exit. In particular, an out-of-range
+            // linked emitter must not keep the unresolved emitter's cached gain audible.
+            if (unresolvedEmitter && !inRange) resource.boundaryFade.reset();
             float spatialGain = resource.playbackStarted
                     ? resource.boundaryFade.gain(inRange, maxGain, System.nanoTime(), Config.rangeFadeInMillis, Config.rangeFadeOutMillis)
                     : 0f;

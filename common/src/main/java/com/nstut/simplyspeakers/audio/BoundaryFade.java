@@ -24,5 +24,16 @@ public final class BoundaryFade {
         return lastSpatialGain * level;
     }
 
+    /** An immediate emitter removal must not retain that emitter's last gain. */
+    public void clearSpatialGain() { lastSpatialGain = 0f; }
+
+    /** Missing emitter transforms must not replay the last known spatial gain. */
+    public void reset() {
+        level = 0f;
+        lastSpatialGain = 0f;
+        initialized = false;
+        wasAudible = false;
+    }
+
     public boolean silent() { return level <= 0f; }
 }

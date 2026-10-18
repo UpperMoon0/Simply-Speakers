@@ -50,6 +50,8 @@ class AudioContextRecoveryIntegrationTest {
     private MockedStatic<Minecraft> minecraft;
     private MockedStatic<ClientAudioPlayer> audio;
     private MockedStatic<AL10> al;
+    private boolean unresolvedFirst;
+    private double linkedDistance = 1000;
     private Class<?> intentType;
     private Class<?> resourceType;
 
@@ -70,6 +72,9 @@ class AudioContextRecoveryIntegrationTest {
         // Keep all lifecycle/transport code real. Intercept the two network boundaries,
         // including their first invocation, rather than executing I/O while stubbing.
         audio = mockStatic(ClientAudioPlayer.class, call -> {
+            if (unresolvedFirst && call.getMethod().getName().equals("resolveEmitterPosition")) {
+                return first.equals(call.getArgument(1)) ? null : new net.minecraft.world.phys.Vec3(linkedDistance, 0, 0);
+            }
             if (call.getMethod().getName().equals("queueSource")) queuedSourcePositions.add(call.getArgument(1));
             if (call.getMethod().getName().equals("requestFileFromServer")) {
                 downloads.add(call.getArgument(0));
@@ -103,6 +108,66 @@ class AudioContextRecoveryIntegrationTest {
             if (audio != null) audio.close();
             if (minecraft != null) minecraft.close();
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void missingTransformMutesCachedFadeEvenWithOutOfRangeLinkedEmitter(boolean linked) throws Exception {
+        configureSpatialWorld();
+        trackedIntent(missingTrack(), 0f);
+        if (linked) membership().track(second, KEY, new SpeakerSettings(1f, 16, 0f));
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        var fade = (com.nstut.simplyspeakers.audio.BoundaryFade) field(resourceType, "boundaryFade").get(current);
+        assertEquals(0.8f, fade.gain(true, 0.8f, System.nanoTime(), 0, 5000));
+        resources().put(KEY, current);
+        al.when(() -> AL10.alIsSource(17)).thenReturn(true);
+        unresolvedFirst = true;
+        ClientAudioPlayer.updateSpeakerVolumes();
+        drainTasks();
+        al.verify(() -> AL10.alSourcef(17, AL10.AL_GAIN, 0f));
+        assertTrue(fade.silent(), "missing transforms must discard the old audible envelope");
+        assertSame(current, resources().get(KEY), "temporary transform loss must not destroy playback");
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"stop,false", "stop,true", "retarget,false", "retarget,true", "range-exit,false", "range-then-stop,false", "range-then-stop,true", "range-then-retarget,false", "range-then-retarget,true"})
+    void linkedLifecycleStopDiscardsOnlyDepartedGain(String action, boolean remainingAudible) throws Exception {
+        configureSpatialWorld();
+        AudioFileMetadata metadata = missingTrack();
+        trackedIntent(metadata, 0f);
+        membership().track(second, KEY, new SpeakerSettings(1f, 16, 0f));
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        var fade = (com.nstut.simplyspeakers.audio.BoundaryFade) field(resourceType, "boundaryFade").get(current);
+        fade.gain(true, 1f, System.nanoTime(), 0, 5000);
+        resources().put(KEY, current);
+        al.when(() -> AL10.alIsSource(17)).thenReturn(true);
+        unresolvedFirst = true; // The first emitter is detached before the spatial update.
+        linkedDistance = remainingAudible ? 1 : 17; // Retained by the server's range hysteresis.
+        if (action.startsWith("range-then-")) {
+            ClientAudioPlayer.stop(first, true);
+            drainTasks();
+            al.clearInvocations();
+        }
+        if (action.endsWith("retarget")) ClientAudioPlayer.play(first, "new-network", metadata, 0f, false);
+        else ClientAudioPlayer.stop(first, action.equals("range-exit"));
+        drainTasks();
+        float expected = remainingAudible || action.equals("range-exit") ? 1f : 0f;
+        al.verify(() -> AL10.alSourcef(17, AL10.AL_GAIN, expected));
+        assertSame(current, resources().get(KEY));
+        assertEquals(java.util.Set.of(second), membership().getPositions(KEY));
+    }
+
+    private void configureSpatialWorld() throws Exception {
+        Minecraft client = Minecraft.getInstance();
+        for (String name : List.of("player", "level", "options", "gameRenderer")) {
+            Field f = field(Minecraft.class, name);
+            f.set(client, mock(f.getType(), RETURNS_DEEP_STUBS));
+        }
+        when(client.options.getSoundSourceVolume(any())).thenReturn(1f);
+        when(client.player.position()).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+        when(client.gameRenderer.getMainCamera().getPosition()).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
     }
 
     @Test @org.junit.jupiter.api.Timeout(10)
@@ -460,6 +525,20 @@ class AudioContextRecoveryIntegrationTest {
         assertSame(replacementIntent, intents().get(KEY));
         assertSame(replacement, resources().get(KEY));
         tasks.clear();
+    }
+
+    @Test void urlEofDuringRangeTailRetiresIntentWithoutReporting() throws Exception {
+        AudioFileMetadata metadata = new AudioFileMetadata("https://example.invalid/tail.ogg", "tail.ogg");
+        trackedIntent(metadata, 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        finishResource(current, true);
+        drainTasks();
+        assertTrue(eofReports.isEmpty(), "departed listeners must not vote for EOF");
+        assertFalse(intents().containsKey(KEY));
+        assertTrue(resources().isEmpty());
     }
 
     @Test void currentUrlEofReportsExactlyOnceAndRetiresItsIntent() throws Exception {
