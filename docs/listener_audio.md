@@ -1,14 +1,16 @@
 # Listener audio preferences
 
-These are local settings on each listener's client. Server configuration synchronization does not override them. Restart the client after editing the config file; stereo mode applies to newly started playback.
+Open a speaker or portable speaker, choose **Settings**, then use **Your listening settings**. These choices apply only on your device and do not require permission to manage the speaker. Server configuration synchronization does not override them. Changes save automatically; fade durations apply immediately, while stereo mode applies to newly started playback.
 
 | Setting | Config key | Default | Behavior |
 | --- | --- | --- | --- |
-| Stereo playback | `stereoPlayback` | `false` | `true` preserves the original left/right channels of stereo MP3 and WAV files and HTTP(S) audio streams. |
-| Entry fade duration (ms) | `rangeFadeInMillis` | `250` | Time to ramp volume up when entering audible range, from 0 to 5000 ms. Set 0 to disable this timed fade. |
-| Exit fade duration (ms) | `rangeFadeOutMillis` | `250` | Time to ramp volume down when leaving audible range, from 0 to 5000 ms. Set 0 to disable this timed fade. |
+| Stereo playback | `listening.stereo` | `false` | `true` preserves the original left/right channels of stereo MP3 and WAV files and HTTP(S) audio streams. |
+| Entry fade duration (ms) | `listening.fadeInMillis` | `250` | Time to ramp volume up when entering audible range, from 0 to 5000 ms. Set 0 to disable this timed fade. |
+| Exit fade duration (ms) | `listening.fadeOutMillis` | `250` | Time to ramp volume down when leaving audible range, from 0 to 5000 ms. Set 0 to disable this timed fade. |
 
-Fabric reads `config/simplyspeakers.properties`. Forge and NeoForge read `config/simplyspeakers-common.toml`. Existing files may omit the new entries: the defaults above apply until entries are added.
+All loaders save these personal choices in `config/simplyspeakers-ui.properties`, alongside the theme. The same card includes an **Audio cache size** target of 64–4096 MiB (500 MiB by default), stored as `listening.cacheMiB`. Older cached files are removed as downloads finish; the current completed download is kept even when larger than the target. Server originals are unchanged.
+
+On the first launch after upgrading, existing `stereoPlayback`, `rangeFadeInMillis`, and `rangeFadeOutMillis` entries are imported from the old Fabric properties or Forge/NeoForge common TOML file. Those old entries are not used after migration. Use the in-game controls thereafter. If editing the personal file manually, close the client first and relaunch to load it.
 
 ## Distance fade (%) and timed entry/exit fades (ms)
 
@@ -17,7 +19,7 @@ These are independent settings:
 | Feature | What changes the volume? | Where it is configured |
 | --- | --- | --- |
 | **Distance fade (%) (existing)** | Your distance from a speaker. Moving farther away lowers the calculated volume. | Each speaker/network or proxy's in-game Distance fade slider. |
-| **Entry/exit fade duration (ms) (new)** | Time since entering or leaving audible range. Volume ramps over the configured duration. | Each listener's local config file, using the two duration keys above. |
+| **Entry/exit fade duration (ms) (new)** | Time since entering or leaving audible range. Volume ramps over the configured duration. | Settings > Your listening settings on each listener's device. |
 
 For example, with **Distance fade at 0%** and both durations at **250 ms**, volume takes a quarter-second to ramp up after entry, stays at the configured volume while in range, and takes a quarter-second to ramp down after exit. With Distance fade above 0%, its calculated volume also decreases as you move farther away. Setting a duration to 0 disables that timed transition; the Distance fade slider still works independently.
 

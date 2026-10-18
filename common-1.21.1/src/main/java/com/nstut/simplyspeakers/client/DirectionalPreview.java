@@ -38,26 +38,15 @@ public final class DirectionalPreview {
         rangeBlocks=Math.max(1,Math.min(512,(int)Math.round(range)));
         DirectionalPreview.dropoff=(float)dropoff; DirectionalPreview.strength=(float)strength;
         DirectionalPreview.angle=(float)angle; DirectionalPreview.rear=(float)rear; facingOrdinal=facing;
-        renderOrigin=net.minecraft.world.phys.Vec3.atCenterOf(origin); rotation=0;
         samples=DirectionalPreviewGeometry.samples((int)Math.round(range),(float)dropoff,(float)strength,(float)angle,(float)rear,facing);
+        if (!updateRenderPose(client)) clear();
     }
     public static void tick(Minecraft client) {
         if(remaining<=0) return;
         if(client.level==null || !client.level.dimension().equals(dimension)) { clear();return; }
         if (client.screen != null) { clear(); return; }
         --remaining;
-        renderOrigin = net.minecraft.world.phys.Vec3.atCenterOf(origin);
-        rotation = 0;
-        if (portableHolder != null) {
-            var holder = client.level.getPlayerByUUID(portableHolder);
-            if (holder == null || !holder.isAlive()) { clear(); return; }
-            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, holder.position());
-            double yaw = Math.toRadians(holder.getYRot());
-            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, holder.position(), -Math.sin(yaw), Math.cos(yaw));
-            if (base == null || facing == null) { clear(); return; }
-            renderOrigin = base.add(0, .5, 0);
-            rotation = Math.atan2(-facing[0], facing[1]) + Math.PI;
-        }
+        if (!updateRenderPose(client)) { clear(); return; }
         if (remaining%6!=0) return;
         for(var point:samples) {
             double x = point.x()*Math.cos(rotation)-point.z()*Math.sin(rotation);
@@ -69,10 +58,32 @@ public final class DirectionalPreview {
                 renderOrigin.z+z,0,0,0);
         }
     }
+    /** Use the same world-space render pose as playback, including fixed speakers on moving bodies. */
+    private static boolean updateRenderPose(Minecraft client) {
+        if (portableHolder != null) {
+            var holder = client.level.getPlayerByUUID(portableHolder);
+            if (holder == null || !holder.isAlive()) return false;
+            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, holder.position());
+            double yaw = Math.toRadians(holder.getYRot());
+            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, holder.position(), -Math.sin(yaw), Math.cos(yaw));
+            if (base == null || facing == null) return false;
+            renderOrigin = base.add(0, .5, 0);
+            rotation = Math.atan2(-facing[0], facing[1]) + Math.PI;
+        } else {
+            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, origin);
+            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, origin, facingOrdinal);
+            if (base == null || facing == null) return false;
+            double[] local = com.nstut.simplyspeakers.audio.DirectionalAudio.facingFromOrdinal(facingOrdinal);
+            renderOrigin = base;
+            rotation = Math.atan2(facing[1], facing[0]) - Math.atan2(local[1], local[0]);
+        }
+        return true;
+    }
     /** North-up plan plus actual 3D listener gain; all samples use the playback attenuation function. */
     public static void renderHud(net.minecraft.client.gui.GuiGraphics g) {
         var client=Minecraft.getInstance();
         if(remaining<=0 || client.level==null || client.player==null || renderOrigin==null || client.screen!=null || client.options.hideGui) return;
+        if (!updateRenderPose(client)) { clear(); return; }
         hudFrames++;
         var font=client.font;
         int x=8, y=8, width=Math.min(230,client.getWindow().getGuiScaledWidth()-16);
@@ -110,5 +121,5 @@ public final class DirectionalPreview {
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(strength>0?"direction":"omni")),x+10,y+85,0xFFB7C7D8);
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.dismiss"),x+10,y+95,0xFFB7C7D8);
     }
-    public static void clear() { remaining=0;origin=null;dimension=null;portableHolder=null;samples=List.of(); }
+    public static void clear() { remaining=0;origin=null;dimension=null;portableHolder=null;renderOrigin=null;rotation=0;samples=List.of(); }
 }
