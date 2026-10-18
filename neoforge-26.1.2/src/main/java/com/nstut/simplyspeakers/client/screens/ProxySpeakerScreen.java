@@ -124,7 +124,7 @@ public class ProxySpeakerScreen extends SimplySpeakersUiScreen {
                         speaker.setSpeakerIdClient(newId);
                         sendToServer(new SetSpeakerIdPacketC2S(blockEntityPos, newId));
                     }
-                }).primary()
+                }).primary().tooltip(Component.translatable("gui.simplyspeakers.proxy_speaker_id.save.tooltip")).key("settings.save_speaker_id")
         ).gap(6);
     }
 

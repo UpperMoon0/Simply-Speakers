@@ -323,7 +323,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                                 .placeholder(Component.translatable("gui.simplyspeakers.network_name.placeholder").getString())
                                 .tooltip(Component.translatable("gui.simplyspeakers.network_name.tooltip")).key("settings.network_name").flex(),
                         SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.save"), () ->
-                                sendToServer(SpeakerPolicyPacketC2S.networkName(blockEntityPos, networkName.get()))).primary().enabledWhen(() -> accessView.get().canManage())
+                                sendToServer(SpeakerPolicyPacketC2S.networkName(blockEntityPos, networkName.get()))).primary().enabledWhen(() -> accessView.get().canManage()).tooltip(Component.translatable("gui.simplyspeakers.network_name.save.tooltip")).key("settings.save_network_name")
 
                 ).gap(6);
     }
@@ -332,7 +332,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return Ui.row(
                 Ui.textField(speakerId)
                         .placeholder(Component.translatable("gui.simplyspeakers.speaker_id.placeholder").getString())
-                        .tooltip(Component.translatable("gui.simplyspeakers.speaker_id.tooltip"))
+                        .tooltip(Component.translatable("gui.simplyspeakers.speaker_id.tooltip")).key("settings.speaker_id")
                         .flex(),
                 SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.save"), () -> {
                     if (speaker != null) {
@@ -342,14 +342,14 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         if (portableSpeaker == null) speaker.setSpeakerId(newId);
                         sendToServer(new SetSpeakerIdPacketC2S(blockEntityPos, newId));
                     }
-                }).primary().enabledWhen(() -> accessView.get().canManage())
+                }).primary().enabledWhen(() -> accessView.get().canManage()).tooltip(Component.translatable("gui.simplyspeakers.speaker_id.save.tooltip")).key("settings.save_speaker_id")
         ).gap(6);
     }
 
     private UIComponent sliderRow(Component label, Supplier<Component> valueSupplier,
                                    Signal<Double> signal, double min, double max, Component tooltip) {
         Slider slider = Ui.slider(signal, min, max);
-        slider.fillWidth();
+        slider.fillWidth(); slider.key("settings." + (signal == maxVolume ? "max_volume" : signal == maxRange ? "max_range" : "audio_dropoff"));
         UIComponent row = Ui.column(
                 Ui.row(Ui.text(label).nowrap().marquee().flex().tooltip(tooltip), Ui.text(valueSupplier).nowrap().tooltip(tooltip)).align(Alignment.CENTER).justify(Justification.SPACE_BETWEEN),
                 Ui.switcher(Signals.computed(() -> accessView.get().canControl())).when(true,() -> slider).when(false,() -> Ui.spacer().height(0))
@@ -720,23 +720,23 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private UIComponent buildAccessGroup() {
         return Ui.column(Ui.heading(accessText("title")),
-            Ui.row(Ui.text(accessText("owner")).nowrap(),
+            Ui.row(Ui.text(accessText("owner")).nowrap().tooltip(accessText("owner_help")).key("settings.owner"),
                 Ui.text(() -> accessView.get().owner()==null?accessText("unclaimed"):ownerDisplayName()).nowrap().marquee().flex(),
                 Ui.switcher(Signals.computed(() -> accessView.get().owner()==null))
                     .when(true,() -> SpeakerButtonWidget.button(accessText("claim"),() -> sendToServer(new SpeakerPolicyPacketC2S(blockEntityPos,SpeakerPolicyPacketC2S.OP_CLAIM_OWNER,0,false,"")))
-                        .small().enabledWhen(() -> accessView.get().canManage()))
-                    .when(false,() -> new SpeakerIconButton(Icon.MORE,accessText("change_owner"),() -> playerPolicyDialog(true)).enabledWhen(() -> accessView.get().canManage()))
+                        .small().enabledWhen(() -> accessView.get().canManage()).tooltip(accessText("claim_help")).key("settings.claim_owner"))
+                    .when(false,() -> new SpeakerIconButton(Icon.MORE,accessText("change_owner_help"),() -> playerPolicyDialog(true)).enabledWhen(() -> accessView.get().canManage()).key("settings.change_owner"))
             ).align(Alignment.CENTER).gap(6),
             Ui.row(Ui.text(accessText("mode")).nowrap().marquee().flex().tooltip(Component.translatable("gui.simplyspeakers.access.tooltip")),
                 new SpeakerMarqueeButton(() -> accessText("mode."+accessView.get().access().id()),6)
                     .reserveLabels(java.util.Arrays.stream(com.nstut.simplyspeakers.SpeakerAccess.values())
                         .map(mode -> accessText("mode."+mode.id())).toArray(Component[]::new))
-                    .onPress(this::chooseAccessMode).ghost().small().enabledWhen(() -> accessView.get().canManage())
+                    .onPress(this::chooseAccessMode).ghost().small().enabledWhen(() -> accessView.get().canManage()).tooltip(Component.translatable("gui.simplyspeakers.access.tooltip"))
                     .flex().key("settings.access_mode")
             ).align(Alignment.CENTER).gap(6),
             Ui.row(Ui.text(() -> Component.translatable("gui.simplyspeakers.access.trusted_count",accessView.get().trusted().size())).nowrap().marquee().flex(),
                 SpeakerButtonWidget.button(accessText("manage"),this::manageTrustedPlayers).ghost().small()
-                    .enabledWhen(() -> accessView.get().canManage()).key("settings.trusted")
+                    .enabledWhen(() -> accessView.get().canManage()).tooltip(accessText("trusted_help")).key("settings.trusted")
             ).align(Alignment.CENTER).gap(6)
         ).gap(8).key("settings.access");
     }
@@ -750,7 +750,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         OverlayHandle[] handle={null}; Signal<String> player=Signals.of(""); Signal<Component> error=Signals.of(Component.empty());
         Card dialog=Ui.card(Ui.column(Ui.heading(accessText(transfer?"change_owner":"add_trusted")),
             Ui.text(accessText(transfer?"transfer_help":"player_help")).wrap(),
-            Ui.textField(player).maxLength(36).placeholder(accessText("player_placeholder").getString()).fillWidth().key("access.player"),
+            Ui.textField(player).maxLength(36).placeholder(accessText("player_placeholder").getString()).tooltip(accessText("player_help")).fillWidth().key("access.player"),
             Ui.text((Supplier<Component>)error::get).wrap(),
             Ui.row(SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.cancel"),() -> handle[0].close()).ghost().small(),
                 SpeakerButtonWidget.button(accessText(transfer?"transfer":"add"),() -> {
@@ -758,7 +758,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     if(!validPlayerInput(value)){error.set(accessText("invalid_player"));return;}
                     sendToServer(new SpeakerPolicyPacketC2S(blockEntityPos,transfer?SpeakerPolicyPacketC2S.OP_TRANSFER_OWNER:SpeakerPolicyPacketC2S.OP_TRUST_CHANGE,0,true,value));
                     handle[0].close();
-                }).primary().small().enabledWhen(() -> accessView.get().canManage())
+                }).primary().small().enabledWhen(() -> accessView.get().canManage()).tooltip(accessText(transfer?"transfer_help":"player_help"))
             ).align(Alignment.CENTER).justify(Justification.CENTER).gap(6)
         ).gap(8)).padding(12);dialog.width(Math.min(320,width-40));handle[0]=Dialog.show(uiRuntime().overlays(),dialog);
     }
@@ -776,7 +776,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         var members=Signals.computed(() -> accessView.get().trusted());
         var list=Ui.list(members,player -> Ui.row(
             Ui.text(Component.literal(player.name())).nowrap().marquee().flex().tooltip(Component.literal(player.uuid().toString())),
-            new SpeakerIconButton(Icon.TRASH,accessText("remove_trusted"),() -> sendToServer(SpeakerPolicyPacketC2S.trust(blockEntityPos,player.uuid(),false)))
+            new SpeakerIconButton(Icon.TRASH,accessText("remove_trusted_help"),() -> sendToServer(SpeakerPolicyPacketC2S.trust(blockEntityPos,player.uuid(),false)))
                 .enabledWhen(() -> accessView.get().canManage())
         ).align(Alignment.CENTER).gap(6)).key(p -> p.uuid()).itemHeight(24).gap(3).height(Math.max(24,Math.min(Math.min(120,Math.max(24,height-180)),members.get().size()*27-3)));
         Card dialog=Ui.card(Ui.column(Ui.heading(accessText("manage_trusted")),
@@ -785,7 +785,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 .when(true,() -> Ui.text(accessText("none_trusted")).wrap())
                 .when(false,() -> list),
             Ui.row(SpeakerButtonWidget.button(accessText("add_trusted"),addPlayer).primary().small()
-                .enabledWhen(() -> accessView.get().canManage() && members.get().size()<com.nstut.simplyspeakers.permissions.AccessViewSnapshot.MAX_TRUSTED),
+                .enabledWhen(() -> accessView.get().canManage() && members.get().size()<com.nstut.simplyspeakers.permissions.AccessViewSnapshot.MAX_TRUSTED).tooltip(accessText("player_help")),
                 SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.close"),close).ghost().small()
             ).justify(Justification.CENTER).gap(6)
         ).gap(8)).padding(12);dialog.width(Math.min(320,width-40));return dialog;

@@ -29,7 +29,7 @@ final class SpeakerUiPreviewProbe {
                 CASES.add(new Case(view,size,light));
             for(var action:com.nstut.simplyspeakers.control.ControllerAction.values()) { CASES.add(new Case("Controller_"+action.id(),size,light)); CASES.add(new Case("Controller_"+action.id()+"Scrolled",size,light)); CASES.add(new Case("Controller_"+action.id()+"Picker",size,light)); }
             for(String name:new String[]{"PlaylistMany","PlaylistLongNames","PlaylistBrowse","PlaylistCreateDialog","PlaylistRenameDialog","PlaylistDuplicateDialog","PlaylistDeleteDialog","PlaylistChooser","PlaylistSearch","PlaylistSearchNone","PlaylistFullLibrary","AddToPlaylistDialog"})CASES.add(new Case(name,size,light));
-            for(String help:new String[]{"directionality","cone_angle","rear_attenuation","network_name","directional_preview"}) CASES.add(new Case("SettingsHelp"+help,size,light));
+            for(String help:new String[]{"directionality","cone_angle","rear_attenuation","network_name","directional_preview","max_range","audio_dropoff","speaker_id","save_network_name","save_speaker_id","owner","change_owner","trusted","access_mode","claim_owner"}) CASES.add(new Case("SettingsHelp"+help,size,light));
             CASES.add(new Case("ProxyVolume",size,light)); CASES.add(new Case("ProxyEnabled",size,light)); CASES.add(new Case("ProxyVolumePicker",size,light)); CASES.add(new Case("ProxyEnabledPicker",size,light));
         }
     }
@@ -277,6 +277,9 @@ final class SpeakerUiPreviewProbe {
         if(c.name.equals("ClearDialog"))invoke(screen,"confirmClearPlaylist");
         if(c.name.equals("ScrolledSettings"))navigate("Settings",3);
         if(c.name.startsWith("SettingsHelp")) {
+            screen.updateAccessModel(new com.nstut.simplyspeakers.permissions.AccessViewSnapshot(
+                c.name.endsWith("claim_owner")?null:java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),"Preview owner",
+                com.nstut.simplyspeakers.SpeakerAccess.PUBLIC,java.util.List.of(),true,true,true));
             navigate("Settings",3);
         }
         moveMouse(client,2,2);

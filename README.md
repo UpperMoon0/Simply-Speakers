@@ -63,6 +63,13 @@ can claim or transfer ownership, choose Public/Trusted/Owner/Operators access, a
 trusted players by online name or UUID. These restrictions affect control, not hearing.
 Trusted playback access does not grant permission to change ownership, access or linking.
 
+Both Simply Speakers and Simply Screens use **Public**, **Trusted players**, **Owner only**,
+and **Operators only**. Operators retain administrative access in every mode. Owner only
+allows the owner plus that operator override; Operators only excludes non-OP owners from
+playback control. Owners still retain access management and can change the mode back.
+Screens applies these same rules separately to viewing and content control; speaker hearing
+remains range-based and unrestricted by the control mode.
+
 Library's **Add stream** opens a URL dialog with Play, Queue and playlist destinations.
 Use a direct public HTTP(S) MP3/WAV URL, up to 256 characters. Remote streams must be enabled
 by the server; each listener connects directly to the URL. Upload permission is independent.
@@ -201,8 +208,11 @@ unique and contain 1–64 characters. Legacy network lists migrate to their owne
 Display name is a label for listings and commands. Speaker ID links speakers, proxies and
 controllers within one dimension; a blank ID makes a speaker standalone.
 
-Volume, range, Distance fade (%) and directional controls apply live. The eight-second area
-preview marks boundaries in teal, louder areas in green and quieter areas in amber.
+Volume, range, Distance fade (%) and directional controls apply live. The 30-second audio-zone
+preview shows a cyan range sphere, white forward/cone guides and green-to-amber spatial gain.
+A north-up map marks your listening position in gold and reports 3D distance and spatial volume
+as you walk. Cone guides mark the start of rear attenuation, not a hard cutoff. The meter excludes
+output volume, game volume, mute and timed entry/exit fades. Opening a menu dismisses the preview.
 Proxies have independent volume, range and Distance fade (%); directional settings follow the linked
 speaker and use the proxy's own facing.
 

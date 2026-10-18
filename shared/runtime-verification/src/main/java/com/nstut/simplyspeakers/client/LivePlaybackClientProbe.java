@@ -53,6 +53,7 @@ final class LivePlaybackClientProbe {
             if (!verifySoundReload(client, "normal_paused", KEY, false, 0)) return;
             if(++previewTicks<80)return;
             if(DirectionalPreview.emittedSamples()==0)throw new IllegalStateException("World preview did not emit particles");
+            if(DirectionalPreview.renderedHudFrames()==0)throw new IllegalStateException("World preview did not render the listener guide");
             try {
                 var capture=SpeakerUiPreviewProbe.class.getDeclaredMethod("capture",Minecraft.class,String.class);
                 capture.setAccessible(true);capture.invoke(null,client,"directional-preview-world.png");
