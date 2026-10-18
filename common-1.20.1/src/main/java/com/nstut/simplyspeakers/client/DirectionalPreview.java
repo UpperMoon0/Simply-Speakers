@@ -20,6 +20,7 @@ public final class DirectionalPreview {
     private static double rotation;
     private static int emitted;
     private static int hudFrames;
+    static boolean isActive() { return remaining > 0; }
     static int renderedHudFrames() { return hudFrames; }
     static int emittedSamples() { return emitted; }
     private static List<DirectionalPreviewGeometry.Point> samples=List.of();
