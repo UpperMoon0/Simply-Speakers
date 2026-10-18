@@ -12,7 +12,7 @@ Fabric reads `config/simplyspeakers.properties`. Forge and NeoForge read `config
 
 ## Boundary fades
 
-Timed fades are separate from the speaker's **Distance fade** slider. Entry ramps up the calculated distance/direction gain. On exit the most recent spatial gain ramps down to silence; movement beyond the boundary may therefore produce a short, bounded tail. The game Master and Records volume controls continue to apply during the tail. A rapid return reverses the same envelope and reuses the network source when the playback occurrence is unchanged. Re-entry after cleanup joins the current server playback position.
+Timed fades are separate from the speaker's **Distance fade** slider. Entry ramps up the calculated distance/direction gain. On exit the most recent spatial gain ramps down to silence; movement beyond the boundary may therefore produce a short, bounded tail. The game Master and Records volume controls continue to apply during the tail. The server briefly retains departed listeners only for lifecycle stop notifications; they do not count as subscribers or remote-stream EOF voters. A rapid return reverses the same envelope and reuses the network source when the playback occurrence is unchanged. Re-entry after cleanup joins the current server playback position.
 
 Transport stop, pause, dimension/disconnect cleanup, speaker removal, and network replacement cancel resources immediately through the existing cleanup path. Looping does not restart the entry fade. Missing moving-body positions remain silent.
 

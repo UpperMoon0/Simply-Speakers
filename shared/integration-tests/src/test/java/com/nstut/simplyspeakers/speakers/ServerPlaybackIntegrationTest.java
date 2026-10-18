@@ -258,6 +258,21 @@ class ServerPlaybackIntegrationTest {
         assertEquals(2, packets(PlayAudioPacketS2C.class));
     }
 
+    @Test void stopAfterRangeExitStillCancelsDepartedListenersFadeTail() {
+        ServerPlayer p = player(10);
+        play(); scan();
+        move(p, 30); scan();
+        assertTrue(ServerPlaybackManager.getSubscribers(location).isEmpty());
+        assertEquals(1, packets(StopAudioPacketS2C.class));
+        ServerPlaybackManager.stopEmitter(server, location);
+        var stops = packets.stream().filter(StopAudioPacketS2C.class::isInstance).map(StopAudioPacketS2C.class::cast).toList();
+        assertEquals(2, stops.size());
+        assertTrue(stops.get(0).isRangeExit());
+        assertFalse(stops.get(1).isRangeExit());
+        ServerPlaybackManager.stopEmitter(server, location);
+        assertEquals(2, packets(StopAudioPacketS2C.class));
+    }
+
     @Test void pauseResumeSeekRestartAndStopUseActualControlService() {
         player(1); play(); int generation = state().getPlaybackSessionGeneration();
         tick = 100;
