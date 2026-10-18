@@ -2,17 +2,26 @@
 
 These are local settings on each listener's client. Server configuration synchronization does not override them. Restart the client after editing the config file; stereo mode applies to newly started playback.
 
-| Setting | Default | Behavior |
-| --- | --- | --- |
-| `stereoPlayback` | `false` | `true` preserves the original left/right channels of stereo MP3 and WAV files and HTTP(S) audio streams. |
-| `rangeFadeInMillis` | `250` | Range-entry fade duration, from 0 to 5000 milliseconds. Set 0 to disable. |
-| `rangeFadeOutMillis` | `250` | Range-exit fade duration, from 0 to 5000 milliseconds. Set 0 to disable. |
+| Setting | Config key | Default | Behavior |
+| --- | --- | --- | --- |
+| Stereo playback | `stereoPlayback` | `false` | `true` preserves the original left/right channels of stereo MP3 and WAV files and HTTP(S) audio streams. |
+| Entry fade duration (ms) | `rangeFadeInMillis` | `250` | Time to ramp volume up when entering audible range, from 0 to 5000 ms. Set 0 to disable this timed fade. |
+| Exit fade duration (ms) | `rangeFadeOutMillis` | `250` | Time to ramp volume down when leaving audible range, from 0 to 5000 ms. Set 0 to disable this timed fade. |
 
 Fabric reads `config/simplyspeakers.properties`. Forge and NeoForge read `config/simplyspeakers-common.toml`. Existing files may omit the new entries: the defaults above apply until entries are added.
 
-## Boundary fades
+## Distance fade (%) and timed entry/exit fades (ms)
 
-Timed fades are separate from the speaker's **Distance fade** slider. Entry ramps up the calculated distance/direction gain. On exit the most recent spatial gain ramps down to silence; movement beyond the boundary may therefore produce a short, bounded tail. The game Master and Records volume controls continue to apply during the tail. The server briefly retains departed listeners only for lifecycle stop notifications; they do not count as subscribers or remote-stream EOF voters. A rapid return reverses the same envelope and reuses the network source when the playback occurrence is unchanged. Re-entry after cleanup joins the current server playback position.
+These are independent settings:
+
+| Feature | What changes the volume? | Where it is configured |
+| --- | --- | --- |
+| **Distance fade (%) (existing)** | Your distance from a speaker. Moving farther away lowers the calculated volume. | Each speaker/network or proxy's in-game Distance fade slider. |
+| **Entry/exit fade duration (ms) (new)** | Time since entering or leaving audible range. Volume ramps over the configured duration. | Each listener's local config file, using the two duration keys above. |
+
+For example, with **Distance fade at 0%** and both durations at **250 ms**, volume takes a quarter-second to ramp up after entry, stays at the configured volume while in range, and takes a quarter-second to ramp down after exit. With Distance fade above 0%, its calculated volume also decreases as you move farther away. Setting a duration to 0 disables that timed transition; the Distance fade slider still works independently.
+
+The existing Distance fade slider does not set an entry or exit duration. Entry ramps up the calculated distance/direction gain. On exit the most recent spatial gain ramps down to silence; movement beyond the boundary may therefore produce a short, bounded tail. The game Master and Records volume controls continue to apply during the tail. The server briefly retains departed listeners only for lifecycle stop notifications; they do not count as subscribers or remote-stream EOF voters. A rapid return reverses the same envelope and reuses the network source when the playback occurrence is unchanged. Re-entry after cleanup joins the current server playback position.
 
 Transport stop, pause, dimension/disconnect cleanup, speaker removal, and network replacement cancel resources immediately through the existing cleanup path. Looping does not restart the entry fade. Missing moving-body positions remain silent.
 

@@ -40,10 +40,10 @@ public class ForgeConfig {
             .comment("Local listener: preserve stereo channels; disables directional positioning. Applies to new playback.")
             .define("stereoPlayback", false);
     public static final ForgeConfigSpec.IntValue RANGE_FADE_IN = BUILDER
-            .comment("Local listener range-entry fade in milliseconds; 0 disables it")
+            .comment("Entry fade duration (ms): timed ramp on entering audible range. Independent of Distance fade (%); 0 disables this timed fade.")
             .defineInRange("rangeFadeInMillis", 250, 0, 5000);
     public static final ForgeConfigSpec.IntValue RANGE_FADE_OUT = BUILDER
-            .comment("Local listener range-exit fade in milliseconds; 0 disables it")
+            .comment("Exit fade duration (ms): timed ramp on leaving audible range. Independent of Distance fade (%); 0 disables this timed fade.")
             .defineInRange("rangeFadeOutMillis", 250, 0, 5000);
 
     public static final ForgeConfigSpec SPEC = BUILDER.build();

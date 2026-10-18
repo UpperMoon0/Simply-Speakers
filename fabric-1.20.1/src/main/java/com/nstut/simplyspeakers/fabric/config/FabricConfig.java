@@ -80,7 +80,10 @@ public class FabricConfig {
             props.setProperty("stereoPlayback", String.valueOf(Config.stereoPlayback));
             props.setProperty("rangeFadeInMillis", String.valueOf(Config.rangeFadeInMillis));
             props.setProperty("rangeFadeOutMillis", String.valueOf(Config.rangeFadeOutMillis));
-            props.store(writer, "Simply Speakers Configuration");
+            props.store(writer, "Simply Speakers Configuration\n"
+                    + "rangeFadeInMillis: Entry fade duration (ms). rangeFadeOutMillis: Exit fade duration (ms).\n"
+                    + "These local timed transitions are independent of the existing in-game Distance fade (%) slider.\n"
+                    + "Set either duration to 0 to disable that timed transition.");
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to write config file", e);
         }
