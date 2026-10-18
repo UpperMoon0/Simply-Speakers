@@ -108,8 +108,8 @@ dependencies {
 
     // Local integration-test mods. These are attached automatically when the
     // sibling source checkouts have been built and are never bundled in releases.
-    def localSableJar = rootProject.file('../sable/neoforge/build/libs/sable-neoforge-1.21.1-2.0.5.jar')
-    def localSableRapierJar = rootProject.file('../sable/sable_rapier/build/libs/sable-sable_rapier-1.21.1-2.0.5.jar')
+    def localSableJar = rootProject.file("../sable/neoforge/build/libs/sable-neoforge-1.21.1-${rootProject.sable_version}.jar")
+    def localSableRapierJar = rootProject.file("../sable/sable_rapier/build/libs/sable-sable_rapier-1.21.1-${rootProject.sable_version}.jar")
     def localAeronauticsJars = [
             rootProject.file('../Simulated-Project/simulated/neoforge/build/libs/simulated-neoforge-1.21.1-1.3.1.jar'),
             rootProject.file('../Simulated-Project/aeronautics/neoforge/build/libs/aeronautics-neoforge-1.21.1-1.3.1.jar'),
