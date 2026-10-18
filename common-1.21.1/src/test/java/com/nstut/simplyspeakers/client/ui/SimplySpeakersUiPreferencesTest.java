@@ -17,6 +17,33 @@ class SimplySpeakersUiPreferencesTest {
     }
 
     @Test
+    void listeningPreferencesLoadBeforeMinecraftExists(@TempDir Path dir) throws Exception {
+        String override = System.getProperty("simplyspeakers.ui.config.dir");
+        boolean stereo = com.nstut.simplyspeakers.Config.stereoPlayback;
+        int fadeIn = com.nstut.simplyspeakers.Config.rangeFadeInMillis;
+        int fadeOut = com.nstut.simplyspeakers.Config.rangeFadeOutMillis;
+        long cache = com.nstut.simplyspeakers.Config.clientCacheLimitBytes;
+        try (var platform = org.mockito.Mockito.mockStatic(dev.architectury.platform.Platform.class);
+             var minecraft = org.mockito.Mockito.mockStatic(net.minecraft.client.Minecraft.class)) {
+            System.clearProperty("simplyspeakers.ui.config.dir");
+            platform.when(dev.architectury.platform.Platform::getConfigFolder).thenReturn(dir);
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(null);
+            Files.writeString(configFile(dir), "listening.stereo=true\nlistening.fadeInMillis=123\nlistening.fadeOutMillis=456\nlistening.cacheMiB=64\n");
+            SimplySpeakersUiPreferences.applyListeningPreferences();
+            assertTrue(com.nstut.simplyspeakers.Config.stereoPlayback);
+            assertEquals(123, com.nstut.simplyspeakers.Config.rangeFadeInMillis);
+            assertEquals(456, com.nstut.simplyspeakers.Config.rangeFadeOutMillis);
+            assertEquals(64L * 1024 * 1024, com.nstut.simplyspeakers.Config.clientCacheLimitBytes);
+            minecraft.verifyNoInteractions();
+        } finally {
+            com.nstut.simplyspeakers.Config.setPlaybackPreferences(stereo, fadeIn, fadeOut);
+            com.nstut.simplyspeakers.Config.clientCacheLimitBytes = cache;
+            if (override == null) System.clearProperty("simplyspeakers.ui.config.dir");
+            else System.setProperty("simplyspeakers.ui.config.dir", override);
+        }
+    }
+
+    @Test
     void missingFileDefaultsToDark(@TempDir Path dir) {
         assertEquals(UiThemeMode.DARK, SimplySpeakersUiPreferences.getThemeMode(configFile(dir)));
     }

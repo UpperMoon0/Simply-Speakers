@@ -1,6 +1,6 @@
 package com.nstut.simplyspeakers.client.ui;
 
-import net.minecraft.client.Minecraft;
+import dev.architectury.platform.Platform;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,7 +45,7 @@ public final class SimplySpeakersUiPreferences {
         String override = System.getProperty("simplyspeakers.ui.config.dir");
         Path dir = override != null
                 ? Path.of(override)
-                : Minecraft.getInstance().gameDirectory.toPath().resolve("config");
+                : Platform.getConfigFolder();
         return dir.resolve(FILE_NAME);
     }
 
