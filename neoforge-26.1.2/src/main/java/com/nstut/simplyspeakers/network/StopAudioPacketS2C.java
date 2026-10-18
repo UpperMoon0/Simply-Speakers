@@ -18,23 +18,30 @@ public class StopAudioPacketS2C implements CustomPacketPayload {
         StreamCodec.of(StopAudioPacketS2C::encode, StopAudioPacketS2C::decode);
 
     private final BlockPos pos;
+    private final boolean rangeExit;
 
-    public StopAudioPacketS2C(BlockPos pos) {
+    public boolean isRangeExit() { return rangeExit; }
+
+    public StopAudioPacketS2C(BlockPos pos) { this(pos, false); }
+
+    public StopAudioPacketS2C(BlockPos pos, boolean rangeExit) {
         this.pos = pos;
+        this.rangeExit = rangeExit;
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, StopAudioPacketS2C packet) {
         buffer.writeBlockPos(packet.pos);
+        buffer.writeBoolean(packet.rangeExit);
     }
 
     public static StopAudioPacketS2C decode(RegistryFriendlyByteBuf buffer) {
-        return new StopAudioPacketS2C(buffer.readBlockPos());
+        return new StopAudioPacketS2C(buffer.readBlockPos(), buffer.readBoolean());
     }
 
     public static void handle(StopAudioPacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
             // Stop the audio tied to the specific speaker block.
-            ClientAudioPlayer.stop(packet.pos);
+            ClientAudioPlayer.stop(packet.pos, packet.rangeExit);
         });
     }
 

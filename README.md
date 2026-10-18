@@ -13,7 +13,8 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 * **Per-Speaker Audio Settings**: Fine-tune max volume (0-100%), max range (1-512 blocks), and audio dropoff (0-100%) per speaker.
 * **Speaker Controllers**: Link dedicated controllers by Speaker ID for buttons, announcements, lever playback, and analog volume. Each controller has one job and accepts input from any side.
 * **In-Game Guide**: An optional Patchouli book in the Simply Speakers creative tab documents setup, playback, automation, permissions, and integrations.
-* **Range-based Audio**: Volume fades with distance; players entering/leaving range automatically start/stop hearing audio.
+* **Range-based Audio**: Distance dropoff plus configurable timed fades when entering/leaving range, with synchronized re-entry.
+* **Optional Stereo Playback**: A local listener setting preserves left/right channels while retaining network range and gain. Positional mono remains the default. See [listener audio preferences](docs/listener_audio.md).
 * **Repeat Playback**: Use the player bar to repeat the current track or the active playlist. Queued requests play once and take priority.
 * **Moving Speakers (1.21.1)**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
 * **Cross-Platform**: Supports Fabric, Forge, and NeoForge across multiple Minecraft versions.

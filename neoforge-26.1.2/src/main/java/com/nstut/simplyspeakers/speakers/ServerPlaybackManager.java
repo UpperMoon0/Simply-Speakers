@@ -398,7 +398,8 @@ public final class ServerPlaybackManager {
         for (UUID stopId : plan.stopListeners()) {
             ServerPlayer player = server.getPlayerList().getPlayer(stopId);
             if (player != null) {
-                PacketSenders.sendStop(player, new StopAudioPacketS2C(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ())));
+                PacketSenders.sendStop(player, new StopAudioPacketS2C(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()),
+                        ServerSpeakerRegistry.getDimension(player.level()).equals(emitter.location().dimension())));
             }
             subscriptions.unsubscribe(stopId, emitter.location());
         }

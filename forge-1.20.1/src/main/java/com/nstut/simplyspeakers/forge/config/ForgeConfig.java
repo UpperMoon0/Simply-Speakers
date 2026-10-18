@@ -36,6 +36,16 @@ public class ForgeConfig {
             .comment("Enable debug logging for troubleshooting audio/settings issues")
             .define("debugLogging", Config.debugLogging);
 
+    public static final ForgeConfigSpec.BooleanValue STEREO_PLAYBACK = BUILDER
+            .comment("Local listener: preserve stereo channels; disables directional positioning. Applies to new playback.")
+            .define("stereoPlayback", false);
+    public static final ForgeConfigSpec.IntValue RANGE_FADE_IN = BUILDER
+            .comment("Local listener range-entry fade in milliseconds; 0 disables it")
+            .defineInRange("rangeFadeInMillis", 250, 0, 5000);
+    public static final ForgeConfigSpec.IntValue RANGE_FADE_OUT = BUILDER
+            .comment("Local listener range-exit fade in milliseconds; 0 disables it")
+            .defineInRange("rangeFadeOutMillis", 250, 0, 5000);
+
     public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     /**
@@ -47,6 +57,7 @@ public class ForgeConfig {
         if (event.getConfig().getSpec() == SPEC) {
             Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get(), ALLOW_REMOTE_STREAMS.get());
             Config.debugLogging = DEBUG_LOGGING.get();
+            Config.setPlaybackPreferences(STEREO_PLAYBACK.get(), RANGE_FADE_IN.get(), RANGE_FADE_OUT.get());
             
             // Set logger level based on debug config
             // The logger name is the MOD_ID ("simplyspeakers")

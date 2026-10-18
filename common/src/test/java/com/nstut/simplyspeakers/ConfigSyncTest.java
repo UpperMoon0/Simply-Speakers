@@ -23,6 +23,18 @@ class ConfigSyncTest {
     }
 
     @Test
+    void listenerPreferencesStayLocalAndClampFadeDurations() {
+        try {
+            Config.setPlaybackPreferences(true, -1, 99999);
+            Config.applyServerConfig(32, true, 1024, false);
+            Config.restoreLocalConfig();
+            assertTrue(Config.stereoPlayback);
+            assertEquals(0, Config.rangeFadeInMillis);
+            assertEquals(5000, Config.rangeFadeOutMillis);
+        } finally { Config.setPlaybackPreferences(false, 250, 250); }
+    }
+
+    @Test
     void setLocalConfigUpdatesActiveAndLocalValues() {
         Config.setLocalConfig(128, true, 10 * 1024 * 1024);
 

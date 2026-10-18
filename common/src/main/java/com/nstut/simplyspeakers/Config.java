@@ -4,6 +4,17 @@ package com.nstut.simplyspeakers;
  * Configuration for Simply Speakers.
  */
 public class Config {
+    /** Local listener preferences; never overwritten by server configuration sync. */
+    public static volatile boolean stereoPlayback = false;
+    public static volatile int rangeFadeInMillis = 250;
+    public static volatile int rangeFadeOutMillis = 250;
+
+    public static void setPlaybackPreferences(boolean stereo, int fadeIn, int fadeOut) {
+        stereoPlayback = stereo;
+        rangeFadeInMillis = Math.max(0, Math.min(5000, fadeIn));
+        rangeFadeOutMillis = Math.max(0, Math.min(5000, fadeOut));
+    }
+
     /**
      * The range of the speaker block.
      */

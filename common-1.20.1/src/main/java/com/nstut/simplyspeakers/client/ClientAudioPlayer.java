@@ -124,6 +124,11 @@ public class ClientAudioPlayer {
 
     private static class StreamingAudioResource {
         final String networkKey;
+        final boolean stereo = Config.stereoPlayback;
+        final com.nstut.simplyspeakers.audio.BoundaryFade boundaryFade = new com.nstut.simplyspeakers.audio.BoundaryFade();
+        volatile boolean playbackStarted;
+        boolean rangeStopping;
+        final Set<BlockPos> fadingPositions = new java.util.HashSet<>();
         final long contextEpoch = audioContext.epoch();
         final PlaybackIntent intent;
         final int sourceID;
@@ -178,13 +183,18 @@ public class ClientAudioPlayer {
         private void al(Runnable operation) { al(() -> { operation.run(); return null; }); }
         int sourceInt(int parameter) { return al(() -> AL10.alGetSourcei(sourceID, parameter)); }
         boolean isSource() { return al(() -> AL10.alIsSource(sourceID)); }
-        void playSource() { al(() -> AL10.alSourcePlay(sourceID)); }
+        void playSource() { al(() -> {
+            AL10.alSourcePlay(sourceID);
+            playbackStarted = true;
+        }); }
         void stopSource() { al(() -> AL10.alSourceStop(sourceID)); }
         void bufferData(int buffer, int format, ByteBuffer data, int rate) { al(() -> AL10.alBufferData(buffer, format, data, rate)); }
         void queueBuffer(int buffer) { al(() -> AL10.alSourceQueueBuffers(sourceID, buffer)); }
         int unqueueBuffer() { return al(() -> AL10.alSourceUnqueueBuffers(sourceID)); }
         void unqueueBuffers(int[] buffers) { al(() -> AL10.alSourceUnqueueBuffers(sourceID, buffers)); }
-        void position(float x, float y, float z) { al(() -> AL10.alSource3f(sourceID, AL10.AL_POSITION, x, y, z)); }
+        void position(float x, float y, float z) {
+            al(() -> AL10.alSource3f(sourceID, AL10.AL_POSITION, stereo ? 0f : x, stereo ? 0f : y, stereo ? 0f : z));
+        }
         void gain(float gain) { al(() -> AL10.alSourcef(sourceID, AL10.AL_GAIN, gain)); }
         void restartLoopTimeline() {
             al(() -> { if (intent != null) intent.timeline.restartLoop(); });
@@ -342,6 +352,10 @@ public class ClientAudioPlayer {
         SimplySpeakers.LOGGER.debug("CLIENT: play called for pos: {}, speakerId: '{}', networkKey: {}, audioId: {}, start: {}s, looping: {}, range: {}, volume: {}, dropoff: {}",
                 pos, speakerId, networkKey, metadata.getUuid(), startPositionSeconds, isLooping, maxRange, maxVolume, audioDropoff);
 
+        // A detached range tail still owns its old network until it reaches silence.
+        for (StreamingAudioResource tail : new ArrayList<>(networkResources.values())) {
+            if (tail.fadingPositions.contains(pos) && !tail.networkKey.equals(networkKey)) stopNetwork(tail.networkKey);
+        }
         String oldKey = membership.getNetworkKey(pos);
         membership.track(pos, networkKey, new com.nstut.simplyspeakers.SpeakerSettings(maxVolume, Math.min(maxRange, Config.speakerRange), audioDropoff));
         if (directional != null) {
@@ -376,6 +390,8 @@ public class ClientAudioPlayer {
         if (existing != null) {
             if (existing.intent == intent && audioContext.isCurrent(existing.contextEpoch)
                     && !existing.stopFlag.get() && existing.streamingThread != null && existing.streamingThread.isAlive()) {
+                existing.rangeStopping = false;
+                existing.fadingPositions.clear();
                 updateSpeakerVolumes();
                 return;
             }
@@ -451,7 +467,8 @@ public class ClientAudioPlayer {
                     AL10.alSource3f(sourceID, AL10.AL_POSITION, activePos.getX() + 0.5f, activePos.getY() + 0.5f, activePos.getZ() + 0.5f);
                     AL10.alSourcef(sourceID, AL10.AL_ROLLOFF_FACTOR, 0.0f);
                     AL10.alSourcef(sourceID, AL10.AL_GAIN, 0.0f);
-                    AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, AL10.AL_FALSE);
+                    AL10.alSourcei(sourceID, AL10.AL_SOURCE_RELATIVE, Config.stereoPlayback ? AL10.AL_TRUE : AL10.AL_FALSE);
+                    if (Config.stereoPlayback) AL10.alSource3f(sourceID, AL10.AL_POSITION, 0f, 0f, 0f);
                     StreamingAudioResource resource = new StreamingAudioResource(networkKey, sourceID, bufferIDs, null,
                             intent.looping, remote ? intent.fullStateKey : null, intent.generation);
                     resource.startOffsetSeconds = intent.offsetSeconds();
@@ -513,7 +530,7 @@ public class ClientAudioPlayer {
                     break;
                 }
 
-                pcmAudioStream = IncrementalAudioDecoders.openPcmStream(audioFile);
+                pcmAudioStream = IncrementalAudioDecoders.openPcmStream(audioFile, resource.stereo);
                 if (pcmAudioStream == null) {
                     resource.stopFlag.set(true);
                     break;
@@ -531,7 +548,7 @@ public class ClientAudioPlayer {
                 boolean playbackAttempted = false;
                 boolean endOfStream = false;
 
-                int alFormat = AL10.AL_FORMAT_MONO16;
+                int alFormat = format.getChannels() == 2 ? AL10.AL_FORMAT_STEREO16 : AL10.AL_FORMAT_MONO16;
                 int bufferSizeBytes = (int) (format.getFrameRate() * format.getFrameSize() * BUFFER_SIZE_SECONDS);
                 byte[] bufferData = new byte[bufferSizeBytes];
 
@@ -760,12 +777,12 @@ public class ClientAudioPlayer {
                     InputStream input = connection.getInputStream();
                     resource.trackInput(input);
                     resource.checkActive();
-                    return IncrementalAudioDecoders.openPcmStreamFromUrl(input, currentUrl);
+                    return IncrementalAudioDecoders.openPcmStreamFromUrl(input, currentUrl, resource.stereo);
                 }
                 InputStream input = connection.getInputStream();
                 resource.trackInput(input);
                 resource.checkActive();
-                return IncrementalAudioDecoders.openPcmStreamFromUrl(input, currentUrl);
+                return IncrementalAudioDecoders.openPcmStreamFromUrl(input, currentUrl, resource.stereo);
             }
         } catch (javax.sound.sampled.UnsupportedAudioFileException e) {
             throw new IOException("Unsupported internet stream format: " + url, e);
@@ -804,7 +821,7 @@ public class ClientAudioPlayer {
                         : resource.intent.offsetSeconds();
                 resource.startOffsetSeconds = startSeconds;
                 if (resource.seek(pcm, startSeconds)) continue;
-                int alFormat = AL10.AL_FORMAT_MONO16;
+                int alFormat = format.getChannels() == 2 ? AL10.AL_FORMAT_STEREO16 : AL10.AL_FORMAT_MONO16;
                 int bufferSizeBytes = Math.max(4096, (int) (format.getFrameRate() * format.getFrameSize() * BUFFER_SIZE_SECONDS));
                 byte[] bufferData = new byte[bufferSizeBytes];
 
@@ -921,20 +938,30 @@ public class ClientAudioPlayer {
         resource.stopAndCleanup();
     }
 
-    public static void stop(BlockPos pos) {
+    public static void stop(BlockPos pos) { stop(pos, false); }
+
+    public static void stop(BlockPos pos, boolean rangeExit) {
         ClientPortableSpeakers.remove(pos);
         directionalExtras.remove(pos);
         for (List<PlayRequest> requests : pendingPlays.values()) {
             requests.removeIf(req -> req.pos.equals(pos));
         }
 
+        if (!rangeExit) {
+            for (StreamingAudioResource tail : new ArrayList<>(networkResources.values())) {
+                if (tail.fadingPositions.contains(pos)) stopNetwork(tail.networkKey);
+            }
+        }
         PlaybackMembership.DetachResult result = membership.detach(pos);
         if (result.wasTracked()) {
             if (result.networkEmpty()) {
-                playbackIntents.remove(result.networkKey());
-                StreamingAudioResource resource = networkResources.remove(result.networkKey());
-                if (resource != null) {
-                    resource.stopAndCleanup();
+                StreamingAudioResource resource = networkResources.get(result.networkKey());
+                if (rangeExit && resource != null && Config.rangeFadeOutMillis > 0 && resource.playbackStarted) {
+                    resource.rangeStopping = true;
+                    resource.fadingPositions.add(pos);
+                } else {
+                    playbackIntents.remove(result.networkKey());
+                    if (resource != null && networkResources.remove(result.networkKey(), resource)) resource.stopAndCleanup();
                 }
             } else {
                 updateSpeakerVolumes();
@@ -1016,6 +1043,12 @@ public class ClientAudioPlayer {
 
             Set<BlockPos> positions = membership.getPositions(networkKey);
             if (positions.isEmpty()) {
+                if (resource.rangeStopping) {
+                    float tailGain = resource.boundaryFade.gain(false, 0f, System.nanoTime(), Config.rangeFadeInMillis, Config.rangeFadeOutMillis);
+                    try { resource.gain(AudioGain.applyGameVolume(tailGain, masterVolume, recordVolume)); }
+                    catch (AudioContextGate.StaleContextException ignored) {}
+                    if (!resource.boundaryFade.silent()) continue;
+                }
                 if (resource.intent != null) playbackIntents.remove(networkKey, resource.intent);
                 resource.stopAndCleanup();
                 networkResources.remove(networkKey);
@@ -1023,6 +1056,7 @@ public class ClientAudioPlayer {
             }
 
             List<SpatialAudioCalculator.SpeakerEmitter> emitters = new ArrayList<>();
+            boolean inRange = false;
 
             for (BlockPos speakerPos : positions) {
                 // Play/settings packets are authoritative for loaded and unloaded emitters.
@@ -1031,6 +1065,7 @@ public class ClientAudioPlayer {
                 if (cached != null) {
                     Vec3 renderPosition = resolveEmitterPosition(mc, speakerPos);
                     if (renderPosition == null) continue;
+                    if (playerPos.distanceToSqr(renderPosition) < (double) cached.maxRange() * cached.maxRange()) inRange = true;
                     com.nstut.simplyspeakers.audio.DirectionalAudio.Extras cone = directionalExtras.get(speakerPos);
                     float effectiveVolume = cached.maxVolume();
                     if (cone != null && cone.directionality() > 0.0f) {
@@ -1072,7 +1107,10 @@ public class ClientAudioPlayer {
             SpatialAudioCalculator.VirtualEmitterResult result =
                     SpatialAudioCalculator.calculateVirtualEmitter(playerPos.x, playerPos.y, playerPos.z, emitters);
 
-            final float finalGain = AudioGain.applyGameVolume(result.maxGain(), masterVolume, recordVolume);
+            float spatialGain = resource.playbackStarted
+                    ? resource.boundaryFade.gain(inRange, result.maxGain(), System.nanoTime(), Config.rangeFadeInMillis, Config.rangeFadeOutMillis)
+                    : 0f;
+            final float finalGain = AudioGain.applyGameVolume(spatialGain, masterVolume, recordVolume);
             final float posX = (float) result.x();
             final float posY = (float) result.y();
             final float posZ = (float) result.z();

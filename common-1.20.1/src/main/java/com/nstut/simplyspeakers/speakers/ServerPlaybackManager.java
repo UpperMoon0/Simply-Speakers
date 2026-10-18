@@ -474,7 +474,8 @@ public final class ServerPlaybackManager {
             ServerPlayer player = server.getPlayerList().getPlayer(removeId);
             if (player != null) {
                 PacketSenders.sendStop(player, new StopAudioPacketS2C(
-                        new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ())));
+                        new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()),
+                        ServerSpeakerRegistry.getDimension(player.level()).equals(emitter.location().dimension())));
             }
         }
 

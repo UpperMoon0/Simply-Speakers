@@ -37,7 +37,15 @@ public final class IncrementalAudioDecoders {
     }
 
     public static AudioInputStream openPcmStream(File audioFile) throws UnsupportedAudioFileException, IOException {
-        return createMonoPcmStream(audioFile);
+        return openPcmStream(audioFile, false);
+    }
+
+    /** Stereo preserves two-channel input; mono and surround retain the positional downmix. */
+    public static AudioInputStream openPcmStream(File audioFile, boolean stereo) throws UnsupportedAudioFileException, IOException {
+        if (audioFile.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".mp3")) {
+            return new IncrementalMp3AudioInputStream(new BufferedInputStream(new FileInputStream(audioFile)), stereo);
+        }
+        return createIncrementalWavStream(AudioSystem.getAudioInputStream(audioFile), stereo);
     }
 
     /**
@@ -48,20 +56,29 @@ public final class IncrementalAudioDecoders {
      */
     public static AudioInputStream openPcmStreamFromUrl(java.io.InputStream rawStream, String url)
             throws UnsupportedAudioFileException, IOException {
+        return openPcmStreamFromUrl(rawStream, url, false);
+    }
+
+    public static AudioInputStream openPcmStreamFromUrl(InputStream rawStream, String url, boolean stereo)
+            throws UnsupportedAudioFileException, IOException {
         if (StreamTracks.isMp3Url(url)) {
-            return new IncrementalMp3AudioInputStream(rawStream);
+            return new IncrementalMp3AudioInputStream(rawStream, stereo);
         }
         java.io.InputStream buffered = new BufferedInputStream(rawStream);
         AudioInputStream source = AudioSystem.getAudioInputStream(buffered);
-        return createIncrementalMonoWavStream(source);
+        return createIncrementalWavStream(source, stereo);
     }
 
     private static AudioInputStream createIncrementalMonoWavStream(AudioInputStream sourceStream) throws UnsupportedAudioFileException, IOException {
+        return createIncrementalWavStream(sourceStream, false);
+    }
+
+    private static AudioInputStream createIncrementalWavStream(AudioInputStream sourceStream, boolean stereo) throws UnsupportedAudioFileException, IOException {
         AudioFormat srcFormat = sourceStream.getFormat();
         float sampleRate = srcFormat.getSampleRate();
         int channels = srcFormat.getChannels();
 
-        if (channels == 1 && srcFormat.getSampleSizeInBits() == 16
+        if ((channels == 1 || (stereo && channels == 2)) && srcFormat.getSampleSizeInBits() == 16
                 && srcFormat.getEncoding() == AudioFormat.Encoding.PCM_SIGNED
                 && !srcFormat.isBigEndian()) {
             return sourceStream;
@@ -100,7 +117,7 @@ public final class IncrementalAudioDecoders {
                 false
         );
 
-        if (channels == 1) {
+        if (channels == 1 || (stereo && channels == 2)) {
             return pcmStream;
         }
 
@@ -117,6 +134,7 @@ public final class IncrementalAudioDecoders {
         private final Bitstream bitstream;
         private final Decoder decoder;
         private final int channels;
+        private final boolean stereo;
         private byte[] frameBuffer = new byte[0];
         private int frameBufferPos = 0;
         private boolean eof = false;
@@ -127,6 +145,10 @@ public final class IncrementalAudioDecoders {
 
         /** Streams MP3 frames incrementally from any source, including HTTP. */
         public IncrementalMp3AudioInputStream(InputStream sourceStream) throws IOException {
+            this(sourceStream, false);
+        }
+
+        public IncrementalMp3AudioInputStream(InputStream sourceStream, boolean stereo) throws IOException {
             super(new InputStream() {
                 @Override
                 public int read() {
@@ -134,6 +156,7 @@ public final class IncrementalAudioDecoders {
                 }
             }, new AudioFormat(44100, 16, 1, true, false), AudioSystem.NOT_SPECIFIED);
 
+            this.stereo = stereo;
             this.fileInputStream = sourceStream;
             this.bitstream = new Bitstream(fileInputStream);
             this.decoder = new Decoder();
@@ -150,7 +173,7 @@ public final class IncrementalAudioDecoders {
                 decodeSampleBufferToFrameBuffer(output);
                 bitstream.closeFrame();
 
-                this.format = new AudioFormat(sampleRate, 16, 1, true, false);
+                this.format = new AudioFormat(sampleRate, 16, stereo ? channels : 1, true, false);
             } catch (BitstreamException | DecoderException e) {
                 try {
                     bitstream.close();
@@ -162,7 +185,7 @@ public final class IncrementalAudioDecoders {
         private void decodeSampleBufferToFrameBuffer(SampleBuffer output) {
             short[] pcmShorts = output.getBuffer();
             int samplesRead = output.getBufferLength();
-            if (channels == 2) {
+            if (channels == 2 && !stereo) {
                 short[] monoShorts = PcmAudioDownmixer.downmixStereoToMono(pcmShorts, samplesRead);
                 this.frameBuffer = PcmAudioDownmixer.shortsToBytesLE(monoShorts, monoShorts.length);
             } else {

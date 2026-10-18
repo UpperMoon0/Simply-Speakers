@@ -26,7 +26,7 @@ class PlaybackWireContractTest {
             Class<?> type = packet.getClass();
             T decoded;
             if (bufferType == FriendlyByteBuf.class) {
-                if (packet instanceof PlayAudioPacketS2C || packet instanceof SpeakerStateUpdatePacketS2C
+                if (packet instanceof StopAudioPacketS2C || packet instanceof PlayAudioPacketS2C || packet instanceof SpeakerStateUpdatePacketS2C
                         || packet instanceof PortableSpeakerPositionPacketS2C || packet instanceof OpenPortableSpeakerPacketS2C) {
                     type.getMethod("encode", type, bufferType).invoke(null, packet, buffer);
                 } else { type.getMethod("encode", bufferType).invoke(packet, buffer); }
@@ -38,6 +38,11 @@ class PlaybackWireContractTest {
             assertEquals(0, buffer.readableBytes(), "decoder must consume the full packet");
             return decoded;
         } finally { buffer.release(); }
+    }
+
+    @Test void rangeExitAndImmediateStopRemainDistinctOnTheWire() throws Exception {
+        assertTrue(roundTrip(new StopAudioPacketS2C(BlockPos.ZERO, true)).isRangeExit());
+        assertFalse(roundTrip(new StopAudioPacketS2C(BlockPos.ZERO)).isRangeExit());
     }
 
     @Test void policySnapshotRoundTripsWithPlaybackWithoutDroppingViewerRights() throws Exception {

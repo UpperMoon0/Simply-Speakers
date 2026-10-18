@@ -1,0 +1,1 @@
+`asymmetric.mp3` is a generated 0.2-second stereo test signal, not a recording. Left: 440 Hz at amplitude 0.25. Right: 880 Hz at amplitude 0.125. Generated using FFmpeg/libmp3lame at 22050 Hz with quality 4. It tests the real JLayer stereo decoder against its default mono downmix.

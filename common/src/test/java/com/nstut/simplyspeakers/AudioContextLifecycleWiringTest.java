@@ -38,7 +38,7 @@ class AudioContextLifecycleWiringTest {
         assertTrue(Files.readString(root().resolve("forge-1.20.1/build.gradle")).contains("mixinConfig \"simplyspeakers.mixins.json\""));
         for (String config : List.of("neoforge-1.21.1/src/main/resources/META-INF/neoforge.mods.toml",
                 "neoforge-26.1.2/src/main/templates/META-INF/neoforge.mods.toml")) {
-            assertTrue(Files.readString(root().resolve(config)).contains("[[mixins]]\nconfig = \"simplyspeakers.mixins.json\""), config);
+            assertTrue(Files.readString(root().resolve(config)).replace("\r\n", "\n").contains("[[mixins]]\nconfig = \"simplyspeakers.mixins.json\""), config);
         }
     }
 }

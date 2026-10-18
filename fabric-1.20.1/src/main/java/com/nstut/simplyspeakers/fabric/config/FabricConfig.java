@@ -55,6 +55,8 @@ public class FabricConfig {
             boolean allowRemoteStreams = Boolean.parseBoolean(props.getProperty("allowRemoteStreams", String.valueOf(Config.isLocalAllowRemoteStreams())));
 
             Config.setLocalConfig(range, disableUpload, size, allowRemoteStreams);
+            Config.setPlaybackPreferences(Boolean.parseBoolean(props.getProperty("stereoPlayback", "false")),
+                    readFade(props, "rangeFadeInMillis"), readFade(props, "rangeFadeOutMillis"));
             
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to read config file", e);
@@ -62,6 +64,11 @@ public class FabricConfig {
         }
     }
     
+    private static int readFade(Properties props, String key) {
+        try { return Integer.parseInt(props.getProperty(key, "250")); }
+        catch (NumberFormatException ignored) { return 250; }
+    }
+
     private static void writeConfig() {
         try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
             Properties props = new Properties();
@@ -70,6 +77,9 @@ public class FabricConfig {
             props.setProperty("maxUploadSize", String.valueOf(Config.maxUploadSize));
             props.setProperty("allowRemoteStreams", String.valueOf(Config.allowRemoteStreams));
             
+            props.setProperty("stereoPlayback", String.valueOf(Config.stereoPlayback));
+            props.setProperty("rangeFadeInMillis", String.valueOf(Config.rangeFadeInMillis));
+            props.setProperty("rangeFadeOutMillis", String.valueOf(Config.rangeFadeOutMillis));
             props.store(writer, "Simply Speakers Configuration");
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to write config file", e);

@@ -33,6 +33,11 @@ import static org.mockito.Mockito.*;
 /** Real client lifecycle, queued starts, transport cancellation and download completion.
  * Native audio and decoder-thread launch are isolated; these are not live-device tests. */
 class AudioContextRecoveryIntegrationTest {
+    @org.junit.jupiter.api.BeforeAll static void bootstrap() {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+    }
+
     private static final String SPEAKER_ID = "recovery-test";
     private static final String KEY = "net_" + SPEAKER_ID;
     private final BlockPos first = new BlockPos(12, 64, 30);
@@ -98,6 +103,101 @@ class AudioContextRecoveryIntegrationTest {
             if (audio != null) audio.close();
             if (minecraft != null) minecraft.close();
         }
+    }
+
+    @Test @org.junit.jupiter.api.Timeout(10)
+    void realWaveDecodeQueuesStereoBuffersOnlyWhenOptedIn() throws Exception {
+        File file = File.createTempFile("speaker-stereo-", ".wav");
+        createdFiles.add(file);
+        byte[] pcm = new byte[32000];
+        for (int i=0; i<pcm.length; i+=4) { pcm[i+1]=4; pcm[i+3]=12; }
+        try (var source = new javax.sound.sampled.AudioInputStream(new java.io.ByteArrayInputStream(pcm),
+                new javax.sound.sampled.AudioFormat(8000,16,2,true,false),8000)) {
+            javax.sound.sampled.AudioSystem.write(source, javax.sound.sampled.AudioFileFormat.Type.WAVE,file);
+        }
+        try {
+            for (boolean stereo : new boolean[]{false,true}) {
+                com.nstut.simplyspeakers.Config.stereoPlayback = stereo;
+                trackedIntent(missingTrack(), 0f);
+                Object current = resource(KEY,17,new int[]{1,2,3});
+                resources().put(KEY,current);
+                al.when(() -> AL10.alGetSourcei(17, AL10.AL_BUFFERS_PROCESSED)).thenReturn(3);
+                method(ClientAudioPlayer.class,"streamAudioData",resourceType,String.class,float.class)
+                        .invoke(null,current,file.getAbsolutePath(),0f);
+                al.verify(() -> AL10.alBufferData(eq(1),eq(stereo ? AL10.AL_FORMAT_STEREO16 : AL10.AL_FORMAT_MONO16),
+                        any(ByteBuffer.class),eq(8000)));
+                assertTrue(resources().isEmpty());
+                drainTasks();
+            }
+        } finally { com.nstut.simplyspeakers.Config.stereoPlayback = false; }
+    }
+
+    @Test void rangeExitRetainsOneResourceAndImmediateStopCancelsItsTail() throws Exception {
+        Object intent = trackedIntent(missingTrack(), 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        assertSame(current, resources().get(KEY));
+        assertSame(intent, intents().get(KEY));
+        assertTrue(field(resourceType, "rangeStopping").getBoolean(current));
+        assertTrue(membership().getPositions(KEY).isEmpty());
+        ClientAudioPlayer.stop(first);
+        assertTrue(resources().isEmpty());
+        assertTrue(intents().isEmpty());
+        assertTrue(((AtomicBoolean) field(resourceType, "stopFlag").get(current)).get());
+        drainTasks();
+    }
+
+    @Test void retargetingDetachedEmitterCancelsOldNetworkTail() throws Exception {
+        AudioFileMetadata metadata = missingTrack();
+        trackedIntent(metadata, 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        ClientAudioPlayer.play(first, "different-network", metadata, 4f, false);
+        assertFalse(resources().containsKey(KEY));
+        assertFalse(intents().containsKey(KEY));
+        assertTrue(((AtomicBoolean) field(resourceType, "stopFlag").get(current)).get());
+        assertEquals("net_different-network", membership().getNetworkKey(first));
+        drainTasks();
+    }
+
+    @Test void sameOccurrenceReentryReversesTailWithoutAllocatingAnotherSource() throws Exception {
+        AudioFileMetadata metadata = missingTrack();
+        Object intent = trackedIntent(metadata, 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        Thread decoder = mock(Thread.class);
+        when(decoder.isAlive()).thenReturn(true);
+        field(resourceType, "streamingThread").set(current, decoder);
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        ClientAudioPlayer.play(first, SPEAKER_ID, metadata, 4f, false, 16, 1f, 0f,
+                null, "minecraft:overworld/" + KEY, 7);
+        assertSame(current, resources().get(KEY));
+        assertSame(intent, intents().get(KEY));
+        assertFalse(field(resourceType, "rangeStopping").getBoolean(current));
+        assertEquals(java.util.Set.of(first), membership().getPositions(KEY));
+        assertFalse(((AtomicBoolean) field(resourceType, "stopFlag").get(current)).get());
+        // No decoder actually runs in this adapter test.
+        field(resourceType, "streamingThread").set(current, null);
+    }
+
+    @Test void stereoSourceUsesListenerRelativeCoordinatesButMonoDefaultKeepsPosition() throws Exception {
+        try {
+            for (boolean stereo : new boolean[]{false, true}) {
+                com.nstut.simplyspeakers.Config.stereoPlayback = stereo;
+                trackedIntent(missingTrack(), 0f);
+                Object current = resource(KEY, 17, new int[]{1,2,3});
+                resources().put(KEY, current);
+                invoke(current, "position", new Class<?>[]{float.class,float.class,float.class}, 12f,64f,30f);
+                al.verify(() -> AL10.alSource3f(17, AL10.AL_POSITION,
+                        stereo ? 0f : 12f, stereo ? 0f : 64f, stereo ? 0f : 30f));
+                resources().clear();
+            }
+        } finally { com.nstut.simplyspeakers.Config.stereoPlayback = false; }
     }
 
     @Test void delayedOldCleanupCannotDeleteIdsReusedAfterActualSuspendAndResume() throws Exception {
