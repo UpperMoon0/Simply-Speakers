@@ -167,7 +167,13 @@ class AudioContextRecoveryIntegrationTest {
         }
         when(client.options.getSoundSourceVolume(any())).thenReturn(1f);
         when(client.player.position()).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
-        when(client.gameRenderer.getMainCamera().getPosition()).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+        // Only the 1.21.1 spatial adapter reads the camera; 26.1.2 renamed this accessor.
+        Object camera = client.gameRenderer.getMainCamera();
+        for (Method getter : camera.getClass().getMethods()) {
+            if (getter.getName().equals("getPosition") && getter.getParameterCount() == 0) {
+                when(getter.invoke(camera)).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+            }
+        }
     }
 
     @Test @org.junit.jupiter.api.Timeout(10)
