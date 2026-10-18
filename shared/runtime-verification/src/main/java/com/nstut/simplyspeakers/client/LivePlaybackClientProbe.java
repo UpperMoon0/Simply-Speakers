@@ -20,6 +20,7 @@ final class LivePlaybackClientProbe {
     private static boolean speakerSettingsSent, speakerSettingsDone;
     private LivePlaybackClientProbe() {}
     static void tick(Minecraft client) {
+        if (Boolean.getBoolean("simplyspeakers.zonePreviewTest")) { verifyZonePreview(client); return; }
         if (!LivePlaybackServerProbe.enabled()) return;
         LiveUploadClientProbe.tick(client);
         LiveDownloadClientProbe.tick();
@@ -53,6 +54,7 @@ final class LivePlaybackClientProbe {
             if (!verifySoundReload(client, "normal_paused", KEY, false, 0)) return;
             if(++previewTicks<80)return;
             if(DirectionalPreview.emittedSamples()==0)throw new IllegalStateException("World preview did not emit particles");
+            if(DirectionalPreview.renderedHudFrames()==0)throw new IllegalStateException("World preview did not render the listener guide");
             try {
                 var capture=SpeakerUiPreviewProbe.class.getDeclaredMethod("capture",Minecraft.class,String.class);
                 capture.setAccessible(true);capture.invoke(null,client,"directional-preview-world.png");
@@ -68,6 +70,35 @@ final class LivePlaybackClientProbe {
         client.getConnection().sendCommand("simplyspeakers_verify " + PHASES[phase]);
         phase++;
         if (phase == PHASES.length) System.out.println("SIMPLYSPEAKERS_CLIENT_PLAYBACK_PASS");
+    }
+    /** Focused local-world visual check, independent of downloads and playback sequencing. */
+    private static int zoneTicks;
+    private static void verifyZonePreview(Minecraft client) {
+        if(client.player==null || client.level==null || client.getOverlay()!=null) return;
+        try {
+            if(++zoneTicks==20) {
+                client.setScreen(null);
+                client.player.setYRot(-90); client.player.setXRot(25);
+                DirectionalPreview.show(client.player.blockPosition().offset(2,1,0),16,1,1,90,.9);
+            }
+            if(zoneTicks==60 || zoneTicks==90) {
+                if(DirectionalPreview.emittedSamples()==0 || DirectionalPreview.renderedHudFrames()==0)
+                    throw new IllegalStateException("Audio zone must render both world markers and HUD");
+                var capture=SpeakerUiPreviewProbe.class.getDeclaredMethod("capture",Minecraft.class,String.class);
+                capture.setAccessible(true);capture.invoke(null,client,zoneTicks==60?"audio-zone-world.png":"audio-zone-narrow.png");
+                if(zoneTicks==60) {
+                    client.options.guiScale().set(2);
+                    var handle=SpeakerUiPreviewProbe.class.getDeclaredMethod("windowHandle",Minecraft.class);
+                    handle.setAccessible(true);
+                    org.lwjgl.glfw.GLFW.glfwSetWindowSize((long)handle.invoke(null,client),640,480);
+                } else client.setScreen(new com.nstut.simplyspeakers.client.screens.SpeakerScreen(client.player.blockPosition()));
+            }
+            if(zoneTicks==95) {
+                if(DirectionalPreview.isActive()) throw new IllegalStateException("Opening a menu must dismiss the audio zone");
+                System.out.println("SIMPLYSPEAKERS_ZONE_PREVIEW_PASS world=true hud=true narrow=true dismiss=true");
+                client.stop();
+            }
+        } catch(Exception error) { throw new IllegalStateException("Audio zone verification failed",error); }
     }
     private static String portableAudioKey;
     private static Object portableResource;

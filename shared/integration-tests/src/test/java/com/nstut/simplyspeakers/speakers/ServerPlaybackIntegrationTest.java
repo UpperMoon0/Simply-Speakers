@@ -252,9 +252,25 @@ class ServerPlaybackIntegrationTest {
         assertEquals(0, packets(StopAudioPacketS2C.class));
         move(p, 30); scan(); scan();
         assertEquals(1, packets(StopAudioPacketS2C.class));
+        assertTrue(((StopAudioPacketS2C) packets.stream().filter(StopAudioPacketS2C.class::isInstance).findFirst().orElseThrow()).isRangeExit());
         assertTrue(ServerPlaybackManager.getEmitterLocationsForPlayer(p.getUUID()).isEmpty());
         move(p, 10); scan();
         assertEquals(2, packets(PlayAudioPacketS2C.class));
+    }
+
+    @Test void stopAfterRangeExitStillCancelsDepartedListenersFadeTail() {
+        ServerPlayer p = player(10);
+        play(); scan();
+        move(p, 30); scan();
+        assertTrue(ServerPlaybackManager.getSubscribers(location).isEmpty());
+        assertEquals(1, packets(StopAudioPacketS2C.class));
+        ServerPlaybackManager.stopEmitter(server, location);
+        var stops = packets.stream().filter(StopAudioPacketS2C.class::isInstance).map(StopAudioPacketS2C.class::cast).toList();
+        assertEquals(2, stops.size());
+        assertTrue(stops.get(0).isRangeExit());
+        assertFalse(stops.get(1).isRangeExit());
+        ServerPlaybackManager.stopEmitter(server, location);
+        assertEquals(2, packets(StopAudioPacketS2C.class));
     }
 
     @Test void pauseResumeSeekRestartAndStopUseActualControlService() {
@@ -274,6 +290,8 @@ class ServerPlaybackIntegrationTest {
         assertEquals(0, state().getPlaybackPositionSeconds(tick), 0.001);
         assertTrue(ServerSpeakerControlService.stop(server, level, KEY));
         assertFalse(state().isPlaying());
+        assertTrue(packets.stream().filter(StopAudioPacketS2C.class::isInstance)
+                .map(StopAudioPacketS2C.class::cast).noneMatch(StopAudioPacketS2C::isRangeExit));
         assertTrue(ServerPlaybackManager.getSubscribers(location).isEmpty());
         assertTrue(events.containsAll(List.of(SpeakerEvents.Type.STARTED, SpeakerEvents.Type.PAUSED,
                 SpeakerEvents.Type.RESUMED, SpeakerEvents.Type.STOPPED)));

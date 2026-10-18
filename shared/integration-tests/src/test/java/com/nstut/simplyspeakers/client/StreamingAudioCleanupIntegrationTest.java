@@ -8,6 +8,11 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class StreamingAudioCleanupIntegrationTest {
+    @org.junit.jupiter.api.BeforeAll static void bootstrap() {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+    }
+
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans={false,true})
     void cleanupEvidenceTracksOwnedDeletionNotReusedNumericNames(boolean failDeletion) throws Exception {
@@ -108,7 +113,7 @@ class StreamingAudioCleanupIntegrationTest {
                 })) {
                 String input=action.startsWith("url")?"https://example.invalid/blocked.wav":file.getPath();
                 audio.when(() -> opener.invoke(null,old,input)).thenReturn(pcm);
-                decoder.when(() -> com.nstut.simplyspeakers.audio.IncrementalAudioDecoders.openPcmStream(file)).thenReturn(pcm);
+                decoder.when(() -> com.nstut.simplyspeakers.audio.IncrementalAudioDecoders.openPcmStream(file, false)).thenReturn(pcm);
                 audio.when(() -> worker.invoke(null,old,input,0f)).thenCallRealMethod();
                 // Worker finalization moved behind a static helper; keep that production path real too.
                 audio.when(() -> finish.invoke(null,old,false)).thenCallRealMethod();

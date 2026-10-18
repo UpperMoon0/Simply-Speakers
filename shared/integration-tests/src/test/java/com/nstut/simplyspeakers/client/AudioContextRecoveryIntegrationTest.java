@@ -33,6 +33,11 @@ import static org.mockito.Mockito.*;
 /** Real client lifecycle, queued starts, transport cancellation and download completion.
  * Native audio and decoder-thread launch are isolated; these are not live-device tests. */
 class AudioContextRecoveryIntegrationTest {
+    @org.junit.jupiter.api.BeforeAll static void bootstrap() {
+        net.minecraft.SharedConstants.tryDetectVersion();
+        net.minecraft.server.Bootstrap.bootStrap();
+    }
+
     private static final String SPEAKER_ID = "recovery-test";
     private static final String KEY = "net_" + SPEAKER_ID;
     private final BlockPos first = new BlockPos(12, 64, 30);
@@ -45,6 +50,8 @@ class AudioContextRecoveryIntegrationTest {
     private MockedStatic<Minecraft> minecraft;
     private MockedStatic<ClientAudioPlayer> audio;
     private MockedStatic<AL10> al;
+    private boolean unresolvedFirst;
+    private double linkedDistance = 1000;
     private Class<?> intentType;
     private Class<?> resourceType;
 
@@ -65,6 +72,9 @@ class AudioContextRecoveryIntegrationTest {
         // Keep all lifecycle/transport code real. Intercept the two network boundaries,
         // including their first invocation, rather than executing I/O while stubbing.
         audio = mockStatic(ClientAudioPlayer.class, call -> {
+            if (unresolvedFirst && call.getMethod().getName().equals("resolveEmitterPosition")) {
+                return first.equals(call.getArgument(1)) ? null : new net.minecraft.world.phys.Vec3(linkedDistance, 0, 0);
+            }
             if (call.getMethod().getName().equals("queueSource")) queuedSourcePositions.add(call.getArgument(1));
             if (call.getMethod().getName().equals("requestFileFromServer")) {
                 downloads.add(call.getArgument(0));
@@ -98,6 +108,167 @@ class AudioContextRecoveryIntegrationTest {
             if (audio != null) audio.close();
             if (minecraft != null) minecraft.close();
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void missingTransformMutesCachedFadeEvenWithOutOfRangeLinkedEmitter(boolean linked) throws Exception {
+        configureSpatialWorld();
+        trackedIntent(missingTrack(), 0f);
+        if (linked) membership().track(second, KEY, new SpeakerSettings(1f, 16, 0f));
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        var fade = (com.nstut.simplyspeakers.audio.BoundaryFade) field(resourceType, "boundaryFade").get(current);
+        assertEquals(0.8f, fade.gain(true, 0.8f, System.nanoTime(), 0, 5000));
+        resources().put(KEY, current);
+        al.when(() -> AL10.alIsSource(17)).thenReturn(true);
+        unresolvedFirst = true;
+        ClientAudioPlayer.updateSpeakerVolumes();
+        drainTasks();
+        al.verify(() -> AL10.alSourcef(17, AL10.AL_GAIN, 0f));
+        assertTrue(fade.silent(), "missing transforms must discard the old audible envelope");
+        assertSame(current, resources().get(KEY), "temporary transform loss must not destroy playback");
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"stop,false", "stop,true", "retarget,false", "retarget,true", "range-exit,false", "range-then-stop,false", "range-then-stop,true", "range-then-retarget,false", "range-then-retarget,true"})
+    void linkedLifecycleStopDiscardsOnlyDepartedGain(String action, boolean remainingAudible) throws Exception {
+        configureSpatialWorld();
+        AudioFileMetadata metadata = missingTrack();
+        trackedIntent(metadata, 0f);
+        membership().track(second, KEY, new SpeakerSettings(1f, 16, 0f));
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        var fade = (com.nstut.simplyspeakers.audio.BoundaryFade) field(resourceType, "boundaryFade").get(current);
+        fade.gain(true, 1f, System.nanoTime(), 0, 5000);
+        resources().put(KEY, current);
+        al.when(() -> AL10.alIsSource(17)).thenReturn(true);
+        unresolvedFirst = true; // The first emitter is detached before the spatial update.
+        linkedDistance = remainingAudible ? 1 : 17; // Retained by the server's range hysteresis.
+        if (action.startsWith("range-then-")) {
+            ClientAudioPlayer.stop(first, true);
+            drainTasks();
+            al.clearInvocations();
+        }
+        if (action.endsWith("retarget")) ClientAudioPlayer.play(first, "new-network", metadata, 0f, false);
+        else ClientAudioPlayer.stop(first, action.equals("range-exit"));
+        drainTasks();
+        float expected = remainingAudible || action.equals("range-exit") ? 1f : 0f;
+        al.verify(() -> AL10.alSourcef(17, AL10.AL_GAIN, expected));
+        assertSame(current, resources().get(KEY));
+        assertEquals(java.util.Set.of(second), membership().getPositions(KEY));
+    }
+
+    private void configureSpatialWorld() throws Exception {
+        Minecraft client = Minecraft.getInstance();
+        for (String name : List.of("player", "level", "options", "gameRenderer")) {
+            Field f = field(Minecraft.class, name);
+            f.set(client, mock(f.getType(), RETURNS_DEEP_STUBS));
+        }
+        when(client.options.getSoundSourceVolume(any())).thenReturn(1f);
+        when(client.player.position()).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+        // Only the 1.21.1 spatial adapter reads the camera; 26.1.2 renamed this accessor.
+        Object camera = client.gameRenderer.getMainCamera();
+        for (Method getter : camera.getClass().getMethods()) {
+            if (getter.getName().equals("getPosition") && getter.getParameterCount() == 0) {
+                when(getter.invoke(camera)).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+            }
+        }
+    }
+
+    @Test @org.junit.jupiter.api.Timeout(10)
+    void realWaveDecodeQueuesStereoBuffersOnlyWhenOptedIn() throws Exception {
+        File file = File.createTempFile("speaker-stereo-", ".wav");
+        createdFiles.add(file);
+        byte[] pcm = new byte[32000];
+        for (int i=0; i<pcm.length; i+=4) { pcm[i+1]=4; pcm[i+3]=12; }
+        try (var source = new javax.sound.sampled.AudioInputStream(new java.io.ByteArrayInputStream(pcm),
+                new javax.sound.sampled.AudioFormat(8000,16,2,true,false),8000)) {
+            javax.sound.sampled.AudioSystem.write(source, javax.sound.sampled.AudioFileFormat.Type.WAVE,file);
+        }
+        try {
+            for (boolean stereo : new boolean[]{false,true}) {
+                com.nstut.simplyspeakers.Config.stereoPlayback = stereo;
+                trackedIntent(missingTrack(), 0f);
+                Object current = resource(KEY,17,new int[]{1,2,3});
+                resources().put(KEY,current);
+                al.when(() -> AL10.alGetSourcei(17, AL10.AL_BUFFERS_PROCESSED)).thenReturn(3);
+                method(ClientAudioPlayer.class,"streamAudioData",resourceType,String.class,float.class)
+                        .invoke(null,current,file.getAbsolutePath(),0f);
+                al.verify(() -> AL10.alBufferData(eq(1),eq(stereo ? AL10.AL_FORMAT_STEREO16 : AL10.AL_FORMAT_MONO16),
+                        any(ByteBuffer.class),eq(8000)));
+                assertTrue(resources().isEmpty());
+                drainTasks();
+            }
+        } finally { com.nstut.simplyspeakers.Config.stereoPlayback = false; }
+    }
+
+    @Test void rangeExitRetainsOneResourceAndImmediateStopCancelsItsTail() throws Exception {
+        Object intent = trackedIntent(missingTrack(), 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        assertSame(current, resources().get(KEY));
+        assertSame(intent, intents().get(KEY));
+        assertTrue(field(resourceType, "rangeStopping").getBoolean(current));
+        assertTrue(membership().getPositions(KEY).isEmpty());
+        ClientAudioPlayer.stop(first);
+        assertTrue(resources().isEmpty());
+        assertTrue(intents().isEmpty());
+        assertTrue(((AtomicBoolean) field(resourceType, "stopFlag").get(current)).get());
+        drainTasks();
+    }
+
+    @Test void retargetingDetachedEmitterCancelsOldNetworkTail() throws Exception {
+        AudioFileMetadata metadata = missingTrack();
+        trackedIntent(metadata, 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        ClientAudioPlayer.play(first, "different-network", metadata, 4f, false);
+        assertFalse(resources().containsKey(KEY));
+        assertFalse(intents().containsKey(KEY));
+        assertTrue(((AtomicBoolean) field(resourceType, "stopFlag").get(current)).get());
+        assertEquals("net_different-network", membership().getNetworkKey(first));
+        drainTasks();
+    }
+
+    @Test void sameOccurrenceReentryReversesTailWithoutAllocatingAnotherSource() throws Exception {
+        AudioFileMetadata metadata = missingTrack();
+        Object intent = trackedIntent(metadata, 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        Thread decoder = mock(Thread.class);
+        when(decoder.isAlive()).thenReturn(true);
+        field(resourceType, "streamingThread").set(current, decoder);
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        ClientAudioPlayer.play(first, SPEAKER_ID, metadata, 4f, false, 16, 1f, 0f,
+                null, "minecraft:overworld/" + KEY, 7);
+        assertSame(current, resources().get(KEY));
+        assertSame(intent, intents().get(KEY));
+        assertFalse(field(resourceType, "rangeStopping").getBoolean(current));
+        assertEquals(java.util.Set.of(first), membership().getPositions(KEY));
+        assertFalse(((AtomicBoolean) field(resourceType, "stopFlag").get(current)).get());
+        // No decoder actually runs in this adapter test.
+        field(resourceType, "streamingThread").set(current, null);
+    }
+
+    @Test void stereoSourceUsesListenerRelativeCoordinatesButMonoDefaultKeepsPosition() throws Exception {
+        try {
+            for (boolean stereo : new boolean[]{false, true}) {
+                com.nstut.simplyspeakers.Config.stereoPlayback = stereo;
+                trackedIntent(missingTrack(), 0f);
+                Object current = resource(KEY, 17, new int[]{1,2,3});
+                resources().put(KEY, current);
+                invoke(current, "position", new Class<?>[]{float.class,float.class,float.class}, 12f,64f,30f);
+                al.verify(() -> AL10.alSource3f(17, AL10.AL_POSITION,
+                        stereo ? 0f : 12f, stereo ? 0f : 64f, stereo ? 0f : 30f));
+                resources().clear();
+            }
+        } finally { com.nstut.simplyspeakers.Config.stereoPlayback = false; }
     }
 
     @Test void delayedOldCleanupCannotDeleteIdsReusedAfterActualSuspendAndResume() throws Exception {
@@ -360,6 +531,20 @@ class AudioContextRecoveryIntegrationTest {
         assertSame(replacementIntent, intents().get(KEY));
         assertSame(replacement, resources().get(KEY));
         tasks.clear();
+    }
+
+    @Test void urlEofDuringRangeTailRetiresIntentWithoutReporting() throws Exception {
+        AudioFileMetadata metadata = new AudioFileMetadata("https://example.invalid/tail.ogg", "tail.ogg");
+        trackedIntent(metadata, 4f);
+        Object current = resource(KEY, 17, new int[]{1,2,3});
+        field(resourceType, "playbackStarted").setBoolean(current, true);
+        resources().put(KEY, current);
+        ClientAudioPlayer.stop(first, true);
+        finishResource(current, true);
+        drainTasks();
+        assertTrue(eofReports.isEmpty(), "departed listeners must not vote for EOF");
+        assertFalse(intents().containsKey(KEY));
+        assertTrue(resources().isEmpty());
     }
 
     @Test void currentUrlEofReportsExactlyOnceAndRetiresItsIntent() throws Exception {

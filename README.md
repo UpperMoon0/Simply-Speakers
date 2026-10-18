@@ -13,7 +13,9 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 * **Per-Speaker Audio Settings**: Fine-tune max volume (0-100%), max range (1-512 blocks), and audio dropoff (0-100%) per speaker.
 * **Speaker Controllers**: Link dedicated controllers by Speaker ID for buttons, announcements, lever playback, and analog volume. Each controller has one job and accepts input from any side.
 * **In-Game Guide**: An optional Patchouli book in the Simply Speakers creative tab documents setup, playback, automation, permissions, and integrations.
-* **Range-based Audio**: Volume fades with distance; players entering/leaving range automatically start/stop hearing audio.
+* **Distance fade (%)**: The existing per-speaker setting lowers volume as you move farther away.
+* **Timed entry/exit fades (ms)**: New local listener settings control how long volume takes to ramp up when entering audible range and down when leaving. They work independently of Distance fade (%). See [listener audio preferences](docs/listener_audio.md).
+* **Optional Stereo Playback**: A local listener setting preserves left/right channels while retaining network range and gain. Positional mono remains the default. See [listener audio preferences](docs/listener_audio.md).
 * **Repeat Playback**: Use the player bar to repeat the current track or the active playlist. Queued requests play once and take priority.
 * **Moving Speakers (1.21.1)**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
 * **Cross-Platform**: Supports Fabric, Forge, and NeoForge across multiple Minecraft versions.
@@ -61,6 +63,13 @@ can claim or transfer ownership, choose Public/Trusted/Owner/Operators access, a
 trusted players by online name or UUID. These restrictions affect control, not hearing.
 Trusted playback access does not grant permission to change ownership, access or linking.
 
+Both Simply Speakers and Simply Screens use **Public**, **Trusted players**, **Owner only**,
+and **Operators only**. Operators retain administrative access in every mode. Owner only
+allows the owner plus that operator override; Operators only excludes non-OP owners from
+playback control. Owners still retain access management and can change the mode back.
+Screens applies these same rules separately to viewing and content control; speaker hearing
+remains range-based and unrestricted by the control mode.
+
 Library's **Add stream** opens a URL dialog with Play, Queue and playlist destinations.
 Use a direct public HTTP(S) MP3/WAV URL, up to 256 characters. Remote streams must be enabled
 by the server; each listener connects directly to the URL. Upload permission is independent.
@@ -87,7 +96,22 @@ Audio files are stored in `simply_speakers_audios/` inside your world's save fol
 }
 ```
 
-## Configuration
+## Personal listening settings
+
+Open any main or portable speaker, choose **Settings**, then **Your listening settings**.
+Stereo playback, entry/exit fade durations (0-5000 ms), and the audio-cache disk budget
+(64-4096 MiB) apply only to you across all speakers. Read-only users can change them too.
+Changes save automatically on your device and survive reconnecting, switching servers and
+restarting the game. Stereo applies to newly started playback; stop and play again to apply now. Fades apply immediately.
+
+The existing **Distance fade (%)** slider changes volume with distance for one speaker.
+The new entry/exit durations control timed transitions when crossing audible range;
+setting either duration to 0 disables only that timed transition. Stereo preserves left/right
+channels and centres playback on you while range and cone attenuation still apply.
+Existing personal values are imported from the old mod config once; afterward the UI owns them.
+See [the settings audit](docs/settings.md) for personal, speaker and administrator settings.
+
+## Administrator configuration
 
 Edit the mod config file to adjust:
 - `speakerRange`: Server ceiling for per-speaker range (1–512, default: 64)
@@ -199,9 +223,12 @@ unique and contain 1–64 characters. Legacy network lists migrate to their owne
 Display name is a label for listings and commands. Speaker ID links speakers, proxies and
 controllers within one dimension; a blank ID makes a speaker standalone.
 
-Volume, range, distance fade and directional controls apply live. The eight-second area
-preview marks boundaries in teal, louder areas in green and quieter areas in amber.
-Proxies have independent volume, range and fade; directional settings follow the linked
+Volume, range, Distance fade (%) and directional controls apply live. The 30-second audio-zone
+preview shows a cyan range sphere, white forward/cone guides and green-to-amber spatial gain.
+A north-up map marks your listening position in gold and reports 3D distance and spatial volume
+as you walk. Cone guides mark the start of rear attenuation, not a hard cutoff. The meter excludes
+output volume, game volume, mute and timed entry/exit fades. Opening a menu dismisses the preview.
+Proxies have independent volume, range and Distance fade (%); directional settings follow the linked
 speaker and use the proxy's own facing.
 
 ### Shared crafting ingredient

@@ -1,6 +1,6 @@
 package com.nstut.simplyspeakers.client.ui;
 
-import net.minecraft.client.Minecraft;
+import dev.architectury.platform.Platform;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,7 +12,7 @@ import java.util.Properties;
 /**
  * Tiny client-only properties store for UI presentation preferences.
  *
- * <p>Currently persists only the visual theme. The file is never synced to the
+ * <p>Persists the visual theme and personal listening choices. The file is never synced to the
  * server and carries no block-entity state. Unknown future keys are preserved.</p>
  *
  * <p>Tests may override the config directory with the
@@ -27,11 +27,25 @@ public final class SimplySpeakersUiPreferences {
     private SimplySpeakersUiPreferences() {
     }
 
+    public static synchronized void applyListeningPreferences() {
+        var p = com.nstut.simplyspeakers.client.ListeningPreferencesStore.load(configFile().getParent());
+        apply(p);
+    }
+    public static synchronized boolean setListeningPreferences(boolean stereo, int fadeIn, int fadeOut, int cacheMiB) {
+        var p = new com.nstut.simplyspeakers.client.ListeningPreferencesStore.Preferences(stereo, fadeIn, fadeOut, cacheMiB);
+        apply(p);
+        return com.nstut.simplyspeakers.client.ListeningPreferencesStore.save(configFile().getParent(), p);
+    }
+    private static void apply(com.nstut.simplyspeakers.client.ListeningPreferencesStore.Preferences p) {
+        com.nstut.simplyspeakers.Config.setPlaybackPreferences(p.stereo(), p.fadeInMillis(), p.fadeOutMillis());
+        com.nstut.simplyspeakers.Config.clientCacheLimitBytes = p.cacheMiB() * 1024L * 1024L;
+    }
+
     private static Path configFile() {
         String override = System.getProperty("simplyspeakers.ui.config.dir");
         Path dir = override != null
                 ? Path.of(override)
-                : Minecraft.getInstance().gameDirectory.toPath().resolve("config");
+                : Platform.getConfigFolder();
         return dir.resolve(FILE_NAME);
     }
 

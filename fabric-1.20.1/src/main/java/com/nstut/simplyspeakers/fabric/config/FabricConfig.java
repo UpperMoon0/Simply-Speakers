@@ -62,6 +62,7 @@ public class FabricConfig {
         }
     }
     
+
     private static void writeConfig() {
         try (FileWriter writer = new FileWriter(CONFIG_FILE)) {
             Properties props = new Properties();
@@ -70,7 +71,7 @@ public class FabricConfig {
             props.setProperty("maxUploadSize", String.valueOf(Config.maxUploadSize));
             props.setProperty("allowRemoteStreams", String.valueOf(Config.allowRemoteStreams));
             
-            props.store(writer, "Simply Speakers Configuration");
+            props.store(writer, "Simply Speakers server configuration");
         } catch (IOException e) {
             SimplySpeakers.LOGGER.error("Failed to write config file", e);
         }

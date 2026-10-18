@@ -12,7 +12,7 @@
     {
       "type": "patchouli:text",
       "title": "Limits and cache",
-      "text": "maxUploadSize defaults to 5 MiB, capped at 100 MiB. The client uses a 500 MiB audio cache. Server policy overrides client defaults while connected."
+      "text": "maxUploadSize defaults to 5 MiB, capped at 100 MiB. Your audio cache budget is a personal choice in Settings > Your listening settings. Server policy overrides server limits while connected, but never your listening preferences."
     },
     {
       "type": "patchouli:text",

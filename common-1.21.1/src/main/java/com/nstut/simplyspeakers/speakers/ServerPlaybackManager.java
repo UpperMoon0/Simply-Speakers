@@ -36,6 +36,7 @@ public final class ServerPlaybackManager {
     private static final int SCAN_INTERVAL_TICKS = 4;
 
     private static final PlaybackSubscriptions subscriptions = new PlaybackSubscriptions();
+    private static final RangeFadeAudience rangeFadeAudience = new RangeFadeAudience();
 
     /**
      * Natural-EOF reports for remote URL tracks, keyed by full state key. Each
@@ -68,6 +69,7 @@ public final class ServerPlaybackManager {
     public static synchronized void resetForWorld() {
         com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.reset();
         subscriptions.clear();
+        rangeFadeAudience.clear();
         pendingRemoteEof.clear();
     }
 
@@ -85,6 +87,7 @@ public final class ServerPlaybackManager {
     public static void handlePlayerQuit(MinecraftServer server, UUID playerId) {
         com.nstut.simplyspeakers.portable.PortableSpeakerManager.handlePlayerUnavailable(server, playerId);
         subscriptions.removePlayer(playerId);
+        rangeFadeAudience.removePlayer(playerId);
         reevaluateAllPendingRemoteEof(server);
     }
 
@@ -99,6 +102,7 @@ public final class ServerPlaybackManager {
     public static void handlePlayerDimensionChange(MinecraftServer server, UUID playerId) {
         com.nstut.simplyspeakers.portable.PortableSpeakerManager.handlePlayerUnavailable(server, playerId);
         subscriptions.removePlayer(playerId);
+        rangeFadeAudience.removePlayer(playerId);
         reevaluateAllPendingRemoteEof(server);
     }
 
@@ -112,7 +116,8 @@ public final class ServerPlaybackManager {
      */
     public static void stopEmitter(MinecraftServer server, SpeakerLocation location) {
         if (server == null || location == null) return;
-        Set<UUID> players = subscriptions.removeEmitter(location);
+        Set<UUID> players = new HashSet<>(subscriptions.removeEmitter(location));
+        players.addAll(rangeFadeAudience.removeEmitter(location, System.nanoTime()));
         if (players == null || players.isEmpty()) return;
         StopAudioPacketS2C stopPacket = new StopAudioPacketS2C(new BlockPos(location.getX(), location.getY(), location.getZ()));
         for (UUID playerId : players) {
@@ -339,6 +344,7 @@ public final class ServerPlaybackManager {
      */
     public static void serverTick(MinecraftServer server) {
         if (server == null) return;
+        rangeFadeAudience.prune(System.nanoTime());
         com.nstut.simplyspeakers.portable.PortableSpeakerManager.serverTick(server);
         com.nstut.simplyspeakers.blocks.entities.ControllerCoordinator.flush(server);
         if (Boolean.getBoolean("simplyspeakers.ccLuaTest")) com.nstut.simplyspeakers.testing.CcLuaServerProbe.tick(server);
@@ -480,13 +486,17 @@ public final class ServerPlaybackManager {
             if (player == null) continue;
             if (audioFileManager != null) audioFileManager.grantPlaybackDownload(player, state.getAudioId());
             PacketSenders.sendPlay(player, buildPlayPacket(emitter, state, level, effectiveRange, maxVolume, dropoff));
+            rangeFadeAudience.reenter(emitter.location(), startId);
             subscriptions.subscribe(startId, emitter.location());
         }
 
         for (UUID stopId : plan.stopListeners()) {
             ServerPlayer player = server.getPlayerList().getPlayer(stopId);
             if (player != null) {
-                PacketSenders.sendStop(player, new StopAudioPacketS2C(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ())));
+                boolean rangeExit = ServerSpeakerRegistry.getDimension(player.level()).equals(emitter.location().dimension());
+                if (rangeExit) rangeFadeAudience.leave(emitter.location(), stopId, System.nanoTime());
+                PacketSenders.sendStop(player, new StopAudioPacketS2C(new BlockPos(emitter.location().getX(), emitter.location().getY(), emitter.location().getZ()),
+                        rangeExit));
             }
             subscriptions.unsubscribe(stopId, emitter.location());
         }

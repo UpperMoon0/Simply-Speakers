@@ -53,6 +53,26 @@ class SpeakerPermissionsTest {
         assertTrue(SpeakerPermissions.canControl(state, STRANGER, true));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(SpeakerAccess.class)
+    void accessModesMatchScreensAndKeepManagementRecoverable(SpeakerAccess access) {
+        SpeakerState state = ownedState(access);
+        state.trustPlayer(FRIEND);
+        org.junit.jupiter.api.Assertions.assertEquals(access != SpeakerAccess.OPERATORS,
+                SpeakerPermissions.canControl(state, OWNER, false));
+        org.junit.jupiter.api.Assertions.assertEquals(access == SpeakerAccess.PUBLIC || access == SpeakerAccess.TRUSTED,
+                SpeakerPermissions.canControl(state, FRIEND, false));
+        org.junit.jupiter.api.Assertions.assertEquals(access == SpeakerAccess.PUBLIC,
+                SpeakerPermissions.canControl(state, STRANGER, false));
+        org.junit.jupiter.api.Assertions.assertEquals(access == SpeakerAccess.PUBLIC,
+                SpeakerPermissions.canAutomationControl(state));
+        assertTrue(SpeakerPermissions.canControl(state, STRANGER, true));
+        assertTrue(SpeakerPermissions.canManage(state, OWNER, false));
+        assertTrue(SpeakerPermissions.canManage(state, STRANGER, true));
+        assertFalse(SpeakerPermissions.canManage(state, FRIEND, false));
+        assertTrue(SpeakerPermissions.canListen(state, STRANGER));
+    }
+
     @Test
     void unownedStatesStayOpenUntilClaimed() {
         SpeakerState state = new SpeakerState();

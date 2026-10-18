@@ -1,9 +1,20 @@
 package com.nstut.simplyspeakers;
 
 /**
- * Configuration for Simply Speakers.
+ * Active server policy and local runtime preference values for Simply Speakers.
  */
 public class Config {
+    /** Local listener preferences; never overwritten by server configuration sync. */
+    public static volatile boolean stereoPlayback = false;
+    public static volatile int rangeFadeInMillis = 250;
+    public static volatile int rangeFadeOutMillis = 250;
+
+    public static void setPlaybackPreferences(boolean stereo, int fadeIn, int fadeOut) {
+        stereoPlayback = stereo;
+        rangeFadeInMillis = Math.max(0, Math.min(5000, fadeIn));
+        rangeFadeOutMillis = Math.max(0, Math.min(5000, fadeOut));
+    }
+
     /**
      * The range of the speaker block.
      */
@@ -55,7 +66,7 @@ public class Config {
     /**
      * Maximum client-side audio cache size in bytes before LRU eviction.
      */
-    public static long clientCacheLimitBytes = 500L * 1024L * 1024L; // 500MB
+    public static volatile long clientCacheLimitBytes = 500L * 1024L * 1024L; // 500MB
 
     // Local configuration cache for client restoration after disconnecting from a server
     private static int localSpeakerRange = 64;

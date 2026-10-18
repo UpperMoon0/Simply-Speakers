@@ -61,7 +61,7 @@ public class RedstoneControllerScreen extends SimplySpeakersUiScreen {
             SpeakerButtonWidget.button((Supplier<Component>)() -> text(proxy.get()?"proxy":"network"), () -> {
                 proxy.set(!proxy.get());
                 if (proxy.get() && !action.get().supportsProxy()) action.set(ControllerAction.ENABLED);
-            }),
+            }).tooltip(text("target_type_help")).key("controller.target_type"),
             Ui.switcher(proxy).when(false, () -> Ui.spacer().height(0))
                 .when(true, () -> Ui.column(Ui.text(text("proxy_position")),
                     Ui.textField(proxyCoordinates).placeholder("X Y Z").fillWidth().tooltip(text("proxy_help"))).gap(4)),
@@ -93,10 +93,10 @@ public class RedstoneControllerScreen extends SimplySpeakersUiScreen {
             Ui.row(Ui.heading(text("title")),buildThemeToggle()).align(com.nstut.openui.layout.Alignment.CENTER).justify(Justification.SPACE_BETWEEN),
             Ui.row(Ui.text(text("action")).flex(),
                 SpeakerButtonWidget.button((Supplier<Component>)() -> text("action."+action.get().id()),this::chooseAction)
-                    .width(170).height(24).key("controller.mode")).align(com.nstut.openui.layout.Alignment.CENTER).gap(8),
+                    .width(170).height(24).tooltip(text("action_help")).key("controller.mode")).align(com.nstut.openui.layout.Alignment.CENTER).gap(8),
             Ui.scroll(form).flex(),
             Ui.text((Supplier<Component>)() -> invalidCoordinates.get() ? text("invalid_coordinates") : liveStatus()).wrap(),
-            Ui.row(SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.save"),this::save).primary(),
+            Ui.row(SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.save"),this::save).primary().tooltip(text("save_help")).key("controller.save"),
                 SpeakerButtonWidget.button(text("close"),this::onClose).ghost()).justify(Justification.CENTER).gap(6)
         ).gap(8),320);
     }
@@ -135,15 +135,15 @@ public class RedstoneControllerScreen extends SimplySpeakersUiScreen {
     }
     private UIComponent announcementOptions() {
         return Ui.column(
-            Ui.text(text("clip")),
+            Ui.text(text("clip")).tooltip(text("clip_help")),
             Ui.text((Supplier<Component>)() -> {
                 for (var a : clips.get()) if (a.getUuid().equals(clip.get())) return Component.literal(a.effectiveDisplayName());
                 return text("choose_clip");
             }).wrap(),
-            Ui.textField(search).placeholder(Component.translatable("gui.simplyspeakers.search.placeholder").getString()).fillWidth(),
+            Ui.textField(search).placeholder(Component.translatable("gui.simplyspeakers.search.placeholder").getString()).tooltip(text("clip_search_help")).fillWidth(),
             Ui.list(filteredClips,this::clipRow)
                 .key(AudioFileMetadata::getUuid).itemHeight(24).height(80),
-            SpeakerButtonWidget.button((Supplier<Component>)() -> text(restart.get()?"retrigger_restart":"retrigger_ignore"),() -> restart.set(!restart.get()))
+            SpeakerButtonWidget.button((Supplier<Component>)() -> text(restart.get()?"retrigger_restart":"retrigger_ignore"),() -> restart.set(!restart.get())).tooltip(text("retrigger_help")).key("controller.retrigger")
         ).gap(5);
     }
     private UIComponent clipRow(AudioFileMetadata audio) {
@@ -153,7 +153,7 @@ public class RedstoneControllerScreen extends SimplySpeakersUiScreen {
                 setLabel(Component.literal(font.width(name)>available ? font.plainSubstrByWidth(name,Math.max(0,available-font.width("…")))+"…" : name));
                 setActive(audio.getUuid().equals(clip.get()));super.render(g,font,mx,my,pt);
             }
-        }.onPress(() -> clip.set(audio.getUuid())).ghost().small().tooltip(Component.literal(audio.effectiveDisplayName())).key("clip.title");
+        }.onPress(() -> clip.set(audio.getUuid())).ghost().small().tooltip(Component.translatable("gui.simplyspeakers.controller.clip_row_help",audio.effectiveDisplayName())).key("clip.title");
     }
     public void updateAudioList(List<AudioFileMetadata> list) {
         clips.set(list.stream().filter(a -> a.getDurationSeconds()>0).toList());

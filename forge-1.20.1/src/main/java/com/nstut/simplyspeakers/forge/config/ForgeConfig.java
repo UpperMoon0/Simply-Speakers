@@ -14,6 +14,10 @@ import org.apache.logging.log4j.core.config.Configurator;
  */
 @Mod.EventBusSubscriber(modid = SimplySpeakers.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ForgeConfig {
+    static {
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
+            com.nstut.simplyspeakers.client.ListeningPreferencesStore.migrateLegacy(net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get());
+    }
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
 
     public static final ForgeConfigSpec.IntValue SPEAKER_RANGE = BUILDER

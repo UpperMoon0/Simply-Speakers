@@ -11,6 +11,10 @@ import org.apache.logging.log4j.core.config.Configurator;
  * Forge-specific configuration handler.
  */
 public class ForgeConfig {
+    static {
+        if (dev.architectury.platform.Platform.getEnv().toString().equals("CLIENT"))
+            com.nstut.simplyspeakers.client.ListeningPreferencesStore.migrateLegacy(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get());
+    }
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.IntValue SPEAKER_RANGE = BUILDER
@@ -62,4 +66,3 @@ public class ForgeConfig {
         }
     }
 }
-
