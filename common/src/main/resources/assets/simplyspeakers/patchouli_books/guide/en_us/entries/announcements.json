@@ -7,7 +7,7 @@
     {
       "type": "patchouli:text",
       "title": "One-shot clips",
-      "text": "Announcements replace current playback with one owned, uploaded clip. They ignore Repeat, stop at the end and do not resume the previous sound. Unknown-duration streams are unsupported."
+      "text": "Announcements replace current playback with one owned, uploaded clip.$(br2)They ignore Repeat, stop at the end and do not resume the previous sound.$(br2)Unknown-duration streams are unsupported."
     },
     {
       "type": "patchouli:text",

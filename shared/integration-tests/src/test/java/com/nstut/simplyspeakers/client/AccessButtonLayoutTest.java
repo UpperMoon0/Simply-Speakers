@@ -129,6 +129,37 @@ class AccessButtonLayoutTest {
         }
     }
 
+    @Test void queueClearActionAppearsOnlyWhileTemporaryRequestsExist() throws Exception {
+        try (var prefs=mockStatic(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.class);
+             var minecraft=mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(mock(net.minecraft.client.Minecraft.class));
+            prefs.when(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences::getThemeMode)
+                    .thenReturn(com.nstut.simplyspeakers.client.ui.UiThemeMode.DARK);
+            var screen=new com.nstut.simplyspeakers.client.screens.SpeakerScreen(net.minecraft.core.BlockPos.ZERO);
+            var factory=screen.getClass().getDeclaredMethod("buildQueueView");factory.setAccessible(true);
+            var body=(UIComponent)factory.invoke(screen);
+            var queueField=screen.getClass().getDeclaredField("queueIds");queueField.setAccessible(true);
+            @SuppressWarnings("unchecked") var queue=(com.nstut.openui.state.Signal<java.util.List<String>>)queueField.get(screen);
+            var font=mock(Font.class);
+            when(font.split(any(net.minecraft.network.chat.FormattedText.class),anyInt()))
+                    .thenReturn(java.util.List.of(net.minecraft.util.FormattedCharSequence.EMPTY));
+            var runtime=new UiRuntime(font,mock(NativeWidgetHost.class));
+            try {
+                runtime.setRoot(body);runtime.setViewport(0,0,280,120);runtime.flushFrameTasks();
+                assertEquals(0,buttonCount(body),"An empty queue has no Clear action");
+                queue.set(java.util.List.of("clip"));runtime.flushFrameTasks();
+                assertEquals(1,buttonCount(body),"Clear must appear after sync");
+                queue.set(java.util.List.of());runtime.flushFrameTasks();
+                assertEquals(0,buttonCount(body),"Clearing the last request removes its obsolete action");
+            } finally {runtime.close();}
+        }
+    }
+
+    private long buttonCount(UIComponent node) {
+        return ("queue.clear".equals(node.key()) ? 1 : 0)
+                + node.children().stream().mapToLong(this::buttonCount).sum();
+    }
+
     private boolean hasVirtualList(UIComponent node) {
         return node.getClass().getSimpleName().contains("VirtualList") || node.children().stream().anyMatch(this::hasVirtualList);
     }

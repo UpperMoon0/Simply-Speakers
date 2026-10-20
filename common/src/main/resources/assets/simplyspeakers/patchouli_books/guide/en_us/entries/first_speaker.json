@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "First playback",
-      "text": "Speakers play uploaded MP3 or WAV files. Stay within their audible range. Speakers and proxies ignore direct redstone; use a linked Speaker Controller for automation."
+      "text": "Speakers play uploaded MP3 or WAV files.$(br2)Stay within their audible range.$(br2)Speakers and proxies ignore direct redstone; use a linked Speaker Controller for automation."
     },
     {
       "type": "patchouli:text",
       "title": "Dependencies",
-      "text": "Install matching Simply Speakers, Architectury, OpenUI and Patchouli versions. Fabric also needs Fabric API. Clients and servers must use matching mod versions."
+      "text": "Install matching Simply Speakers, Architectury, OpenUI and Patchouli versions.$(br2)Fabric also needs Fabric API.$(br2)Clients and servers must use matching mod versions."
     },
     {
       "type": "patchouli:crafting",

@@ -7,17 +7,17 @@
     {
       "type": "patchouli:text",
       "title": "Repeat and queue",
-      "text": "Repeat supports Off, Current Sound and Playlist. Queued requests play once and interrupt a repeating sound. Old Loop settings migrate to Current Sound repeat."
+      "text": "Repeat supports Off, Current Sound and Playlist.$(br2)Queued requests play once and interrupt a repeating sound.$(br2)Old Loop settings migrate to Current Sound repeat."
     },
     {
       "type": "patchouli:text",
       "title": "Seeking and restart",
-      "text": "Restart begins the current sound at zero. Stop resets its position. Jump accepts minutes:seconds, e.g. 1:30. Unknown-duration streams cannot seek."
+      "text": "Restart begins the current sound at zero.$(br2)Stop resets its position.$(br2)Jump accepts minutes:seconds, such as 1:30.$(br2)Unknown-duration streams cannot seek."
     },
     {
       "type": "patchouli:text",
       "title": "Request ordering",
-      "text": "Play Next inserts a request at the front; Add to Queue appends. Clearing the queue leaves saved playlists intact. Requests run before the saved source resumes."
+      "text": "Play Next inserts a request at the front; Add to Queue appends.$(br2)Clearing the queue leaves saved playlists intact.$(br2)Requests run before the saved source resumes."
     }
   ]
 }

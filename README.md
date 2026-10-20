@@ -124,7 +124,7 @@ Edit the mod config file to adjust:
 
 - **Architectury API** (matching your Minecraft version and loader)
 - **Fabric API** (for Fabric versions)
-- **OpenUI MC 0.0.12 or newer** (matching your Minecraft version and loader)
+- **OpenUI MC 0.0.14 or newer** (matching your Minecraft version and loader)
 - **Patchouli** (optional, matching your Minecraft version and loader; enables the in-game guide and its recipe. Included in development environments for guide verification)
 
 ## Speaker Controllers and Guide
@@ -207,6 +207,8 @@ See the versioned release notes in the [changelog directory](changelog/).
 Contributions are welcome! Please feel free to submit a pull request or open an issue.
 
 ### Player, playlists, and queue
+
+Player controls use consistent 64×64 texture icons, including distinct repeat and shuffle states with hover descriptions. The Queue tab omits redundant headings and hides Clear queue when no temporary requests exist.
 
 Saved playlists belong to each player and are available at any speaker they can control.
 Speaker networks keep independent playback copies and temporary queues. Browsing or editing

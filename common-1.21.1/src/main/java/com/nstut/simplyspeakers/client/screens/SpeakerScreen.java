@@ -231,14 +231,18 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 .when(AudioViewState.RESULTS, this::buildAudioResultsView);
     }
 
+    private UIComponent wrappedEmptyState(Component message) {
+        return Ui.stack(Ui.text(message).wrap().centered().fillWidth()).align(Alignment.CENTER, Alignment.CENTER);
+    }
+
     private UIComponent buildEmptyAudioView() {
-        return Ui.column(buildAudioToolbar(),Ui.emptyState(Component.translatable("gui.simplyspeakers.no_audio")).flex()).gap(6);
+        return Ui.column(buildAudioToolbar(),wrappedEmptyState(Component.translatable("gui.simplyspeakers.no_audio")).flex()).gap(6);
     }
 
     private UIComponent buildNoMatchesView() {
         return Ui.column(
                 buildAudioToolbar(),
-                Ui.emptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())).flex(),
+                wrappedEmptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())).flex(),
                 SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.clear_search"), () -> search.set("")).ghost().small()
         ).gap(8);
     }
@@ -336,7 +340,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private UIComponent buildSettingsView() {
         if (speaker == null) {
-            return Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"));
+            return wrappedEmptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"));
         }
         return Ui.scroll(Ui.column(
                 buildListeningSettings(),
@@ -599,7 +603,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     .separator().item(tr("clear_playlist"),this::confirmClearPlaylist)
                     .item(tr("delete_playlist"),this::confirmDeletePlaylist).show(uiRuntime().overlays())).enabledWhen(() -> !selectedPlaylistId.get().isEmpty()))
                     .align(Alignment.CENTER).gap(4).key("playlist.toolbar"),
-                Ui.switcher(playlistEmpty).when(true,() -> Ui.emptyState(tr("playlist_empty")))
+                Ui.switcher(playlistEmpty).when(true,() -> wrappedEmptyState(tr("playlist_empty")))
                     .when(false,() -> Ui.list(playlistRows,this::buildPlaylistRow).key(row -> row.audioId()+":"+row.index()).itemHeight(24).gap(2).flex()).flex()).gap(6);
     }
     /** Selecting here changes only this screen's editor, not the network playback source. */
@@ -686,11 +690,15 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return rows;
     });
 
+    private final Computed<Boolean> hasQueueRequests = Signals.computed(() -> !queueIds.get().isEmpty());
+
     private UIComponent buildQueueView() {
-        return Ui.column(Ui.row(Ui.heading(tr("queue")).flex().tooltip(tr("queue_order_hint")),
-                SpeakerButtonWidget.button(tr("clear_queue"), () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_CLEAR_QUEUE, -1, false, "", "")).ghost().small()).align(Alignment.CENTER).gap(6),
+        return Ui.column(Ui.switcher(hasQueueRequests).when(true, () -> Ui.row(Ui.spacer().flex(),
+                SpeakerButtonWidget.button(tr("clear_queue"), () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_CLEAR_QUEUE, -1, false, "", ""))
+                        .enabledWhen(() -> accessView.get().canControl()).ghost().small().key("queue.clear")).align(Alignment.CENTER))
+                .when(false, () -> Ui.spacer().height(0)),
                 Ui.list(queueRows, this::buildQueueRow).key(row -> row.section() + ":" + row.index() + ":" + row.audioId())
-                        .itemHeight(24).gap(2).flex()).gap(6);
+                        .itemHeight(24).gap(2).flex()).gap(6).tooltip(tr("queue_order_hint"));
     }
 
     private UIComponent buildQueueRow(QueueRow row) {
@@ -715,7 +723,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     playlistShuffle.set(newValue);
                     sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
                             PlaylistControlPacketC2S.OP_SET_SHUFFLE, -1, newValue, "", ""));
-                });
+                }).texture(() -> playlistShuffle.get() ? "order_random" : "order_saved");
     }
 
     private ButtonWidget repeatCycleButton() {
@@ -726,7 +734,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     playlistRepeat.set(next);
                     sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
                             PlaylistControlPacketC2S.OP_SET_REPEAT, next, false, "", ""));
-                });
+                }).texture(() -> switch (RepeatMode.fromIndex(playlistRepeat.get())) { case NONE -> "loop_off"; case PLAYLIST -> "loop_all"; case TRACK -> "loop_current"; });
     }
 
 
@@ -1102,7 +1110,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         filteredAudio.close();
         hasStatus.close();
         playlistRows.close(); queueRows.close();
-        playlistEmpty.close();
+        playlistEmpty.close(); hasQueueRequests.close();
         super.removed();
     }
 }

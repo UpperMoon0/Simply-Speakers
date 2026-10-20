@@ -7,17 +7,17 @@
     {
       "type": "patchouli:text",
       "title": "Operator commands",
-      "text": "/ss (alias /simplyspeakers) offers network listing, info and playback control. Target a network name or a speaker position. Commands require operator access."
+      "text": "/ss (alias /simplyspeakers) offers network listing, info and playback control.$(br2)Target a network name or a speaker position.$(br2)Commands require operator access."
     },
     {
       "type": "patchouli:text",
       "title": "Control options",
-      "text": "Commands support play, pause, stop, restart, next, previous, seek, volume, range, shuffle and repeat. Display names identify networks; Speaker IDs link blocks."
+      "text": "Commands support play, pause, stop, restart, next, previous, seek, volume, range, shuffle and repeat.$(br2)Display names identify networks; Speaker IDs link blocks."
     },
     {
       "type": "patchouli:text",
       "title": "Java integration",
-      "text": "SpeakerApi is the server-side control API; call it on the server thread and enforce actor permissions. SpeakerEvents exposes playback changes for integrations."
+      "text": "SpeakerApi is the server-side control API; call it on the server thread and enforce actor permissions.$(br2)SpeakerEvents exposes playback changes for integrations."
     }
   ]
 }

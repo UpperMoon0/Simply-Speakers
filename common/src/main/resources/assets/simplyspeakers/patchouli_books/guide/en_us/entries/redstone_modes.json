@@ -7,7 +7,7 @@
     {
       "type": "patchouli:text",
       "title": "Speaker Controllers",
-      "text": "Direct redstone no longer controls speakers or proxies. Replace old wiring with linked Speaker Controllers. Comparator progress output remains available."
+      "text": "Direct redstone no longer controls speakers or proxies.$(br2)Replace old wiring with linked Speaker Controllers.$(br2)Comparator progress output remains available."
     }
   ]
 }

@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "World storage",
-      "text": "Files live in the world’s simply_speakers_audios folder as UUID.mp3 or UUID.wav. Back up the folder and stop the server before editing its manifest."
+      "text": "Files live in the world’s simply_speakers_audios folder as UUID.mp3 or UUID.wav.$(br2)Back up the folder and stop the server before editing its manifest."
     },
     {
       "type": "patchouli:text",
       "title": "Manifest records",
-      "text": "audio_manifest.json maps each recording UUID to uuid, originalFilename, ownerUUID and durationSeconds. Set a player owner; unowned recordings cannot be selected."
+      "text": "audio_manifest.json maps each recording UUID to uuid, originalFilename, ownerUUID and durationSeconds.$(br2)Set a player owner; unowned recordings cannot be selected."
     }
   ]
 }

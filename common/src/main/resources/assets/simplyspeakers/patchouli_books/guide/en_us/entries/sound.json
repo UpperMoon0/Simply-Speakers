@@ -7,27 +7,37 @@
     {
       "type": "patchouli:text",
       "title": "Volume and range",
-      "text": "Volume, range and distance fade adjust live without restarting playback. Range is capped by server policy. Entering range joins the current playback position."
+      "text": "Volume, range and distance fade adjust live without restarting playback.$(br2)Range is capped by server policy.$(br2)Entering range joins the current playback position."
     },
     {
       "type": "patchouli:text",
       "title": "Distance fade",
-      "text": "0% keeps full volume until the range boundary. 100% fades gradually with distance. A linked Volume controller can override manual volume until its last input is removed."
+      "text": "0% keeps full volume until the range boundary.$(br2)100% fades gradually with distance.$(br2)A linked Volume controller can override manual volume until its last input is removed."
     },
     {
       "type": "patchouli:text",
       "title": "Your listening",
-      "text": "Open Settings, then Your listening settings. These choices only affect you across all speakers and save automatically on this device. You can change them even when you cannot control the speaker."
+      "text": "Open Settings, then Your listening settings.$(br2)These choices only affect you across all speakers and save automatically on this device.$(br2)You can change them even when you cannot control the speaker."
     },
     {
       "type": "patchouli:text",
       "title": "Timed fades",
-      "text": "Entry fade duration and Exit fade duration set how many milliseconds sound takes to fade when crossing audible range. Each accepts 0-5000 ms; 0 disables that timed transition. They are separate from the speaker's Distance fade (%) slider. Stop and disconnect still end audio immediately."
+      "text": "Entry fade duration and Exit fade duration set how many milliseconds sound takes to fade when crossing audible range.$(br2)Each accepts 0-5000 ms; 0 disables that timed transition."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Fade behavior",
+      "text": "They are separate from the speaker's Distance fade (%) slider.$(br2)Stop and disconnect still end audio immediately."
     },
     {
       "type": "patchouli:text",
       "title": "Stereo and cache",
-      "text": "Stereo playback preserves left/right channels and centres audio on you; range and cone volume still apply. Stop and play again to apply a changed stereo choice. Audio cache size sets your local disk budget, 64-4096 MiB. Old cached downloads are removed as downloads finish; server originals are kept."
+      "text": "Stereo playback preserves left/right channels and centres audio on you; range and cone volume still apply.$(br2)Stop and play again to apply a changed stereo choice."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Local cache",
+      "text": "Audio cache size sets your local disk budget, 64-4096 MiB.$(br2)Old cached downloads are removed as downloads finish; server originals are kept."
     }
   ]
 }
