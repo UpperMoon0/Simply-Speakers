@@ -17,7 +17,7 @@
     {
       "type": "patchouli:text",
       "title": "Area preview",
-      "text": "The preview lasts eight seconds.$(br2)Teal marks the boundary; green indicates louder areas and amber quieter areas.$(br2)It uses the current range, fade and directional settings."
+      "text": "The preview lasts 30 seconds. Opening a menu closes it.$(br2)Teal marks the boundary; green indicates louder areas and amber quieter areas.$(br2)It uses the current range, fade and directional settings."
     }
   ]
 }
