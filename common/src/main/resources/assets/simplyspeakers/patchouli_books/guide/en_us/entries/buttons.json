@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "Pulse controls",
-      "text": "Pulse actions fire on a zero-to-positive signal edge. Holding power, changing positive strength or loading an already-powered controller does not create another pulse."
+      "text": "Pulse actions fire on a zero-to-positive signal edge.$(br2)Holding power, changing positive strength or loading an already-powered controller does not create another pulse."
     },
     {
       "type": "patchouli:text",
       "title": "Choosing a sound",
-      "text": "Next plays queued requests before playlist entries. Previous selects the previous playlist entry. Select Track uses strength 1–15; excess strength selects the last entry."
+      "text": "Next plays queued requests before playlist entries.$(br2)Previous selects the previous playlist entry.$(br2)Select Track uses strength 1–15; excess strength selects the last entry."
     }
   ]
 }

@@ -7,17 +7,17 @@
     {
       "type": "patchouli:text",
       "title": "Speaker peripheral",
-      "text": "With CC:Tweaked, main speakers expose the simply_speaker peripheral. Optional support covers 1.20.1 and 1.21.1. Anonymous computer control requires Public access."
+      "text": "With CC:Tweaked, main speakers expose the simply_speaker peripheral.$(br2)Optional support covers 1.20.1 and 1.21.1.$(br2)Anonymous computer control requires Public access."
     },
     {
       "type": "patchouli:text",
       "title": "Playback methods",
-      "text": "play, pause, togglePause, stop, restart, next, previous, seek and setTrack control transport. Local audio must belong to the network owner; remote streams require server permission."
+      "text": "play, pause, togglePause, stop, restart, next, previous, seek and setTrack control transport.$(br2)Local audio must belong to the network owner; remote streams require server permission."
     },
     {
       "type": "patchouli:text",
       "title": "State and settings",
-      "text": "getLibrary lists owner recordings. getSavedPlaylists lists saved templates; playSavedPlaylist loads a playback copy. getPlaylist and getQueue inspect the speaker. Queue and playlist slots start at 1."
+      "text": "getLibrary lists owner recordings. getSavedPlaylists lists saved templates; playSavedPlaylist loads a playback copy. getPlaylist and getQueue inspect the speaker.$(br2)Queue and playlist slots start at 1."
     },
     {
       "type": "patchouli:text",
@@ -27,12 +27,12 @@
     {
       "type": "patchouli:text",
       "title": "Queue and access",
-      "text": "queueNext and queueLast add requests. removeQueued, moveQueued and clearQueue edit them. Calls return false when denied. Computers cannot manage claimed networks or edit personal playlist templates."
+      "text": "queueNext and queueLast add requests. removeQueued, moveQueued and clearQueue edit them.$(br2)Calls return false when denied.$(br2)Computers cannot manage claimed networks or edit personal playlist templates."
     },
     {
       "type": "patchouli:text",
       "title": "Playback events",
-      "text": "Events report started, paused, resumed, stopped, track changed and finished. Arguments are attachment name, audio ID and network name. See the technical reference for method signatures."
+      "text": "Events report started, paused, resumed, stopped, track changed and finished.$(br2)Arguments are attachment name, audio ID and network name.$(br2)See the technical reference for method signatures."
     }
   ]
 }

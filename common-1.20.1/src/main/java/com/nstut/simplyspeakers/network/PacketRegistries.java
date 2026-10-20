@@ -173,6 +173,7 @@ public class PacketRegistries {
     public static void init() {
         registerC2S();
         registerS2C();
+        CHANNEL.register(AddRemoteAudioPacketC2S.class, AddRemoteAudioPacketC2S::encode, AddRemoteAudioPacketC2S::new, AddRemoteAudioPacketC2S::handle);
     }
 
     // Sending packets:

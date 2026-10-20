@@ -268,5 +268,14 @@
   "gui.simplyspeakers.listening.cache": "Audio cache size",
   "gui.simplyspeakers.listening.cache.help": "Disk target for downloaded audio on this device, in MiB. Older cached files are removed as downloads finish. The current download is kept even if larger than the target; server originals are kept.",
   "gui.simplyspeakers.listening.save_failed": "Could not save your listening settings. Check that the config folder is writable.",
-  "gui.simplyspeakers.listening.speaker_settings": "This speaker"
+  "gui.simplyspeakers.listening.speaker_settings": "This speaker",
+  "gui.simplyspeakers.library.add_audio": "Add audio",
+  "gui.simplyspeakers.library.upload_file": "Upload MP3/WAV…",
+  "gui.simplyspeakers.library.direct_url": "Direct audio URL…",
+  "gui.simplyspeakers.library.url_help": "Advanced: public MP3/WAV file links only, up to 256 characters. YouTube and Spotify links are not supported. Each listener connects to the URL.",
+  "gui.simplyspeakers.library.name_optional": "Name (optional)",
+  "gui.simplyspeakers.library.add_to_library": "Add to Library",
+  "gui.simplyspeakers.library.add_failed": "Could not add audio. Check the URL, server policy, and the 256-link library limit.",
+  "gui.simplyspeakers.library.remove": "Remove from Library",
+  "gui.simplyspeakers.library.remove_confirm": "Remove %s from your Library? Saved playlists and running playback are kept."
 }

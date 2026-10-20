@@ -7,17 +7,17 @@
     {
       "type": "patchouli:text",
       "title": "Personal playlists",
-      "text": "Your saved playlists are available at any speaker you can control. Browsing or editing another list leaves playback running. Each network keeps its own playback copy."
+      "text": "Your saved playlists are available at any speaker you can control.$(br2)Browsing or editing another list leaves playback running.$(br2)Each network keeps its own playback copy."
     },
     {
       "type": "patchouli:text",
       "title": "Playlist playback",
-      "text": "Playing a list starts at its beginning; playing an entry starts there. Both preserve queued requests. Requests play once, then the playlist resumes at its remembered position."
+      "text": "Playing a list starts at its beginning; playing an entry starts there.$(br2)Both preserve queued requests.$(br2)Requests play once, then the playlist resumes at its remembered position."
     },
     {
       "type": "patchouli:text",
       "title": "Limits and deletion",
-      "text": "Save up to 16 lists, 256 entries per list and 512 total. Names must be unique, 1–64 characters. All lists can be deleted; deleting the playing source stops it but keeps requests."
+      "text": "Save up to 16 lists, 256 entries per list and 512 total.$(br2)Names must be unique, 1–64 characters.$(br2)All lists can be deleted; deleting the playing source stops it but keeps requests."
     }
   ]
 }

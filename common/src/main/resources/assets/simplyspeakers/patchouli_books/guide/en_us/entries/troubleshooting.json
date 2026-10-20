@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "Silent playback",
-      "text": "Check listener range, volume, linked Speaker ID, controller input and access policy. A proxy needs a loaded linked speaker network. Directionality can silence listeners behind the front."
+      "text": "Check listener range, volume, linked Speaker ID, controller input and access policy.$(br2)A proxy needs a loaded linked speaker network.$(br2)Directionality can silence listeners behind the front."
     },
     {
       "type": "patchouli:text",
       "title": "Files and streams",
-      "text": "Use real MP3/WAV data within the upload limit. Streams need a direct public URL and server permission. Check matching mod versions and required dependencies if playback fails."
+      "text": "Use real MP3/WAV data within the upload limit.$(br2)Streams need a direct public URL and server permission.$(br2)Check matching mod versions and required dependencies if playback fails."
     }
   ]
 }

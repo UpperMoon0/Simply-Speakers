@@ -40,6 +40,17 @@ class PlaybackWireContractTest {
         } finally { buffer.release(); }
     }
 
+    @Test void remoteLibraryImportRoundTripsItsBoundedFields() throws Exception {
+        var source=new AddRemoteAudioPacketC2S(new BlockPos(2,3,4),"https://example.invalid/a.wav","Rain");
+        var decoded=roundTrip(source);
+        for(String name:List.of("pos","url","name")) {
+            var field=source.getClass().getDeclaredField(name);field.setAccessible(true);
+            assertEquals(field.get(source),field.get(decoded));
+        }
+        assertThrows(Exception.class,()->roundTrip(new AddRemoteAudioPacketC2S(BlockPos.ZERO,"x".repeat(257),"")));
+        assertThrows(Exception.class,()->roundTrip(new AddRemoteAudioPacketC2S(BlockPos.ZERO,"https://example.invalid/a.wav","x".repeat(129))));
+    }
+
     @Test void rangeExitAndImmediateStopRemainDistinctOnTheWire() throws Exception {
         assertTrue(roundTrip(new StopAudioPacketS2C(BlockPos.ZERO, true)).isRangeExit());
         assertFalse(roundTrip(new StopAudioPacketS2C(BlockPos.ZERO)).isRangeExit());

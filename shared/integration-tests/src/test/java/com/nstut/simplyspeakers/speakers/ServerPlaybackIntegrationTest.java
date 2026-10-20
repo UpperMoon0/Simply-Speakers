@@ -803,4 +803,63 @@ class ServerPlaybackIntegrationTest {
         assertTrue(packets.stream().filter(PlayAudioPacketS2C.class::isInstance).map(PlayAudioPacketS2C.class::cast)
             .anyMatch(p -> p.getMaxVolume()==0));
     }
+    @Test void automationLibraryBookmarksResolveToOwnedStreamsAndPersistInQueues(@TempDir Path world) throws Exception {
+        boolean previous = com.nstut.simplyspeakers.Config.allowRemoteStreams;
+        com.nstut.simplyspeakers.Config.allowRemoteStreams = true;
+        try {
+            var original = state().copy();
+            ServerSpeakerRegistry.init(world);
+            ServerSpeakerRegistry.updateSpeakerStateByFullKey(KEY, original);
+            var pos = new net.minecraft.core.BlockPos(0, 64, 0);
+            ServerSpeakerRegistry.registerSpeaker(level, pos, "net_test");
+            UUID owner = UUID.randomUUID();
+            state().setOwnerUuid(owner);
+            state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.PUBLIC);
+            var files = new com.nstut.simplyspeakers.audio.AudioFileManager(world);
+            var bookmark = files.addRemoteAudio(URL, "My stream", owner.toString());
+            var foreign = files.addRemoteAudio("https://example.invalid/foreign.wav", "Foreign", UUID.randomUUID().toString());
+            try (var mod = mockStatic(com.nstut.simplyspeakers.SimplySpeakers.class)) {
+                mod.when(com.nstut.simplyspeakers.SimplySpeakers::getAudioFileManager).thenReturn(files);
+                var catalog = com.nstut.simplyspeakers.api.SpeakerApi.getLibrary(level, pos);
+                assertEquals(List.of(bookmark.getUuid()), catalog.stream().map(a -> a.getUuid()).toList());
+                String id = catalog.get(0).getUuid();
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.selectTrack(level, pos, id));
+                assertEquals(URL, state().getAudioId(), "Playback must receive the URL, never the bookmark UUID");
+                assertEquals("My stream", state().getAudioFilename());
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.playlistQueueNext(level, pos, id));
+                assertEquals(List.of(URL), state().getPlaylist().getQueue());
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.playlistAdd(level, pos, id, "Untrusted title"));
+                assertEquals(URL, state().getPlaylist().getTracks().get(0).getAudioId());
+                assertNull(com.nstut.simplyspeakers.api.SpeakerApi.resolveAutomationTrack(level, pos, foreign.getUuid()));
+                assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.playlistRemove(level, pos, foreign.getUuid()));
+                com.nstut.simplyspeakers.Config.allowRemoteStreams = false;
+                assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.selectTrack(level, pos, id));
+                assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.playlistQueueLast(level, pos, id));
+                com.nstut.simplyspeakers.Config.allowRemoteStreams = true;
+                state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.OWNER_ONLY);
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.getLibrary(level, pos).isEmpty());
+                assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.selectTrack(level, pos, id));
+                assertFalse(com.nstut.simplyspeakers.api.SpeakerApi.playlistQueueNext(level, pos, id));
+                state().setAccessMode(com.nstut.simplyspeakers.SpeakerAccess.PUBLIC);
+                com.nstut.simplyspeakers.Config.allowRemoteStreams = false;
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.playlistRemove(level, pos, id));
+                assertTrue(state().getPlaylist().getTracks().isEmpty(), "Remove must normalize the imported bookmark UUID");
+                assertEquals(List.of(URL), state().getPlaylist().getQueue(), "Removing a saved track must retain queued copies");
+                com.nstut.simplyspeakers.Config.allowRemoteStreams = true;
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.playlistAdd(level, pos, id, "Ignored"));
+                assertTrue(files.deleteAudioFile(id, owner.toString(), null));
+                com.nstut.simplyspeakers.Config.allowRemoteStreams = false;
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.playlistRemove(level, pos, URL));
+                assertTrue(state().getPlaylist().getTracks().isEmpty(), "A deleted bookmark's stored URL must remain removable");
+                com.nstut.simplyspeakers.Config.allowRemoteStreams = true;
+                assertTrue(com.nstut.simplyspeakers.api.SpeakerApi.playlistAdd(level, pos, URL, "Ignored"));
+            }
+            ServerSpeakerRegistry.flushDirty();
+            ServerSpeakerRegistry.init(world);
+            assertEquals(List.of(URL), state().getPlaylist().getQueue());
+            assertEquals(URL, state().getPlaylist().getTracks().get(0).getAudioId());
+        } finally {
+            com.nstut.simplyspeakers.Config.allowRemoteStreams = previous;
+        }
+    }
 }

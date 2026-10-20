@@ -7,7 +7,7 @@
     {
       "type": "patchouli:text",
       "title": "Take it along",
-      "text": "Use a Portable Speaker to open the player. It plays while carried in your inventory, including the hotbar or off hand. Nearby players hear spatial audio from your moving position."
+      "text": "Use a Portable Speaker to open the player.$(br2)It plays while carried in your inventory, including the hotbar or off hand.$(br2)Nearby players hear spatial audio from your moving position."
     },
     {
       "type": "patchouli:crafting",
@@ -16,17 +16,22 @@
     {
       "type": "patchouli:text",
       "title": "Player controls",
-      "text": "Use Library, Playlist, Queue and Settings just like a placed Speaker. Upload MP3/WAV, choose recordings or direct stream URLs, and control transport, repeat, range, volume and dropoff."
+      "text": "Use Library, Playlist, Queue and Settings just like a placed Speaker.$(br2)Upload MP3/WAV, choose recordings or direct stream URLs, and control transport, repeat, range, volume and dropoff."
     },
     {
       "type": "patchouli:text",
       "title": "Access & links",
-      "text": "Ownership and access rules still apply when an item changes hands. Matching Speaker IDs link within one dimension. The item has no block face, comparator output or adjacent ComputerCraft peripheral."
+      "text": "Ownership and access rules still apply when an item changes hands.$(br2)Matching Speaker IDs link within one dimension.$(br2)The item has no block face, comparator output or adjacent ComputerCraft peripheral."
     },
     {
       "type": "patchouli:text",
       "title": "Stored items",
-      "text": "Dropped items and stored items are silent. Death, logout and dimension changes remove the old moving source. Saved settings and playlists stay with the speaker identity. Use Play to resume when necessary."
+      "text": "Dropped items and stored items are silent.$(br2)Death, logout and dimension changes remove the old moving source.$(br2)Saved settings and playlists stay with the speaker identity."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Return to listening",
+      "text": "Use Play to resume when necessary."
     }
   ]
 }

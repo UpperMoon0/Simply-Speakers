@@ -13,6 +13,8 @@ public class AudioFileMetadata {
     private final String originalFilename;
     private final String ownerUUID;
     private final float durationSeconds;
+    /** Empty for uploaded files; URL entries retain a normal owned library UUID. */
+    private String remoteUrl = "";
 
     /** Library organization data; nested Gson object keeps the manifest format stable. */
     private AudioLibraryInfo library = new AudioLibraryInfo();
@@ -30,6 +32,12 @@ public class AudioFileMetadata {
         this.originalFilename = originalFilename;
         this.ownerUUID = ownerUUID;
         this.durationSeconds = durationSeconds;
+    }
+
+    public String getRemoteUrl() { return remoteUrl == null ? "" : remoteUrl; }
+    public boolean isRemote() { return !getRemoteUrl().isEmpty(); }
+    public AudioFileMetadata withRemoteUrl(String url) {
+        AudioFileMetadata copy=copy();copy.remoteUrl=url == null ? "" : url;return copy;
     }
 
     public String getUuid() { return uuid; }
@@ -93,6 +101,7 @@ public class AudioFileMetadata {
     public AudioFileMetadata withDuration(float newDurationSeconds) {
         AudioFileMetadata replaced = new AudioFileMetadata(uuid, originalFilename, ownerUUID, newDurationSeconds);
         replaced.library = library().copy();
+        replaced.remoteUrl = getRemoteUrl();
         return replaced;
     }
 
@@ -104,6 +113,7 @@ public class AudioFileMetadata {
     private AudioFileMetadata copy() {
         AudioFileMetadata clone = new AudioFileMetadata(uuid, originalFilename, ownerUUID, durationSeconds);
         clone.library = library().copy();
+        clone.remoteUrl = getRemoteUrl();
         return clone;
     }
 
@@ -130,6 +140,7 @@ public class AudioFileMetadata {
             buf.writeLong(getUploadedAt());
             buf.writeUtf(getUploaderName());
         }
+        buf.writeUtf(getRemoteUrl(), 256);
     }
 
     public static AudioFileMetadata decode(FriendlyByteBuf buf) {
@@ -154,6 +165,7 @@ public class AudioFileMetadata {
             metadata.library().setUploadedAt(buf.readLong());
             metadata.library().setUploaderName(buf.readUtf(64));
         }
+        if (buf.readableBytes() > 0) metadata.remoteUrl = buf.readUtf(256);
         return metadata;
     }
 }

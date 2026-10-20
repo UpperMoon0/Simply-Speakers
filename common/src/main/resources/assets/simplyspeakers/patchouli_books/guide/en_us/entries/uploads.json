@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "Supported files",
-      "text": "Upload MP3 or WAV audio. Renaming another format to .mp3 or .wav does not convert it. The server validates content and enforces its upload limit."
+      "text": "Upload MP3 or WAV audio.$(br2)Renaming another format to .mp3 or .wav does not convert it.$(br2)The server validates content and enforces its upload limit."
     },
     {
       "type": "patchouli:text",
       "title": "Upload limits",
-      "text": "The default limit is 5 MiB; administrators can raise it to 100 MiB. Server policy can disable uploads independently of remote streams."
+      "text": "The default limit is 5 MiB; administrators can raise it to 100 MiB.$(br2)Server policy can disable uploads independently of remote streams."
     }
   ]
 }

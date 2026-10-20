@@ -186,6 +186,12 @@ public final class SpeakerPacketSecurity {
         if (manager != null) {
             AudioFileMetadata meta = manager.getManifest().get(audioId);
             if (meta != null && AudioOwnership.isOwnedBy(meta.getOwnerUUID(), player.getUUID().toString())) {
+                if (meta.isRemote()) {
+                    String source=meta.getRemoteUrl();
+                    if (!Config.isRemoteStreamingAllowed() || !StreamTracks.hasSupportedExtension(source)
+                            || !StreamTracks.isRemoteStreamUrlAllowed(source,false)) return null;
+                    return new AuthorizedTrack(source,meta.effectiveDisplayName());
+                }
                 return new AuthorizedTrack(meta.getUuid(), meta.getOriginalFilename());
             }
         }

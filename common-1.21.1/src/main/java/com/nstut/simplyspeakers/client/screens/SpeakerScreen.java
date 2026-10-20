@@ -231,14 +231,18 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 .when(AudioViewState.RESULTS, this::buildAudioResultsView);
     }
 
+    private UIComponent wrappedEmptyState(Component message) {
+        return Ui.stack(Ui.text(message).wrap().centered().fillWidth()).align(Alignment.CENTER, Alignment.CENTER);
+    }
+
     private UIComponent buildEmptyAudioView() {
-        return Ui.column(buildAudioToolbar(),Ui.emptyState(Component.translatable("gui.simplyspeakers.no_audio")).flex()).gap(6);
+        return Ui.column(buildAudioToolbar(),wrappedEmptyState(Component.translatable("gui.simplyspeakers.no_audio")).flex()).gap(6);
     }
 
     private UIComponent buildNoMatchesView() {
         return Ui.column(
                 buildAudioToolbar(),
-                Ui.emptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())).flex(),
+                wrappedEmptyState(Component.translatable("gui.simplyspeakers.no_search_matches", search.get())).flex(),
                 SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.clear_search"), () -> search.set("")).ghost().small()
         ).gap(8);
     }
@@ -255,10 +259,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                         .tooltip(Component.translatable("gui.simplyspeakers.search.tooltip"))
                         .flex()
         ).gap(6);
-        if (!Config.disableUpload) {
-            toolbar.child(SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.upload"), this::openUpload).primary().small());
-        }
-        toolbar.child(new SpeakerIconButton(Icon.PLUS,streamText("add"),this::addStreamDialog).key("library.add_stream"));
+        toolbar.child(Ui.switcher(audioImportAvailable).when(true, () ->
+                new SpeakerIconButton(Icon.PLUS,libraryText("add_audio"),this::showAddAudioDialog)
+                        .enabledWhen(() -> accessView.get().canControl()).key("library.add_audio"))
+                .when(false, () -> Ui.spacer().width(0)));
         return toolbar;
     }
 
@@ -293,7 +297,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                 .item(tr("play_next"), () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_QUEUE_NEXT, -1, false, audio.getUuid(), ""))
                 .item(tr("add_queue"), () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_QUEUE_LAST, -1, false, audio.getUuid(), ""))
                 .item(tr("add_playlist"), () -> chooseSavedPlaylist(audio))
-                .separator().item(tr("delete_server"), () -> confirmDelete(audio)).show(uiRuntime().overlays());
+                .separator().item(audio.isRemote()?libraryText("remove"):tr("delete_server"), () -> confirmDelete(audio)).show(uiRuntime().overlays());
     }
 
     private static Component listeningText(String key) {
@@ -336,7 +340,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private UIComponent buildSettingsView() {
         if (speaker == null) {
-            return Ui.emptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"));
+            return wrappedEmptyState(Component.translatable("gui.simplyspeakers.proxy_speaker.not_found"));
         }
         return Ui.scroll(Ui.column(
                 buildListeningSettings(),
@@ -599,7 +603,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     .separator().item(tr("clear_playlist"),this::confirmClearPlaylist)
                     .item(tr("delete_playlist"),this::confirmDeletePlaylist).show(uiRuntime().overlays())).enabledWhen(() -> !selectedPlaylistId.get().isEmpty()))
                     .align(Alignment.CENTER).gap(4).key("playlist.toolbar"),
-                Ui.switcher(playlistEmpty).when(true,() -> Ui.emptyState(tr("playlist_empty")))
+                Ui.switcher(playlistEmpty).when(true,() -> wrappedEmptyState(tr("playlist_empty")))
                     .when(false,() -> Ui.list(playlistRows,this::buildPlaylistRow).key(row -> row.audioId()+":"+row.index()).itemHeight(24).gap(2).flex()).flex()).gap(6);
     }
     /** Selecting here changes only this screen's editor, not the network playback source. */
@@ -686,11 +690,15 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         return rows;
     });
 
+    private final Computed<Boolean> hasQueueRequests = Signals.computed(() -> !queueIds.get().isEmpty());
+
     private UIComponent buildQueueView() {
-        return Ui.column(Ui.row(Ui.heading(tr("queue")).flex().tooltip(tr("queue_order_hint")),
-                SpeakerButtonWidget.button(tr("clear_queue"), () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_CLEAR_QUEUE, -1, false, "", "")).ghost().small()).align(Alignment.CENTER).gap(6),
+        return Ui.column(Ui.switcher(hasQueueRequests).when(true, () -> Ui.row(Ui.spacer().flex(),
+                SpeakerButtonWidget.button(tr("clear_queue"), () -> sendPlaylistOp(PlaylistControlPacketC2S.OP_CLEAR_QUEUE, -1, false, "", ""))
+                        .enabledWhen(() -> accessView.get().canControl()).ghost().small().key("queue.clear")).align(Alignment.CENTER))
+                .when(false, () -> Ui.spacer().height(0)),
                 Ui.list(queueRows, this::buildQueueRow).key(row -> row.section() + ":" + row.index() + ":" + row.audioId())
-                        .itemHeight(24).gap(2).flex()).gap(6);
+                        .itemHeight(24).gap(2).flex()).gap(6).tooltip(tr("queue_order_hint"));
     }
 
     private UIComponent buildQueueRow(QueueRow row) {
@@ -715,7 +723,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     playlistShuffle.set(newValue);
                     sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
                             PlaylistControlPacketC2S.OP_SET_SHUFFLE, -1, newValue, "", ""));
-                });
+                }).texture(() -> playlistShuffle.get() ? "order_random" : "order_saved");
     }
 
     private ButtonWidget repeatCycleButton() {
@@ -726,7 +734,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
                     playlistRepeat.set(next);
                     sendToServer(new PlaylistControlPacketC2S(blockEntityPos,
                             PlaylistControlPacketC2S.OP_SET_REPEAT, next, false, "", ""));
-                });
+                }).texture(() -> switch (RepeatMode.fromIndex(playlistRepeat.get())) { case NONE -> "loop_off"; case PLAYLIST -> "loop_all"; case TRACK -> "loop_current"; });
     }
 
 
@@ -754,6 +762,10 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
             Signals.of(com.nstut.simplyspeakers.permissions.AccessViewSnapshot.EMPTY);
     private Component accessText(String key) { return Component.translatable("gui.simplyspeakers.access."+key); }
     private Component streamText(String key) { return Component.translatable("gui.simplyspeakers.stream."+key); }
+    private final Computed<Boolean> remoteImportVisible=Signals.computed(() -> accessView.get().streamsAllowed());
+    private final Computed<Boolean> audioImportAvailable=Signals.computed(() -> !Config.disableUpload || accessView.get().streamsAllowed());
+    private static Component libraryText(String key) {return Component.translatable("gui.simplyspeakers.library."+key);}
+
     public void updateAccessModel(com.nstut.simplyspeakers.permissions.AccessViewSnapshot policy) { accessView.set(policy); }
 
     private Component ownerDisplayName() {
@@ -836,28 +848,54 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
             ).justify(Justification.CENTER).gap(6)
         ).gap(8)).padding(12);dialog.width(Math.min(320,width-40));return dialog;
     }
-    private void addStreamDialog() {
-        OverlayHandle[] handle={null};Signal<String> url=Signals.of("");Signal<Component> error=Signals.of(Component.empty());
-        java.util.function.Consumer<Byte> submit=op -> {
-            String value=url.get().trim();
+    private void showAddAudioDialog() {
+        OverlayHandle[] handle={null};
+        Card dialog=Ui.card(buildAddAudioOptions(() -> handle[0].close())).padding(12);
+        dialog.width(Math.min(300,width-40));handle[0]=Dialog.show(uiRuntime().overlays(),dialog);
+    }
+    private UIComponent buildAddAudioOptions(Runnable close) {
+        var options=Ui.column(Ui.heading(libraryText("add_audio"))).gap(8);
+        if(!Config.disableUpload) options.child(SpeakerButtonWidget.button(libraryText("upload_file"),() -> {
+            close.run();openUpload();
+        }).primary().enabledWhen(() -> !Config.disableUpload && accessView.get().canControl()).key("library.upload_file"));
+        options.child(Ui.switcher(remoteImportVisible).when(true, () ->
+                SpeakerButtonWidget.button(libraryText("direct_url"),() -> {close.run();showRemoteAudioDialog();})
+                        .enabledWhen(() -> accessView.get().canControl() && accessView.get().streamsAllowed())
+                        .tooltip(libraryText("url_help")).key("library.direct_url"))
+                .when(false, () -> Ui.spacer().height(0)));
+        options.child(SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.cancel"),close).ghost());
+        return options;
+    }
+    private void showRemoteAudioDialog() {
+        OverlayHandle[] handle={null};
+        Card dialog=Ui.card(buildRemoteAudioForm(() -> handle[0].close())).padding(12);
+        dialog.width(Math.min(360,width-40));handle[0]=Dialog.show(uiRuntime().overlays(),dialog);
+    }
+    private UIComponent buildRemoteAudioForm(Runnable close) {
+        Signal<String> url=Signals.of(""),name=Signals.of("");Signal<Component> error=Signals.of(Component.empty());
+        Runnable add=() -> {
+            String source=url.get().trim(),title=name.get().trim();
             if(!accessView.get().streamsAllowed()){error.set(streamText("disabled"));return;}
-            if(value.length()>256 || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(value)
-                    || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(value,false)) {error.set(streamText("invalid"));return;}
             if(!accessView.get().canControl()){error.set(accessText("no_control"));return;}
-            handle[0].close();
-            if(op==PlaylistControlPacketC2S.OP_ADD) chooseSavedPlaylist(new AudioFileMetadata(value,value));
-            else sendPlaylistOp(op,-1,true,value,"");
+            if(source.length()>256 || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(source)
+                    || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(source,false)
+                    || title.length()>128 || title.chars().anyMatch(Character::isISOControl)) {
+                error.set(streamText("invalid"));return;
+            }
+            sendToServer(new com.nstut.simplyspeakers.network.AddRemoteAudioPacketC2S(blockEntityPos,source,title));
+            close.run();
         };
-        Card dialog=Ui.card(Ui.column(Ui.heading(streamText("add")),Ui.text(streamText("help")).wrap(),
-            Ui.textField(url).maxLength(2048).placeholder("https://example.com/audio.mp3").fillWidth().key("stream.url"),
-            Ui.switcher(Signals.computed(() -> !accessView.get().streamsAllowed())).when(true,() -> Ui.text(streamText("disabled")).wrap()).when(false,() -> Ui.spacer().height(0)),
-            Ui.text((Supplier<Component>)error::get).wrap(),
-            Ui.row(new SpeakerIconButton(Icon.PLAY,tr("play_now"),() -> submit.accept(PlaylistControlPacketC2S.OP_PLAY_AUDIO)).enabledWhen(() -> accessView.get().streamsAllowed() && accessView.get().canControl()).primary(),
-                new SpeakerIconButton(Icon.PLUS,tr("add_queue"),() -> submit.accept(PlaylistControlPacketC2S.OP_QUEUE_LAST)).enabledWhen(() -> accessView.get().streamsAllowed() && accessView.get().canControl()),
-                SpeakerButtonWidget.button(streamText("playlist"),() -> submit.accept(PlaylistControlPacketC2S.OP_ADD)).ghost().small().enabledWhen(() -> accessView.get().streamsAllowed() && accessView.get().canControl() && !savedPlaylists.get().isEmpty())
-            ).justify(Justification.CENTER).gap(6),
-            SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.cancel"),() -> handle[0].close()).ghost().small()
-        ).gap(8)).padding(12);dialog.width(Math.min(360,width-40));handle[0]=Dialog.show(uiRuntime().overlays(),dialog);
+        return Ui.column(Ui.heading(libraryText("direct_url")),Ui.text(libraryText("url_help")).wrap(),
+                Ui.textField(url).maxLength(256).placeholder("https://example.com/audio.mp3")
+                        .tooltip(libraryText("url_help")).fillWidth().key("library.url"),
+                Ui.textField(name).maxLength(128).placeholder(libraryText("name_optional").getString())
+                        .fillWidth().key("library.url_name"),
+                Ui.text((Supplier<Component>)error::get).wrap(),
+                Ui.row(SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.cancel"),close).ghost(),
+                        SpeakerButtonWidget.button(libraryText("add_to_library"),add).primary()
+                                .enabledWhen(() -> accessView.get().canControl() && accessView.get().streamsAllowed())
+                                .key("library.save_url")).justify(Justification.CENTER).gap(6)
+        ).gap(8);
     }
 
     private UIComponent buildPolicyCard() {
@@ -957,13 +995,13 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         OverlayHandle[] handle = { null };
         ButtonWidget cancelBtn = SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.cancel"),
                 () -> { if (handle[0] != null) handle[0].close(); }).ghost();
-        ButtonWidget deleteBtn = SpeakerButtonWidget.button(Component.translatable("gui.simplyspeakers.delete"), () -> {
+        ButtonWidget deleteBtn = SpeakerButtonWidget.button(audio.isRemote()?libraryText("remove"):Component.translatable("gui.simplyspeakers.delete"), () -> {
             if (handle[0] != null) handle[0].close();
             sendToServer(new DeleteAudioPacketC2S(audio.getUuid()));
         }).danger();
         card.addChild(Ui.column(
-                Ui.heading(Component.translatable("gui.simplyspeakers.delete_confirm.title")),
-                Ui.text(Component.translatable("gui.simplyspeakers.delete_confirm.body", audio.getOriginalFilename())),
+                Ui.heading(audio.isRemote()?libraryText("remove"):Component.translatable("gui.simplyspeakers.delete_confirm.title")),
+                Ui.text(audio.isRemote()?Component.translatable("gui.simplyspeakers.library.remove_confirm",audio.effectiveDisplayName()):Component.translatable("gui.simplyspeakers.delete_confirm.body", audio.getOriginalFilename())).wrap(),
                 Ui.row(cancelBtn, deleteBtn).gap(6)
         ).gap(10));
         card.width(Math.min(280, width - 40)).minHeight(90);
@@ -989,7 +1027,7 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
 
     private String filenameOf(String uuid) {
         for (AudioFileMetadata a : audioFiles.get()) {
-            if (a.getUuid().equals(uuid)) return a.effectiveDisplayName();
+            if (a.getUuid().equals(uuid) || (a.isRemote() && a.getRemoteUrl().equals(uuid))) return a.effectiveDisplayName();
         }
         return uuid;
     }
@@ -1102,7 +1140,8 @@ public class SpeakerScreen extends SimplySpeakersUiScreen {
         filteredAudio.close();
         hasStatus.close();
         playlistRows.close(); queueRows.close();
-        playlistEmpty.close();
+        playlistEmpty.close(); hasQueueRequests.close();
+        remoteImportVisible.close();audioImportAvailable.close();
         super.removed();
     }
 }

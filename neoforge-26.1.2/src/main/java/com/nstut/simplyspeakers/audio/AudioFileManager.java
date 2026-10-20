@@ -125,7 +125,7 @@ public class AudioFileManager {
                 boolean manifestModified = false;
                 for (Map.Entry<String, AudioFileMetadata> entry : loadedManifest.entrySet()) {
                     AudioFileMetadata meta = entry.getValue();
-                    if (meta != null && meta.getDurationSeconds() <= 0.0f) {
+                    if (meta != null && !meta.isRemote() && meta.getDurationSeconds() <= 0.0f) {
                         String extension = FilenameUtils.getExtension(meta.getOriginalFilename());
                         Path filePath = audioDirPath.resolve(meta.getUuid() + (extension.isEmpty() ? "" : "." + extension));
                         if (Files.exists(filePath)) {
@@ -245,7 +245,7 @@ public class AudioFileManager {
 
     public Path getAudioFilePath(String uuid) {
         AudioFileMetadata metadata = manifest.get(uuid);
-        if (metadata == null) {
+        if (metadata == null || metadata.isRemote()) {
             return null;
         }
         String extension = FilenameUtils.getExtension(metadata.getOriginalFilename());
@@ -404,6 +404,36 @@ public class AudioFileManager {
     // Package boundary for deterministic validation-versus-disconnect/shutdown regression tests.
     void beforeUploadCommit() throws IOException { }
 
+    /** Saves a URL bookmark; imports never fetch audio or change playback. */
+    public AudioFileMetadata addRemoteAudio(String url, String title, String ownerUUID) throws IOException {
+        if (!Config.isRemoteStreamingAllowed()) throw new IllegalArgumentException("Remote audio is disabled");
+        UUID.fromString(ownerUUID);
+        String source=url == null ? "" : url.trim();
+        String name=title == null ? "" : title.trim();
+        if (source.length()>256 || !StreamTracks.hasSupportedExtension(source)
+                || !StreamTracks.isRemoteStreamUrlAllowed(source,false))
+            throw new IllegalArgumentException("Invalid direct audio URL");
+        if (name.length()>128 || name.chars().anyMatch(Character::isISOControl))
+            throw new IllegalArgumentException("Invalid audio name");
+        if (name.isEmpty()) {
+            String path=java.net.URI.create(source).getPath();
+            name=path.substring(path.lastIndexOf('/')+1);
+            if (name.length()>128) name=name.substring(0,128);
+        }
+        synchronized (manifestPersistence) {
+            if (stopped) throw new IOException("Audio library is closed");
+            var owned=getAudioListForPlayer(ownerUUID);
+            for (var entry:owned) if (source.equals(entry.getRemoteUrl())) return entry;
+            if (owned.stream().filter(AudioFileMetadata::isRemote).count()>=256)
+                throw new IllegalArgumentException("Remote audio library is full");
+            var entry=new AudioFileMetadata(UUID.randomUUID().toString(),name,ownerUUID).withRemoteUrl(source);
+            var snapshot=new java.util.HashMap<>(manifest);snapshot.put(entry.getUuid(),entry);
+            persistManifest(snapshot);
+            manifest.put(entry.getUuid(),entry);
+            return entry;
+        }
+    }
+
     public void sendAudioList(ServerPlayer player, BlockPos blockPos) {
         List<AudioFileMetadata> audioList = getAudioListForPlayer(player.getUUID().toString());
         NetworkManager.sendToPlayer(player, new SendAudioListPacketS2C(audioList));
@@ -418,6 +448,17 @@ public class AudioFileManager {
         if (!AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerUUID)) {
             LOGGER.warn("Player {} tried to delete audio {} owned by {}", playerUUID, audioId, metadata.getOwnerUUID());
             return false;
+        }
+
+        if (metadata.isRemote()) {
+            synchronized (manifestPersistence) {
+                var snapshot=new java.util.HashMap<>(manifest);snapshot.remove(audioId);
+                try { persistManifest(snapshot); }
+                catch(IOException error) { LOGGER.error("Failed to remove remote library entry",error);return false; }
+                manifest.remove(audioId);
+            }
+            // Removing a bookmark does not delete its source or interrupt saved playback copies.
+            return true;
         }
 
         Path filePath = getAudioFilePath(audioId);

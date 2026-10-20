@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "Powered playback",
-      "text": "Any powered playback controller keeps its target enabled. Unpowered pauses it. Holding power does not restart finished playback or undo a later manual Stop."
+      "text": "Any powered playback controller keeps its target enabled.$(br2)Unpowered pauses it.$(br2)Holding power does not restart finished playback or undo a later manual Stop."
     },
     {
       "type": "patchouli:text",
       "title": "Volume controllers",
-      "text": "Strength 0–15 scales to the controller maximum. When controllers share a target, the highest volume wins. Removing the last volume controller restores manual volume."
+      "text": "Strength 0–15 scales to the controller maximum.$(br2)When controllers share a target, the highest volume wins.$(br2)Removing the last volume controller restores manual volume."
     }
   ]
 }

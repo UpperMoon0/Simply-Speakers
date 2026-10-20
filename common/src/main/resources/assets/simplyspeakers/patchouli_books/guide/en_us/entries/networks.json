@@ -7,12 +7,12 @@
     {
       "type": "patchouli:text",
       "title": "Speaker ID",
-      "text": "Matching non-empty IDs share playback within one dimension. Blank IDs are standalone. Display name is an optional label for listings and commands; it does not control linking."
+      "text": "Matching non-empty IDs share playback within one dimension.$(br2)Blank IDs are standalone.$(br2)Display name is an optional label for listings and commands; it does not control linking."
     },
     {
       "type": "patchouli:text",
       "title": "Proxy outputs",
-      "text": "Proxies follow the linked playback timeline. Their volume, range and distance fade are independent. They inherit directional settings but aim from their own front face."
+      "text": "Proxies follow the linked playback timeline.$(br2)Their volume, range and distance fade are independent.$(br2)They inherit directional settings but aim from their own front face."
     },
     {
       "type": "patchouli:crafting",
