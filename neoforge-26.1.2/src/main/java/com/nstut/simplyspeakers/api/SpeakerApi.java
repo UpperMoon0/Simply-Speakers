@@ -276,6 +276,17 @@ public final class SpeakerApi {
         if (op==com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_ADD || op==com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_NEXT || op==com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_QUEUE_LAST) {
             var track=resolveAutomationTrack(level,pos,audioId);if(track==null)return false;
             audioId=track.getUuid();filename=track.getOriginalFilename();
+        } else if (op == com.nstut.simplyspeakers.network.PlaylistControlPacketC2S.OP_REMOVE_AUDIO) {
+            if (audioId == null || audioId.length() > 256) return false;
+            var files = com.nstut.simplyspeakers.SimplySpeakers.getAudioFileManager();
+            var metadata = files == null ? null : files.getManifest().get(audioId);
+            if (metadata != null && metadata.isRemote()) {
+                var owner = getState(level, pos).getOwnerUuid();
+                if (owner == null || !com.nstut.simplyspeakers.audio.AudioOwnership.isOwnedBy(
+                        metadata.getOwnerUUID(), owner.toString())) return false;
+                // Removal never opens the URL and must work after streaming is disabled.
+                audioId = metadata.getRemoteUrl();
+            }
         }
         return ServerSpeakerControlService.playlistControl(serverLevel.getServer(), serverLevel, fullKey, op, index, flag, audioId, filename);
     }
