@@ -7,12 +7,22 @@
     {
       "type": "patchouli:text",
       "title": "Direct audio URLs",
-      "text": "Remote streams require server permission.$(br2)Use a direct public HTTP(S) MP3/WAV URL, not a video page.$(br2)Private and loopback addresses are blocked."
+      "text": "Use + Add audio in Library, then Direct audio URL.$(br2)This advanced option appears only when the server permits remote audio. Upload permission is separate."
     },
     {
       "type": "patchouli:text",
-      "title": "Playing a stream",
-      "text": "Add Stream in Library offers Play, Queue and playlist destinations.$(br2)URLs can be up to 256 characters.$(br2)Each listening client connects to the URL; streams are separate from uploaded recordings."
+      "title": "Add to Library",
+      "text": "Enter a public MP3/WAV file URL and an optional name.$(br2)Select Add to Library. Importing does not play audio; use the normal Library actions afterward."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Saved links",
+      "text": "Links save in your own server-side Library.$(br2)Removing a link keeps saved playlists and running playback. Each listener connects to the URL when it plays."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "Supported sources",
+      "text": "URLs accept up to 256 characters. YouTube and Spotify page links are not supported.$(br2)Private and loopback addresses are blocked."
     },
     {
       "type": "patchouli:text",

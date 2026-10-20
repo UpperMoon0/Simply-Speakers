@@ -48,7 +48,7 @@ class SettingsLocalizationTest(unittest.TestCase):
             for key in keys:
                 if not key.endswith("."):
                     self.assertIn(key, LANG, (module, key))
-            for prefix in ("access", "stream"):
+            for prefix in ("access", "stream", "library"):
                 for suffix in re.findall(prefix + r'Text\("([^"]+)"\)', ui):
                     if not suffix.endswith("."):
                         self.assertIn("gui.simplyspeakers." + prefix + "." + suffix, LANG)

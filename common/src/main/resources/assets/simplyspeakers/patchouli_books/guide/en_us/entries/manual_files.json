@@ -13,6 +13,11 @@
       "type": "patchouli:text",
       "title": "Manifest records",
       "text": "audio_manifest.json maps each recording UUID to uuid, originalFilename, ownerUUID and durationSeconds.$(br2)Set a player owner; unowned recordings cannot be selected."
+    },
+    {
+      "type": "patchouli:text",
+      "title": "URL bookmarks",
+      "text": "Direct URL entries also have a Library UUID and owner.$(br2)Their remoteUrl field points to the source. They have no local audio file and start with unknown duration."
     }
   ]
 }

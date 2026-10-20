@@ -70,9 +70,9 @@ playback control. Owners still retain access management and can change the mode 
 Screens applies these same rules separately to viewing and content control; speaker hearing
 remains range-based and unrestricted by the control mode.
 
-Library's **Add stream** opens a URL dialog with Play, Queue and playlist destinations.
-Use a direct public HTTP(S) MP3/WAV URL, up to 256 characters. Remote streams must be enabled
-by the server; each listener connects directly to the URL. Upload permission is independent.
+Use **+ Add audio** in Library to upload an MP3/WAV file or add a **Direct audio URL**. The URL option appears only when remote streams are enabled by the server. Enter a public HTTP(S) MP3/WAV file URL (up to 256 characters) and an optional name, then select **Add to Library**. YouTube and Spotify page links are not supported.
+
+Saved links belong to your server-side Library and use the same Play, Queue and playlist actions as uploaded files. Importing never starts playback. Each listener connects directly to the URL when played. Removing a link only removes your Library bookmark; saved playlists and running playback remain intact. Upload permission is independent of remote-stream policy.
 
 ## Adding Audio Files
 
