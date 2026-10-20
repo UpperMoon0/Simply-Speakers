@@ -286,6 +286,10 @@ def run_target(root: Path, target: str, timeout: int) -> None:
         carrier = popen(client_command(root, module), root)
         clients.append(carrier)
         carrier_output = OutputPump(carrier, f"{target}/carrier")
+        # Loom rewrites shared generated mapping POMs during configuration even
+        # after preflight. Wait for the carrier's real join before configuring
+        # the observer, so the two Gradle processes cannot race those writes.
+        carrier_output.wait_for_all((PASS_MARKER,), timeout, peers=(server_output,))
         observer = popen(client_command(root, module, observer=True), root)
         clients.append(observer)
         observer_output = OutputPump(observer, f"{target}/observer")

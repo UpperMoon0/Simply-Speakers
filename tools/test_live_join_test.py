@@ -195,6 +195,10 @@ class LiveHarnessTest(unittest.TestCase):
         for process in processes: process.poll.return_value = None
         outputs = [Mock(), Mock(), Mock()]
         outputs[0].wait_for.return_value = "Done ("
+        def carrier_evidence(markers, *args, **kwargs):
+            if markers == (live.PASS_MARKER,):
+                events.append(("carrier_join", live.PASS_MARKER))
+        outputs[1].wait_for_all.side_effect = carrier_evidence
         def prepare(cmd, **kwargs):
             events.append(("prepare", cmd[1]))
         def launch(cmd, root):
@@ -212,10 +216,28 @@ class LiveHarnessTest(unittest.TestCase):
             ("prepare", ":forge-1.20.1:runLiveJoinTestObserver"),
             ("launch", ":forge-1.20.1:runLiveJoinTestServer"),
             ("launch", ":forge-1.20.1:runLiveJoinTestClient"),
+            ("carrier_join", live.PASS_MARKER),
             ("launch", ":forge-1.20.1:runLiveJoinTestObserver"),
         ], events)
-        for output in outputs:
-            output.wait_for_all.assert_called_once()
+        outputs[0].wait_for_all.assert_called_once()
+        self.assertEqual(2, outputs[1].wait_for_all.call_count)
+        outputs[2].wait_for_all.assert_called_once()
+
+    def test_carrier_join_failure_prevents_observer_launch_and_cleans_up(self):
+        from pathlib import Path
+        server, carrier = Mock(), Mock()
+        server_output, carrier_output = Mock(), Mock()
+        server_output.wait_for.return_value = "Done ("
+        carrier_output.wait_for_all.side_effect = RuntimeError("carrier join failed")
+        with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
+             patch.object(live.subprocess, "run"), patch.object(live, "client_command", return_value=["client"]), \
+             patch.object(live, "popen", side_effect=[server, carrier]) as launch, \
+             patch.object(live, "OutputPump", side_effect=[server_output, carrier_output]), \
+             patch.object(live, "stop_tree") as stop:
+            with self.assertRaisesRegex(RuntimeError, "carrier join failed"):
+                live.run_target(Path("fixture"), "forge-1.20.1", 30)
+        self.assertEqual(2, launch.call_count)
+        self.assertEqual([unittest.mock.call(carrier), unittest.mock.call(server, graceful_server=True)], stop.call_args_list)
 
     def test_three_process_cleanup_runs_after_carrier_failure(self):
         from pathlib import Path
@@ -223,7 +245,7 @@ class LiveHarnessTest(unittest.TestCase):
         for process in (server, carrier, observer): process.poll.return_value = None
         server_output, carrier_output, observer_output = Mock(), Mock(), Mock()
         server_output.wait_for.return_value = "Done ("
-        carrier_output.wait_for_all.side_effect = RuntimeError("fixture failure")
+        carrier_output.wait_for_all.side_effect = [None, RuntimeError("fixture failure")]
         with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
              patch.object(live.subprocess, "run"), patch.object(live, "client_command", return_value=["client"]), \
              patch.object(live, "popen", side_effect=[server, carrier, observer]), \
