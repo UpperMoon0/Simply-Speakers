@@ -37,14 +37,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository/com/nstut
-          key: openui-maven-793f5ac6e9719fe7c6572c2c59fc77f98379b8aa
+          key: openui-maven-a26b31d85701eabb9951751c0d3a75b44faee750
       - name: Checkout OpenUI MC
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
           submodules: recursive
           repository: UpperMoon0/OpenUI-MC
-          ref: 793f5ac6e9719fe7c6572c2c59fc77f98379b8aa
+          ref: a26b31d85701eabb9951751c0d3a75b44faee750
           path: .openui-mc
       - name: Validate OpenUI dependency version
         if: steps.cache-openui.outputs.cache-hit != 'true'
@@ -114,7 +114,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository/com/nstut
-          key: openui-maven-793f5ac6e9719fe7c6572c2c59fc77f98379b8aa
+          key: openui-maven-a26b31d85701eabb9951751c0d3a75b44faee750
       - name: Download OpenUI Maven Artifacts Fallback
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
@@ -154,7 +154,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.m2/repository/com/nstut
-          key: openui-maven-793f5ac6e9719fe7c6572c2c59fc77f98379b8aa
+          key: openui-maven-a26b31d85701eabb9951751c0d3a75b44faee750
       - name: Download OpenUI Maven Artifacts Fallback
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4

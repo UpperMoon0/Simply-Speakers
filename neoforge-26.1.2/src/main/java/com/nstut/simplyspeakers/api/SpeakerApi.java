@@ -58,7 +58,17 @@ public final class SpeakerApi {
         var state=getState(level,pos);
         if (files==null || state.getOwnerUuid()==null) return null;
         var track=files.getManifest().get(id);
-        return track!=null && com.nstut.simplyspeakers.audio.AudioOwnership.isOwnedBy(track.getOwnerUUID(),state.getOwnerUuid().toString()) ? track : null;
+        if (track == null || !com.nstut.simplyspeakers.audio.AudioOwnership.isOwnedBy(
+                track.getOwnerUUID(), state.getOwnerUuid().toString())) return null;
+        if (track.isRemote()) {
+            String source = track.getRemoteUrl();
+            if (!com.nstut.simplyspeakers.Config.isRemoteStreamingAllowed()
+                    || !com.nstut.simplyspeakers.audio.StreamTracks.hasSupportedExtension(source)
+                    || !com.nstut.simplyspeakers.audio.StreamTracks.isRemoteStreamUrlAllowed(source, false)) return null;
+            return new com.nstut.simplyspeakers.audio.AudioFileMetadata(source, track.effectiveDisplayName(),
+                    track.getOwnerUUID(), track.getDurationSeconds());
+        }
+        return track;
     }
 
     /** Selection stays idle unless playback was already running. */
@@ -68,7 +78,7 @@ public final class SpeakerApi {
         if (track==null && (id==null || !id.isEmpty())) return false;
         var serverLevel=(ServerLevel)level;
         return ServerSpeakerControlService.selectAudio(serverLevel.getServer(),serverLevel,
-            ServerSpeakerControlService.resolveFullStateKey(level,pos),id,track==null?"":track.getOriginalFilename());
+            ServerSpeakerControlService.resolveFullStateKey(level,pos),track==null?"":track.getUuid(),track==null?"":track.getOriginalFilename());
     }
 
     // ------------------------------------------------------------------
