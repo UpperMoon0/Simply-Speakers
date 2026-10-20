@@ -155,6 +155,34 @@ class AccessButtonLayoutTest {
         }
     }
 
+    @Test void settingsScrollbarCapturesDraggingOutsideItsPanel() throws Exception {
+        try (var prefs=mockStatic(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences.class);
+             var minecraft=mockStatic(net.minecraft.client.Minecraft.class)) {
+            minecraft.when(net.minecraft.client.Minecraft::getInstance).thenReturn(mock(net.minecraft.client.Minecraft.class));
+            prefs.when(com.nstut.simplyspeakers.client.ui.SimplySpeakersUiPreferences::getThemeMode)
+                    .thenReturn(com.nstut.simplyspeakers.client.ui.UiThemeMode.DARK);
+            var screen=new com.nstut.simplyspeakers.client.screens.SpeakerScreen(net.minecraft.core.BlockPos.ZERO);
+            var speakerField=screen.getClass().getDeclaredField("speaker");speakerField.setAccessible(true);
+            speakerField.set(screen,mock(com.nstut.simplyspeakers.blocks.entities.SpeakerBlockEntity.class));
+            var factory=screen.getClass().getDeclaredMethod("buildSettingsView");factory.setAccessible(true);
+            var scroll=(com.nstut.openui.controls.ScrollView)factory.invoke(screen);
+            var font=mock(Font.class);
+            when(font.split(any(net.minecraft.network.chat.FormattedText.class),anyInt()))
+                    .thenReturn(java.util.List.of(net.minecraft.util.FormattedCharSequence.EMPTY));
+            var runtime=new UiRuntime(font,mock(NativeWidgetHost.class));
+            try {
+                runtime.setRoot(scroll);runtime.setViewport(0,0,280,120);runtime.flushFrameTasks();
+                assertTrue(runtime.mouseClicked(279,2,0));
+                assertTrue(runtime.mouseDragged(330,180,0,51,178));
+                assertTrue(scroll.scrollOffset()>0);
+                assertTrue(runtime.mouseReleased(330,180,0));
+                double offset=scroll.scrollOffset();
+                runtime.mouseDragged(330,-20,0,0,-200);
+                assertEquals(offset,scroll.scrollOffset());
+            } finally {runtime.close();}
+        }
+    }
+
     private long buttonCount(UIComponent node) {
         return ("queue.clear".equals(node.key()) ? 1 : 0)
                 + node.children().stream().mapToLong(this::buttonCount).sum();
