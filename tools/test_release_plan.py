@@ -40,7 +40,7 @@ class ReleasePlanTest(unittest.TestCase):
         text = (Path(__file__).resolve().parents[1] / '.github/workflows/live-join-test.yml').read_text()
         count = text.count('      - uses: actions/checkout@v4')
         self.assertEqual(count, text.count('ref: ${{ github.event.pull_request.head.sha || github.sha }}'))
-        self.assertIn('ref: a26b31d85701eabb9951751c0d3a75b44faee750', text)
+        self.assertIn('ref: b4a6ff2da9ee98ef19623d70bb09ebb7fd1c0a25', text)
 
     def test_release_checkout_initializes_dependencies(self):
         text = (Path(__file__).resolve().parents[1] / '.github/workflows/release.yml').read_text()
