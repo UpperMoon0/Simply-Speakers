@@ -403,6 +403,10 @@ final class SpeakerUiPreviewProbe {
     }
 
     private static void seed() {
+        // This no-world fixture must seed the policy a real server sends before playback.
+        screen.updateAccessModel(new com.nstut.simplyspeakers.permissions.AccessViewSnapshot(
+                java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"), "Preview owner",
+                com.nstut.simplyspeakers.SpeakerAccess.OWNER_ONLY, java.util.List.of(), true, true, true));
         screen.updateAudioList(List.of(new AudioFileMetadata("a", "Workshop ambience.wav", "", 272),
                 new AudioFileMetadata("b", "Night drive.wav", "", 198),
                 new AudioFileMetadata("c", "Rain on the roof.wav", "", 364),
