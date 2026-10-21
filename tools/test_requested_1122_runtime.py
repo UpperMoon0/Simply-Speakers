@@ -49,7 +49,11 @@ class Requested1122RuntimeTest(unittest.TestCase):
         script = (native.ROOT / 'tools/prepare_requested_1122_runtime.gradle').read_text()
         for task in ('runLegacyRuntimeClient', 'runLegacyRuntimeServer'): self.assertIn(task, script)
         self.assertIn('task.enabled = false', script)
-        self.assertIn('tasks.all', script)
+        self.assertIn('tasks.configureEach', script)
+        self.assertNotIn('tasks.all', script)
+        fixture = native.ROOT / 'tools/fixtures/requested-1122-preparation/build.gradle'
+        self.assertIn('mappingCaptured', fixture.read_text())
+        self.assertIn('task.enabled', fixture.read_text())
 
     @staticmethod
     def process_running(pid):

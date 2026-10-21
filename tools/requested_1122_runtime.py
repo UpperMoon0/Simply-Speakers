@@ -13,7 +13,6 @@ import json
 import os
 from pathlib import Path
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -93,12 +92,6 @@ def run_preparation(cmd: list[str], cwd: Path, timeout: float, label: str) -> No
         try:
             live.stop_tree(process)
         finally:
-            if os.name != 'nt':
-                # stop_tree waits for the supervisor, not every descendant. A
-                # daemon can ignore TERM or outlive an already exited parent.
-                # This group belongs to live.popen's new session, never ours.
-                try: os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError: pass
             if pump is not None:
                 pump.thread.join(timeout=5)
             if process.stdin is not None:

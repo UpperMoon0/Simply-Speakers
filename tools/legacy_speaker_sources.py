@@ -161,6 +161,12 @@ def convert(text, name):
         text=text.replace('new org.joml.Vector3f(((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f)', '((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f')
     if name=='ClientEvents.java':
         text=text.replace('    public static void register() {','    public static void register() {\n        com.nstut.simplyspeakers.testing.RuntimeReceipt.emit(System.getProperty("simplyspeakers.livePlaybackRole","client"));')
+        text=text.replace('public class ClientEvents {','public class ClientEvents {\n    private static final com.nstut.simplyspeakers.testing.JoinWaitDiagnostics JOIN_WAIT = new com.nstut.simplyspeakers.testing.JoinWaitDiagnostics();')
+        text=text.replace('    private static void onClientTick(Minecraft client) {','''    private static void onClientTick(Minecraft client) {
+        if (Boolean.getBoolean("simplyspeakers.requestedPortRuntime") && LiveJoinTestProtocol.isEnabled()) {
+            String waiting = JOIN_WAIT.update(client.player != null && client.level != null, client.screen, client.getOverlay());
+            if (waiting != null) System.out.println("SIMPLYSPEAKERS_PREJOIN_WAIT " + waiting);
+        }''')
     if name=='LivePlaybackServerProbe.java':
         text=text.replace('        if (server != currentServer) {','        if (server != currentServer) {\n            com.nstut.simplyspeakers.testing.RuntimeReceipt.emit("server");')
     if name=='LivePlaybackClientProbe.java':

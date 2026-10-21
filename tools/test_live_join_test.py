@@ -278,7 +278,8 @@ class LiveHarnessTest(unittest.TestCase):
         process = Mock(); process.poll.return_value = 1; process.pid = 12345
         with patch.object(live.os, "killpg") as kill:
             live.stop_tree(process)
-        kill.assert_called_once_with(12345, live.signal.SIGTERM)
+        self.assertEqual([unittest.mock.call(12345, live.signal.SIGTERM),
+                          unittest.mock.call(12345, live.signal.SIGKILL)], kill.call_args_list)
 
     def test_all_five_loader_configs_keep_player_names_and_directories_distinct(self):
         from pathlib import Path

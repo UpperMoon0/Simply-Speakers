@@ -8,6 +8,15 @@ import port_resources
 import modern_speaker_sources as modern
 ROOT=Path(__file__).resolve().parents[1]
 class RequestedGenerationTest(unittest.TestCase):
+    def test_prejoin_diagnostics_are_opt_in_and_do_not_mutate_ui(self):
+        source=next((ROOT/'common-1.20.1/src/main/java').rglob('ClientEvents.java')).read_text()
+        generated=legacy.convert(source,'ClientEvents.java')
+        diagnostic=generated.split('private static void onClientTick(Minecraft client) {',1)[1].split('ClientPortableSpeakers.tick()',1)[0]
+        self.assertIn('Boolean.getBoolean("simplyspeakers.requestedPortRuntime") && LiveJoinTestProtocol.isEnabled()',diagnostic)
+        self.assertIn('client.getOverlay()',diagnostic)
+        self.assertNotIn('setScreen',diagnostic)
+        self.assertNotIn('connect',diagnostic)
+
     def test_full_runtime_is_generated_without_stale_files(self):
         with tempfile.TemporaryDirectory() as directory:
             target=Path(directory);(target/'Stale.java').write_text('obsolete')

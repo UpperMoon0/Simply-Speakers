@@ -1,6 +1,8 @@
 // Resolve exactly the native acceptance prerequisites without starting either game.
 gradle.beforeProject { project ->
-    project.tasks.all { task ->
+    // FG3 snapshots Minecraft mappings when its tasks are realized. Do not
+    // realize unrelated tasks before the project's minecraft {} is evaluated.
+    project.tasks.configureEach { task ->
         if (task.name in ['runLegacyRuntimeClient', 'runLegacyRuntimeServer']) task.enabled = false
     }
 }

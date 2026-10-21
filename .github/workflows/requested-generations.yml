@@ -77,6 +77,11 @@ jobs:
             "-PpacketweaveJar=$ROOT/.port-deps/PacketWeave/targets/$TARGET/build/libs/packetweave-$TARGET-0.1.4.jar" \
             "-PpacketweaveSource=$ROOT/.port-deps/PacketWeave/core/src/main/java")
           python3 tools/verify_requested_port_jar.py "$TARGET"
+          if [[ "$TARGET" == 'forge-1.12.2' ]]; then
+            bash forge-1.12.2/gradlew --project-dir tools/fixtures/requested-1122-preparation \
+              --init-script "$PWD/tools/prepare_requested_1122_runtime.gradle" verifyPreparation \
+              --offline --no-daemon --max-workers=2 -Dorg.gradle.jvmargs='-Xmx256m -XX:ActiveProcessorCount=2'
+          fi
       - name: Verify isolated Forge 1.12 acceptance scope
         if: matrix.target == 'forge-1.12.2'
         id: legacy-consent
