@@ -27,17 +27,28 @@ jobs:
   prepare-openui:
     needs: test-core
     runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.openui-key.outputs.key }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-      - name: Cache OpenUI Maven Local
+      - name: Set up OpenUI build JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - name: Compute toolchain and source-specific OpenUI key
+        id: openui-key
+        run: echo "key=$(python3 tools/openui_cache.py key)" >> "$GITHUB_OUTPUT"
+      - name: Restore exact OpenUI Maven Local cache
         id: cache-openui
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/.m2/repository/com/nstut
-          key: openui-maven-cb4610a1598d476123b731f5eef4d8e569057ffa
+          key: ${{ steps.openui-key.outputs.key }}
       - name: Checkout OpenUI MC
         if: steps.cache-openui.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
@@ -49,13 +60,6 @@ jobs:
       - name: Validate OpenUI dependency version
         if: steps.cache-openui.outputs.cache-hit != 'true'
         run: python3 tools/check_release_metadata.py --openui-checkout .openui-mc
-      - name: Set up OpenUI build JDK
-        if: steps.cache-openui.outputs.cache-hit != 'true'
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
-          cache: gradle
       - name: Make OpenUI Gradle executable
         if: steps.cache-openui.outputs.cache-hit != 'true'
         run: chmod +x .openui-mc/gradlew
@@ -70,6 +74,17 @@ jobs:
             :neoforge-1.21.1:publishToMavenLocal \
             :neoforge-26.1.2:publishToMavenLocal \
             --no-parallel --no-daemon
+      - name: Record cold-build provenance
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        run: python3 tools/openui_cache.py create --checkout .openui-mc
+      - name: Validate OpenUI cache or cold build
+        run: python3 tools/openui_cache.py validate
+      - name: Save only validated OpenUI dependencies
+        if: steps.cache-openui.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.m2/repository/com/nstut
+          key: ${{ steps.openui-key.outputs.key }}
       - name: Upload OpenUI Maven Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -109,23 +124,15 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-      - name: Restore OpenUI Maven Local Cache
-        id: cache-openui
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/com/nstut
-          key: openui-maven-cb4610a1598d476123b731f5eef4d8e569057ffa
-      - name: Download OpenUI Maven Artifacts Fallback
-        if: steps.cache-openui.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: openui-verification-m2
-          path: ~/.m2/repository/com/nstut
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
+      - name: Restore and verify OpenUI dependencies
+        uses: ./.github/actions/restore-openui
+        with:
+          cache-key: ${{ needs.prepare-openui.outputs.cache-key }}
       - run: chmod +x gradlew
       - name: Production service and version adapter checks
         run: python3 tools/verify.py adapters
@@ -137,35 +144,29 @@ jobs:
           if-no-files-found: error
 
   live-join:
-    needs: [policy, prepare-openui, test-shared]
+    # Adapter and native receipts are independent; the gate still requires both.
+    needs: [policy, prepare-openui]
     if: needs.policy.outputs.live_required == 'true'
     timeout-minutes: 25
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
+      max-parallel: 5
       matrix: ${{ fromJSON(needs.policy.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
-      - name: Restore OpenUI Maven Local Cache
-        id: cache-openui
-        uses: actions/cache@v4
-        with:
-          path: ~/.m2/repository/com/nstut
-          key: openui-maven-cb4610a1598d476123b731f5eef4d8e569057ffa
-      - name: Download OpenUI Maven Artifacts Fallback
-        if: steps.cache-openui.outputs.cache-hit != 'true'
-        uses: actions/download-artifact@v4
-        with:
-          name: openui-verification-m2
-          path: ~/.m2/repository/com/nstut
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
           cache: gradle
+      - name: Restore and verify OpenUI dependencies
+        uses: ./.github/actions/restore-openui
+        with:
+          cache-key: ${{ needs.prepare-openui.outputs.cache-key }}
       - run: chmod +x gradlew
       # The ubuntu-24.04 hosted runner already bundles Xvfb. Avoid a
       # network-dependent apt update, which can hang on its Azure mirror.

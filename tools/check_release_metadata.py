@@ -52,12 +52,14 @@ def validate(root=ROOT):
         if unknown: raise ValueError(f"Unmapped required mods on {target}: {sorted(unknown)}")
         missing = {SLUGS[mod] for mod in required} - published
         if missing: raise ValueError(f"Missing required publication dependencies on {target}: {sorted(missing)}")
-    pins, caches = [], []
-    for name in ("release.yml", "live-join-test.yml"):
-        text = (root / ".github/workflows" / name).read_text()
-        pins += re.findall(r"ref: ([0-9a-f]{40})", text)
-        caches += re.findall(r"key: openui-maven-([0-9a-f]{40})", text)
-    if len(pins) != 2 or len(set(pins)) != 1 or not caches or set(caches) != set(pins):
+    # Release caches stay unchanged. CI has a separate, integrity-checked namespace.
+    live = (root / ".github/workflows/live-join-test.yml").read_text()
+    pins = re.findall(r"ref: ([0-9a-f]{40})", release + live)
+    caches = re.findall(r"key: openui-maven-([0-9a-f]{40})", release)
+    helper = (root / "tools/openui_cache.py").read_text()
+    helper_pins = re.findall(r'SOURCE_PIN = "([0-9a-f]{40})"', helper)
+    if (len(pins) != 2 or len(set(pins)) != 1 or not caches
+            or set(caches) != set(pins) or helper_pins != pins[:1]):
         raise ValueError("OpenUI checkout pins and all workflow cache keys must match")
 
 def validate_openui(checkout, root=ROOT):

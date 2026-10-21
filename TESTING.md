@@ -136,7 +136,9 @@ and cleans up its owned processes. A checkout lock prevents overlapping fixtures
 Pull requests always run core/harness and version adapter checks. Only explicitly
 recognized prose-only changes skip game launches; root Gradle changes, unknown
 paths, manual runs and releases require the full matrix. CI runs the five targets
-in parallel after cheap checks succeed and retains receipts and failure logs.
+in parallel after core/harness checks and verified OpenUI preparation succeed.
+The adapter job runs concurrently with the native matrix; the final gate still
+requires both and validates their exact-source receipts. CI retains receipts and failure logs.
 Both release publication jobs depend on the complete reusable verification gate.
 
 
@@ -223,3 +225,32 @@ Core tests decode generated asymmetric stereo MP3 and WAV fixtures through local
 A focused audio-zone visual check is available with JVM flag `-Dsimplyspeakers.zonePreviewTest=true`. Enter a disposable world with that flag: the client captures normal and narrow world/HUD views, verifies markers and the HUD actually render, checks that opening a menu dismisses the preview, prints `SIMPLYSPEAKERS_ZONE_PREVIEW_PASS`, and exits. This check is independent of the full download/playback fixture.
 
 `-PuiAuditGroup=personal_settings` checks 40 personal listening cases: native input and hover help in both themes and four sizes. Read-only viewers change stereo, fades and cache budget through real controls; saved values and server-sync isolation are checked.
+
+
+## CI scheduling and dependency integrity
+
+The layered workflow launches no extra game sessions: five target jobs, each with
+one server and two real clients, plus the existing four isolated CC Lua servers.
+Native concurrency is explicitly capped at five. The adapter job can overlap,
+so peak active jobs rise from five to six without increasing native processes.
+An adapter failure still fails the final gate, but native jobs may already be
+running; this is a latency optimization, not a promise of lower runner minutes.
+
+`tools/ci_coverage_manifest.json` records all required carrier, server and observer
+markers, target/layer assignments, adapter tasks and timeouts from the pre-change
+baseline. `tools/test_ci_workflow.py` checks those against the actual harness and
+protects the parallel workflow DAG, exact-head checkouts and fail-closed gate.
+
+OpenUI CI cache keys include the pinned commit, required version, runner OS/arch,
+observed Temurin 21 JDK version/vendor/architecture and relevant helper/workflow sources. A clean, pinned cold
+build creates a manifest containing SHA-256 for every Maven-local file. Every
+producer cache hit and every consumer cache/artifact restore verifies the
+manifest, complete five-target JAR/POM set and embedded mod versions before use.
+Missing, stale, altered or symlinked files fail closed, rather than being trusted
+because a cache key matched. Only verified cold builds are saved. Cache scope is
+still GitHub Actions' existing repository/branch trust boundary; the manifest is
+integrity evidence, not an independently signed supply-chain attestation.
+
+Release workflow pins, publication steps and its separate cache are unchanged.
+See [the CI optimization evidence](docs/ci-optimization.md) for measured baseline,
+resource tradeoffs and the distinction between cold and warm validation.
