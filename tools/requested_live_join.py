@@ -17,6 +17,7 @@ TARGETS=('fabric-1.16.5','forge-1.16.5','fabric-26.2','neoforge-26.2')
 ROOT=Path(__file__).resolve().parents[1]
 ORIGINAL_MARKERS=live.required_markers
 ORIGINAL_PREPARE_SERVER=live.prepare_server
+ORIGINAL_REJECT_FAILURE=live.reject_failure
 
 def required_markers(target):
     client,server=ORIGINAL_MARKERS(target)
@@ -24,6 +25,21 @@ def required_markers(target):
             ('SIMPLYSPEAKERS_OPTIONAL_GUIDE_NOT_INCLUDED',f'SIMPLYSPEAKERS_RUNTIME_JVM role=client major={8 if target.endswith("1.16.5") else 25}'),
             tuple(marker for marker in server if marker!='SIMPLYSPEAKERS_PERIPHERAL_PASS')+
             (f'SIMPLYSPEAKERS_RUNTIME_JVM role=server major={8 if target.endswith("1.16.5") else 25}',))
+
+def reject_failure(prefix, line):
+    ORIGINAL_REJECT_FAILURE(prefix, line)
+    # Read-only native diagnostics prove startup did not enter the requested
+    # connection. Report the boundary instead of waiting 900 seconds or forcing
+    # a connection past Minecraft's own eligibility check. This is never success.
+    labels = {target + '/' + role for target in ('fabric-1.16.5', 'forge-1.16.5')
+              for role in ('carrier', 'observer')}
+    titles = ('net.minecraft.client.gui.screens.TitleScreen',
+              'net.minecraft.client.gui.screen.MainMenuScreen')
+    if prefix in labels and any(line.rstrip().endswith(
+            'SIMPLYSPEAKERS_PREJOIN_WAIT screen=' + title +
+            ', overlay=none, multiplayerAllowed=false') for title in titles):
+        raise RuntimeError(prefix + ': native Minecraft multiplayer eligibility is false after loading; '
+                           'no join acceptance is claimed and no connection override is attempted')
 
 def dependency_arguments(root,target):
     checkout=root/'.port-deps'
@@ -58,6 +74,7 @@ def main():
     # Only module invocation and two explicitly unsupported OPTIONAL integrations differ.
     live.TARGETS={target:target for target in TARGETS}
     live.command=command;live.required_markers=required_markers;live.prepare_server=prepare_server
+    live.reject_failure=reject_failure
     with checkout_lock(ROOT,'requested-live-join.lock'):
         live.run_target(ROOT,args.target,args.timeout)
     return 0

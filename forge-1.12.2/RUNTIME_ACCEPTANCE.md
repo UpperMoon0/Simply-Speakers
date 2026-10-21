@@ -8,7 +8,8 @@ resources. No API stubs, game source copies or fake success packets are used.
 ## Development launch
 
 Supply the exact source-pinned dependency artifacts, Java 8 in `JAVA_HOME`,
-Java 17 in `JAVA17_HOME` for compilation, and a working X display or `xvfb-run`:
+Java 17 in `JAVA17_HOME` for compilation, the real `xrandr` executable
+(Ubuntu package `x11-xserver-utils`), and a working X display or `xvfb-run`:
 
 ```sh
 python3 tools/requested_1122_runtime.py \
@@ -57,7 +58,7 @@ proves context/source lifecycle, not physical audible output. These are
 launches. Portable playback, uploads, multiple listeners and physical output
 are outside this bounded 1.12 probe.
 
-## Verification receipt, 2026-10-21
+## Local verification receipt, 2026-10-21
 
 - Full native source compilation passed: 172 main and 83 test source files,
   genuine Forge-patched/access-transformed MCP39 dependencies, Java 8 output.
@@ -78,7 +79,30 @@ are outside this bounded 1.12 probe.
   attempt failed before execution during sandbox setup. No alternative game
   bootstrap or network/security setting changes were made.
 
-Consequently server discovery, join, UI, OpenAL playback, reload and disconnect
-markers remain **unrun**, and no runtime pass or production-artifact pass is
-claimed. The prepared harness is ready for a permitted native CI/runtime with
-its real dependency cache and display available.
+Consequently, in this local attempt, server discovery, join, UI, OpenAL playback,
+reload and disconnect remained **unrun**. No local runtime pass or production-
+artifact pass is claimed. The later permitted CI result is recorded below.
+
+
+## Native CI receipt, 2026-10-21
+
+On exact PR head `2af04c684d418acfaf4c54f884ce969e81942dc2`,
+[the native Forge 1.12 job](https://github.com/UpperMoon0/Simply-Speakers/actions/runs/39610275274/job/119257609808)
+passed native builds, tests, production-jar contracts, the explicit acceptance
+scope gate, and both serial native launch preparations. The real Java 8 server
+loaded the mods, generated its isolated world, became ready, and emitted
+`SIMPLYSPEAKERS_1122_SERVER_DISCOVERY_PASS clientClassesRequired=false`.
+
+The real Java 8 client then launched but failed during LWJGL 2 display
+initialization, before a graphics context or multiplayer join. The native
+`LinuxDisplay.getAvailableDisplayModes` path indexed an empty XRandR screen
+array. This is **not a complete acceptance pass**: client join, UI, OpenAL
+playback/reload and disconnect remain unverified, as does production-jar gameplay.
+
+The subsequent diagnostic fixture explicitly supplies the real xrandr CLI and
+queries it inside the same owned Xvfb session before launching the unchanged
+client command. Query failure stops launch. Opt-in LWJGL debug output exposes
+its otherwise caught discovery error. A successful query alone does not prove
+LWJGL parser or context compatibility; the next genuine CI run must establish
+that. No XRandR disable flag, fabricated display mode, account restriction
+change, or weakened acceptance marker is used.

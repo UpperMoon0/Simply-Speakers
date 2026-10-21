@@ -31,6 +31,8 @@ minecraft {
         legacyRuntimeClient {
             child minecraft.runs.client
             workingDirectory project.file('run/legacy-runtime/client')
+            // Expose native LWJGL/XRandR failures in this opt-in fixture only.
+            property 'org.lwjgl.util.Debug','true'
             property 'simplyspeakers.legacyRuntimeAcceptance','true'
             property 'simplyspeakers.requestedPortRuntime','true'
             property 'simplyspeakers.legacyRuntimeServer','127.0.0.1:25576'

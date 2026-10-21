@@ -14,6 +14,7 @@ class RequestedGenerationTest(unittest.TestCase):
         diagnostic=generated.split('private static void onClientTick(Minecraft client) {',1)[1].split('ClientPortableSpeakers.tick()',1)[0]
         self.assertIn('Boolean.getBoolean("simplyspeakers.requestedPortRuntime") && LiveJoinTestProtocol.isEnabled()',diagnostic)
         self.assertIn('client.getOverlay()',diagnostic)
+        self.assertIn('client.allowsMultiplayer()',diagnostic)
         self.assertNotIn('setScreen',diagnostic)
         self.assertNotIn('connect',diagnostic)
 
@@ -129,6 +130,9 @@ class RequestedGenerationTest(unittest.TestCase):
         self.assertIn('tools/requested_1122_ci_gate.py --event-name "$GITHUB_EVENT_NAME"',workflow)
         self.assertIn('JAVA_HOME="$JAVA_HOME_8_X64"',step)
         self.assertIn('tools/requested_1122_runtime.py',step)
+        self.assertIn('sudo apt-get install -y --no-install-recommends x11-xserver-utils',step)
+        self.assertLess(step.index('command -v xrandr'),step.index("printf 'eula=true"))
+        self.assertLess(step.index('command -v xrandr'),step.index('tools/requested_1122_runtime.py'))
         self.assertIn('run/legacy-runtime/receipts/',workflow)
     def test_fabric116_keeps_java8_classpath_and_external_display_owner(self):
         build=(ROOT/'fabric-1.16.5/build.gradle').read_text()

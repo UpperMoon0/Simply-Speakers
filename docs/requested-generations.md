@@ -113,3 +113,12 @@ port branch targeting main, or a manual run on that same branch with explicit
 forks, branches and event types before writing the isolated server's EULA file.
 This does not grant standing consent to unrelated future servers or treat a
 skipped runtime lane as passing.
+
+
+The later native Forge 1.12 CI job at PR head
+`2af04c684d418acfaf4c54f884ce969e81942dc2` passed packaging and launched the real
+Java 8 dedicated server, including mod discovery and isolated-world readiness.
+Its real client failed in LWJGL 2 display discovery before graphics-context
+creation or join. This supersedes only the earlier **local** unrun status, not
+the outstanding client/audio/UI acceptance requirements. The exact job and
+same-display diagnostic boundary are recorded in `RUNTIME_ACCEPTANCE.md`.

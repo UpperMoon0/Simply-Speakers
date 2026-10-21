@@ -164,7 +164,7 @@ def convert(text, name):
         text=text.replace('public class ClientEvents {','public class ClientEvents {\n    private static final com.nstut.simplyspeakers.testing.JoinWaitDiagnostics JOIN_WAIT = new com.nstut.simplyspeakers.testing.JoinWaitDiagnostics();')
         text=text.replace('    private static void onClientTick(Minecraft client) {','''    private static void onClientTick(Minecraft client) {
         if (Boolean.getBoolean("simplyspeakers.requestedPortRuntime") && LiveJoinTestProtocol.isEnabled()) {
-            String waiting = JOIN_WAIT.update(client.player != null && client.level != null, client.screen, client.getOverlay());
+            String waiting = JOIN_WAIT.update(client.player != null && client.level != null, client.screen, client.getOverlay(), client.allowsMultiplayer());
             if (waiting != null) System.out.println("SIMPLYSPEAKERS_PREJOIN_WAIT " + waiting);
         }''')
     if name=='LivePlaybackServerProbe.java':

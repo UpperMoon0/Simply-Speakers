@@ -14,10 +14,20 @@ import live_join_test as live
 def running(pid):
     try:
         state = Path('/proc', str(pid), 'stat').read_text().rsplit(')', 1)[1].strip().split()[0]
-    except FileNotFoundError:
+    except (FileNotFoundError, ProcessLookupError):
         return False
     # An orphan zombie has terminated; only its OS reaping remains outstanding.
     return state not in ('Z', 'X')
+
+
+class ProcessObservationTest(unittest.TestCase):
+    def test_disappearing_proc_entry_is_terminated_but_access_errors_remain_fatal(self):
+        for error in (FileNotFoundError(), ProcessLookupError()):
+            with patch.object(Path, 'read_text', side_effect=error):
+                self.assertFalse(running(12345))
+        with patch.object(Path, 'read_text', side_effect=PermissionError()):
+            with self.assertRaises(PermissionError):
+                running(12345)
 
 
 @unittest.skipUnless(sys.platform.startswith('linux'), 'Real owned-session checks require Linux process state')

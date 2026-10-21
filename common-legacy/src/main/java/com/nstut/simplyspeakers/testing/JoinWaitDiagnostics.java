@@ -4,13 +4,13 @@ package com.nstut.simplyspeakers.testing;
 public final class JoinWaitDiagnostics {
     private String previous;
 
-    /** Returns only changed prejoin class identities, never screen contents. */
-    public String update(boolean connected, Object screen, Object overlay) {
+    /** Returns only changed class identities and native permission state, never screen contents. */
+    public String update(boolean connected, Object screen, Object overlay, boolean multiplayerAllowed) {
         if (connected) {
             previous = null;
             return null;
         }
-        String state = "screen=" + identity(screen) + ", overlay=" + identity(overlay);
+        String state = "screen=" + identity(screen) + ", overlay=" + identity(overlay) + ", multiplayerAllowed=" + multiplayerAllowed;
         if (state.equals(previous)) return null;
         previous = state;
         return state;

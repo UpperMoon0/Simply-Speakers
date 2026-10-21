@@ -6,7 +6,9 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 import requested_1122_runtime as native
+from test_requested_process_cleanup import running
 
 class Requested1122RuntimeTest(unittest.TestCase):
     def test_contract_requires_real_client_and_server_evidence(self):
@@ -45,6 +47,69 @@ class Requested1122RuntimeTest(unittest.TestCase):
         self.assertIn('-PopenuiJar=/openui.jar', command)
         self.assertIn('-PpacketweaveJar=/packetweave.jar', command)
         with self.assertRaises(ValueError): native.command(Path('/fixture'), 'publish', Path('/a'), Path('/b'))
+
+    def test_missing_xrandr_is_rejected_even_with_existing_display(self):
+        with patch.dict(os.environ, {'DISPLAY': ':fixture'}), patch.object(native.shutil, 'which', return_value=None):
+            with self.assertRaisesRegex(RuntimeError, 'xrandr executable'):
+                native.client_command(Path('/fixture'), Path('/a'), Path('/b'))
+
+    def test_missing_virtual_display_runner_is_rejected(self):
+        with patch.dict(os.environ, {'DISPLAY': ''}), patch.object(native.shutil, 'which', side_effect=lambda name: '/usr/bin/xrandr' if name == 'xrandr' else None):
+            with self.assertRaisesRegex(RuntimeError, 'xvfb-run is unavailable'):
+                native.client_command(Path('/fixture'), Path('/a'), Path('/b'))
+
+    def test_display_query_is_inside_same_virtual_session_as_client(self):
+        with patch.dict(os.environ, {'DISPLAY': ''}), patch.object(native.shutil, 'which', side_effect=lambda name: '/usr/bin/' + name):
+            launch = native.client_command(Path('/fixture'), Path('/a'), Path('/b'))
+        self.assertEqual(['/usr/bin/xvfb-run', '-a', 'sh', '-c'], launch[:4])
+        self.assertIn('xrandr --query', launch[4])
+        self.assertIn('exec "$@"', launch[4])
+        self.assertEqual(native.command(Path('/fixture'), 'runLegacyRuntimeClient', Path('/a'), Path('/b')), launch[6:])
+
+    def test_existing_display_is_preserved_without_second_xvfb(self):
+        with patch.dict(os.environ, {'DISPLAY': ':fixture'}), patch.object(native.shutil, 'which', return_value='/usr/bin/xrandr') as which:
+            launch = native.client_command(Path('/fixture'), Path('/a'), Path('/b'))
+        which.assert_called_once_with('xrandr')
+        self.assertEqual(['sh', '-c'], launch[:2])
+
+    def display_query_fixture(self, query_exit):
+        # These executables only exercise shell supervision/argv. They do not
+        # connect to a display or provide fabricated game acceptance evidence.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            query = root / 'xrandr'
+            query.write_text('#!/bin/sh\n[ "$1" = "--query" ] || exit 99\nprintf "%s" "$DISPLAY" > query-display\nexit ' + str(query_exit) + '\n')
+            query.chmod(0o755)
+            game = [sys.executable, '-c',
+                    'import json,os,sys;from pathlib import Path;Path("client-args").write_text(json.dumps([os.environ["DISPLAY"],sys.argv[1:]]))',
+                    'argument with spaces', 'literal;not-a-command']
+            with patch.dict(os.environ, {'DISPLAY': ':fixture-only', 'PATH': str(root) + os.pathsep + os.environ.get('PATH', '')}), patch.object(native, 'command', return_value=game):
+                launch = native.client_command(root, Path('/a'), Path('/b'))
+                if query_exit:
+                    with self.assertRaises(subprocess.CalledProcessError):
+                        native.run_preparation(launch, root, 3, 'display-query-failure-fixture')
+                    self.assertFalse((root / 'client-args').exists())
+                else:
+                    native.run_preparation(launch, root, 3, 'display-query-success-fixture')
+                    import json
+                    self.assertEqual([':fixture-only', game[3:]], json.loads((root / 'client-args').read_text()))
+            self.assertEqual(':fixture-only', (root / 'query-display').read_text())
+
+    @unittest.skipUnless(os.name == 'posix', 'Owned display command uses a POSIX shell')
+    def test_failed_query_prevents_client_execution(self):
+        self.display_query_fixture(1)
+
+    @unittest.skipUnless(os.name == 'posix', 'Owned display command uses a POSIX shell')
+    def test_successful_query_preserves_display_and_literal_client_arguments(self):
+        self.display_query_fixture(0)
+
+    def test_lwjgl_diagnostics_are_scoped_to_opt_in_client_without_disabling_xrandr(self):
+        build = (native.ROOT / 'forge-1.12.2/build.gradle').read_text()
+        client = build.split('legacyRuntimeClient {', 1)[1].split('legacyRuntimeServer {', 1)[0]
+        self.assertIn("property 'org.lwjgl.util.Debug','true'", client)
+        self.assertEqual(1, build.count("property 'org.lwjgl.util.Debug'"))
+        self.assertNotIn('LWJGL_DISABLE_XRANDR', build)
+
     def test_preflight_disables_both_real_game_tasks(self):
         script = (native.ROOT / 'tools/prepare_requested_1122_runtime.gradle').read_text()
         for task in ('runLegacyRuntimeClient', 'runLegacyRuntimeServer'): self.assertIn(task, script)
@@ -55,21 +120,11 @@ class Requested1122RuntimeTest(unittest.TestCase):
         self.assertIn('mappingCaptured', fixture.read_text())
         self.assertIn('task.enabled', fixture.read_text())
 
-    @staticmethod
-    def process_running(pid):
-        # Linux retains a dead orphan as a zombie until PID 1 reaps it; it is no
-        # longer executing and cannot hold the build lease or spawn more work.
-        try:
-            status = Path('/proc', str(pid), 'stat').read_text()
-        except FileNotFoundError:
-            return False
-        return status.rsplit(')', 1)[1].strip().split()[0] not in ('Z', 'X')
-
     def assert_processes_stopped(self, pids):
         deadline = time.monotonic() + 3
-        while time.monotonic() < deadline and any(self.process_running(pid) for pid in pids):
+        while time.monotonic() < deadline and any(running(pid) for pid in pids):
             time.sleep(.02)
-        self.assertFalse([pid for pid in pids if self.process_running(pid)], 'Preparation descendants still executing')
+        self.assertFalse([pid for pid in pids if running(pid)], 'Preparation descendants still executing')
 
     def preparation_process_fixture(self, root, exit_parent):
         child = root / 'child.py'
@@ -104,7 +159,7 @@ class Requested1122RuntimeTest(unittest.TestCase):
                     path = root / name
                     if path.is_file():
                         pid = int(path.read_text())
-                        if self.process_running(pid):
+                        if running(pid):
                             try: os.kill(pid, signal.SIGKILL)
                             except ProcessLookupError: pass
 

@@ -68,6 +68,25 @@ def command(root: Path, task: str, openui: Path, packetweave: Path) -> list[str]
             '-Dorg.gradle.jvmargs=-Xmx256m -XX:ActiveProcessorCount=2',
             '-PopenuiJar=' + str(openui.resolve()), '-PpacketweaveJar=' + str(packetweave.resolve())]
 
+def client_command(root: Path, openui: Path, packetweave: Path) -> list[str]:
+    # LWJGL 2.9.4's XRandR.populate invokes the real `xrandr -q` executable.
+    # An absent executable or parser failure clears its screen names, which
+    # LinuxDisplay.getAvailableDisplayModes then indexes without a length guard.
+    # Disabling XRandR is not a safe substitute: Xvfb need not offer XF86VidMode.
+    if not shutil.which('xrandr'):
+        raise RuntimeError('LWJGL 2 requires the xrandr executable (Ubuntu package x11-xserver-utils)')
+    prefix = []
+    if not os.environ.get('DISPLAY'):
+        xvfb = shutil.which('xvfb-run')
+        if not xvfb: raise RuntimeError('DISPLAY is unset and xvfb-run is unavailable')
+        prefix = [xvfb, '-a']
+    # Query inside the SAME owned display session, not a separate short-lived
+    # Xvfb. A failed query cannot launch the game. exec preserves argv (including
+    # paths containing spaces) and shared process-group cleanup supervises both.
+    return prefix + ['sh', '-c', 'set -eu; xrandr --query; exec "$@"',
+                     'simplyspeakers-1122-display',
+                     *command(root, 'runLegacyRuntimeClient', openui, packetweave)]
+
 def validate_log(text: str, required: tuple[str, ...]) -> None:
     for line in text.splitlines(): live.reject_failure('native1122', line)
     missing = [marker for marker in required if marker not in text]
@@ -106,11 +125,7 @@ def run(args) -> None:
     if not os.environ.get('JAVA_HOME'): raise RuntimeError('Set JAVA_HOME to the genuine Java 8 game runtime')
     java_version = subprocess.check_output([str(Path(os.environ['JAVA_HOME']) / 'bin/java'), '-version'], stderr=subprocess.STDOUT, text=True)
     if 'version "1.8.' not in java_version: raise RuntimeError('Native Forge 1.12 game runtime must be Java 8')
-    client_prefix = []
-    if not os.environ.get('DISPLAY'):
-        xvfb = shutil.which('xvfb-run')
-        if not xvfb: raise RuntimeError('DISPLAY is unset and xvfb-run is unavailable')
-        client_prefix = [xvfb, '-a']
+    client_launch = client_command(ROOT, args.openui_jar, args.packetweave_jar)
     prepare(module)
     report_dir = module / 'run/legacy-runtime/receipts'; report_dir.mkdir(parents=True, exist_ok=True)
     receipt = {'mode': 'development-classes', 'physical_audibility_tested': False, 'dependencies': dependencies,
@@ -126,7 +141,7 @@ def run(args) -> None:
                             ['--init-script', str(ROOT / 'tools/prepare_requested_1122_runtime.gradle')], ROOT, args.timeout, 'prepare-' + task)
         server = live.OutputPump(live.popen(command(ROOT, 'runLegacyRuntimeServer', args.openui_jar, args.packetweave_jar), ROOT), 'server1122')
         if server.wait_for(live.SERVER_READY_MARKERS, args.timeout) is None: raise RuntimeError('Native server did not become ready')
-        client = live.OutputPump(live.popen(client_prefix + command(ROOT, 'runLegacyRuntimeClient', args.openui_jar, args.packetweave_jar), ROOT), 'client1122')
+        client = live.OutputPump(live.popen(client_launch, ROOT), 'client1122')
         client.wait_for_all(CLIENT_MARKERS, args.timeout, peer=server)
         # The client deliberately exits after disconnect; do not treat that as a peer failure.
         server.wait_for_all(SERVER_MARKERS, 60)
