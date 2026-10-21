@@ -67,7 +67,9 @@ regression or speedup. Later exact-key hits skip the build but always validate
 source/version/toolchain/input identity, complete target artifacts, SHA-256s and
 embedded JAR/POM versions. The actual selected JDK release file supplies Java
 version, runtime build, vendor and architecture; a wrong vendor/major is rejected
-and changed runtime builds generate distinct keys. A corrupt hit fails closed. A cache miss in a consumer
+and changed runtime builds generate distinct keys. Consumers install the producer
+job's resolved exact Java version, preventing image-rollout drift between floating
+Java 21 selections. A corrupt hit fails closed. A cache miss in a consumer
 uses only this run's already-verified preparation artifact and revalidates it.
 
 ## Validation status
@@ -81,6 +83,56 @@ uses only this run's already-verified preparation artifact and revalidates it.
   fixtures, **not a timed real OpenUI cold build**.
 - Local Gradle core was attempted but stopped resolving Foojay resolver 0.9.0
   from the configured plugin repositories. No local Gradle/native pass is claimed.
-- Exact-head hosted CI, actual cold-build timing and subsequent warm-run timing
-  remain pending publication. They must be reported with commit/run IDs and cache
-  state before claiming observed speedup or full native success.
+- The first exact-head hosted run passed all layers, with actual cold-build and
+  native timings recorded below. No full warm-producer run has been measured;
+  current-head results must still be checked before claiming final readiness.
+
+## First hosted after-run: all coverage passed, cold cache
+
+[Run 39641776128](https://github.com/UpperMoon0/Simply-Speakers/actions/runs/39641776128)
+at `e0c45de4a7e1ae4706020333eea25e1036400823` passed every job, including all five
+real two-listener sessions, four real CC Lua sessions and the exact-source gate.
+The separate OpenUI client-dependency workflow also passed. Its initial dependency
+preparation was a verified **cold miss**; the six consumers restored that new
+cache successfully and validated its provenance before running.
+
+The intervals below use the first and last timestamped log entries for each job.
+They include job setup/cleanup, not just test command runtime. Summed job elapsed
+is not billed minutes, CPU utilization or peak memory, none of which were measured.
+
+| Job | Baseline seconds (warm OpenUI) | After seconds (cold producer) |
+| --- | ---: | ---: |
+| Core/harness | 38.075 | 36.548 |
+| Policy | 1.959 | 2.500 |
+| OpenUI preparation | 8.913 | 396.944 |
+| Adapters | 250.371 | 289.109 |
+| NeoForge 26.1.2 native | 516.880 | 493.352 |
+| Fabric 1.21.1 native | 568.750 | 601.386 |
+| Forge 1.20.1 native | 643.039 | 648.539 |
+| Fabric 1.20.1 native | 632.179 | 597.756 |
+| NeoForge 1.21.1 native | 662.241 | 706.901 |
+| Exact-source gate | 6.799 | 4.594 |
+| Sum of job elapsed | 3329.206 | 3777.629 |
+| First job start to final gate end | 992.746 | 1165.641 |
+
+Observed total wall time was **19 min 25.641 s after**, versus **16 min 32.746 s
+before**. This first cold run was therefore 2 min 52.895 s slower overall, not a
+speedup. OpenUI preparation added 6 min 28.031 s compared with the old warm cache.
+The actual cold Gradle build reported 6 min 19 s; manifest creation and verification
+both succeeded, and only then were cache/artifact outputs published.
+
+The independently measurable interval **after OpenUI preparation finished through
+the final gate** decreased from 15 min 38.986 s to 12 min 5.703 s (3 min 33.283 s,
+about 22.7%). In the after-run, adapters started 6.837 s after preparation and all
+five native jobs started 6.476–8.119 s after preparation. Previously natives had
+waited until adapters ended, then another 7.652–11.727 s. These are observed
+scheduling gaps, not GitHub's authoritative queue metrics. Native job duration
+variability and runner availability still prevent attributing the entire interval
+difference to a single change or predicting an exact future warm-run saving.
+
+This run predates the review fix that propagates the producer's resolved exact
+JDK version to consumers. That follow-up keeps the same coverage and validation,
+and its exact-head CI must be checked independently. The helper/workflow input key
+changes, so its first producer run is another cold cache generation, not a warm
+benchmark. Current-head verification and later measurements belong in the PR's
+validation summary; this section preserves the original measured evidence.

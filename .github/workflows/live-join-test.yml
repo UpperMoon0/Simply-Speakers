@@ -29,12 +29,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cache-key: ${{ steps.openui-key.outputs.key }}
+      java-version: ${{ steps.openui-java.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
       - name: Set up OpenUI build JDK
+        id: openui-java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -127,7 +129,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: ${{ needs.prepare-openui.outputs.java-version }}
           cache: gradle
       - name: Restore and verify OpenUI dependencies
         uses: ./.github/actions/restore-openui
@@ -161,7 +163,7 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 21
+          java-version: ${{ needs.prepare-openui.outputs.java-version }}
           cache: gradle
       - name: Restore and verify OpenUI dependencies
         uses: ./.github/actions/restore-openui
