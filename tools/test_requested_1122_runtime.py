@@ -20,6 +20,7 @@ class Requested1122RuntimeTest(unittest.TestCase):
         self.assertTrue(any('AUDIO_UNLOAD_PASS' in marker for marker in native.CLIENT_MARKERS))
         self.assertTrue(any('UI_PASS' in marker for marker in native.CLIENT_MARKERS))
         self.assertTrue(any('major=8 ' in marker for marker in native.CLIENT_MARKERS))
+        self.assertTrue(any('PLACED_MODEL_PASS missingModel=false missingSprite=false quads=' in marker for marker in native.CLIENT_MARKERS))
     def test_missing_evidence_or_failure_is_rejected(self):
         with self.assertRaises(RuntimeError): native.validate_log('', native.CLIENT_MARKERS)
         complete = '\n'.join(native.CLIENT_MARKERS)

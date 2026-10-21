@@ -38,6 +38,8 @@ public final class LegacyClientRuntimeAcceptance {
     private static String reloadCase;
     private static float sampleOffset;
     private static SpeakerScreen screen;
+    private static int modelTicks;
+    private static boolean modelDone;
     private LegacyClientRuntimeAcceptance() { }
 
     public static void tick(Minecraft client) {
@@ -151,6 +153,7 @@ public final class LegacyClientRuntimeAcceptance {
                 if (candidate instanceof SpeakerBlockEntity && LegacyRuntimeAcceptance.SPEAKER_ID.equals(((SpeakerBlockEntity) candidate).getSpeakerId()))
                     tile = (SpeakerBlockEntity) candidate;
             if (tile == null) return false;
+            if (!verifyPlacedModel(client, tile)) return false;
             screen = new SpeakerScreen(tile.getPos()); client.displayGuiScreen(screen); return false;
         }
         require(client.currentScreen == screen, "native speaker screen lost ownership");
@@ -184,6 +187,51 @@ public final class LegacyClientRuntimeAcceptance {
         uiDone = true;
         System.out.println("SIMPLYSPEAKERS_1122_UI_PASS focus=true text=true clipboardRoundtrip=true tab=true navigation=true resize=true close=true");
         return true;
+    }
+    private static boolean verifyPlacedModel(Minecraft client, SpeakerBlockEntity tile) throws Exception {
+        if (modelDone) return true;
+        if (client.currentScreen != null) return false;
+        net.minecraft.block.state.IBlockState state = client.world.getBlockState(tile.getPos());
+        net.minecraft.client.renderer.BlockRendererDispatcher renderer = client.getBlockRendererDispatcher();
+        int quads = validatePlacedModel(renderer.getModelForState(state),
+                renderer.getBlockModelShapes().getModelManager().getMissingModel(),
+                client.getTextureMapBlocks().getMissingSprite(), state);
+        // Orient only the isolated fixture's camera, then allow genuine rendered
+        // frames before capturing. This does not fabricate framebuffer evidence.
+        double dx = tile.getPos().getX() + .5 - client.player.posX;
+        double dy = tile.getPos().getY() + .5 - client.player.posY - client.player.getEyeHeight();
+        double dz = tile.getPos().getZ() + .5 - client.player.posZ;
+        client.player.rotationYaw = client.player.prevRotationYaw = (float)Math.toDegrees(Math.atan2(dz, dx)) - 90;
+        client.player.rotationPitch = client.player.prevRotationPitch = (float)-Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+        if (++modelTicks < 20) return false;
+        java.io.File file = new java.io.File(client.gameDir, "screenshots/placed-speaker-1122.png");
+        require(!file.exists(), "stale placed-speaker screenshot");
+        net.minecraft.util.ScreenShotHelper.saveScreenshot(client.gameDir, file.getName(), client.displayWidth,
+                client.displayHeight, client.getFramebuffer());
+        java.awt.image.BufferedImage captured = javax.imageio.ImageIO.read(file);
+        require(captured != null && captured.getWidth() > 0 && captured.getHeight() > 0, "placed-speaker screenshot was not written");
+        modelDone = true;
+        System.out.println("SIMPLYSPEAKERS_1122_PLACED_MODEL_PASS missingModel=false missingSprite=false quads=" + quads
+                + " screenshot=placed-speaker-1122.png");
+        return true;
+    }
+    static int validatePlacedModel(net.minecraft.client.renderer.block.model.IBakedModel model,
+            net.minecraft.client.renderer.block.model.IBakedModel missing,
+            net.minecraft.client.renderer.texture.TextureAtlasSprite missingSprite,
+            net.minecraft.block.state.IBlockState state) {
+        require(model != null && model != missing, "placed speaker resolved missing model");
+        int count = 0;
+        net.minecraft.util.EnumFacing[] sides = net.minecraft.util.EnumFacing.values();
+        for (int side = -1; side < sides.length; side++) {
+            for (net.minecraft.client.renderer.block.model.BakedQuad quad : model.getQuads(state, side < 0 ? null : sides[side], 0)) {
+                net.minecraft.client.renderer.texture.TextureAtlasSprite sprite = quad.getSprite();
+                require(sprite != null && sprite != missingSprite && sprite.getIconName().startsWith("simplyspeakers:"),
+                        "placed speaker quad resolved missing or unexpected texture");
+                count++;
+            }
+        }
+        require(count > 0, "placed speaker baked model has no quads");
+        return count;
     }
     private static void click(GuiScreen target, UIComponent node) throws Exception {
         Method click = UiScreen.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class); click.setAccessible(true);

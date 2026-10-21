@@ -155,6 +155,7 @@ jobs:
             ${{ matrix.target }}/run/live-join/*/screenshots/*.png
             ${{ matrix.target }}/run/legacy-runtime/receipts/
             ${{ matrix.target }}/run/legacy-runtime/*/logs/latest.log
+            ${{ matrix.target }}/run/legacy-runtime/client/screenshots/placed-speaker-1122.png
             ${{ matrix.target }}/run/integrated-acceptance/**/receipt.json
             ${{ matrix.target }}/run/integrated-acceptance/**/integrated.log
             ${{ matrix.target }}/run/integrated-acceptance/**/logs/latest.log

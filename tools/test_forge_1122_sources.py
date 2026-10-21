@@ -95,6 +95,14 @@ class Forge1122GenerationTests(unittest.TestCase):
             self.assertIn('forceExit false',block)
         self.assertEqual(2,build.count('forceExit false'))
 
+    def test_native_server_console_forwarding_is_scoped_and_lazy(self):
+        build=(port.ROOT/'forge-1.12.2/build.gradle').read_text()
+        block=build.split('tasks.withType(JavaExec).configureEach {',1)[1].split('\n}',1)[0]
+        self.assertIn("if(name == 'runLegacyRuntimeServer') standardInput = System.in",block)
+        self.assertEqual(1,build.count('standardInput = System.in'))
+        self.assertNotIn('runLegacyRuntimeClient',block)
+        self.assertNotIn('ignoreExitValue',block)
+
     def test_native_merge_uses_official_timestamped_config_without_access_changes(self):
         helper=(port.ROOT/'gradle/forge-1122-merge.gradle').read_text()
         self.assertIn("artifact.version != '1.12.2'",helper)

@@ -152,3 +152,10 @@ tasks.withType(JavaExec).all {
         jvmArgs '-XX:ActiveProcessorCount=2'
     }
 }
+
+// JavaExec's default input is EOF. Forward the owned harness console only for
+// this isolated server, so its literal stop command can save and exit cleanly.
+// Lazy configuration preserves ForgeGradle's mapping initialization order.
+tasks.withType(JavaExec).configureEach {
+    if(name == 'runLegacyRuntimeServer') standardInput = System.in
+}

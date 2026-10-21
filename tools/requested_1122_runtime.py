@@ -24,6 +24,7 @@ PHASES = ('started', 'paused', 'resumed', 'stopped')
 CLIENT_MARKERS = (
     'SIMPLYSPEAKERS_RUNTIME_JVM role=client major=8 ',
     'SIMPLYSPEAKERS_1122_CLIENT_JOIN_PASS',
+    'SIMPLYSPEAKERS_1122_PLACED_MODEL_PASS missingModel=false missingSprite=false quads=',
     'SIMPLYSPEAKERS_1122_UI_PASS focus=true text=true clipboardRoundtrip=true tab=true navigation=true resize=true close=true',
     'SIMPLYSPEAKERS_1122_AUDIO_RELOAD_PASS paused ',
     'SIMPLYSPEAKERS_1122_AUDIO_RELOAD_PASS playing ',
