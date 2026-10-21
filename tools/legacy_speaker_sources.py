@@ -45,6 +45,11 @@ def remove_method(text, marker):
     body=text.index('{',start);end=end_pair(text,body,'{','}')
     return text[:line]+text[end+1:]
 
+def replace_java_identifier(text, old, new):
+    """Replace code identifiers without mutating Java strings, chars or comments."""
+    token=re.compile(r'"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|//[^\n]*|/\*[\s\S]*?\*/|(?<![\w.])'+re.escape(old)+r'\b')
+    return token.sub(lambda match: new if match.group()==old else match.group(),text)
+
 def isolate_client_packet_handlers(text,name,side_reject='{context}.get().getEnvironment()!=me.shedaniel.architectury.utils.Env.CLIENT'):
     """Keep registration/codec descriptors server-safe while retaining owned client bodies."""
     if not name.endswith('PacketS2C.java'):return text

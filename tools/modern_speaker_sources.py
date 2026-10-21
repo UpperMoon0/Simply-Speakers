@@ -21,6 +21,10 @@ def convert(text,name):
         text=text.replace('    public static void register() {','    public static void register() {\n        com.nstut.simplyspeakers.testing.RuntimeReceipt.emit(System.getProperty("simplyspeakers.livePlaybackRole","client"));')
     if name=='LivePlaybackServerProbe.java':
         text=text.replace('        if (server != currentServer) {','        if (server != currentServer) {\n            com.nstut.simplyspeakers.testing.RuntimeReceipt.emit("server");')
+    if name=='SpeakerUiPreviewProbe.java':
+        anchor='Object target = Minecraft.class.getMethod("getMainRenderTarget").invoke(client);'
+        assert anchor in text,'Native screenshot target anchor changed'
+        text=text.replace(anchor,'Object target = client.gameRenderer.mainRenderTarget();')
     if name=='LivePlaybackClientProbe.java':
         anchor='    private static void verifyGuide(Minecraft client) {'
         assert anchor in text,'Optional guide probe anchor changed'

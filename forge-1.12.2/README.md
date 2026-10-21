@@ -41,9 +41,15 @@ suite plus native buffer, wire, dedicated-side, coordinate and audio-transformer
 regressions on Java 8. The transformer test inspects the actual Minecraft class
 from the dependency classpath, never a copied game implementation.
 
-Development verification passed all 427 tests on Java 8 and compiled the full
+Development verification passed all 435 tests on Java 8 and compiled the full
 native source set against official Forge-patched Minecraft 1.12.2, stable-39
 mappings and the official Forge access transforms, the pinned PacketWeave API and
 OpenUI's native 1.12 adapter. A separate Gradle 5.6.4 offline smoke check verified
 the exact local jars resolve as external module dependencies. These checks are
 not an in-game client smoke test; full packaging remains subject to native CI.
+
+The opt-in native game harness, exact evidence requirements and current blocked
+runtime receipt are documented in [RUNTIME_ACCEPTANCE.md](RUNTIME_ACCEPTANCE.md).
+It requires prior Minecraft EULA acceptance. The requested-generation workflow
+provides a separate explicit acceptance input for manually dispatched runs;
+ordinary pull-request builds do not start this additional 1.12 client/server lane.

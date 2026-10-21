@@ -44,8 +44,8 @@ public class LegacyControllerUnloadIntegrationTest {
         player.world=world; when(player.getUniqueID()).thenReturn(UUID.randomUUID());
         tile=new RedstoneControllerBlockEntity(null,BlockPos.ORIGIN,Blocks.IRON_BLOCK.getDefaultState());
         tile.setWorld(world); when(world.getTileEntity(BlockPos.ORIGIN)).thenReturn(tile);
-        ServerSpeakerRegistry.updateSpeakerStateByFullKey("minecraft:dimension_0/net_test",new SpeakerState());
-        state=ServerSpeakerRegistry.getSpeakerStateByFullKey("minecraft:dimension_0/net_test"); state.setMaxVolume(.7f);
+        ServerSpeakerRegistry.updateSpeakerStateByFullKey("minecraft:overworld/net_test",new SpeakerState());
+        state=ServerSpeakerRegistry.getSpeakerStateByFullKey("minecraft:overworld/net_test"); state.setMaxVolume(.7f);
         state.setAudioId("00000000-0000-0000-0000-000000000001"); state.setAudioFilename("fixture.wav");
         network=mockStatic(Class.forName("com.nstut.simplyspeakers.speakers.ServerPlaybackEnvironment"));
     }

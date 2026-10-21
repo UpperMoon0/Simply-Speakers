@@ -1,0 +1,20 @@
+// Both Forge generations require ExternalModuleDependency for native deobfuscation.
+// Restrict external Maven/Ivy repositories, but leave ForgeGradle's synthetic
+// remapping repository available for the generated *_mapped_* coordinates.
+ext.portModule = { Object supplied, String groupName ->
+    File artifact=file(supplied)
+    if(!artifact.isFile() || !artifact.name.endsWith('.jar'))throw new GradleException("Missing pinned native jar: ${artifact}")
+    String moduleName=artifact.name.substring(0,artifact.name.length()-4)
+    if(new File(artifact.parentFile,moduleName+'-pinned.jar').exists())throw new GradleException("Ambiguous pinned dependency beside ${artifact}")
+    repositories.all { repository ->
+        if(repository instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository ||
+                repository instanceof org.gradle.api.artifacts.repositories.IvyArtifactRepository) {
+            repository.content { descriptor -> descriptor.excludeGroup(groupName) }
+        }
+    }
+    repositories.flatDir {
+        dirs artifact.parentFile
+        content { descriptor -> descriptor.includeGroup(groupName) }
+    }
+    return [group:groupName,name:moduleName,version:'pinned',ext:'jar']
+}

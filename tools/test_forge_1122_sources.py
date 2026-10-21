@@ -70,9 +70,43 @@ class Forge1122GenerationTests(unittest.TestCase):
         self.assertNotIn('fg.deobf(files(',text)
         self.assertIn('fg.deobf(openuiModule)',text)
         self.assertIn('fg.deobf(packetweaveModule)',text)
-        self.assertIn('includeGroup groupName',text)
-        self.assertIn('localGroups.each { excludeGroup it }',text)
-        self.assertIn("moduleName+'-pinned.jar'",text)
+        shared=(port.ROOT/'gradle/port-local-dependencies.gradle').read_text()
+        self.assertIn('descriptor.includeGroup(groupName)',shared)
+        self.assertIn('MavenArtifactRepository',shared)
+        self.assertIn('IvyArtifactRepository',shared)
+        self.assertIn('descriptor.excludeGroup(groupName)',shared)
+        self.assertIn("moduleName+'-pinned.jar'",shared)
+    def test_native_acceptance_hooks_are_explicitly_opt_in(self):
+        root=port.ROOT/'forge-1.12.2/src/main/java/com/nstut/simplyspeakers'
+        client=(root/'client/LegacyClient.java').read_text()
+        server=(root/'forge/SimplySpeakersForge.java').read_text()
+        guard='if(Boolean.getBoolean("simplyspeakers.legacyRuntimeAcceptance"))'
+        self.assertIn(guard+'LegacyClientRuntimeAcceptance.tick(mc)',client)
+        self.assertIn(guard+'com.nstut.simplyspeakers.testing.LegacyRuntimeAcceptance.tick(server)',server)
+        build=(port.ROOT/'forge-1.12.2/build.gradle').read_text()
+        self.assertIn("property 'fml.coreMods.load','com.nstut.simplyspeakers.forge.AudioLoadingPlugin'",build)
+        self.assertIn("property 'simplyspeakers.legacyRuntimeServer','127.0.0.1:25576'",build)
+        self.assertIn('child minecraft.runs.client',build)
+        self.assertIn('child minecraft.runs.server',build)
+        self.assertIn("maxHeapSize='768m'",build)
+
+    def test_native_merge_uses_official_timestamped_config_without_access_changes(self):
+        helper=(port.ROOT/'gradle/forge-1122-merge.gradle').read_text()
+        self.assertIn("artifact.version != '1.12.2'",helper)
+        self.assertIn("artifact.name != 'joined'",helper)
+        self.assertIn("net.minecraft:joined:1.12.2-20200226.224830",helper)
+        self.assertIn('repositories.addFirst(repository)',helper)
+        self.assertIn('implements ArtifactProvider<ArtifactIdentifier>',helper)
+        self.assertNotIn('extends BaseRepo',helper)
+        self.assertIn('merged == null || !merged.isFile()',helper)
+        self.assertIn("throw new GradleException('Pinned Forge 1.12 MCP merge did not resolve",helper)
+        self.assertIn("tasks.register('verifyPinnedMergeRepository')",helper)
+        self.assertIn('dependsOn verifyPinnedMergeRepository',helper)
+        identity=(port.ROOT/'gradle/forge-1122-merge-cache.cfg').read_text()
+        self.assertTrue(all(not line.strip() or line.startswith('#') for line in identity.splitlines()))
+        build=(port.ROOT/'forge-1.12.2/build.gradle').read_text()
+        self.assertIn("apply from:'../gradle/forge-1122-merge.gradle'",build)
+
     def test_native_resources_only_available_ingredients(self):
         with tempfile.TemporaryDirectory() as tmp:
             port.resources(Path(tmp))
@@ -114,6 +148,27 @@ class Forge1122GenerationTests(unittest.TestCase):
         self.assertIn('thread.isAlive()',text)
         self.assertIn('snapshot.dimension()',text)
         self.assertIn('client.currentScreen',text)
+    def test_java_identifier_mapping_preserves_namespace_literals_and_comments(self):
+        text=port.convert('minecraft.level; net.minecraft.client.Minecraft; "minecraft:overworld/net_"; "minecraft.foo"; /* minecraft */', 'Fixture.java')
+        self.assertIn('mc.world',text)
+        self.assertIn('"minecraft:overworld/net_"',text)
+        self.assertIn('"minecraft.foo"',text)
+        self.assertIn('/* minecraft */',text)
+        source=port.ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/speakers/ServerSpeakerRegistry.java'
+        generated=port.convert(source.read_text(),source.name)
+        self.assertNotIn('"mc:',generated)
+        self.assertIn('"minecraft:overworld/net_"',generated)
+    def test_split_uuid_nbt_is_not_misclassified_as_migration(self):
+        source=port.ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/blocks/entities/SpeakerBlockEntity.java'
+        generated=port.convert(source.read_text(),source.name)
+        self.assertIn('!tag.hasUniqueId(NBT_INTERNAL_ID) && !tag.hasKey(NBT_INTERNAL_ID)',generated)
+    def test_packet_handlers_reuse_shared_lazy_client_boundary(self):
+        for source in (port.ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/network').glob('*PacketS2C.java'):
+            generated=port.convert(source.read_text(),source.name)
+            outer,nested=generated.split('private static final class ClientHandler',1)
+            self.assertIn('.get().isClient()',outer)
+            self.assertNotIn('private static final DeferredTaskQueue',outer)
+            self.assertNotIn('matchesScreen(PlaylistSyncPacketS2C pkt, SpeakerScreen screen)',outer)
     def test_native_channel_checks_direction_and_bounds(self):
         text=(port.ROOT/'forge-1.12.2/src/main/java/com/nstut/simplyspeakers/compat/LegacyChannel.java').read_text()
         self.assertIn('SimpleNetworkWrapper',text)

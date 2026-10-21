@@ -37,8 +37,11 @@ class RequestedGenerationTest(unittest.TestCase):
     def test_forge_local_artifacts_are_external_module_dependencies(self):
         text=(ROOT/'forge-1.16.5/build.gradle').read_text()
         self.assertNotIn('fg.deobf(files(',text)
-        self.assertIn('includeGroup groupName',text)
-        self.assertIn('exclusiveContent',text)
+        self.assertIn("apply from:'../gradle/port-local-dependencies.gradle'",text)
+        shared=(ROOT/'gradle/port-local-dependencies.gradle').read_text()
+        self.assertIn('descriptor.includeGroup(groupName)',shared)
+        self.assertIn('MavenArtifactRepository',shared)
+        self.assertNotIn('exclusiveContent',shared)
         self.assertIn('fg.deobf(openuiModule)',text)
     def test_legacy_client_handler_isolation_preserves_owned_codecs(self):
         for source in (ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/network').glob('*PacketS2C.java'):
@@ -81,6 +84,13 @@ class RequestedGenerationTest(unittest.TestCase):
             circuit=json.loads((target/'data/simplyspeakers/recipes/audio_circuit.json').read_text())
             self.assertEqual(circuit['key']['C']['item'],'minecraft:gold_ingot')
             self.assertEqual(circuit['key']['A']['item'],'minecraft:quartz')
+    def test_legacy_forge_resource_pack_has_native_format(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory);port_resources.generate('1.16.5','forge',target)
+            metadata=json.loads((target/'pack.mcmeta').read_text())
+            self.assertEqual(metadata['pack']['pack_format'],6)
+            self.assertTrue(metadata['pack']['description'])
+
     def test_modern_fabric_optional_recipe_uses_fabric_condition(self):
         with tempfile.TemporaryDirectory() as directory:
             target=Path(directory);port_resources.generate('26.2','fabric',target)
@@ -94,6 +104,30 @@ class RequestedGenerationTest(unittest.TestCase):
             self.assertIn('ref: '+pins[name]['commit'],workflow)
         self.assertNotIn('publishToMavenLocal',workflow)
         self.assertNotIn('contents: write',workflow)
+    def test_native_file_dialogs_share_client_executor_callback_boundary(self):
+        for module in ['fabric-1.16.5','forge-1.16.5','fabric-26.2','shared/loader-neoforge']:
+            helper=next((ROOT/module/'src/main/java').rglob('*ClientHelper.java')).read_text()
+            self.assertIn('ClientFileSelection.open(',helper)
+            self.assertIn('Minecraft.getInstance()::execute',helper)
+            self.assertNotIn('callback.accept',helper)
+    def test_forge112_game_acceptance_requires_explicit_manual_eula_input(self):
+        workflow=(ROOT/'.github/workflows/requested-generations.yml').read_text()
+        self.assertIn('minecraft_eula_accepted:',workflow)
+        self.assertIn('https://www.minecraft.net/en-us/eula',workflow)
+        self.assertIn('default: false',workflow)
+        step=workflow.split('- name: Opt-in native Forge 1.12 client and server acceptance',1)[1].split('- name:',1)[0]
+        self.assertIn("matrix.target == 'forge-1.12.2' && github.event_name == 'workflow_dispatch' && inputs.minecraft_eula_accepted",step)
+        self.assertIn('JAVA_HOME="$JAVA_HOME_8_X64"',step)
+        self.assertIn('tools/requested_1122_runtime.py',step)
+        self.assertIn('run/legacy-runtime/receipts/',workflow)
+    def test_modern_screenshot_uses_native_game_renderer_target(self):
+        import modern_speaker_sources as modern
+        source=(ROOT/'shared/runtime-verification/src/main/java/com/nstut/simplyspeakers/client/SpeakerUiPreviewProbe.java').read_text()
+        generated=modern.convert(source,'SpeakerUiPreviewProbe.java')
+        self.assertIn('Object target = client.gameRenderer.mainRenderTarget();',generated)
+        self.assertNotIn('getMethod("getMainRenderTarget")',generated)
+        self.assertIn('Class.forName("net.minecraft.client.Screenshot")',generated)
+
     def test_modern_client_uses_gui_owner_without_raw_opengl(self):
         with tempfile.TemporaryDirectory() as directory:
             target=Path(directory);modern.generate(target)

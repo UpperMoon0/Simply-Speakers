@@ -3,6 +3,12 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      minecraft_eula_accepted:
+        description: 'I accept https://www.minecraft.net/en-us/eula for the temporary Forge 1.12.2 test server'
+        required: false
+        default: false
+        type: boolean
 permissions:
   contents: read
 concurrency:
@@ -34,12 +40,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: UpperMoon0/OpenUI-MC
-          ref: 5feba85ab1363a7a3e71f4fbf2c1347911cf326d
+          ref: ae7ac42daf6acf3018850778ffd4fa4ee4d4cb71
           path: .port-deps/OpenUI-MC
       - uses: actions/checkout@v4
         with:
           repository: UpperMoon0/PacketWeave
-          ref: f5ef9b8c3a4ab3ba3af82af54769a09f370c1a85
+          ref: b9af8be1c8dae497a852342a0d323f811b80b54a
           path: .port-deps/PacketWeave
       - uses: actions/setup-java@v4
         with:
@@ -71,6 +77,22 @@ jobs:
             "-PpacketweaveJar=$ROOT/.port-deps/PacketWeave/targets/$TARGET/build/libs/packetweave-$TARGET-0.1.4.jar" \
             "-PpacketweaveSource=$ROOT/.port-deps/PacketWeave/core/src/main/java")
           python3 tools/verify_requested_port_jar.py "$TARGET"
+      - name: Opt-in native Forge 1.12 client and server acceptance
+        if: matrix.target == 'forge-1.12.2' && github.event_name == 'workflow_dispatch' && inputs.minecraft_eula_accepted
+        shell: bash
+        env:
+          ALSOFT_DRIVERS: 'null'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_8_X64" JAVA17_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mkdir -p forge-1.12.2/run/legacy-runtime/server forge-1.12.2/build/runtime-evidence
+          printf 'eula=true\n' > forge-1.12.2/run/legacy-runtime/server/eula.txt
+          python3 tools/requested_1122_runtime.py \
+            --openui-jar "$PWD/.port-deps/OpenUI-MC/forge-1.12.2/build/libs/openui-mc-forge-1.12.2-0.0.15.jar" \
+            --packetweave-jar "$PWD/.port-deps/PacketWeave/targets/forge-1.12.2/build/libs/packetweave-forge-1.12.2-0.1.4.jar" \
+            --timeout 600 2>&1 | tee forge-1.12.2/build/runtime-evidence/native-runtime.log
       - name: Real native server and two-client audio acceptance
         if: matrix.target != 'forge-1.12.2'
         shell: bash
@@ -95,4 +117,6 @@ jobs:
             ${{ matrix.target }}/build/runtime-evidence/
             ${{ matrix.target }}/run/live-join/*/logs/latest.log
             ${{ matrix.target }}/run/live-join/*/screenshots/*.png
+            ${{ matrix.target }}/run/legacy-runtime/receipts/
+            ${{ matrix.target }}/run/legacy-runtime/*/logs/latest.log
           if-no-files-found: warn

@@ -6,7 +6,7 @@ with native Forge lifecycle, registration, GUI, commands and packet adapters.
 """
 import argparse,re
 from pathlib import Path
-from legacy_speaker_sources import java8,remove_method
+from legacy_speaker_sources import java8,remove_method,isolate_client_packet_handlers,replace_java_identifier
 from java8_records import end_pair,split_params
 ROOT=Path(__file__).resolve().parents[1]
 P='com.nstut.simplyspeakers.compat.'
@@ -105,7 +105,7 @@ def convert(text,name):
     text=text.replace('net.minecraft.util.math.'+P,P)
     for a,b in [('client.level','client.world'),('minecraft.level','mc.world'),('minecraft','mc'),('.gameDirectory','.gameDir'),('client.options','client.gameSettings'),('.setScreen(','.displayGuiScreen('),('.tell(','.addScheduledTask('),('server.execute(', 'server.addScheduledTask('),('client.execute(', 'client.addScheduledTask('),('Minecraft.getMinecraft().execute(', 'Minecraft.getMinecraft().addScheduledTask('),('.getSoundManager()', '.getSoundHandler()')]:
         # Avoid rewriting net.minecraft package names.
-        if a=='minecraft':text=re.sub(r'(?<![\w.])minecraft\b','mc',text)
+        if a=='minecraft':text=replace_java_identifier(text,'minecraft','mc')
         else:text=text.replace(a,b)
     text=re.sub(r'(?<![\w.])(client|mc)\.screen\b',r'\1.currentScreen',text)
     text=text.replace('Minecraft.getMinecraft().screen','Minecraft.getMinecraft().currentScreen')
@@ -184,7 +184,9 @@ def convert(text,name):
     # Runtime verification for later versions is separate from the shipping port.
     text=text.replace('        if (Boolean.getBoolean("simplyspeakers.ccLuaTest")) com.nstut.simplyspeakers.testing.CcLuaServerProbe.tick(server);','')
     text=re.sub(r'        if \(Boolean.getBoolean\("simplyspeakers.livePlaybackTest"\)\) com.nstut.simplyspeakers.testing.LivePlaybackServerProbe.tick\(server\);', '',text)
-    return text
+    if name=='SpeakerBlockEntity.java':
+        text=text.replace('boolean migratedInternalId = !tag.hasKey(NBT_INTERNAL_ID);', 'boolean migratedInternalId = !tag.hasUniqueId(NBT_INTERNAL_ID) && !tag.hasKey(NBT_INTERNAL_ID);')
+    return isolate_client_packet_handlers(text,name,'!{context}.get().isClient()')
 
 def generate(output):
     generated=set()

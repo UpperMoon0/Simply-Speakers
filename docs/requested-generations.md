@@ -58,11 +58,15 @@ Local direct compiler results validate API compatibility, not final loader remap
 ## Shared behavior and runtime acceptance
 
 The modern source generator derives the complete 26.2 runtime from maintained
-26.1.2 and shared sources; only native GUI ownership is transformed. Both modern
+26.1.2 and shared sources; native GUI and screenshot-target ownership are adapted. Both modern
 loaders consume that same generated output. The generator removes stale files,
 rejects duplicate source identities, and is checked for deterministic regeneration.
 Legacy targets likewise derive maintained behavior and share the non-loading
-controller attachment predicate; loader-specific world/audio hooks remain adapters.
+controller attachment predicate, literal-safe identifier mapping, lazy client-packet
+handler lowering, and executable dedicated-side isolation fixture. All file-dialog
+adapters share a client-executor callback boundary. Loader-specific world/audio
+hooks remain adapters, and both Forge lanes use one exact-artifact resolver that
+keeps ForgeGradle's synthetic mapped repository available.
 
 `python3 tools/requested_live_join.py --target fabric-1.16.5` (or another listed
 1.16.5/26.2 loader) runs one real dedicated server and two real clients. It requires
@@ -78,3 +82,31 @@ Unsupported optional Patchouli/ComputerCraft integrations are explicitly exclude
 not fabricated as passing checks. These are development-loader acceptance runs;
 production-jar checks are separate, and packaged-jar gameplay still needs its own
 receipt. A configured harness is not itself evidence that a run has passed.
+
+## Review regression receipts
+
+The 2026-10-21 native Java 8 regression pass includes 435 passing Forge 1.12.2
+tests and 417 passing Forge 1.16.5 tests, with no skips. These exercise actual
+Forge-patched game classes, native split-key UUID NBT persistence, canonical
+registry migration, controller unload/replacement, OpenAL readiness failure seams,
+and strict dedicated-side S2C initialization. The file-dialog tests use a real
+worker and prove callbacks cannot execute before the client executor drains.
+These are compiler/integration-test receipts, not a substitute for a loaded game.
+
+The first Fabric 26.2 development multiplayer run reached the real server and two
+clients, 60 MiB download/decode, continuous settings dragging, and normal-playing
+and paused native OpenAL destruction/reload. It then stopped at a screenshot-probe
+API mismatch, so the whole acceptance run did not pass. The generator now uses
+GameRenderer's native main render target; the corrected complete run is required.
+Forge 1.12.2 still needs a recorded native client/server/audio run. PR status and
+CI artifacts remain the authoritative current acceptance record.
+
+The bounded Forge 1.12.2 development probe is described in
+[`RUNTIME_ACCEPTANCE.md`](../forge-1.12.2/RUNTIME_ACCEPTANCE.md). Its local game
+launch did not start: the genuine Gradle wrapper could not resolve an uncached
+ForgeGradle build dependency offline, and the display server could not bind its
+socket in the sandbox. The native compile and 435 tests passed, but no game
+acceptance markers are claimed. The workflow only enables this additional
+client/server lane on a manual dispatch with the explicit
+`minecraft_eula_accepted` input; ordinary PR builds do not accept a new EULA or
+silently treat a skipped runtime lane as passing.

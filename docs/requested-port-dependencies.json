@@ -1,12 +1,12 @@
 {
   "openui": {
     "repository": "UpperMoon0/OpenUI-MC",
-    "commit": "5feba85ab1363a7a3e71f4fbf2c1347911cf326d",
+    "commit": "ae7ac42daf6acf3018850778ffd4fa4ee4d4cb71",
     "version": "0.0.15"
   },
   "packetweave": {
     "repository": "UpperMoon0/PacketWeave",
-    "commit": "f5ef9b8c3a4ab3ba3af82af54769a09f370c1a85",
+    "commit": "b9af8be1c8dae497a852342a0d323f811b80b54a",
     "version": "0.1.4"
   },
   "targets": ["forge-1.12.2", "fabric-1.16.5", "forge-1.16.5", "fabric-26.2", "neoforge-26.2"]

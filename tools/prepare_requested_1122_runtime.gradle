@@ -1,0 +1,6 @@
+// Resolve exactly the native acceptance prerequisites without starting either game.
+gradle.beforeProject { project ->
+    project.tasks.all { task ->
+        if (task.name in ['runLegacyRuntimeClient', 'runLegacyRuntimeServer']) task.enabled = false
+    }
+}

@@ -4,6 +4,7 @@ buildscript {
 }
 apply plugin:'net.minecraftforge.gradle'
 apply plugin:'java-library'
+apply from:'../gradle/forge-1122-merge.gradle'
 if(JavaVersion.current()!=JavaVersion.VERSION_1_8)throw new GradleException('Run ForgeGradle3 / Gradle5.6.4 with Java8; set JAVA17_HOME for the backport compiler.')
 def rootProperties=new Properties()
 file('../gradle.properties').withInputStream { rootProperties.load(it) }
@@ -15,28 +16,33 @@ configurations { shade }
 def openuiJar=findProperty('openuiJar') ?: System.getenv('OPENUI_JAR')
 def packetweaveJar=findProperty('packetweaveJar') ?: System.getenv('PACKETWEAVE_JAR')
 if(!openuiJar || !packetweaveJar)throw new GradleException('Supply exact branch artifacts with -PopenuiJar and -PpacketweaveJar. This port never assumes an unreleased dependency is on Maven.')
-// FG3 remaps ExternalModuleDependency, not FileCollection dependencies. These
-// bounded repositories resolve only the caller-supplied basename.jar artifacts.
-def localGroups=['local.port.openui','local.port.packetweave']
-repositories.all { repository ->
-    if(!(repository instanceof org.gradle.api.artifacts.repositories.FlatDirectoryArtifactRepository)) {
-        repository.content { localGroups.each { excludeGroup it } }
-    }
-}
-def portModule = { Object supplied, String groupName ->
-    File artifact=file(supplied)
-    if(!artifact.isFile() || !artifact.name.endsWith('.jar'))throw new GradleException("Missing pinned native jar: ${artifact}")
-    String moduleName=artifact.name.substring(0,artifact.name.length()-4)
-    // flatDir prefers name-version.jar; forbid a sibling from shadowing the exact file.
-    if(new File(artifact.parentFile,moduleName+'-pinned.jar').exists())throw new GradleException("Ambiguous pinned dependency beside ${artifact}")
-    repositories.flatDir { dirs artifact.parentFile; content { includeGroup groupName } }
-    return [group:groupName,name:moduleName,version:'pinned',ext:'jar']
-}
+apply from:'../gradle/port-local-dependencies.gradle'
 def openuiModule=portModule(openuiJar,'local.port.openui')
 def packetweaveModule=portModule(packetweaveJar,'local.port.packetweave')
 minecraft {
     mappings channel:'stable',version:'39-1.12'
-    runs { client { workingDirectory project.file('run') };server { workingDirectory project.file('run');args 'nogui' } }
+    runs {
+        client {
+            workingDirectory project.file('run')
+            property 'fml.coreMods.load','com.nstut.simplyspeakers.forge.AudioLoadingPlugin'
+        }
+        server { workingDirectory project.file('run');args 'nogui' }
+        // Late child merge inherits the fully resolved native FG3 bootstrap.
+        legacyRuntimeClient {
+            child minecraft.runs.client
+            workingDirectory project.file('run/legacy-runtime/client')
+            property 'simplyspeakers.legacyRuntimeAcceptance','true'
+            property 'simplyspeakers.requestedPortRuntime','true'
+            property 'simplyspeakers.legacyRuntimeServer','127.0.0.1:25576'
+            args '--username','SS1122Client','--width','960','--height','640'
+        }
+        legacyRuntimeServer {
+            child minecraft.runs.server
+            workingDirectory project.file('run/legacy-runtime/server')
+            property 'simplyspeakers.legacyRuntimeAcceptance','true'
+            property 'simplyspeakers.requestedPortRuntime','true'
+        }
+    }
 }
 dependencies {
     minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2864'
@@ -130,3 +136,11 @@ jar {
 }
 task sourcesJar(type:Jar) { dependsOn generateLegacySources;classifier='sources';from sourceSets.main.allSource }
 artifacts { archives sourcesJar }
+
+// Gradle5 itself runs on Java8, so these game launchers remain genuine Java8.
+tasks.withType(JavaExec).all {
+    if(name.startsWith('runLegacyRuntime')) {
+        maxHeapSize='768m'
+        jvmArgs '-XX:ActiveProcessorCount=2'
+    }
+}

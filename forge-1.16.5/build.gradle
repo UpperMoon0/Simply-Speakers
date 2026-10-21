@@ -1,15 +1,7 @@
 plugins { id 'java-library'; id 'net.minecraftforge.gradle' version '6.0.54'; id 'com.gradleup.shadow' version '8.3.6'; id 'org.spongepowered.mixin' version '0.7.38' }
 apply from:'../gradle/legacy-port.gradle'
 configurations { shade }
-// ForgeGradle remaps module dependencies, not local FileCollection dependencies.
-// Separate content-filtered repositories preserve the exact caller-supplied files.
-def portModule = { File artifact, String groupName ->
-    def moduleName=artifact.name.substring(0,artifact.name.length()-4)
-    if(new File(artifact.parentFile,moduleName+'-pinned.jar').exists())throw new GradleException('Ambiguous pinned local dependency: '+artifact)
-    def localRepository=repositories.flatDir { dirs artifact.parentFile; content { includeGroup groupName } }
-    repositories.exclusiveContent { forRepositories(localRepository); filter { includeGroup groupName } }
-    return [group:groupName,name:moduleName,version:'pinned',ext:'jar']
-}
+apply from:'../gradle/port-local-dependencies.gradle'
 def openuiModule=portModule(portOpenuiJar,'local.port.openui')
 def packetweaveModule=portModule(portPacketweaveJar,'local.port.packetweave')
 minecraft {

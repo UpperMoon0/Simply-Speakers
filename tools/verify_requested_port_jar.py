@@ -19,5 +19,9 @@ def verify(target):
                 major=struct.unpack('>H',archive.read(name)[6:8])[0]
                 if major>maximum:raise ValueError(f'{name} requires class version {major}, expected <= {maximum}')
         if target=='forge-1.16.5' and 'simplyspeakers.refmap.json' not in names:raise ValueError('Missing production audio lifecycle mixin refmap')
+        if target in ('forge-1.12.2','forge-1.16.5'):
+            expected=3 if target.endswith('1.12.2') else 6
+            if 'pack.mcmeta' not in names or json.loads(archive.read('pack.mcmeta'))['pack']['pack_format']!=expected:
+                raise ValueError('Missing or incompatible native Forge resource-pack metadata')
     print(f'Validated production port: {path.name}')
 if __name__=='__main__':verify(sys.argv[1])
