@@ -73,4 +73,6 @@ def verifyPinnedMergeRepository = tasks.register('verifyPinnedMergeRepository') 
             throw new GradleException('Pinned merge intercepted an unrelated artifact')
     }
 }
-tasks.matching { it.name == 'check' }.all { dependsOn verifyPinnedMergeRepository }
+// FG3 snapshots its mapping string when tasks are realized. Keep this lazy so
+// applying the helper before minecraft { mappings ... } cannot capture null.
+tasks.named('check').configure { dependsOn verifyPinnedMergeRepository }

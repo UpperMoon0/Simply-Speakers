@@ -110,16 +110,24 @@ class RequestedGenerationTest(unittest.TestCase):
             self.assertIn('ClientFileSelection.open(',helper)
             self.assertIn('Minecraft.getInstance()::execute',helper)
             self.assertNotIn('callback.accept',helper)
-    def test_forge112_game_acceptance_requires_explicit_manual_eula_input(self):
+    def test_forge112_game_acceptance_requires_explicit_scope_guard(self):
         workflow=(ROOT/'.github/workflows/requested-generations.yml').read_text()
         self.assertIn('minecraft_eula_accepted:',workflow)
         self.assertIn('https://www.minecraft.net/en-us/eula',workflow)
         self.assertIn('default: false',workflow)
         step=workflow.split('- name: Opt-in native Forge 1.12 client and server acceptance',1)[1].split('- name:',1)[0]
-        self.assertIn("matrix.target == 'forge-1.12.2' && github.event_name == 'workflow_dispatch' && inputs.minecraft_eula_accepted",step)
+        self.assertIn("matrix.target == 'forge-1.12.2' && steps.legacy-consent.outputs.accepted == 'true'",step)
+        self.assertIn('tools/requested_1122_ci_gate.py --event-name "$GITHUB_EVENT_NAME"',workflow)
         self.assertIn('JAVA_HOME="$JAVA_HOME_8_X64"',step)
         self.assertIn('tools/requested_1122_runtime.py',step)
         self.assertIn('run/legacy-runtime/receipts/',workflow)
+    def test_fabric116_keeps_java8_classpath_and_external_display_owner(self):
+        build=(ROOT/'fabric-1.16.5/build.gradle').read_text()
+        self.assertIn('tasks.withType(net.fabricmc.loom.task.AbstractRunTask).configureEach { useXvfb.set(false) }',build)
+        runtime=(ROOT/'gradle/requested-live-runtime.gradle').read_text()
+        self.assertIn('JavaLanguageVersion.of(8)',runtime)
+        harness=(ROOT/'tools/live_join_test.py').read_text()
+        self.assertIn('cmd = [xvfb, "-a", *cmd]',harness)
     def test_modern_screenshot_uses_native_game_renderer_target(self):
         import modern_speaker_sources as modern
         source=(ROOT/'shared/runtime-verification/src/main/java/com/nstut/simplyspeakers/client/SpeakerUiPreviewProbe.java').read_text()

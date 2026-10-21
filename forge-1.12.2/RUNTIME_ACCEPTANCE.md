@@ -21,6 +21,12 @@ The harness requires an already accepted `eula=true` in
 EULA automatically. The server binds only `127.0.0.1:25576`, allows one client,
 and creates a uniquely named fixture world inside that isolated run directory.
 
+The CI wrapper records the already granted consent only for the owned PR 26
+port branch targeting main, or an explicit affirmative manual input on that
+same branch. Its separate event validator rejects unrelated PRs, forks, branches,
+push/release events and malformed metadata before any EULA write or game launch.
+This limited workflow gate is not standing consent for other servers.
+
 It serially prepares both native task graphs before starting the server and
 client. Each game has a 768 MiB heap; each supervising Gradle process has 256 MiB.
 It reuses the maintained output pump, failure detection and process cleanup.

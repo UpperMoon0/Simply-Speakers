@@ -106,7 +106,10 @@ The bounded Forge 1.12.2 development probe is described in
 launch did not start: the genuine Gradle wrapper could not resolve an uncached
 ForgeGradle build dependency offline, and the display server could not bind its
 socket in the sandbox. The native compile and 435 tests passed, but no game
-acceptance markers are claimed. The workflow only enables this additional
-client/server lane on a manual dispatch with the explicit
-`minecraft_eula_accepted` input; ordinary PR builds do not accept a new EULA or
-silently treat a skipped runtime lane as passing.
+acceptance markers are claimed. The workflow enables this additional
+client/server lane only for the specifically approved, same-repository PR 26
+port branch targeting main, or a manual run on that same branch with explicit
+`minecraft_eula_accepted=true`. A fail-closed event validator rejects other PRs,
+forks, branches and event types before writing the isolated server's EULA file.
+This does not grant standing consent to unrelated future servers or treat a
+skipped runtime lane as passing.

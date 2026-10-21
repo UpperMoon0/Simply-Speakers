@@ -102,6 +102,8 @@ class Forge1122GenerationTests(unittest.TestCase):
         self.assertIn("throw new GradleException('Pinned Forge 1.12 MCP merge did not resolve",helper)
         self.assertIn("tasks.register('verifyPinnedMergeRepository')",helper)
         self.assertIn('dependsOn verifyPinnedMergeRepository',helper)
+        self.assertIn("tasks.named('check').configure",helper)
+        self.assertNotIn('tasks.matching',helper)
         identity=(port.ROOT/'gradle/forge-1122-merge-cache.cfg').read_text()
         self.assertTrue(all(not line.strip() or line.startswith('#') for line in identity.splitlines()))
         build=(port.ROOT/'forge-1.12.2/build.gradle').read_text()

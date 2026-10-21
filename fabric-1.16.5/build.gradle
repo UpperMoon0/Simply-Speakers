@@ -1,5 +1,8 @@
 plugins { id 'net.fabricmc.fabric-loom-remap' version '1.17.9' }
 apply from:'../gradle/legacy-port.gradle'
+// Loom 1.17's internal Xvfb command omits the bare Java 8 classpath.
+// The acceptance harness already owns Xvfb; use JavaExec's real launcher here.
+tasks.withType(net.fabricmc.loom.task.AbstractRunTask).configureEach { useXvfb.set(false) }
 dependencies {
     minecraft 'com.mojang:minecraft:1.16.5'
     mappings loom.officialMojangMappings()

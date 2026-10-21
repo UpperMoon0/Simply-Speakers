@@ -77,8 +77,16 @@ jobs:
             "-PpacketweaveJar=$ROOT/.port-deps/PacketWeave/targets/$TARGET/build/libs/packetweave-$TARGET-0.1.4.jar" \
             "-PpacketweaveSource=$ROOT/.port-deps/PacketWeave/core/src/main/java")
           python3 tools/verify_requested_port_jar.py "$TARGET"
+      - name: Verify isolated Forge 1.12 acceptance scope
+        if: matrix.target == 'forge-1.12.2'
+        id: legacy-consent
+        shell: bash
+        run: |
+          python3 tools/requested_1122_ci_gate.py --event-name "$GITHUB_EVENT_NAME" \
+            --event-path "$GITHUB_EVENT_PATH" --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF" --output "$GITHUB_OUTPUT"
       - name: Opt-in native Forge 1.12 client and server acceptance
-        if: matrix.target == 'forge-1.12.2' && github.event_name == 'workflow_dispatch' && inputs.minecraft_eula_accepted
+        if: matrix.target == 'forge-1.12.2' && steps.legacy-consent.outputs.accepted == 'true'
         shell: bash
         env:
           ALSOFT_DRIVERS: 'null'

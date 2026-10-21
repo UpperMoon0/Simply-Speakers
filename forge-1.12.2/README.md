@@ -51,5 +51,6 @@ not an in-game client smoke test; full packaging remains subject to native CI.
 The opt-in native game harness, exact evidence requirements and current blocked
 runtime receipt are documented in [RUNTIME_ACCEPTANCE.md](RUNTIME_ACCEPTANCE.md).
 It requires prior Minecraft EULA acceptance. The requested-generation workflow
-provides a separate explicit acceptance input for manually dispatched runs;
-ordinary pull-request builds do not start this additional 1.12 client/server lane.
+uses a fail-closed guard for the specifically approved, same-repository PR 26
+port branch, or explicit manual acceptance on that same branch. Other pull
+requests, forks, branches and event types cannot start this additional lane.
