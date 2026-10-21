@@ -39,15 +39,7 @@ public final class LegacyRuntimeAcceptance {
             current = server; participant = null; speaker = null; phase = ticks = joinedTicks = 0; disconnected = false;
             RuntimeReceipt.emit("server");
             require("1.8".equals(System.getProperty("java.specification.version")), "game server is not Java 8");
-            ((CommandHandler) server.getCommandManager()).registerCommand(new CommandBase() {
-                public String getName() { return "simplyspeakers_1122_accept"; }
-                public String getUsage(ICommandSender sender) { return getName() + " <phase>"; }
-                public int getRequiredPermissionLevel() { return 0; }
-                public void execute(MinecraftServer srv, ICommandSender sender, String[] args) throws CommandException {
-                    require(sender == participant && args.length == 1, "unexpected acceptance sender or arguments");
-                    acknowledge(args[0]);
-                }
-            });
+            ((CommandHandler) server.getCommandManager()).registerCommand(acknowledgementCommand());
             System.out.println("SIMPLYSPEAKERS_1122_SERVER_DISCOVERY_PASS clientClassesRequired=false");
         }
         if (disconnected) return;
@@ -80,6 +72,24 @@ public final class LegacyRuntimeAcceptance {
             System.out.println("SIMPLYSPEAKERS_1122_SERVER_DISCONNECT_PASS");
             System.out.println("SIMPLYSPEAKERS_1122_SERVER_ACCEPTANCE_PASS");
         }
+    }
+
+    static CommandBase acknowledgementCommand() {
+        return new CommandBase() {
+            public String getName() { return "simplyspeakers_1122_accept"; }
+            public String getUsage(ICommandSender sender) { return getName() + " <phase>"; }
+            public int getRequiredPermissionLevel() { return 0; }
+            // Native 1.12 checks operator membership even for level-zero custom
+            // commands. This test-only acknowledgement needs no operator grant:
+            // only the exact participant on this opted-in server may call it.
+            public boolean checkPermission(MinecraftServer srv, ICommandSender sender) {
+                return enabled() && current != null && participant != null && srv == current && sender == participant;
+            }
+            public void execute(MinecraftServer srv, ICommandSender sender, String[] args) throws CommandException {
+                require(checkPermission(srv, sender) && args.length == 1, "unexpected acceptance sender or arguments");
+                acknowledge(args[0]);
+            }
+        };
     }
 
     private static SpeakerState state() { return ServerSpeakerRegistry.getSpeakerStateByFullKey(key); }

@@ -33,12 +33,21 @@ def convert(text):
 
 def generate(output, tests=False):
     intermediate=output.parent/(output.name+'-mojmap-sources')
-    (legacy_speaker_sources.generate_tests if tests else legacy_speaker_sources.generate)(intermediate)
+    if tests:legacy_speaker_sources.generate_tests(intermediate, fabric=False)
+    else:legacy_speaker_sources.generate(intermediate, fabric=False)
     generated=set()
     for source in ([intermediate] if tests else [intermediate,ROOT/'forge-1.16.5/src/main/java']):
         for path in source.rglob('*.java'):
             target=output/path.relative_to(source);target.parent.mkdir(parents=True,exist_ok=True)
-            target.write_text(convert(path.read_text(encoding='utf-8')),encoding='utf-8');generated.add(target)
+            text=convert(path.read_text(encoding='utf-8'))
+            if path.name=='LegacyBlockEntity.java':
+                text=text.rsplit('}',1)[0]+'''    // Exact IForgeTileEntity callback signature; the vanilla compile reference lacks this Forge extension.
+    public void onDataPacket(net.minecraft.network.NetworkManager network, net.minecraft.network.play.server.SUpdateTileEntityPacket packet) {
+        if (packet.getType() == 0 && getBlockPos().equals(packet.getPos())) applyClientUpdate(packet.getTag());
+    }
+}
+'''
+            target.write_text(text,encoding='utf-8');generated.add(target)
     for path in output.rglob('*.java'):
         if path not in generated:path.unlink()
 if __name__=='__main__':

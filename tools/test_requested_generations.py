@@ -8,6 +8,30 @@ import port_resources
 import modern_speaker_sources as modern
 ROOT=Path(__file__).resolve().parents[1]
 class RequestedGenerationTest(unittest.TestCase):
+    def test_native_block_entity_sync_uses_loader_callbacks_and_shared_identity_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);legacy.generate(root/'fabric');forge.generate(root/'forge')
+            for name in ('Speaker','ProxySpeaker','RedstoneController'):
+                fabric=(root/'fabric/com/nstut/simplyspeakers/blocks/entities'/f'{name}BlockEntity.java').read_text()
+                self.assertIn('compat.FabricBlockEntity',fabric)
+                self.assertNotIn('getUpdatePacket()',fabric)
+                if name=='RedstoneController':
+                    self.assertNotIn('private void sync()',fabric)
+                    self.assertIn('private void syncControllerState()',fabric)
+                native=(root/'forge/com/nstut/simplyspeakers/blocks/entities'/f'{name}BlockEntity.java').read_text()
+                self.assertIn('compat.LegacyBlockEntity',native)
+                self.assertIn('getUpdatePacket()',native)
+            native=(root/'forge/com/nstut/simplyspeakers/compat/LegacyBlockEntity.java').read_text()
+            self.assertIn('packet.getType() == 0 && getBlockPos().equals(packet.getPos())',native)
+            self.assertIn('applyClientUpdate(packet.getTag())',native)
+        source=(ROOT/'fabric-1.16.5/src/main/java/com/nstut/simplyspeakers/compat/FabricBlockEntity.java').read_text()
+        self.assertIn('implements BlockEntityClientSerializable',source)
+        self.assertIn('fromClientTag(CompoundTag tag) { applyClientUpdate(tag); }',source)
+        self.assertIn('tag.merge(getUpdateTag())',source)
+        shared=(ROOT/'common-1.16.5/src/main/java/com/nstut/simplyspeakers/compat/LegacyBlockEntity.java').read_text()
+        self.assertIn('return save(new CompoundTag())',shared)
+        self.assertIn('!level.isClientSide',shared)
+        self.assertIn('type.toString().equals(tag.getString("id"))',shared)
     def test_prejoin_diagnostics_are_opt_in_and_do_not_mutate_ui(self):
         source=next((ROOT/'common-1.20.1/src/main/java').rglob('ClientEvents.java')).read_text()
         generated=legacy.convert(source,'ClientEvents.java')

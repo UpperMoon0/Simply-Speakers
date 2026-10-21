@@ -182,7 +182,7 @@ def convert(text, name):
         text=text.replace('DirectionalPreview.renderHud(graphics)', 'DirectionalPreview.renderHud(new com.nstut.openui.graphics.LegacyGuiGraphics(graphics))')
     return isolate_client_packet_handlers(text,name)
 
-def generate(output):
+def generate(output, fabric=True):
     generated=set()
     sources=['common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','common-1.16.5/src/main/java']
     for folder in sources:
@@ -192,16 +192,22 @@ def generate(output):
             relative=path.relative_to(root);target=output/relative
             text=path.read_text(encoding='utf-8')
             if folder not in ['common-legacy/src/main/java','common-1.16.5/src/main/java']:text=convert(text,path.name)
+            if fabric and path.name in ['SpeakerBlockEntity.java','ProxySpeakerBlockEntity.java','RedstoneControllerBlockEntity.java']:
+                text=text.replace('extends com.nstut.simplyspeakers.compat.LegacyBlockEntity', 'extends com.nstut.simplyspeakers.compat.FabricBlockEntity')
+                text=remove_method(text, 'public ClientboundBlockEntityDataPacket getUpdatePacket(')
+                if path.name=='RedstoneControllerBlockEntity.java':text=text.replace('sync()', 'syncControllerState()')
             target.parent.mkdir(parents=True,exist_ok=True);target.write_text(text,encoding='utf-8');generated.add(target)
     for path in output.rglob('*.java'):
         if path not in generated:path.unlink()
-def generate_tests(output):
+def generate_tests(output, fabric=True):
     generated=set()
     for folder in ['common/src/test/java','common-legacy/src/test/java','common-1.16.5/src/test/java']:
         root=ROOT/folder
         for path in root.rglob('*.java'):
             target=output/path.relative_to(root);target.parent.mkdir(parents=True,exist_ok=True)
-            target.write_text(java8(path.read_text(encoding='utf-8')),encoding='utf-8');generated.add(target)
+            text=java8(path.read_text(encoding='utf-8'))
+            if fabric and path.name=='LegacyBlockEntitySyncTest.java':text=text.replace('extends LegacyBlockEntity', 'extends FabricBlockEntity')
+            target.write_text(text,encoding='utf-8');generated.add(target)
     for name in ['PortablePacketDedicatedSideLoadingTest.java','PlaybackWireContractTest.java']:
         dedicated=ROOT/'shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network'/name
         target=output/'com/nstut/simplyspeakers/network'/name

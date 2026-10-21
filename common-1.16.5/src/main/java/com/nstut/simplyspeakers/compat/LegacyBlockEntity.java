@@ -26,4 +26,15 @@ public abstract class LegacyBlockEntity extends BlockEntity implements TickableB
     public void load(CompoundTag tag) { super.load(cachedState,tag); }
     @Override public CompoundTag save(CompoundTag tag) { saveAdditional(tag); return tag; }
     protected void saveAdditional(CompoundTag tag) { super.save(tag); }
+    // Do not call vanilla getUpdateTag here: Fabric's native mixin invokes
+    // toClientTag from that method, which would recurse through derived tags.
+    @Override public CompoundTag getUpdateTag() { return save(new CompoundTag()); }
+    public final void applyClientUpdate(CompoundTag tag) {
+        if (level == null || !level.isClientSide || tag == null) return;
+        net.minecraft.resources.ResourceLocation type = net.minecraft.core.Registry.BLOCK_ENTITY_TYPE.getKey(getType());
+        if (type == null || !type.toString().equals(tag.getString("id"))) return;
+        if (tag.getInt("x") != worldPosition.getX() || tag.getInt("y") != worldPosition.getY()
+                || tag.getInt("z") != worldPosition.getZ()) return;
+        load(getBlockState(), tag);
+    }
 }
