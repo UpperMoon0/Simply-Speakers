@@ -1,5 +1,7 @@
 {
   "net.minecraft.ChatFormatting": "net.minecraft.util.text.TextFormatting",
+  "net.minecraft.DetectedVersion": "net.minecraft.util.MinecraftVersion",
+  "net.minecraft.SharedConstants": "net.minecraft.util.SharedConstants",
   "net.minecraft.client.Screenshot": "net.minecraft.util.ScreenShotHelper",
   "net.minecraft.client.gui.Font": "net.minecraft.client.gui.FontRenderer",
   "net.minecraft.client.gui.screens.Screen": "net.minecraft.client.gui.screen.Screen",
@@ -23,8 +25,10 @@
   "net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket": "net.minecraft.network.play.server.SUpdateTileEntityPacket",
   "net.minecraft.network.protocol.game.ServerboundChatPacket": "net.minecraft.network.play.client.CChatMessagePacket",
   "net.minecraft.resources.ResourceLocation": "net.minecraft.util.ResourceLocation",
+  "net.minecraft.server.Bootstrap": "net.minecraft.util.registry.Bootstrap",
   "net.minecraft.server.level.ServerLevel": "net.minecraft.world.server.ServerWorld",
   "net.minecraft.server.level.ServerPlayer": "net.minecraft.entity.player.ServerPlayerEntity",
+  "net.minecraft.server.players.PlayerList": "net.minecraft.server.management.PlayerList",
   "net.minecraft.sounds.SoundEvent": "net.minecraft.util.SoundEvent",
   "net.minecraft.sounds.SoundSource": "net.minecraft.util.SoundCategory",
   "net.minecraft.world.InteractionHand": "net.minecraft.util.Hand",

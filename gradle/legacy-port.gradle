@@ -12,7 +12,7 @@ sourceSets {
 }
 def generator=project.name.startsWith('forge')?'forge_1165_sources.py':'legacy_speaker_sources.py'
 def generateLegacySources=tasks.register('generateLegacySources', Exec) {
-    inputs.dirs '../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../common-1.16.5/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'
+    ['../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../common-1.16.5/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'].each { inputs.dir it }
     inputs.files '../tools/legacy_speaker_sources.py','../tools/forge_1165_sources.py','../tools/forge_1165_types.json','../tools/java8_records.py'
     outputs.dir layout.buildDirectory.dir('generated/speakers')
     commandLine 'python3',"../tools/${generator}",'--output',layout.buildDirectory.dir('generated/speakers').get().asFile
@@ -21,7 +21,7 @@ if(project.name.startsWith('forge'))sourceSets.main.java.setSrcDirs([generateLeg
 else sourceSets.main.java.srcDir generateLegacySources
 
 def generatePortResources=tasks.register('generatePortResources', Exec) {
-    inputs.dirs '../common/src/main/resources','src/main/resources'
+    ['../common/src/main/resources','src/main/resources'].each { inputs.dir it }
     inputs.file '../tools/port_resources.py'
     outputs.dir layout.buildDirectory.dir('generated/portResources')
     commandLine 'python3','../tools/port_resources.py','--version','1.16.5','--loader',project.name.split('-')[0],'--output',layout.buildDirectory.dir('generated/portResources').get().asFile
@@ -50,7 +50,7 @@ tasks.withType(JavaCompile).configureEach {
 compileJava {
     dependsOn generateLegacySources
     options.fork=true
-    doFirst { options.forkOptions.jvmArgs += "-javaagent:${configurations.jabelAgent.singleFile}" }
+    doFirst { options.forkOptions.jvmArgs += "-javaagent:${configurations.jabelAgent.singleFile}".toString() }
 }
 compilePacketweaveApiJava { sourceCompatibility=JavaVersion.VERSION_1_8 }
 sourcesJar { dependsOn generateLegacySources }
@@ -62,7 +62,7 @@ tasks.register('verifyPortDependencies') {
 compileJava { dependsOn 'verifyPortDependencies' }
 
 def generateLegacyTests=tasks.register('generateLegacyTests',Exec) {
-    inputs.dirs '../common/src/test/java','../common-legacy/src/test/java','../common-1.16.5/src/test/java'
+    ['../common/src/test/java','../common-legacy/src/test/java','../common-1.16.5/src/test/java'].each { inputs.dir it }
     inputs.files '../shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network/PortablePacketDedicatedSideLoadingTest.java','../shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network/PlaybackWireContractTest.java'
     inputs.files '../tools/legacy_speaker_sources.py','../tools/forge_1165_sources.py','../tools/forge_1165_types.json','../tools/java8_records.py'
     outputs.dir layout.buildDirectory.dir('generated/tests')
@@ -71,8 +71,19 @@ def generateLegacyTests=tasks.register('generateLegacyTests',Exec) {
 sourceSets.test.java.srcDir generateLegacyTests
 compileTestJava {
     options.fork=true
-    doFirst { options.forkOptions.jvmArgs += "-javaagent:${configurations.jabelAgent.singleFile}" }
+    doFirst { options.forkOptions.jvmArgs += "-javaagent:${configurations.jabelAgent.singleFile}".toString() }
 }
 test { systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath }
 
 sourceSets.test.resources.srcDir '../common/src/test/resources'
+
+// Java 8-compatible native lifecycle integration tests. Use an explicit agent so
+// test execution never depends on dynamic self-attachment being available.
+dependencies { testImplementation 'org.mockito:mockito-core:4.11.0' }
+sourceSets.test.resources.srcDir '../common-1.16.5/src/test/resources'
+test {
+    doFirst {
+        def agent=configurations.testRuntimeClasspath.files.find { it.name.startsWith('byte-buddy-agent-') }
+        if(agent!=null)jvmArgs "-javaagent:${agent.absolutePath}"
+    }
+}

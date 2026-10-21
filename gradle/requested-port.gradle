@@ -12,11 +12,19 @@ repositories {
 }
 java { toolchain.languageVersion=JavaLanguageVersion.of(25); withSourcesJar() }
 sourceSets {
-    main { java.srcDirs '../common/src/main/java', '../common-26.2/src/main/java' }
+    main { java.srcDir '../common/src/main/java' }
     // Compile-only external API: never packaged into the mod jar.
     packetweaveApi { java.srcDir providers.gradleProperty('packetweaveSource').getOrElse('../../PacketWeave/core/src/main/java') }
     test { java.srcDirs '../common/src/test/java', '../common-26.2/src/test/java', '../shared/integration-tests/src/test/java' }
 }
+def generateModernSources=tasks.register('generateModernSources',Exec) {
+    ['../neoforge-26.1.2/src/main/java','../shared/minecraft-1.21plus/src/main/java','../shared/runtime-verification/src/main/java'].each { inputs.dir it }
+    inputs.file '../tools/modern_speaker_sources.py'
+    outputs.dir layout.buildDirectory.dir('generated/modernSpeakers')
+    commandLine 'python3','../tools/modern_speaker_sources.py','--output',layout.buildDirectory.dir('generated/modernSpeakers').get().asFile
+}
+sourceSets.main.java.srcDir generateModernSources
+sourcesJar { dependsOn generateModernSources }
 sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
 sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
 

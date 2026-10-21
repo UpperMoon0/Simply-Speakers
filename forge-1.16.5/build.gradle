@@ -5,7 +5,9 @@ configurations { shade }
 // Separate content-filtered repositories preserve the exact caller-supplied files.
 def portModule = { File artifact, String groupName ->
     def moduleName=artifact.name.substring(0,artifact.name.length()-4)
-    repositories.flatDir { dirs artifact.parentFile; content { includeGroup groupName } }
+    if(new File(artifact.parentFile,moduleName+'-pinned.jar').exists())throw new GradleException('Ambiguous pinned local dependency: '+artifact)
+    def localRepository=repositories.flatDir { dirs artifact.parentFile; content { includeGroup groupName } }
+    repositories.exclusiveContent { forRepositories(localRepository); filter { includeGroup groupName } }
     return [group:groupName,name:moduleName,version:'pinned',ext:'jar']
 }
 def openuiModule=portModule(portOpenuiJar,'local.port.openui')
@@ -33,3 +35,33 @@ jar { manifest { attributes 'MixinConfigs':'simplyspeakers.mixins.json' } }
 shadowJar { manifest { attributes 'MixinConfigs':'simplyspeakers.mixins.json' } }
 
 mixin { add sourceSets.main, "simplyspeakers.refmap.json"; config "simplyspeakers.mixins.json" }
+
+minecraft.runs {
+    liveJoinTestClient {
+        parent minecraft.runs.client
+        workingDirectory project.file('run/live-join/client')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        args '--username', 'SSCarrier', '--server', '127.0.0.1', '--port', '25575'
+        mods { simplyspeakers { source sourceSets.main } }
+    }
+    liveJoinTestObserver {
+        parent minecraft.runs.client
+        workingDirectory project.file('run/live-join/observer')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.livePlaybackRole', 'observer'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        args '--username', 'SSObserver', '--server', '127.0.0.1', '--port', '25575'
+        mods { simplyspeakers { source sourceSets.main } }
+    }
+    liveJoinTestServer {
+        parent minecraft.runs.server
+        workingDirectory project.file('run/live-join/server')
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        mods { simplyspeakers { source sourceSets.main } }
+    }
+}
+apply from: '../gradle/requested-live-runtime.gradle'

@@ -128,6 +128,18 @@ def convert(text, name):
     if name=='DirectionalPreview.java':
         text=text.replace('new org.joml.Vector3f(((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f)', '((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f')
     if name=='ClientEvents.java':
+        text=text.replace('    public static void register() {','    public static void register() {\n        com.nstut.simplyspeakers.testing.RuntimeReceipt.emit(System.getProperty("simplyspeakers.livePlaybackRole","client"));')
+    if name=='LivePlaybackServerProbe.java':
+        text=text.replace('        if (server != currentServer) {','        if (server != currentServer) {\n            com.nstut.simplyspeakers.testing.RuntimeReceipt.emit("server");')
+    if name=='LivePlaybackClientProbe.java':
+        text=text.replace('    private static void verifyGuide(Minecraft client) {',
+            '    private static void verifyGuide(Minecraft client) {\n        if(Boolean.getBoolean("simplyspeakers.requestedPortRuntime")) { System.out.println("SIMPLYSPEAKERS_OPTIONAL_GUIDE_NOT_INCLUDED"); return; }')
+    if name=='SpeakerUiPreviewProbe.java':
+        anchor='        for (var method : Class.forName("net.minecraft.client.Screenshot").getMethods()) {'
+        assert anchor in text
+        text=text.replace(anchor,anchor+\
+            '\n            if(method.getName().equals("grab") && method.getParameterCount()==6) {\n                method.invoke(null,client.gameDirectory,filename,client.getWindow().getWidth(),client.getWindow().getHeight(),target,result);return;\n            }')
+    if name=='ClientEvents.java':
         text=text.replace('DirectionalPreview.renderHud(graphics)', 'DirectionalPreview.renderHud(new com.nstut.openui.graphics.LegacyGuiGraphics(graphics))')
     return text
 

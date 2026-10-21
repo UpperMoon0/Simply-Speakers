@@ -54,3 +54,27 @@ API adaptations were checked against the private `UpperMoon0/MC-Modding-Src` can
 The read-only `Requested generation ports` workflow builds actual native loader jars and tests, then checks bytecode versions, required behavior classes and absence of embedded dependency APIs. It has no release/publish/merge/deploy step. Existing release workflows are unchanged and do not silently publish these additional lanes.
 
 Local direct compiler results validate API compatibility, not final loader remapping, graphics-device startup, or multiplayer playback. Those stronger claims require successful native builds and recorded client/server runs. See the PR's current verification results and limitations before treating any target as release-ready.
+
+## Shared behavior and runtime acceptance
+
+The modern source generator derives the complete 26.2 runtime from maintained
+26.1.2 and shared sources; only native GUI ownership is transformed. Both modern
+loaders consume that same generated output. The generator removes stale files,
+rejects duplicate source identities, and is checked for deterministic regeneration.
+Legacy targets likewise derive maintained behavior and share the non-loading
+controller attachment predicate; loader-specific world/audio hooks remain adapters.
+
+`python3 tools/requested_live_join.py --target fabric-1.16.5` (or another listed
+1.16.5/26.2 loader) runs one real dedicated server and two real clients. It requires
+native packet delivery, upload/download, OpenUI settings interactions, positional
+and portable OpenAL sources, deletion, and four sound-engine destruction/reload
+cases. It records the actual game JVM separately from Gradle. Both 1.16.5 game
+and test processes remain Java 8; Java 17 compiles `--release 8`, while Fabric's
+Gradle driver runs on Java 25. A Java 17 game-runtime claim is not made.
+
+The harness uses the null-output OpenAL backend. Success proves actual native
+contexts/sources and lifecycle handling, not audible output on physical speakers.
+Unsupported optional Patchouli/ComputerCraft integrations are explicitly excluded,
+not fabricated as passing checks. These are development-loader acceptance runs;
+production-jar checks are separate, and packaged-jar gameplay still needs its own
+receipt. A configured harness is not itself evidence that a run has passed.

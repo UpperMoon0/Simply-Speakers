@@ -5,6 +5,7 @@ from pathlib import Path
 import legacy_speaker_sources as legacy
 import forge_1165_sources as forge
 import port_resources
+import modern_speaker_sources as modern
 ROOT=Path(__file__).resolve().parents[1]
 class RequestedGenerationTest(unittest.TestCase):
     def test_full_runtime_is_generated_without_stale_files(self):
@@ -37,6 +38,7 @@ class RequestedGenerationTest(unittest.TestCase):
         text=(ROOT/'forge-1.16.5/build.gradle').read_text()
         self.assertNotIn('fg.deobf(files(',text)
         self.assertIn('includeGroup groupName',text)
+        self.assertIn('exclusiveContent',text)
         self.assertIn('fg.deobf(openuiModule)',text)
     def test_native_authority_and_upload_bounds_are_retained(self):
         for name in ['SpeakerPacketSecurity.java','UploadAudioDataPacketC2S.java']:
@@ -85,8 +87,23 @@ class RequestedGenerationTest(unittest.TestCase):
         self.assertNotIn('publishToMavenLocal',workflow)
         self.assertNotIn('contents: write',workflow)
     def test_modern_client_uses_gui_owner_without_raw_opengl(self):
-        for source in (ROOT/'common-26.2/src/main/java').rglob('*.java'):
-            text=source.read_text();self.assertNotIn('org.lwjgl.opengl',text);self.assertNotIn('Minecraft.getInstance().screen',text)
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory);modern.generate(target)
+            sources=list(target.rglob('*.java'));self.assertGreaterEqual(len(sources),87)
+            for source in sources:
+                text=source.read_text();self.assertNotIn('org.lwjgl.opengl',text);self.assertNotIn('Minecraft.getInstance().screen',text)
+                self.assertNotIn('gui.screen()s',text)
+    def test_modern_generation_reuses_neutral_behavior_and_removes_stale_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target=Path(directory);(target/'Stale.java').write_text('obsolete');modern.generate(target)
+            self.assertFalse((target/'Stale.java').exists())
+            first={p.relative_to(target):p.read_bytes() for p in target.rglob('*.java')}
+            modern.generate(target)
+            self.assertEqual(first,{p.relative_to(target):p.read_bytes() for p in target.rglob('*.java')})
+            name='com/nstut/simplyspeakers/network/SpeakerPacketSecurity.java'
+            original=(ROOT/'neoforge-26.1.2/src/main/java'/name).read_text()
+            self.assertEqual((target/name).read_text(),modern.convert(original,'SpeakerPacketSecurity.java'))
+            self.assertFalse((target/'com/nstut/simplyspeakers/SimplySpeakers.java').exists())
     def test_requested_metadata_has_exact_mc_and_java_floor(self):
         for target,mc,java in [('fabric-1.16.5','1.16.5','>=8'),('fabric-26.2','26.2','>=25')]:
             meta=json.loads((ROOT/target/'src/main/resources/fabric.mod.json').read_text())

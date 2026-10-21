@@ -11,6 +11,6 @@ public final class LegacyControllerLifecycle {
     }
     static boolean current(boolean removed,boolean attached,BooleanSupplier loaded,BooleanSupplier identity) {
         // Never resolve a block entity before the non-loading chunk existence check.
-        return !removed && attached && loaded.getAsBoolean() && identity.getAsBoolean();
+        return ControllerAttachment.current(removed, attached, loaded, identity);
     }
 }

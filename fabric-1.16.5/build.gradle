@@ -10,3 +10,29 @@ dependencies {
     modRuntimeOnly files(portPacketweaveJar)
     include 'javazoom:jlayer:1.0.1'
 }
+
+// Opt-in native acceptance uses isolated worlds, real packet traffic and OpenAL.
+loom.runs {
+    liveJoinTestClient {
+        client(); runDir('run/live-join/client')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        programArgs '--username', 'SSCarrier', '--server', '127.0.0.1', '--port', '25575'
+    }
+    liveJoinTestObserver {
+        client(); runDir('run/live-join/observer')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.livePlaybackRole', 'observer'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        programArgs '--username', 'SSObserver', '--server', '127.0.0.1', '--port', '25575'
+    }
+    liveJoinTestServer {
+        server(); runDir('run/live-join/server')
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        programArg 'nogui'
+    }
+}
+apply from: '../gradle/requested-live-runtime.gradle'

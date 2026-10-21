@@ -17,7 +17,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - run: python3 -m unittest discover -s tools -p 'test_requested_generations.py' -v
+      - run: python3 -m unittest discover -s tools -p 'test_requested*.py' -v
       - run: python3 -m unittest discover -s tools -p 'test_forge_1122_sources.py' -v
       - run: python3 -m unittest discover -s tools -p 'test_openui_dependency.py' -v
   native:
@@ -71,6 +71,19 @@ jobs:
             "-PpacketweaveJar=$ROOT/.port-deps/PacketWeave/targets/$TARGET/build/libs/packetweave-$TARGET-0.1.4.jar" \
             "-PpacketweaveSource=$ROOT/.port-deps/PacketWeave/core/src/main/java")
           python3 tools/verify_requested_port_jar.py "$TARGET"
+      - name: Real native server and two-client audio acceptance
+        if: matrix.target != 'forge-1.12.2'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ALSOFT_DRIVERS: 'null'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == 'forge-1.16.5' ]]; then export JAVA_HOME="$JAVA_HOME_17_X64"; else export JAVA_HOME="$JAVA_HOME_25_X64"; fi
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mkdir -p "$TARGET/build/runtime-evidence"
+          python3 tools/requested_live_join.py --target "$TARGET" --timeout 900 2>&1 | tee "$TARGET/build/runtime-evidence/native-runtime.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -79,4 +92,7 @@ jobs:
             ${{ matrix.target }}/build/libs/*.jar
             ${{ matrix.target }}/build/reports/tests/
             ${{ matrix.target }}/build/test-results/
+            ${{ matrix.target }}/build/runtime-evidence/
+            ${{ matrix.target }}/run/live-join/*/logs/latest.log
+            ${{ matrix.target }}/run/live-join/*/screenshots/*.png
           if-no-files-found: warn

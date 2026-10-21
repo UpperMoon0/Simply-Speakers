@@ -10,7 +10,7 @@ neoForge {
 dependencies {
     implementation('dev.architectury:architectury-neoforge:21.1.12') { exclude group:'net.neoforged', module:'neoforge' }
     implementation files(portOpenuiJar)
-    localRuntime files(portOpenuiJar, portPacketweaveJar)
+    runtimeOnly files(portPacketweaveJar)
     jarJar 'javazoom:jlayer:1.0.1'
 }
 test { systemProperty 'simplyspeakers.testPayloadVerificationOnly', 'true' }
@@ -26,3 +26,28 @@ def generateModMetadata=tasks.register('generateModMetadata', ProcessResources) 
 }
 sourceSets.main.resources.srcDir generateModMetadata
 neoForge.ideSyncTask generateModMetadata
+
+neoForge.runs {
+    liveJoinTestClient {
+        client(); gameDirectory=project.file('run/live-join/client')
+        systemProperty 'simplyspeakers.liveJoinTest', 'true'
+        systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+        systemProperty 'simplyspeakers.requestedPortRuntime', 'true'
+        programArguments.addAll '--username', 'SSCarrier', '--quickPlayMultiplayer', '127.0.0.1:25575'
+    }
+    liveJoinTestObserver {
+        client(); gameDirectory=project.file('run/live-join/observer')
+        systemProperty 'simplyspeakers.liveJoinTest', 'true'
+        systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+        systemProperty 'simplyspeakers.livePlaybackRole', 'observer'
+        systemProperty 'simplyspeakers.requestedPortRuntime', 'true'
+        programArguments.addAll '--username', 'SSObserver', '--quickPlayMultiplayer', '127.0.0.1:25575'
+    }
+    liveJoinTestServer {
+        server(); gameDirectory=project.file('run/live-join/server')
+        systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+        systemProperty 'simplyspeakers.requestedPortRuntime', 'true'
+        programArgument '--nogui'
+    }
+}
+apply from: '../gradle/requested-live-runtime.gradle'
