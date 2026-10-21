@@ -1,0 +1,39 @@
+modLoader="javafml"
+loaderVersion="[36,)"
+license="All Rights Reserved"
+[[mods]]
+modId="simplyspeakers"
+version="${version}"
+displayName="Simply Speakers"
+authors="NsTut"
+description='''Custom, synchronized speaker networks with portable audio and redstone control.'''
+[[dependencies.simplyspeakers]]
+modId="forge"
+mandatory=true
+versionRange="[36.2.42,)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.simplyspeakers]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.16.5]"
+ordering="NONE"
+side="BOTH"
+[[dependencies.simplyspeakers]]
+modId="architectury"
+mandatory=true
+versionRange="[1.32.68,)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.simplyspeakers]]
+modId="packetweave"
+mandatory=true
+versionRange="[0.1.4,)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.simplyspeakers]]
+modId="openui_mc"
+mandatory=true
+versionRange="[0.0.15,)"
+ordering="AFTER"
+side="CLIENT"

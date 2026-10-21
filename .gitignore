@@ -88,3 +88,6 @@ saves/
 # Python verification caches
 __pycache__/
 *.pyc
+
+# Reproducibly pinned, build-only port dependencies
+.port-deps/

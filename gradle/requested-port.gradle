@@ -1,0 +1,76 @@
+// Shared setup for isolated requested-generation builds. Never configures old Loom targets.
+def shared = new Properties()
+file('../gradle.properties').withInputStream { shared.load(it) }
+group = shared.getProperty('maven_group')
+version = shared.getProperty('mod_version')
+ext.openuiPortVersion = '0.0.15'
+ext.packetweavePortVersion = '0.1.4'
+base { archivesName = "simplyspeakers-${project.name}" }
+repositories {
+    mavenCentral()
+    maven { url='https://maven.architectury.dev/' }
+}
+java { toolchain.languageVersion=JavaLanguageVersion.of(25); withSourcesJar() }
+sourceSets {
+    main { java.srcDirs '../common/src/main/java', '../common-26.2/src/main/java' }
+    // Compile-only external API: never packaged into the mod jar.
+    packetweaveApi { java.srcDir providers.gradleProperty('packetweaveSource').getOrElse('../../PacketWeave/core/src/main/java') }
+    test { java.srcDirs '../common/src/test/java', '../common-26.2/src/test/java', '../shared/integration-tests/src/test/java' }
+}
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
+sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
+
+def openuiJar = file(providers.gradleProperty('openuiJar').getOrElse("../../OpenUI-MC/${project.name}/build/libs/openui-mc-${project.name}-${openuiPortVersion}.jar"))
+def packetweaveJar = file(providers.gradleProperty('packetweaveJar').getOrElse("../../PacketWeave/targets/${project.name}/build/libs/packetweave-${project.name}-${packetweavePortVersion}.jar"))
+ext.portOpenuiJar = openuiJar
+ext.portPacketweaveJar = packetweaveJar
+tasks.register('verifyPortDependencies') {
+    inputs.files openuiJar, packetweaveJar
+    doLast {
+        [openuiJar,packetweaveJar].each {
+            if (!it.isFile()) throw new GradleException("Missing standalone port dependency: ${it}. Build the pinned sibling checkout first, or pass -PopenuiJar/-PpacketweaveJar. See docs/requested-generations.md.")
+        }
+    }
+}
+dependencies {
+    compileOnly sourceSets.packetweaveApi.output
+    testImplementation sourceSets.packetweaveApi.output
+    implementation 'javazoom:jlayer:1.0.1'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.slf4j:slf4j-simple:2.0.16'
+}
+tasks.withType(JavaCompile).configureEach { options.release=25; options.encoding='UTF-8' }
+compilePacketweaveApiJava { options.release=8 }
+compileJava { dependsOn 'verifyPortDependencies' }
+test {
+    useJUnitPlatform()
+    systemProperty 'net.bytebuddy.experimental', 'true'
+    systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath
+    testLogging.exceptionFormat='full'
+}
+processResources { duplicatesStrategy=DuplicatesStrategy.EXCLUDE }
+def loaderName=project.name.split('-')[0]
+def generatePortResources=tasks.register('generatePortResources', Exec) {
+    inputs.dir '../common/src/main/resources'
+    inputs.dir '../neoforge-26.2/src/main/resources'
+    inputs.dir 'src/main/resources'
+    inputs.file '../tools/port_resources.py'
+    outputs.dir layout.buildDirectory.dir('generated/portResources')
+    commandLine 'python3','../tools/port_resources.py','--version','26.2','--loader',loaderName,'--output',layout.buildDirectory.dir('generated/portResources').get().asFile
+}
+sourceSets.main.resources.setSrcDirs([generatePortResources])
+// Java 25 discourages dynamic self-attachment; use Mockito's explicit test-only agent.
+test {
+    doFirst {
+        def agent=configurations.testRuntimeClasspath.files.find { it.name=='mockito-core-5.14.2.jar' }
+        if(agent!=null)jvmArgs "-javaagent:${agent.absolutePath}"
+    }
+}
+
+sourceSets.test.resources.srcDir '../common/src/test/resources'

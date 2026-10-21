@@ -1,0 +1,82 @@
+name: Requested generation ports
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: requested-speaker-ports-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - run: python3 -m unittest discover -s tools -p 'test_requested_generations.py' -v
+      - run: python3 -m unittest discover -s tools -p 'test_forge_1122_sources.py' -v
+      - run: python3 -m unittest discover -s tools -p 'test_openui_dependency.py' -v
+  native:
+    needs: structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [forge-1.12.2, fabric-1.16.5, forge-1.16.5, fabric-26.2, neoforge-26.2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: 5feba85ab1363a7a3e71f4fbf2c1347911cf326d
+          path: .port-deps/OpenUI-MC
+      - uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/PacketWeave
+          ref: f5ef9b8c3a4ab3ba3af82af54769a09f370c1a85
+          path: .port-deps/PacketWeave
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            17
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build pinned native dependencies and consumer
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          export JAVA17_HOME="$JAVA_HOME_17_X64"
+          case "$TARGET" in
+            forge-1.12.2) export JAVA_HOME="$JAVA_HOME_8_X64" ;;
+            forge-1.16.5) export JAVA_HOME="$JAVA_HOME_17_X64" ;;
+            *) export JAVA_HOME="$JAVA_HOME_25_X64" ;;
+          esac
+          export PATH="$JAVA_HOME/bin:$PATH"
+          python3 tools/verify_port_dependencies.py
+          (cd ".port-deps/OpenUI-MC/$TARGET" && bash gradlew build --no-daemon --no-parallel --max-workers=2)
+          (cd ".port-deps/PacketWeave/targets/$TARGET" && bash gradlew build --no-daemon --no-parallel --max-workers=2)
+          ROOT="$PWD"
+          (cd "$TARGET" && bash gradlew build --no-daemon --no-parallel --max-workers=2 \
+            "-PopenuiJar=$ROOT/.port-deps/OpenUI-MC/$TARGET/build/libs/openui-mc-$TARGET-0.0.15.jar" \
+            "-PpacketweaveJar=$ROOT/.port-deps/PacketWeave/targets/$TARGET/build/libs/packetweave-$TARGET-0.1.4.jar" \
+            "-PpacketweaveSource=$ROOT/.port-deps/PacketWeave/core/src/main/java")
+          python3 tools/verify_requested_port_jar.py "$TARGET"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: requested-${{ matrix.target }}
+          path: |
+            ${{ matrix.target }}/build/libs/*.jar
+            ${{ matrix.target }}/build/reports/tests/
+            ${{ matrix.target }}/build/test-results/
+          if-no-files-found: warn

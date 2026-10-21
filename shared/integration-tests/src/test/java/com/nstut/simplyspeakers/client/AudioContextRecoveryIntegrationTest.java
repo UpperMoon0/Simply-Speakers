@@ -65,6 +65,10 @@ class AudioContextRecoveryIntegrationTest {
             }
             return RETURNS_DEFAULTS.answer(call);
         });
+        // 26.2 moved screen state from Minecraft to its Gui owner. Supply the
+        // native owner in this otherwise uninitialized Minecraft mock as well.
+        Field guiOwner = field(Minecraft.class, "gui");
+        guiOwner.set(client, mock(guiOwner.getType()));
         minecraft = mockStatic(Minecraft.class);
         minecraft.when(Minecraft::getInstance).thenReturn(client);
         intentType = Class.forName(ClientAudioPlayer.class.getName() + "$PlaybackIntent");
@@ -167,11 +171,15 @@ class AudioContextRecoveryIntegrationTest {
         }
         when(client.options.getSoundSourceVolume(any())).thenReturn(1f);
         when(client.player.position()).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
-        // Only the 1.21.1 spatial adapter reads the camera; 26.1.2 renamed this accessor.
-        Object camera = client.gameRenderer.getMainCamera();
-        for (Method getter : camera.getClass().getMethods()) {
-            if (getter.getName().equals("getPosition") && getter.getParameterCount() == 0) {
-                when(getter.invoke(camera)).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+        // Only the 1.21.1 spatial adapter reads the camera. Keep this shared
+        // fixture independent of the accessor removed in the 26.x API.
+        for (Method cameraGetter : client.gameRenderer.getClass().getMethods()) {
+            if (!cameraGetter.getName().equals("getMainCamera") || cameraGetter.getParameterCount()!=0) continue;
+            Object camera = cameraGetter.invoke(client.gameRenderer);
+            for (Method getter : camera.getClass().getMethods()) {
+                if (getter.getName().equals("getPosition") && getter.getParameterCount() == 0) {
+                    when(getter.invoke(camera)).thenReturn(net.minecraft.world.phys.Vec3.ZERO);
+                }
             }
         }
     }

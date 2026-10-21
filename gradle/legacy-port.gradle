@@ -1,0 +1,78 @@
+// Full shared gameplay generated for Java8, with native1.16.5 lifecycle adapters.
+def shared=new Properties(); file('../gradle.properties').withInputStream { shared.load(it) }
+group=shared.getProperty('maven_group'); version=shared.getProperty('mod_version')
+base { archivesName="simplyspeakers-${project.name}" }
+ext.openuiPortVersion='0.0.15'; ext.packetweavePortVersion='0.1.4'
+ext.portOpenuiJar=file(providers.gradleProperty('openuiJar').getOrElse("../../OpenUI-MC/${project.name}/build/libs/openui-mc-${project.name}-${openuiPortVersion}.jar"))
+ext.portPacketweaveJar=file(providers.gradleProperty('packetweaveJar').getOrElse("../../PacketWeave/targets/${project.name}/build/libs/packetweave-${project.name}-${packetweavePortVersion}.jar"))
+repositories { mavenCentral(); maven { url='https://maven.architectury.dev/' } }
+java { toolchain.languageVersion=JavaLanguageVersion.of(17); withSourcesJar() }
+sourceSets {
+    packetweaveApi { java.srcDir providers.gradleProperty('packetweaveSource').getOrElse('../../PacketWeave/core/src/main/java') }
+}
+def generator=project.name.startsWith('forge')?'forge_1165_sources.py':'legacy_speaker_sources.py'
+def generateLegacySources=tasks.register('generateLegacySources', Exec) {
+    inputs.dirs '../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../common-1.16.5/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'
+    inputs.files '../tools/legacy_speaker_sources.py','../tools/forge_1165_sources.py','../tools/forge_1165_types.json','../tools/java8_records.py'
+    outputs.dir layout.buildDirectory.dir('generated/speakers')
+    commandLine 'python3',"../tools/${generator}",'--output',layout.buildDirectory.dir('generated/speakers').get().asFile
+}
+if(project.name.startsWith('forge'))sourceSets.main.java.setSrcDirs([generateLegacySources])
+else sourceSets.main.java.srcDir generateLegacySources
+
+def generatePortResources=tasks.register('generatePortResources', Exec) {
+    inputs.dirs '../common/src/main/resources','src/main/resources'
+    inputs.file '../tools/port_resources.py'
+    outputs.dir layout.buildDirectory.dir('generated/portResources')
+    commandLine 'python3','../tools/port_resources.py','--version','1.16.5','--loader',project.name.split('-')[0],'--output',layout.buildDirectory.dir('generated/portResources').get().asFile
+}
+sourceSets.main.resources.setSrcDirs([generatePortResources])
+configurations { jabelAgent }
+dependencies {
+    compileOnly sourceSets.packetweaveApi.output
+    testImplementation sourceSets.packetweaveApi.output
+    implementation 'javazoom:jlayer:1.0.1'
+    compileOnly 'org.jetbrains:annotations:26.0.2'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'com.github.bsideup.jabel:jabel-javac-plugin:0.4.2'
+    testAnnotationProcessor 'com.github.bsideup.jabel:jabel-javac-plugin:0.4.2'
+    jabelAgent 'net.bytebuddy:byte-buddy-agent:1.11.21'
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+tasks.withType(JavaCompile).configureEach {
+    sourceCompatibility=JavaVersion.VERSION_17
+    options.release=8
+    options.encoding='UTF-8'
+}
+compileJava {
+    dependsOn generateLegacySources
+    options.fork=true
+    doFirst { options.forkOptions.jvmArgs += "-javaagent:${configurations.jabelAgent.singleFile}" }
+}
+compilePacketweaveApiJava { sourceCompatibility=JavaVersion.VERSION_1_8 }
+sourcesJar { dependsOn generateLegacySources }
+test { useJUnitPlatform(); javaLauncher=javaToolchains.launcherFor { languageVersion=JavaLanguageVersion.of(8) } }
+processResources { duplicatesStrategy=DuplicatesStrategy.EXCLUDE; filesMatching(['fabric.mod.json','META-INF/mods.toml']) { expand version:project.version } }
+tasks.register('verifyPortDependencies') {
+    doLast { [portOpenuiJar,portPacketweaveJar].each { if(!it.isFile())throw new GradleException("Missing pinned standalone dependency: ${it}. See docs/requested-generations.md or pass -PopenuiJar/-PpacketweaveJar.") } }
+}
+compileJava { dependsOn 'verifyPortDependencies' }
+
+def generateLegacyTests=tasks.register('generateLegacyTests',Exec) {
+    inputs.dirs '../common/src/test/java','../common-legacy/src/test/java','../common-1.16.5/src/test/java'
+    inputs.files '../shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network/PortablePacketDedicatedSideLoadingTest.java','../shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network/PlaybackWireContractTest.java'
+    inputs.files '../tools/legacy_speaker_sources.py','../tools/forge_1165_sources.py','../tools/forge_1165_types.json','../tools/java8_records.py'
+    outputs.dir layout.buildDirectory.dir('generated/tests')
+    commandLine 'python3',"../tools/${generator}",'--tests','--output',layout.buildDirectory.dir('generated/tests').get().asFile
+}
+sourceSets.test.java.srcDir generateLegacyTests
+compileTestJava {
+    options.fork=true
+    doFirst { options.forkOptions.jvmArgs += "-javaagent:${configurations.jabelAgent.singleFile}" }
+}
+test { systemProperty 'simplyspeakers.testMainClasses', sourceSets.main.output.classesDirs.asPath }
+
+sourceSets.test.resources.srcDir '../common/src/test/resources'

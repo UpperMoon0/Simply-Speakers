@@ -1,0 +1,12 @@
+plugins { id 'net.fabricmc.fabric-loom-remap' version '1.17.9' }
+apply from:'../gradle/legacy-port.gradle'
+dependencies {
+    minecraft 'com.mojang:minecraft:1.16.5'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.19.5'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.42.0+1.16'
+    modImplementation 'me.shedaniel:architectury-fabric:1.32.68'
+    modImplementation files(portOpenuiJar)
+    modRuntimeOnly files(portPacketweaveJar)
+    include 'javazoom:jlayer:1.0.1'
+}
