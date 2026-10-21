@@ -25,7 +25,7 @@ class LegacyControllerUnloadIntegrationTest {
     private SpeakerState state;
     private RedstoneControllerBlockEntity tile;
     private MockedStatic<?> network;
-    @BeforeAll static void bootstrap() {SharedConstants.setVersion(net.minecraft.DetectedVersion.tryDetectVersion());Bootstrap.bootStrap();}
+    @BeforeAll static void bootstrap() {SharedConstants.getCurrentVersion();Bootstrap.bootStrap();}
     @BeforeEach void prepare() throws Exception {
         ServerSpeakerRegistry.resetForWorld();ServerPlaybackManager.resetForWorld();ControllerCoordinator.reset();
         server=mock(MinecraftServer.class);level=mock(ServerLevel.class);player=mock(ServerPlayer.class);

@@ -45,6 +45,33 @@ def remove_method(text, marker):
     body=text.index('{',start);end=end_pair(text,body,'{','}')
     return text[:line]+text[end+1:]
 
+def isolate_client_packet_handlers(text,name,side_reject='{context}.get().getEnvironment()!=me.shedaniel.architectury.utils.Env.CLIENT'):
+    """Keep registration/codec descriptors server-safe while retaining owned client bodies."""
+    if not name.endswith('PacketS2C.java'):return text
+    names=['handle']
+    if name=='PlaylistSyncPacketS2C.java':names+=['matchesScreen']
+    if name=='SpeakerStateUpdatePacketS2C.java':names+=['handleSpeakerStateUpdate']
+    if name=='PlayAudioPacketS2C.java':names+=['playOrDefer','play','processPendingPlays','clearPendingPlays','startLiveJoinProbe']
+    moved=[]
+    for method in names:
+        match=re.search(r'    (public|private) static ([^\n{]+?) '+method+r'\(([^\n]*)\) \{',text)
+        assert match is not None, 'Client boundary anchor changed: '+name+' '+method
+        body=text.index('{',match.start());end=end_pair(text,body,'{','}')
+        moved.append(text[match.start():end+1])
+        replacement=''
+        if match[1]=='public':
+            arguments=[part.strip().rsplit(' ',1)[-1] for part in split_params(match[3])]
+            guard=''
+            if method=='handle':
+                guard='        if('+side_reject.format(context=arguments[-1])+')return;\n'
+            replacement=text[match.start():body+1]+'\n'+guard+'        ClientHandler.'+method+'('+', '.join(arguments)+');\n    }'
+        text=text[:match.start()]+replacement+text[end+1:]
+    if name=='PlayAudioPacketS2C.java':
+        field='    private static final DeferredTaskQueue PENDING_PLAYS = new DeferredTaskQueue();'
+        assert field in text;text=text.replace(field,'');moved.insert(0,field)
+    end=text.rfind('}')
+    return text[:end]+'    /** Loaded only after the native receiver has accepted the client direction. */\n    private static final class ClientHandler {\n'+'\n'.join(moved)+'\n    }\n'+text[end:]
+
 def convert(text, name):
     text=java8(text)
     text=text.replace('dev.architectury.', 'me.shedaniel.architectury.')
@@ -141,7 +168,7 @@ def convert(text, name):
             '\n            if(method.getName().equals("grab") && method.getParameterCount()==6) {\n                method.invoke(null,client.gameDirectory,filename,client.getWindow().getWidth(),client.getWindow().getHeight(),target,result);return;\n            }')
     if name=='ClientEvents.java':
         text=text.replace('DirectionalPreview.renderHud(graphics)', 'DirectionalPreview.renderHud(new com.nstut.openui.graphics.LegacyGuiGraphics(graphics))')
-    return text
+    return isolate_client_packet_handlers(text,name)
 
 def generate(output):
     generated=set()

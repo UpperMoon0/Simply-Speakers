@@ -140,11 +140,31 @@ def convert(text,name):
     for before,after in [('setChanged','markDirty'),('setRemoved','invalidate'),('getBlockPos','getPos')]:text=re.sub(r'\b'+before+r'\(',after+'(',text)
     text=text.replace('!currentState.is(com.nstut.simplyspeakers.blocks.BlockRegistries.PROXY_SPEAKER.get())','currentState.getBlock()!=com.nstut.simplyspeakers.blocks.BlockRegistries.PROXY_SPEAKER.get()')
     text=text.replace('BlockPos.ZERO','BlockPos.ORIGIN')
+    if name=='RedstoneControllerBlockEntity.java':
+        anchor='    boolean coordinatorEligible() {'
+        assert anchor in text, 'Native controller lifecycle anchor changed'
+        text=text.replace(anchor, '''    void retiredFromWorld() { awaitingFirstObservation = true; pulseSignal = 0; }
+    @Override public void onChunkUnload() {
+        retiredFromWorld();
+        ControllerCoordinator.remove(this);
+        super.onChunkUnload();
+    }
+'''+anchor)
+    if name=='ControllerCoordinator.java':
+        anchor='        controllers.removeIf(c -> c.isInvalid() || c.getWorld() == null);'
+        assert anchor in text, 'Native controller retirement anchor changed'
+        text=text.replace(anchor, '''        controllers.removeIf(c -> {
+            if(com.nstut.simplyspeakers.compat.LegacyControllerLifecycle.isCurrent(c)) return false;
+            c.retiredFromWorld(); return true;
+        });
+        pulses.values().forEach(list -> list.removeIf(c -> !controllers.contains(c)));''')
+        text=text.replace('return c.coordinatorEligible();', 'return com.nstut.simplyspeakers.compat.LegacyControllerLifecycle.isCurrent(c) && c.coordinatorEligible();')
     if name=='PortableSpeakerItem.java':
         text=text.replace('public PortableSpeakerItem(Properties properties) { super(properties.stacksTo(1)); }','public PortableSpeakerItem() { setMaxStackSize(1); }')
         text=text.replace(' use(World level, EntityPlayer player, EnumHand hand)', ' onItemRightClick(World level, EntityPlayer player, EnumHand hand)')
         text=text.replace('ActionResult.sidedSuccess(player.getHeldItem(hand), level.isRemote)', 'new ActionResult<ItemStack>(net.minecraft.util.EnumActionResult.SUCCESS, player.getHeldItem(hand))')
     if name=='ClientAudioPlayer.java':
+        text=text.replace('private static final AudioContextGate audioContext = new AudioContextGate();', 'private static final AudioContextGate audioContext = '+P+'LegacySoundContext.newSuspendedGate();')
         text=text.replace('AL10.alGenBuffers(bufferIDs)',P+'LegacyAudio.genBuffers(bufferIDs)').replace('AL10.alDeleteBuffers(bufferIDs)',P+'LegacyAudio.deleteBuffers(bufferIDs)').replace('AL10.alSourceUnqueueBuffers(sourceID, buffers)',P+'LegacyAudio.unqueueBuffers(sourceID, buffers)')
     if name=='SimplySpeakersUiScreen.java':
         text=remove_method(text,'public boolean mouseClicked(');text=remove_method(text,'public boolean mouseReleased(')

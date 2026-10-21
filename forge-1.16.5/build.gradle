@@ -38,7 +38,7 @@ mixin { add sourceSets.main, "simplyspeakers.refmap.json"; config "simplyspeaker
 
 minecraft.runs {
     liveJoinTestClient {
-        parent minecraft.runs.client
+        child minecraft.runs.client
         workingDirectory project.file('run/live-join/client')
         property 'simplyspeakers.liveJoinTest', 'true'
         property 'simplyspeakers.livePlaybackTest', 'true'
@@ -47,7 +47,7 @@ minecraft.runs {
         mods { simplyspeakers { source sourceSets.main } }
     }
     liveJoinTestObserver {
-        parent minecraft.runs.client
+        child minecraft.runs.client
         workingDirectory project.file('run/live-join/observer')
         property 'simplyspeakers.liveJoinTest', 'true'
         property 'simplyspeakers.livePlaybackTest', 'true'
@@ -57,7 +57,7 @@ minecraft.runs {
         mods { simplyspeakers { source sourceSets.main } }
     }
     liveJoinTestServer {
-        parent minecraft.runs.server
+        child minecraft.runs.server
         workingDirectory project.file('run/live-join/server')
         property 'simplyspeakers.livePlaybackTest', 'true'
         property 'simplyspeakers.requestedPortRuntime', 'true'

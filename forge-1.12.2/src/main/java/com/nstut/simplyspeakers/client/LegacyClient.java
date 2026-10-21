@@ -17,7 +17,7 @@ public final class LegacyClient extends com.nstut.simplyspeakers.forge.CommonPro
  @SubscribeEvent public void tick(TickEvent.ClientTickEvent event){if(event.phase!=TickEvent.Phase.END)return;Minecraft mc=Minecraft.getMinecraft();if(previousWorld!=mc.world){if(previousWorld!=null)clear();previousWorld=mc.world;}ClientPortableSpeakers.tick();if(mc.player!=null&&mc.world!=null){PlayAudioPacketS2C.processPendingPlays();ClientAudioPlayer.updateSpeakerVolumes();DirectionalPreview.tick(mc);}}
  @SubscribeEvent public void overlay(RenderGameOverlayEvent.Post event){if(event.getType()==RenderGameOverlayEvent.ElementType.ALL){try(com.nstut.openui.graphics.LegacyGuiGraphics g=new com.nstut.openui.graphics.LegacyGuiGraphics()){DirectionalPreview.renderHud(g);}ClientAudioPlayer.updateSpeakerVolumes();}}
  @SubscribeEvent public void disconnected(FMLNetworkEvent.ClientDisconnectionFromServerEvent event){Minecraft.getMinecraft().addScheduledTask(()->{clear();ClientAudioPlayer.clearAudioList();com.nstut.simplyspeakers.Config.restoreLocalConfig();});}
- public static void contextReady(boolean ready){if(ready)ClientAudioPlayer.soundContextReady();}
+ public static void contextReady(boolean ready){com.nstut.simplyspeakers.compat.LegacySoundContext.ready(ready,ClientAudioPlayer::soundContextReady,ClientAudioPlayer::soundContextDestroying);}
  public static void contextDestroying(){ClientAudioPlayer.soundContextDestroying();}
  private static void clear(){DirectionalPreview.clear();ClientAudioPlayer.stopAll();PlayAudioPacketS2C.clearPendingPlays();ClientSpeakerRegistry.clear();}
  public void openSpeakerScreen(BlockPos pos){ClientEvents.openSpeakerScreen(pos);}

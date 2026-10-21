@@ -21,6 +21,10 @@ OpenUI screens and LWJGL 2 buffer calls. No Minecraft implementation is vendored
 The audio core transformer suspends playback before vanilla destroys its OpenAL
 context and resumes only after the asynchronous sound loader marks it ready.
 Forge's early `SoundLoadEvent` is intentionally not used as readiness evidence.
+The gate starts suspended and also requires an actually created OpenAL context
+matching the current context, so Paulscode's silent fallback cannot resume audio.
+Controller unload retires transient inputs without invalidating reusable tiles;
+the shared attachment guard checks chunk presence before current tile identity.
 
 Crafting uses gold and quartz in place of copper and amethyst, which do not exist
 in this Minecraft version. Planks use the native wildcard-metadata ingredient.
@@ -37,7 +41,9 @@ suite plus native buffer, wire, dedicated-side, coordinate and audio-transformer
 regressions on Java 8. The transformer test inspects the actual Minecraft class
 from the dependency classpath, never a copied game implementation.
 
-Development verification passed all 416 tests on Java 8 and compiled the full
+Development verification passed all 427 tests on Java 8 and compiled the full
 native source set against official Forge-patched Minecraft 1.12.2, stable-39
-mappings, the pinned PacketWeave API and OpenUI's native 1.12 adapter. This is not
-an in-game client smoke test; release packaging is checked by the native CI job.
+mappings and the official Forge access transforms, the pinned PacketWeave API and
+OpenUI's native 1.12 adapter. A separate Gradle 5.6.4 offline smoke check verified
+the exact local jars resolve as external module dependencies. These checks are
+not an in-game client smoke test; full packaging remains subject to native CI.

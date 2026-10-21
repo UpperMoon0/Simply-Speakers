@@ -39,10 +39,40 @@ class Forge1122GenerationTests(unittest.TestCase):
         transformer=(root/'forge/AudioTransformer.java').read_text()
         self.assertNotIn('SoundLoadEvent',client)
         self.assertIn('contextReady(boolean ready)',client)
-        self.assertIn('if(ready)',client)
+        self.assertIn('LegacySoundContext.ready(ready',client)
         self.assertIn('field_148617_f',transformer)
         self.assertIn('func_148613_b',transformer)
         self.assertIn('!patched[0]||!patched[1]',transformer)
+    def test_native_controller_unload_and_identity_guards(self):
+        root=port.ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/blocks/entities'
+        tile=port.convert((root/'RedstoneControllerBlockEntity.java').read_text(),'RedstoneControllerBlockEntity.java')
+        self.assertIn('void onChunkUnload()',tile)
+        self.assertIn('void retiredFromWorld() { awaitingFirstObservation = true; pulseSignal = 0; }',tile)
+        hook=tile[tile.index('void onChunkUnload()'):tile.index('boolean coordinatorEligible()')]
+        self.assertIn('ControllerCoordinator.remove(this)',hook)
+        self.assertIn('super.onChunkUnload()',hook)
+        self.assertNotIn('invalidate()',hook)
+        coordinator=port.convert((root/'ControllerCoordinator.java').read_text(),'ControllerCoordinator.java')
+        self.assertIn('LegacyControllerLifecycle.isCurrent(c)',coordinator)
+        self.assertIn('pulses.values().forEach(list -> list.removeIf(c -> !controllers.contains(c)))',coordinator)
+    def test_audio_gate_starts_closed_and_checks_real_context(self):
+        root=port.ROOT/'forge-1.12.2/src/main/java/com/nstut/simplyspeakers'
+        helper=(root/'compat/LegacySoundContext.java').read_text()
+        self.assertIn('AL::isCreated',helper)
+        self.assertIn('AL::getContext',helper)
+        self.assertIn('ALC10::alcGetCurrentContext',helper)
+        self.assertIn('owned != null && owned == current.get()',helper)
+        source=port.ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/client/ClientAudioPlayer.java'
+        self.assertIn('LegacySoundContext.newSuspendedGate()',port.convert(source.read_text(),source.name))
+    def test_gradle_5_inputs_and_exact_native_module_dependencies(self):
+        text=(port.ROOT/'forge-1.12.2/build.gradle').read_text()
+        self.assertNotIn('inputs.dirs',text)
+        self.assertNotIn('fg.deobf(files(',text)
+        self.assertIn('fg.deobf(openuiModule)',text)
+        self.assertIn('fg.deobf(packetweaveModule)',text)
+        self.assertIn('includeGroup groupName',text)
+        self.assertIn('localGroups.each { excludeGroup it }',text)
+        self.assertIn("moduleName+'-pinned.jar'",text)
     def test_native_resources_only_available_ingredients(self):
         with tempfile.TemporaryDirectory() as tmp:
             port.resources(Path(tmp))

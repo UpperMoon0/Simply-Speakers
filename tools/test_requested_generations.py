@@ -40,6 +40,14 @@ class RequestedGenerationTest(unittest.TestCase):
         self.assertIn('includeGroup groupName',text)
         self.assertIn('exclusiveContent',text)
         self.assertIn('fg.deobf(openuiModule)',text)
+    def test_legacy_client_handler_isolation_preserves_owned_codecs(self):
+        for source in (ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/network').glob('*PacketS2C.java'):
+            generated=legacy.convert(source.read_text(),source.name)
+            outer,nested=generated.split('private static final class ClientHandler',1)
+            self.assertIn('getEnvironment()!=me.shedaniel.architectury.utils.Env.CLIENT',outer)
+            self.assertIn('static void handle(',nested)
+            self.assertNotIn('matchesScreen(PlaylistSyncPacketS2C pkt, SpeakerScreen screen)',outer)
+            self.assertNotIn('private static final DeferredTaskQueue',outer)
     def test_native_authority_and_upload_bounds_are_retained(self):
         for name in ['SpeakerPacketSecurity.java','UploadAudioDataPacketC2S.java']:
             source=next((ROOT/'common-1.20.1/src/main/java').rglob(name)).read_text()

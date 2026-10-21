@@ -4,6 +4,10 @@ import java.io.File;
 import java.nio.file.*;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import me.shedaniel.architectury.networking.NetworkManager;
+import me.shedaniel.architectury.utils.Env;
+import java.util.function.Supplier;
 /** Exercise every production S2C packet's initialization with client code unavailable. */
 class LegacyDedicatedPacketLoadingTest {
     @Test void allServerRegisteredPacketClassesInitializeWithoutClientClasses() throws Exception {
@@ -31,6 +35,8 @@ class LegacyDedicatedPacketLoadingTest {
                 }
             }
         };
+        NetworkManager.PacketContext server=mock(NetworkManager.PacketContext.class);
+        when(server.getEnvironment()).thenReturn(Env.SERVER);
         int count=0;
         for(Path root:roots) {
             Path folder=root.resolve("com/nstut/simplyspeakers/network");if(!Files.isDirectory(folder))continue;
@@ -39,7 +45,8 @@ class LegacyDedicatedPacketLoadingTest {
                     String name="com.nstut.simplyspeakers.network."+path.getFileName().toString().replace(".class","");
                     Class<?> type=Class.forName(name,true,loader);
                     assertSame(loader,type.getClassLoader());assertNotNull(type.getDeclaredMethods());
-                    assertNotNull(type.getDeclaredConstructors());count++;
+                    assertNotNull(type.getDeclaredConstructors());assertNotNull(type.getDeclaredFields());
+                    type.getMethod("handle",type,Supplier.class).invoke(null,null,(Supplier<NetworkManager.PacketContext>)()->server);count++;
                 }
             }
         }

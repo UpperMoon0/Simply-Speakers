@@ -43,6 +43,8 @@ def command(root,task):
 
 def prepare_server(module):
     ORIGINAL_PREPARE_SERVER(module)
+    properties=module/'run/live-join/server/server.properties'
+    properties.write_text(properties.read_text()+'server-ip=127.0.0.1\n',encoding='utf-8')
     if module.name.endswith('1.16.5'):
         path=module/'run/live-join/server/server.properties'
         path.write_text(path.read_text().replace('level-type=minecraft:flat','level-type=flat'),encoding='utf-8')

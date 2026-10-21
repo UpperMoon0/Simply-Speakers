@@ -15,14 +15,33 @@ configurations { shade }
 def openuiJar=findProperty('openuiJar') ?: System.getenv('OPENUI_JAR')
 def packetweaveJar=findProperty('packetweaveJar') ?: System.getenv('PACKETWEAVE_JAR')
 if(!openuiJar || !packetweaveJar)throw new GradleException('Supply exact branch artifacts with -PopenuiJar and -PpacketweaveJar. This port never assumes an unreleased dependency is on Maven.')
+// FG3 remaps ExternalModuleDependency, not FileCollection dependencies. These
+// bounded repositories resolve only the caller-supplied basename.jar artifacts.
+def localGroups=['local.port.openui','local.port.packetweave']
+repositories.all { repository ->
+    if(!(repository instanceof org.gradle.api.artifacts.repositories.FlatDirectoryArtifactRepository)) {
+        repository.content { localGroups.each { excludeGroup it } }
+    }
+}
+def portModule = { Object supplied, String groupName ->
+    File artifact=file(supplied)
+    if(!artifact.isFile() || !artifact.name.endsWith('.jar'))throw new GradleException("Missing pinned native jar: ${artifact}")
+    String moduleName=artifact.name.substring(0,artifact.name.length()-4)
+    // flatDir prefers name-version.jar; forbid a sibling from shadowing the exact file.
+    if(new File(artifact.parentFile,moduleName+'-pinned.jar').exists())throw new GradleException("Ambiguous pinned dependency beside ${artifact}")
+    repositories.flatDir { dirs artifact.parentFile; content { includeGroup groupName } }
+    return [group:groupName,name:moduleName,version:'pinned',ext:'jar']
+}
+def openuiModule=portModule(openuiJar,'local.port.openui')
+def packetweaveModule=portModule(packetweaveJar,'local.port.packetweave')
 minecraft {
     mappings channel:'stable',version:'39-1.12'
     runs { client { workingDirectory project.file('run') };server { workingDirectory project.file('run');args 'nogui' } }
 }
 dependencies {
     minecraft 'net.minecraftforge:forge:1.12.2-14.23.5.2864'
-    implementation fg.deobf(files(openuiJar))
-    implementation fg.deobf(files(packetweaveJar))
+    implementation fg.deobf(openuiModule)
+    implementation fg.deobf(packetweaveModule)
     implementation 'org.jetbrains:annotations:26.0.2'
     compileOnly 'org.projectlombok:lombok:1.18.42'
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
@@ -31,13 +50,14 @@ dependencies {
     shade 'com.mojang:brigadier:1.0.17'
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'org.mockito:mockito-core:4.11.0'
     testRuntimeOnly 'org.junit.vintage:junit-vintage-engine:5.11.4'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
 }
 configurations.implementation.extendsFrom configurations.shade
 sourceSets.each { def directory=file("$buildDir/sourceSets/$it.name");it.output.resourcesDir=directory;it.java.outputDir=directory }
 task generateLegacySources(type:Exec) {
-    inputs.dirs '../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'
+    ['../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'].each { inputs.dir it }
     inputs.files '../tools/forge_1122_sources.py','../tools/legacy_speaker_sources.py','../tools/java8_records.py','../gradle.properties'
     outputs.dir "$buildDir/generated/simplyspeakers"
     commandLine 'python3','../tools/forge_1122_sources.py','--output',"$buildDir/generated/simplyspeakers"
@@ -54,14 +74,14 @@ task compileLegacyJava(type:Exec) {
         def sources=file("$buildDir/legacy-sources.args")
         sources.parentFile.mkdirs();sources.text=sourceSets.main.java.files.collect { '"'+it.absolutePath.replace('\\','/')+'"' }.sort().join('\n')
         def agent=configurations.annotationProcessor.files.find { it.name.startsWith('byte-buddy-agent-') }
-        commandLine compiler,'-Xmx1G','-javaagent:'+agent.absolutePath,file('CompileLegacy.java'),sources.absolutePath,
+        commandLine compiler,'-Xmx1G','-XX:ActiveProcessorCount=2','-javaagent:'+agent.absolutePath,file('CompileLegacy.java'),sources.absolutePath,
                 '--release','8','-encoding','UTF-8','-processorpath',configurations.annotationProcessor.asPath,
                 '-classpath',sourceSets.main.compileClasspath.asPath,'-d',sourceSets.main.java.outputDir
     }
 }
 compileJava { enabled=false;dependsOn compileLegacyJava }
 task generateLegacyTests(type:Exec) {
-    inputs.dirs '../common/src/test/java','../common-legacy/src/test/java','../common-1.16.5/src/test/java','src/test/java'
+    ['../common/src/test/java','../common-legacy/src/test/java','../common-1.16.5/src/test/java','src/test/java'].each { inputs.dir it }
     inputs.files '../tools/forge_1122_sources.py','../tools/legacy_speaker_sources.py','../tools/java8_records.py'
     inputs.files '../shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network/PortablePacketDedicatedSideLoadingTest.java','../shared/integration-tests/src/test/java/com/nstut/simplyspeakers/network/PlaybackWireContractTest.java'
     outputs.dir "$buildDir/generated/tests"
@@ -80,13 +100,22 @@ task compileLegacyTests(type:Exec) {
         def sources=file("$buildDir/legacy-tests.args")
         sources.parentFile.mkdirs();sources.text=sourceSets.test.java.files.collect { '"'+it.absolutePath.replace('\\','/')+'"' }.sort().join('\n')
         def agent=configurations.annotationProcessor.files.find { it.name.startsWith('byte-buddy-agent-') }
-        commandLine compiler,'-Xmx1G','-javaagent:'+agent.absolutePath,file('CompileLegacy.java'),sources.absolutePath,
+        commandLine compiler,'-Xmx1G','-XX:ActiveProcessorCount=2','-javaagent:'+agent.absolutePath,file('CompileLegacy.java'),sources.absolutePath,
                 '--release','8','-encoding','UTF-8','-processorpath',configurations.annotationProcessor.asPath,
                 '-classpath',sourceSets.test.compileClasspath.asPath,'-d',sourceSets.test.java.outputDir
     }
 }
 compileTestJava { enabled=false;dependsOn compileLegacyTests }
-test { useJUnitPlatform();maxParallelForks=1;maxHeapSize='768m';systemProperty 'simplyspeakers.testMainClasses',sourceSets.main.output.classesDirs.asPath }
+test {
+    useJUnitPlatform();maxParallelForks=1;maxHeapSize='768m'
+    systemProperty 'simplyspeakers.testMainClasses',sourceSets.main.output.classesDirs.asPath
+    // Deterministic inline native-boundary mocks, without relying on JVM self-attachment.
+    doFirst {
+        def agent=configurations.testRuntimeClasspath.files.find { it.name.startsWith('byte-buddy-agent-') }
+        if(!agent)throw new GradleException('Mockito native integration tests require the ByteBuddy agent dependency.')
+        jvmArgs '-javaagent:'+agent.absolutePath
+    }
+}
 task generateLegacyResources(type:Exec) {
     inputs.dir '../common/src/main/resources';inputs.files '../tools/forge_1122_sources.py','../tools/port_resources.py'
     outputs.dir "$buildDir/generated/resources"
