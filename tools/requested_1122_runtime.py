@@ -132,7 +132,9 @@ def run(args) -> None:
                'source_commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
                'source_dirty': bool(subprocess.check_output(['git', 'status', '--porcelain'], cwd=ROOT, text=True).strip()),
                'result': 'not-completed'}
+    (report_dir / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
     server = client = None
+    verified = False
     try:
         run_preparation(command(ROOT, 'classes', args.openui_jar, args.packetweave_jar), ROOT, args.timeout, 'prepare-classes')
         # Resolve both task graphs serially; no concurrent compilation/remapping.
@@ -145,15 +147,32 @@ def run(args) -> None:
         client.wait_for_all(CLIENT_MARKERS, args.timeout, peer=server)
         # The client deliberately exits after disconnect; do not treat that as a peer failure.
         server.wait_for_all(SERVER_MARKERS, 60)
+        result = client.process.wait(timeout=30)
+        if result != 0: raise RuntimeError('Native client wrapper exited unsuccessfully: ' + str(result))
+        if server.process.poll() is not None: raise RuntimeError('Native server exited before teardown verification')
         validate_log(''.join(client.history), CLIENT_MARKERS); validate_log(''.join(server.history), SERVER_MARKERS)
-        receipt['result'] = 'passed'
-        print('SIMPLYSPEAKERS_1122_DEVELOPMENT_ACCEPTANCE_PASS physicalAudibility=false')
+        verified = True
     finally:
-        for name, process in (('client', client), ('server', server)):
-            if process:
-                live.stop_tree(process.process, graceful_server=name == 'server')
-                (report_dir / (name + '.log')).write_text(''.join(process.history), encoding='utf-8')
+        cleanup_errors = []
+        for name, output in (('client', client), ('server', server)):
+            if output is None: continue
+            try:
+                live.stop_tree(output.process, graceful_server=name == 'server')
+                output.thread.join(timeout=5)
+                if output.thread.is_alive(): raise RuntimeError(name + ' output reader did not drain after cleanup')
+                if verified:
+                    if output.process.poll() != 0: raise RuntimeError(name + ' wrapper did not exit cleanly')
+                    validate_log(''.join(output.history), CLIENT_MARKERS if name == 'client' else SERVER_MARKERS)
+            except Exception as error:
+                cleanup_errors.append(str(error))
+            try:
+                (report_dir / (name + '.log')).write_text(''.join(output.history), encoding='utf-8')
+            except Exception as error:
+                cleanup_errors.append(name + ' evidence write failed: ' + str(error))
+        receipt['result'] = 'passed' if verified and not cleanup_errors else 'not-completed'
         (report_dir / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n', encoding='utf-8')
+        if cleanup_errors: raise RuntimeError('Native acceptance cleanup failed: ' + '; '.join(cleanup_errors))
+    print('SIMPLYSPEAKERS_1122_DEVELOPMENT_ACCEPTANCE_PASS physicalAudibility=false')
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)

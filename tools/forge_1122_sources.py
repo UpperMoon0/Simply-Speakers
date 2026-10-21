@@ -238,7 +238,7 @@ def resources(output):
     for path in (assets/'blockstates').glob('*.json'):
         value=json.loads(path.read_text())
         variants=value.get('variants',{})
-        value['variants']={key+',powered='+powered:variant for key,variant in variants.items() for powered in ['false','true']}
+        value['variants']={key+',powered='+powered:port_resources.legacy_variant_model(variant) for key,variant in variants.items() for powered in ['false','true']}
         path.write_text(json.dumps(value,indent=2)+'\n')
     for path in (assets/'lang').glob('*.lang'):
         lines=path.read_text().splitlines()

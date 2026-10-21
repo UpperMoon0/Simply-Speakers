@@ -7,6 +7,7 @@ ALSOFT_DRIVERS=null deliberately does not prove physical audible output.
 """
 from __future__ import annotations
 import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -26,6 +27,9 @@ def required_markers(target):
             tuple(marker for marker in server if marker!='SIMPLYSPEAKERS_PERIPHERAL_PASS')+
             (f'SIMPLYSPEAKERS_RUNTIME_JVM role=server major={8 if target.endswith("1.16.5") else 25}',))
 
+class NativeEligibilityUnavailable(RuntimeError):
+    """Observed native refusal; never a successful dedicated qualification."""
+
 def reject_failure(prefix, line):
     ORIGINAL_REJECT_FAILURE(prefix, line)
     # Read-only native diagnostics prove startup did not enter the requested
@@ -38,7 +42,7 @@ def reject_failure(prefix, line):
     if prefix in labels and any(line.rstrip().endswith(
             'SIMPLYSPEAKERS_PREJOIN_WAIT screen=' + title +
             ', overlay=none, multiplayerAllowed=false') for title in titles):
-        raise RuntimeError(prefix + ': native Minecraft multiplayer eligibility is false after loading; '
+        raise NativeEligibilityUnavailable(prefix + ': native Minecraft multiplayer eligibility is false after loading; '
                            'no join acceptance is claimed and no connection override is attempted')
 
 def dependency_arguments(root,target):
@@ -76,7 +80,19 @@ def main():
     live.command=command;live.required_markers=required_markers;live.prepare_server=prepare_server
     live.reject_failure=reject_failure
     with checkout_lock(ROOT,'requested-live-join.lock'):
-        live.run_target(ROOT,args.target,args.timeout)
+        receipt_path=ROOT/args.target/'build/runtime-evidence/dedicated-qualification.json'
+        receipt_path.parent.mkdir(parents=True,exist_ok=True)
+        receipt={'target':args.target,'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+                 'mode':'dedicated-two-client','result':'not-completed','runtime_qualified':False}
+        receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')
+        try:
+            live.run_target(ROOT,args.target,args.timeout)
+            receipt.update(result='passed',runtime_qualified=True)
+        except NativeEligibilityUnavailable:
+            receipt.update(result='blocked-native-multiplayer',native_multiplayer_allowed=False)
+            raise
+        finally:
+            receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')
     return 0
 
 if __name__=='__main__':

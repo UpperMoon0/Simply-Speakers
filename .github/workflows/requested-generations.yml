@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: UpperMoon0/OpenUI-MC
-          ref: ae7ac42daf6acf3018850778ffd4fa4ee4d4cb71
+          ref: 672b5b2b7169bef30f5f10b34f296812abe31460
           path: .port-deps/OpenUI-MC
       - uses: actions/checkout@v4
         with:
@@ -56,6 +56,7 @@ jobs:
             25
       - uses: gradle/actions/setup-gradle@v4
       - name: Build pinned native dependencies and consumer
+        id: native-build
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
@@ -123,6 +124,24 @@ jobs:
           export PATH="$JAVA_HOME/bin:$PATH"
           mkdir -p "$TARGET/build/runtime-evidence"
           python3 tools/requested_live_join.py --target "$TARGET" --timeout 900 2>&1 | tee "$TARGET/build/runtime-evidence/native-runtime.log"
+      - name: Check separate integrated-world eligibility
+        if: always() && (matrix.target == 'fabric-1.16.5' || matrix.target == 'forge-1.16.5') && steps.native-build.outcome == 'success'
+        id: integrated-boundary
+        env:
+          TARGET: ${{ matrix.target }}
+        run: python3 tools/requested_integrated_acceptance.py --target "$TARGET" --check-boundary --github-output "$GITHUB_OUTPUT"
+      - name: Separate ordinary Singleplayer-menu acceptance
+        if: always() && steps.integrated-boundary.outputs.accepted == 'true'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ALSOFT_DRIVERS: 'null'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == 'forge-1.16.5' ]]; then export JAVA_HOME="$JAVA_HOME_17_X64"; else export JAVA_HOME="$JAVA_HOME_25_X64"; fi
+          export PATH="$JAVA_HOME/bin:$PATH"
+          python3 tools/requested_integrated_acceptance.py --target "$TARGET" --timeout 600 2>&1 | tee "$TARGET/build/runtime-evidence/integrated-runtime.log"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -136,4 +155,7 @@ jobs:
             ${{ matrix.target }}/run/live-join/*/screenshots/*.png
             ${{ matrix.target }}/run/legacy-runtime/receipts/
             ${{ matrix.target }}/run/legacy-runtime/*/logs/latest.log
+            ${{ matrix.target }}/run/integrated-acceptance/**/receipt.json
+            ${{ matrix.target }}/run/integrated-acceptance/**/integrated.log
+            ${{ matrix.target }}/run/integrated-acceptance/**/logs/latest.log
           if-no-files-found: warn

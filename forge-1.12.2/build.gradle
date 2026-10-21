@@ -29,6 +29,9 @@ minecraft {
         server { workingDirectory project.file('run');args 'nogui' }
         // Late child merge inherits the fully resolved native FG3 bootstrap.
         legacyRuntimeClient {
+            // FG3's default kills its supervising Gradle JVM after a successful game.
+            // Keep native JavaExec's real child exit status instead.
+            forceExit false
             child minecraft.runs.client
             workingDirectory project.file('run/legacy-runtime/client')
             // Expose native LWJGL/XRandR failures in this opt-in fixture only.
@@ -39,6 +42,9 @@ minecraft {
             args '--username','SS1122Client','--width','960','--height','640'
         }
         legacyRuntimeServer {
+            // FG3's default kills its supervising Gradle JVM after a successful game.
+            // Keep native JavaExec's real child exit status instead.
+            forceExit false
             child minecraft.runs.server
             workingDirectory project.file('run/legacy-runtime/server')
             property 'simplyspeakers.legacyRuntimeAcceptance','true'

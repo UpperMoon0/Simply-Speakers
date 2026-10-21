@@ -93,13 +93,17 @@ and strict dedicated-side S2C initialization. The file-dialog tests use a real
 worker and prove callbacks cannot execute before the client executor drains.
 These are compiler/integration-test receipts, not a substitute for a loaded game.
 
-The first Fabric 26.2 development multiplayer run reached the real server and two
-clients, 60 MiB download/decode, continuous settings dragging, and normal-playing
-and paused native OpenAL destruction/reload. It then stopped at a screenshot-probe
-API mismatch, so the whole acceptance run did not pass. The generator now uses
-GameRenderer's native main render target; the corrected complete run is required.
-Forge 1.12.2 still needs a recorded native client/server/audio run. PR status and
-CI artifacts remain the authoritative current acceptance record.
+At exact PR head `7d01dea665d148e2edb4da2ce3831281c56ae5a3`, both Fabric and
+NeoForge 26.2 completed native packaging and the full real Java 25 server/two-client
+audio acceptance in [run 39616326814](https://github.com/UpperMoon0/Simply-Speakers/actions/runs/39616326814).
+This includes large audio transfer/decode, native OpenAL playing/paused reload,
+UI controls and directional-preview framebuffer evidence. The null OpenAL backend
+still does not prove physical audible output or packaged-jar gameplay.
+
+Both 1.16.5 clients loaded on Java 8 but reported native multiplayer eligibility
+false after the loading overlay closed. The dedicated servers loaded successfully;
+joining is explicitly blocked and unqualified. The harness does not change native
+eligibility, authentication, service responses, or connection behavior.
 
 The bounded Forge 1.12.2 development probe is described in
 [`RUNTIME_ACCEPTANCE.md`](../forge-1.12.2/RUNTIME_ACCEPTANCE.md). Its local game
@@ -122,3 +126,34 @@ Its real client failed in LWJGL 2 display discovery before graphics-context
 creation or join. This supersedes only the earlier **local** unrun status, not
 the outstanding client/audio/UI acceptance requirements. The exact job and
 same-display diagnostic boundary are recorded in `RUNTIME_ACCEPTANCE.md`.
+
+## Separate Java 8 integrated-world acceptance
+
+The separately named integrated lane runs only after a current, exact-target and
+exact-commit receipt records native multiplayer refusal. Missing receipts, other
+failures, stale receipts and successful dedicated runs cannot enter this route.
+The failed dedicated/two-client job result remains failed; an integrated pass does
+not replace or satisfy it.
+
+A fresh isolated run directory opens the ordinary vanilla title screen and clicks
+only the actual enabled, visible Singleplayer and Create New World controls via
+native pointer dispatch. Disabled controls and unexpected screens fail closed.
+No lower-level world-creation or connection shortcut, credentials, account/service
+flag changes, or LAN publishing are used. The driver records actual integrated
+server identity before the audio fixture can qualify.
+
+Inside that permitted world, a single client uses production transport packets
+for play, pause, resume, seek, restart and stop. Separately observed logical-server
+state, decoded sample progress, native OpenAL source/context creation, playing and
+paused resource reload, stale-epoch rejection, and real OpenUI pointer/keyboard,
+settings roundtrip, tabs, resize and close/reopen are required. This is explicitly
+one-client integrated development-runtime evidence, not dedicated multiplayer,
+two-client networking, physical audibility, or production-jar boot evidence.
+
+`tools/requested_integrated_acceptance.py` reuses the maintained process supervisor,
+bounded preparation runner and isolated display ownership. Java 8 is selected for
+the actual game, independently of the Gradle/compiler JVM. Its receipt and markers
+are separate from the dedicated lane. Native compilation, six Java 8 driver/inertness
+tests per loader, and harness regressions pass; the first actual integrated CI run
+is still pending. The dependency lock now pins OpenUI's reviewed LWJGL 2 buffer
+correction, which must also be exercised by the next Forge 1.12 UI/audio run.

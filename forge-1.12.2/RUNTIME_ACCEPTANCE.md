@@ -106,3 +106,33 @@ its otherwise caught discovery error. A successful query alone does not prove
 LWJGL parser or context compatibility; the next genuine CI run must establish
 that. No XRandR disable flag, fabricated display mode, account restriction
 change, or weakened acceptance marker is used.
+
+## Later native CI boundary
+
+At exact PR head `7d01dea665d148e2edb4da2ce3831281c56ae5a3`,
+[job 119278395013](https://github.com/UpperMoon0/Simply-Speakers/actions/runs/39616326814/job/119278395013)
+passed packaging and started the actual Java 8 server and client. The same-display
+XRandR query reported a real 1280×1024 output; LWJGL created its graphics context,
+OpenAL initialized, and the dedicated server recorded the client's login and join.
+This proves that the display prerequisite corrected the earlier startup block.
+
+The client then failed in OpenUI's native graphics constructor: LWJGL 2 requires
+at least 16 elements for this query, while the old dependency supplied four. The
+reviewed OpenUI `672b5b2b7169bef30f5f10b34f296812abe31460` pin corrects the buffer and
+has passed its native packaging/tests. The next actual run must still establish
+complete speaker UI, playback/reload and disconnect acceptance on that dependency.
+No complete 1.12 acceptance or physical-audibility claim follows from the join.
+
+The same resource audit also found that native 1.12 prepends `block/` to blockstate
+model references. The port now strips the modern redundant prefix only in 1.12
+blockstate variants; a genuine native parser regression resolves all 24 variants
+to packaged model resources and reproduces the old missing `block/block/` path.
+
+The isolated acceptance run configurations disable ForgeGradle 3's own
+`forceExit` hook, which otherwise exits the supervising Gradle JVM after a
+successful child and reports a disappeared daemon. Native JavaExec still rejects
+nonzero game exits. Acceptance now requires the deliberately exiting client to
+return zero, the server's graceful teardown to return zero, both owned output
+readers to drain, and all final logs to retain every marker without fatal errors.
+The final pass receipt is written only after those checks; cleanup errors retire
+both processes and leave the result unqualified.

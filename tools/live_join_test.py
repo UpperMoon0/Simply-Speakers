@@ -341,9 +341,10 @@ def run_target(root: Path, target: str, timeout: int) -> None:
             cleanup_errors.append(str(error))
         if cleanup_errors:
             message = f"{target}: cleanup failed: " + "; ".join(cleanup_errors)
-            if sys.exc_info()[0] is None:
-                raise RuntimeError(message)
-            print(message, file=sys.stderr, flush=True)
+            # Cleanup failure is an additional failure, not an eligibility-only
+            # refusal that could authorize a separate isolated acceptance lane.
+            # Python preserves an in-flight game exception as this error's context.
+            raise RuntimeError(message)
 
 
 

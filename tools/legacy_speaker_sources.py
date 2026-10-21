@@ -178,6 +178,7 @@ def convert(text, name):
         text=text.replace(anchor,anchor+\
             '\n            if(method.getName().equals("grab") && method.getParameterCount()==6) {\n                method.invoke(null,client.gameDirectory,filename,client.getWindow().getWidth(),client.getWindow().getHeight(),target,result);return;\n            }')
     if name=='ClientEvents.java':
+        text=text.replace('private static void onClientTick(Minecraft client) {', 'private static void onClientTick(Minecraft client) {\n        com.nstut.simplyspeakers.client.testing.VanillaSingleplayerDriver.tick(client);\n        com.nstut.simplyspeakers.client.IntegratedAudioClientProbe.tick(client);')
         text=text.replace('DirectionalPreview.renderHud(graphics)', 'DirectionalPreview.renderHud(new com.nstut.openui.graphics.LegacyGuiGraphics(graphics))')
     return isolate_client_packet_handlers(text,name)
 

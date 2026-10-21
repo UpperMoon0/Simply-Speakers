@@ -1,7 +1,8 @@
 import json
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
+from unittest.mock import patch
 import forge_1122_sources as port
 
 class Forge1122GenerationTests(unittest.TestCase):
@@ -89,6 +90,10 @@ class Forge1122GenerationTests(unittest.TestCase):
         self.assertIn('child minecraft.runs.client',build)
         self.assertIn('child minecraft.runs.server',build)
         self.assertIn("maxHeapSize='768m'",build)
+        for task in ('legacyRuntimeClient','legacyRuntimeServer'):
+            block=build.split(task+' {',1)[1].split('\n        }',1)[0]
+            self.assertIn('forceExit false',block)
+        self.assertEqual(2,build.count('forceExit false'))
 
     def test_native_merge_uses_official_timestamped_config_without_access_changes(self):
         helper=(port.ROOT/'gradle/forge-1122-merge.gradle').read_text()
@@ -123,6 +128,43 @@ class Forge1122GenerationTests(unittest.TestCase):
             self.assertNotIn('guide_book',values)
             self.assertTrue((root/'lang/en_us.lang').exists())
             self.assertIn('tile.simplyspeakers.speaker.name=',(root/'lang/en_us.lang').read_text())
+    def test_resource_dispatch_uses_platform_neutral_relative_names(self):
+        original=Path.relative_to
+        def windows_relative(path,*args,**kwargs):return PureWindowsPath(original(path,*args,**kwargs))
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory)
+            with patch.object(Path,'relative_to',windows_relative):port.resources(output)
+            self.assertTrue((output/'assets/simplyspeakers/recipes/speaker.json').is_file())
+            self.assertTrue((output/'assets/simplyspeakers/lang/en_us.lang').is_file())
+            self.assertFalse((output/'data').exists())
+            variants=json.loads((output/'assets/simplyspeakers/blockstates/speaker.json').read_text())['variants']
+            self.assertEqual('simplyspeakers:speaker',variants['facing=north,powered=false']['model'])
+
+    def test_native_empty_model_arrays_fail_closed(self):
+        import port_resources
+        with self.assertRaisesRegex(ValueError,'Empty legacy blockstate model array'):port_resources.legacy_variant_model([])
+
+    def test_native_blockstate_models_resolve_without_double_prefix(self):
+        import port_resources
+        with tempfile.TemporaryDirectory() as tmp:
+            port.resources(Path(tmp))
+            root=Path(tmp)/'assets/simplyspeakers'
+            for block in ('speaker','proxy_speaker','redstone_controller'):
+                variants=json.loads((root/'blockstates'/(block+'.json')).read_text())['variants']
+                self.assertEqual(8,len(variants))
+                for key,variant in variants.items():
+                    self.assertEqual(sorted(key.split(',')),key.split(','))
+                    self.assertEqual('simplyspeakers:'+block,variant['model'])
+                    self.assertTrue((root/'models/block'/(block+'.json')).is_file())
+        weighted=[{'model':'demo:block/a','y':90,'weight':2,'uvlock':True},{'model':'demo:b'}]
+        converted=port_resources.legacy_variant_model(weighted)
+        self.assertEqual('demo:a',converted[0]['model'])
+        self.assertEqual('demo:b',converted[1]['model'])
+        self.assertEqual({'y':90,'weight':2,'uvlock':True},{k:v for k,v in converted[0].items() if k!='model'})
+        self.assertEqual('demo:block/a',weighted[0]['model'])
+        for malformed in (None,1,{'model':False}):
+            with self.assertRaises(ValueError):port_resources.legacy_variant_model(malformed)
+
     def test_tile_registration_waits_until_position_is_attached(self):
         root=port.ROOT/'forge-1.12.2/src/main/java/com/nstut/simplyspeakers'
         base=(root/'compat/LegacyBlockEntity.java').read_text()

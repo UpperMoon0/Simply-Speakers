@@ -48,6 +48,44 @@ class Requested1122RuntimeTest(unittest.TestCase):
         self.assertIn('-PpacketweaveJar=/packetweave.jar', command)
         with self.assertRaises(ValueError): native.command(Path('/fixture'), 'publish', Path('/a'), Path('/b'))
 
+    def completion_fixture(self, client_exit=0, undrained=False, cleanup_error=False, server_exit=0, late_fatal=False):
+        import contextlib, io, json
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);server,client=Mock(),Mock()
+            server.history=[marker+'\n' for marker in native.SERVER_MARKERS]
+            client.history=[marker+'\n' for marker in native.CLIENT_MARKERS]
+            server.thread.is_alive.return_value=False;client.thread.is_alive.return_value=undrained
+            client.process.wait.return_value=client_exit;client.process.poll.return_value=client_exit
+            server.process.poll.return_value=None
+            calls=[]
+            def stop(process,graceful_server=False):
+                calls.append((process,graceful_server))
+                if process is client.process and cleanup_error:raise RuntimeError('fixture cleanup error')
+                process.poll.return_value=server_exit if process is server.process else 0
+                if late_fatal and process is client.process:client.history.append('SIMPLYSPEAKERS_VERIFY_FAIL late native error\n')
+            args=SimpleNamespace(openui_jar=Path('/openui.jar'),packetweave_jar=Path('/pw.jar'),timeout=1)
+            with patch.object(native,'ROOT',root),patch.object(native,'artifact',return_value={}), \
+                 patch.dict(os.environ,{'JAVA_HOME':'/jdk8'}),patch.object(native.subprocess,'check_output',side_effect=['version "1.8.fixture"','fixture-head','']), \
+                 patch.object(native,'client_command',return_value=['client']),patch.object(native,'prepare'), \
+                 patch.object(native,'run_preparation'),patch.object(native.live,'popen'), \
+                 patch.object(native.live,'OutputPump',side_effect=[server,client]),patch.object(native.live,'stop_tree',side_effect=stop), \
+                 contextlib.redirect_stdout(io.StringIO()):
+                if client_exit or undrained or cleanup_error or server_exit or late_fatal:
+                    with self.assertRaises(RuntimeError):native.run(args)
+                else:native.run(args)
+            receipt=json.loads((root/'forge-1.12.2/run/legacy-runtime/receipts/receipt.json').read_text())
+            self.assertEqual('not-completed' if client_exit or undrained or cleanup_error or server_exit or late_fatal else 'passed',receipt['result'])
+            self.assertEqual(2,len(calls));self.assertEqual((server.process,True),calls[-1])
+
+    def test_pass_requires_clean_client_exit_and_drained_owned_outputs(self):self.completion_fixture()
+    def test_failed_client_wrapper_cannot_qualify_from_markers(self):self.completion_fixture(client_exit=1)
+    def test_undrained_output_cannot_leave_pass_receipt(self):self.completion_fixture(undrained=True)
+    def test_client_cleanup_failure_still_retires_server_and_rejects_pass(self):self.completion_fixture(cleanup_error=True)
+    def test_nonzero_server_shutdown_rejects_pass(self):self.completion_fixture(server_exit=7)
+    def test_late_fatal_log_after_all_markers_rejects_pass(self):self.completion_fixture(late_fatal=True)
+
     def test_missing_xrandr_is_rejected_even_with_existing_display(self):
         with patch.dict(os.environ, {'DISPLAY': ':fixture'}), patch.object(native.shutil, 'which', return_value=None):
             with self.assertRaisesRegex(RuntimeError, 'xrandr executable'):

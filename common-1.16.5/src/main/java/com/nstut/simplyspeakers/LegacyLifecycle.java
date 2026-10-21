@@ -32,6 +32,7 @@ public final class LegacyLifecycle {
         });
         TickEvent.SERVER_POST.register(server -> {
             ServerPlaybackManager.serverTick(server);
+            com.nstut.simplyspeakers.testing.IntegratedAudioServerProbe.tick(server);
             if (server.getTickCount()%6000==0) ServerSpeakerRegistry.flushDirty();
         });
     }

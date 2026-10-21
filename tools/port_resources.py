@@ -4,6 +4,22 @@ import argparse,json,shutil
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
+def legacy_variant_model(value):
+    """1.12 Variant.Deserializer supplies the block/ model directory itself."""
+    if isinstance(value,list):
+        if not value:raise ValueError('Empty legacy blockstate model array')
+        return [legacy_variant_model(item) for item in value]
+    if not isinstance(value,dict):raise ValueError('Malformed legacy blockstate model')
+    result=dict(value)
+    if 'model' in result:
+        model=result['model']
+        if not isinstance(model,str):raise ValueError('Malformed legacy blockstate model name')
+        namespace,separator,path=model.partition(':')
+        if not separator:namespace,path='',namespace
+        if path.startswith('block/'):path=path[len('block/'):]
+        result['model']=(namespace+':' if separator else '')+path
+    return result
+
 def generate(version,loader,output):
     files={}
     roots=[ROOT/'common/src/main/resources']
@@ -14,7 +30,7 @@ def generate(version,loader,output):
             if not path.is_file() or path.suffix=='.bbmodel':continue
             rel=path.relative_to(root)
             if version=='26.2' and loader=='fabric' and root.name=='resources' and 'neoforge-26.2' in root.parts and rel.parts[:2]==('META-INF','services'):continue
-            files[str(rel)]=path.read_bytes()
+            files[rel.as_posix()]=path.read_bytes()
     generated=set()
     for name,data in files.items():
         if version=='26.2' and loader=='fabric' and name.endswith('/recipe/guide_book.json'):

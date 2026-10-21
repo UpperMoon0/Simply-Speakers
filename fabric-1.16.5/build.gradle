@@ -39,3 +39,5 @@ loom.runs {
     }
 }
 apply from: '../gradle/requested-live-runtime.gradle'
+
+apply from: '../gradle/integrated-acceptance.gradle'
