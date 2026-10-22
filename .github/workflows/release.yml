@@ -171,9 +171,71 @@ jobs:
             !${{ matrix.project }}/build/libs/*-dev-shadow.jar
           if-no-files-found: error
 
+  build-requested:
+    name: Build requested ${{ matrix.target }} release artifact
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [forge-1.12.2, fabric-1.16.5, forge-1.16.5, fabric-26.2, neoforge-26.2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: 672b5b2b7169bef30f5f10b34f296812abe31460
+          path: .port-deps/OpenUI-MC
+      - uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/PacketWeave
+          ref: b9af8be1c8dae497a852342a0d323f811b80b54a
+          path: .port-deps/PacketWeave
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            17
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Verify published native dependencies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/release_artifacts.py verify-dependencies
+      - name: Build and verify pinned native port
+        run: python3 tools/build_requested_release.py "${{ matrix.target }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simplyspeakers-${{ matrix.target }}
+          path: ${{ matrix.target }}/build/libs/simplyspeakers-${{ matrix.target }}-${{ needs.plan.outputs.version }}.jar
+          if-no-files-found: error
+
+  bundle:
+    name: Verify complete ten-target publication bundle
+    needs: [plan, test-shared, build, build-requested]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: simplyspeakers-*
+          merge-multiple: true
+          path: release-bundle
+      - name: Verify exact target identities, bytecode and completeness
+        run: python3 tools/release_artifacts.py bundle release-bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-release-bundle
+          path: release-bundle/*
+          if-no-files-found: error
+
   publish-curseforge:
     name: Publish ${{ matrix.platform }} ${{ matrix.version }} to CurseForge
-    needs: [plan, test-shared, build]
+    needs: [plan, bundle]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -182,6 +244,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - { version: '1.12.2', platform: forge, loader_name: Forge, java_version_name: 'Java 8' }
+          - { version: '1.16.5', platform: fabric, loader_name: Fabric, java_version_name: 'Java 8' }
+          - { version: '1.16.5', platform: forge, loader_name: Forge, java_version_name: 'Java 8' }
+          - { version: '26.2', platform: fabric, loader_name: Fabric, java_version_name: 'Java 25' }
+          - { version: '26.2', platform: neoforge, loader_name: NeoForge, java_version_name: 'Java 25' }
           - version: '1.20.1'
             platform: 'fabric'
             loader_name: 'Fabric'
@@ -210,7 +277,7 @@ jobs:
       - name: Download built JAR
         uses: actions/download-artifact@v4
         with:
-          name: simplyspeakers-${{ matrix.platform }}-${{ matrix.version }}
+          name: verified-release-bundle
           path: curseforge-artifact
 
       - name: Read mod version and select release JAR
@@ -233,7 +300,7 @@ jobs:
             exit 1
           fi
 
-          mapfile -t jars < <(find curseforge-artifact -maxdepth 1 -type f -name '*.jar' \
+          mapfile -t jars < <(find curseforge-artifact -maxdepth 1 -type f -name "simplyspeakers-${{ matrix.platform }}-${{ matrix.version }}-${mod_version}.jar" \
             ! -name '*-sources.jar' ! -name '*-dev-shadow.jar' | sort)
           if [[ ${#jars[@]} -ne 1 ]]; then
             echo "Expected exactly one runnable JAR, found ${#jars[@]}:" >&2
@@ -269,11 +336,7 @@ jobs:
             exit 1
           fi
 
-          if [[ "$PLATFORM" == "fabric" ]]; then
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"fabric-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"optionalDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
-          else
-            relations='{"projects":[{"slug":"architectury-api","type":"requiredDependency"},{"slug":"openui-mc","type":"requiredDependency"},{"slug":"patchouli","type":"optionalDependency"},{"slug":"packetweave","type":"requiredDependency"}]}'
-          fi
+          relations="$(python3 tools/release_artifacts.py relations "$PLATFORM-$MINECRAFT_VERSION")"
 
           changelog="$(<"$CHANGELOG_PATH")"
           display_name="Simply Speakers ${MOD_VERSION} - ${LOADER_NAME} ${MINECRAFT_VERSION}"
@@ -319,7 +382,7 @@ jobs:
           echo "Published ${JAR_PATH} to CurseForge as file ID ${file_id}."
 
   release:
-    needs: [plan, test-shared, build, publish-curseforge]
+    needs: [plan, bundle, publish-curseforge]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -338,10 +401,11 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          name: verified-release-bundle
+          path: release-bundle
 
-      - name: List artifacts
-        run: find artifacts -type f -name "*.jar"
+      - name: Reverify release bundle before publishing
+        run: python3 tools/release_artifacts.py bundle release-bundle
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -359,24 +423,21 @@ jobs:
 
             | Minecraft | Fabric | Forge | NeoForge |
             |-----------|--------|-------|----------|
+            | 1.12.2    | -      | Yes   | -        |
+            | 1.16.5    | Yes    | Yes   | -        |
             | 1.20.1    | Yes    | Yes   | -        |
             | 1.21.1    | Yes    | -     | Yes      |
             | 26.1.2    | -      | -     | Yes      |
+            | 26.2      | Yes    | -     | Yes      |
 
-            ### Downloads
-            - **Fabric 1.20.1**: `simplyspeakers-fabric-1.20.1-*.jar`
-            - **Forge 1.20.1**: `simplyspeakers-forge-1.20.1-*.jar`
-            - **Fabric 1.21.1**: `simplyspeakers-fabric-1.21.1-*.jar`
-            - **NeoForge 1.21.1**: `simplyspeakers-neoforge-1.21.1-*.jar`
-            - **NeoForge 26.1.2**: `simplyspeakers-neoforge-26.1.2-*.jar`
+            All ten native target JARs and SHA256SUMS are attached. Optional
+            integrations and native runtime qualification limits are documented
+            in docs/requested-generations.md at this release commit.
 
           draft: false
           prerelease: false
           files: |
-            artifacts/simplyspeakers-fabric-1.20.1/*.jar
-            artifacts/simplyspeakers-forge-1.20.1/*.jar
-            artifacts/simplyspeakers-fabric-1.21.1/*.jar
-            artifacts/simplyspeakers-neoforge-1.21.1/*.jar
-            artifacts/simplyspeakers-neoforge-26.1.2/*.jar
+            release-bundle/*.jar
+            release-bundle/SHA256SUMS
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

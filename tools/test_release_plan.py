@@ -49,7 +49,8 @@ class ReleasePlanTest(unittest.TestCase):
         self.assertIn('tools/prepare_packetweave.py --target', build)
         self.assertIn('overwrite_files: false', text)
         self.assertIn('target_commitish: ${{ github.sha }}', text)
-        self.assertIn('needs: [plan, test-shared, build, publish-curseforge]', text)
+        self.assertIn('needs: [plan, bundle, publish-curseforge]', text)
+        self.assertIn('needs: [plan, test-shared, build, build-requested]', text)
 
 
 if __name__ == '__main__':

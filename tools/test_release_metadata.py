@@ -9,26 +9,24 @@ class ReleaseMetadataTest(unittest.TestCase):
         check.validate()
 
     def test_missing_patchouli_is_rejected(self):
-        original = Path.read_text
-        def read(path, *args, **kwargs):
-            text = original(path, *args, **kwargs)
-            if path.name == "release.yml":
-                text = text.replace(',{"slug":"patchouli","type":"optionalDependency"}', '')
-            return text
-        with patch.object(Path, "read_text", read):
-            with self.assertRaisesRegex(ValueError, "patchouli"):
+        original = check.release_artifacts.relations
+        def relations(target, root):
+            value = original(target, root)
+            value['projects'] = [item for item in value['projects'] if item['slug'] != 'patchouli']
+            return value
+        with patch.object(check.release_artifacts, 'relations', relations):
+            with self.assertRaisesRegex(ValueError, 'patchouli'):
                 check.validate()
 
     def test_required_patchouli_publication_is_rejected(self):
-        original = Path.read_text
-        def read(path, *args, **kwargs):
-            text = original(path, *args, **kwargs)
-            if path.name == "release.yml":
-                text = text.replace('"slug":"patchouli","type":"optionalDependency"',
-                                    '"slug":"patchouli","type":"requiredDependency"')
-            return text
-        with patch.object(Path, "read_text", read):
-            with self.assertRaisesRegex(ValueError, "patchouli"):
+        original = check.release_artifacts.relations
+        def relations(target, root):
+            value = original(target, root)
+            for item in value['projects']:
+                if item['slug'] == 'patchouli': item['type'] = 'requiredDependency'
+            return value
+        with patch.object(check.release_artifacts, 'relations', relations):
+            with self.assertRaisesRegex(ValueError, 'patchouli'):
                 check.validate()
 
     def test_stale_openui_cache_is_rejected(self):

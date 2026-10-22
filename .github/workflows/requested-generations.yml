@@ -62,22 +62,9 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          export JAVA17_HOME="$JAVA_HOME_17_X64"
-          case "$TARGET" in
-            forge-1.12.2) export JAVA_HOME="$JAVA_HOME_8_X64" ;;
-            forge-1.16.5) export JAVA_HOME="$JAVA_HOME_17_X64" ;;
-            *) export JAVA_HOME="$JAVA_HOME_25_X64" ;;
-          esac
+          python3 tools/build_requested_release.py "$TARGET"
+          export JAVA_HOME="$JAVA_HOME_8_X64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          python3 tools/verify_port_dependencies.py
-          (cd ".port-deps/OpenUI-MC/$TARGET" && bash gradlew build --no-daemon --no-parallel --max-workers=2)
-          (cd ".port-deps/PacketWeave/targets/$TARGET" && bash gradlew build --no-daemon --no-parallel --max-workers=2)
-          ROOT="$PWD"
-          (cd "$TARGET" && bash gradlew build --no-daemon --no-parallel --max-workers=2 \
-            "-PopenuiJar=$ROOT/.port-deps/OpenUI-MC/$TARGET/build/libs/openui-mc-$TARGET-0.0.15.jar" \
-            "-PpacketweaveJar=$ROOT/.port-deps/PacketWeave/targets/$TARGET/build/libs/packetweave-$TARGET-0.1.4.jar" \
-            "-PpacketweaveSource=$ROOT/.port-deps/PacketWeave/core/src/main/java")
-          python3 tools/verify_requested_port_jar.py "$TARGET"
           if [[ "$TARGET" == 'forge-1.12.2' ]]; then
             bash forge-1.12.2/gradlew --project-dir tools/fixtures/requested-1122-preparation \
               --init-script "$PWD/tools/prepare_requested_1122_runtime.gradle" verifyPreparation \

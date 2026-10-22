@@ -3,6 +3,7 @@ from pathlib import Path
 import argparse
 import json
 import re
+import release_artifacts
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGETS = {
@@ -31,10 +32,11 @@ def required_mods(path):
 
 def validate(root=ROOT):
     release = (root / ".github/workflows/release.yml").read_text()
-    lists = [json.loads(raw)["projects"] for raw in re.findall(r"relations='([^']+)'", release)]
-    if len(lists) != 2: raise ValueError("Expected Fabric and Forge/NeoForge publication relation lists")
+    if 'tools/release_artifacts.py relations "$PLATFORM-$MINECRAFT_VERSION"' not in release:
+        raise ValueError("Release must use target-aware publication relations")
     for target, path in TARGETS.items():
-        published = {item["slug"] for item in lists[0 if target.startswith("fabric-") else 1] if item["type"] == "requiredDependency"}
+        relations = release_artifacts.relations(target, root)["projects"]
+        published = {item["slug"] for item in relations if item["type"] == "requiredDependency"}
         metadata = root / target / path
         required = required_mods(metadata)
         if "patchouli" in required:
@@ -45,7 +47,6 @@ def validate(root=ROOT):
             optional = bool(re.search(r'modId\s*=\s*"patchouli"\s*\n(?:mandatory\s*=\s*false|type\s*=\s*"optional")', metadata.read_text()))
         if not optional:
             raise ValueError(f"Missing optional patchouli declaration on {target}")
-        relations = lists[0 if target.startswith("fabric-") else 1]
         if [item["type"] for item in relations if item["slug"] == "patchouli"] != ["optionalDependency"]:
             raise ValueError(f"patchouli publication relation must be optional on {target}")
         unknown = required - SLUGS.keys()
@@ -55,7 +56,7 @@ def validate(root=ROOT):
     pins, caches = [], []
     for name in ("release.yml", "live-join-test.yml"):
         text = (root / ".github/workflows" / name).read_text()
-        pins += re.findall(r"ref: ([0-9a-f]{40})", text)
+        pins += re.findall(r"ref: ([0-9a-f]{40})\n\s+path: \.openui-mc", text)
         caches += re.findall(r"key: openui-maven-([0-9a-f]{40})", text)
     if len(pins) != 2 or len(set(pins)) != 1 or not caches or set(caches) != set(pins):
         raise ValueError("OpenUI checkout pins and all workflow cache keys must match")

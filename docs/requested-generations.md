@@ -157,3 +157,25 @@ are separate from the dedicated lane. Native compilation, six Java 8 driver/iner
 tests per loader, and harness regressions pass; the first actual integrated CI run
 is still pending. The dependency lock now pins OpenUI's reviewed LWJGL 2 buffer
 correction, which must also be exercised by the next Forge 1.12 UI/audio run.
+
+## Complete release publication
+
+The release workflow builds the five retained targets and all five requested
+standalone targets before either publisher runs. Requested builds use the same
+`tools/build_requested_release.py` path as native CI, including reviewed dependency
+commit/version checks, all native build tests and production JAR verification.
+Their published OpenUI 0.0.15 and PacketWeave 0.1.4 releases must contain every
+requested native artifact and have the same source trees as the reviewed pins.
+The retained targets keep their existing dependency versions and build path.
+
+A ten-target bundle gate rejects missing or unexpected JARs, wrong native IDs,
+versions, Minecraft metadata, embedded dependency classes or incompatible bytecode.
+It emits SHA256SUMS. Both CurseForge and GitHub consume only that verified bundle.
+CurseForge relations follow each target's native metadata: Forge 1.12.2 does not
+require Architectury, Fabric targets retain Fabric API, OpenUI and PacketWeave are
+required, and Patchouli is optional only where declared by the native target.
+
+Publication builds do not represent extra native gameplay acceptance. In
+particular, the separately failed 1.16.5 dedicated-client eligibility checks are
+not replaced by integrated-world results or waived by this release configuration.
+Existing retained-target Layered verification remains a release prerequisite.
