@@ -1,0 +1,38 @@
+// A separate ordinary Singleplayer-menu lane, never a dedicated-join substitute.
+def integratedBase=file('run/integrated-acceptance').canonicalFile
+def integratedDirectory=file(providers.gradleProperty('integratedRunDir').getOrElse('run/integrated-acceptance/manual')).canonicalFile
+if(integratedDirectory == integratedBase || !integratedDirectory.toPath().startsWith(integratedBase.toPath()))
+    throw new GradleException('integratedRunDir must be an isolated child of run/integrated-acceptance')
+if(project.name.startsWith('fabric')) {
+    loom.runs {
+        integratedAcceptance {
+            client(); runDir(project.relativePath(integratedDirectory))
+            property 'simplyspeakers.integratedAcceptance','true'
+            property 'simplyspeakers.requestedPortRuntime','true'
+            programArgs '--username','SSIClient'
+        }
+    }
+} else {
+    minecraft.runs {
+        integratedAcceptance {
+            child minecraft.runs.client
+            workingDirectory integratedDirectory
+            property 'simplyspeakers.integratedAcceptance','true'
+            property 'simplyspeakers.requestedPortRuntime','true'
+            args '--username','SSIClient'
+            mods { simplyspeakers { source sourceSets.main } }
+        }
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if(name == 'runIntegratedAcceptance') {
+        javaLauncher=javaToolchains.launcherFor { languageVersion=JavaLanguageVersion.of(8) }
+        maxHeapSize='1024m'
+        jvmArgs '-XX:ActiveProcessorCount=2'
+        def scratch=new File(integratedDirectory,'tmp')
+        def natives=new File(scratch,'lwjgl')
+        systemProperty 'java.io.tmpdir',scratch.absolutePath
+        systemProperty 'org.lwjgl.system.SharedLibraryExtractPath',natives.absolutePath
+        doFirst { if(!natives.isDirectory() && !natives.mkdirs())throw new GradleException('Cannot create integrated native extraction directory') }
+    }
+}

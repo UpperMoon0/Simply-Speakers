@@ -1,0 +1,4 @@
+pluginManagement {
+    repositories { maven { url='https://maven.neoforged.net/releases' }; gradlePluginPortal(); mavenCentral() }
+}
+rootProject.name='neoforge-26.2'

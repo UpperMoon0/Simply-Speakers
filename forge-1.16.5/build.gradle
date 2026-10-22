@@ -1,0 +1,61 @@
+plugins { id 'java-library'; id 'net.minecraftforge.gradle' version '6.0.54'; id 'com.gradleup.shadow' version '8.3.6'; id 'org.spongepowered.mixin' version '0.7.38' }
+apply from:'../gradle/legacy-port.gradle'
+configurations { shade }
+apply from:'../gradle/port-local-dependencies.gradle'
+def openuiModule=portModule(portOpenuiJar,'local.port.openui')
+def packetweaveModule=portModule(portPacketweaveJar,'local.port.packetweave')
+minecraft {
+    mappings channel:'official',version:'1.16.5'
+    runs {
+        client { workingDirectory project.file('run'); mods { simplyspeakers { source sourceSets.main } } }
+        server { workingDirectory project.file('run'); args '--nogui'; mods { simplyspeakers { source sourceSets.main } } }
+    }
+}
+dependencies {
+    minecraft 'net.minecraftforge:forge:1.16.5-36.2.42'
+    implementation fg.deobf('me.shedaniel:architectury-forge:1.32.68')
+    implementation fg.deobf(openuiModule)
+    runtimeOnly fg.deobf(packetweaveModule)
+    shade 'javazoom:jlayer:1.0.1'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+}
+shadowJar { configurations=[project.configurations.shade]; archiveClassifier=''; relocate 'javazoom.jl','com.nstut.simplyspeakers.shadow.javazoom.jl' }
+jar { archiveClassifier='dev' }
+reobf { shadowJar {} }
+tasks.named('build') { dependsOn 'reobfShadowJar' }
+jar { manifest { attributes 'MixinConfigs':'simplyspeakers.mixins.json' } }
+shadowJar { manifest { attributes 'MixinConfigs':'simplyspeakers.mixins.json' } }
+
+mixin { add sourceSets.main, "simplyspeakers.refmap.json"; config "simplyspeakers.mixins.json" }
+
+minecraft.runs {
+    liveJoinTestClient {
+        child minecraft.runs.client
+        workingDirectory project.file('run/live-join/client')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        args '--username', 'SSCarrier', '--server', '127.0.0.1', '--port', '25575'
+        mods { simplyspeakers { source sourceSets.main } }
+    }
+    liveJoinTestObserver {
+        child minecraft.runs.client
+        workingDirectory project.file('run/live-join/observer')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.livePlaybackRole', 'observer'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        args '--username', 'SSObserver', '--server', '127.0.0.1', '--port', '25575'
+        mods { simplyspeakers { source sourceSets.main } }
+    }
+    liveJoinTestServer {
+        child minecraft.runs.server
+        workingDirectory project.file('run/live-join/server')
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        mods { simplyspeakers { source sourceSets.main } }
+    }
+}
+apply from: '../gradle/requested-live-runtime.gradle'
+
+apply from: '../gradle/integrated-acceptance.gradle'

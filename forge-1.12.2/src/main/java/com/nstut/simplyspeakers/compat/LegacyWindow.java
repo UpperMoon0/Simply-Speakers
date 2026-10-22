@@ -1,0 +1,2 @@
+package com.nstut.simplyspeakers.compat;
+public final class LegacyWindow { public int getScreenWidth(){return net.minecraft.client.Minecraft.getMinecraft().displayWidth;}public int getScreenHeight(){return net.minecraft.client.Minecraft.getMinecraft().displayHeight;}public int getGuiScaledWidth(){return new net.minecraft.client.gui.ScaledResolution(net.minecraft.client.Minecraft.getMinecraft()).getScaledWidth();}public int getGuiScaledHeight(){return new net.minecraft.client.gui.ScaledResolution(net.minecraft.client.Minecraft.getMinecraft()).getScaledHeight();} }

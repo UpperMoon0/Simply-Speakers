@@ -1,0 +1,32 @@
+// A real Gradle 5 task graph, without game downloads or game launch. FG3
+// snapshots extension mappings in registered task configuration in this order.
+ext.minecraftMappings = null
+ext.mappingCaptured = null
+ext.prerequisiteExecuted = false
+tasks.register('createSrgToMcp') {
+    if (project.minecraftMappings == null) {
+        throw new GradleException('Preparation realized mapping task before Minecraft configuration')
+    }
+    project.mappingCaptured = project.minecraftMappings
+    doLast { project.prerequisiteExecuted = true }
+}
+for (String name : ['runLegacyRuntimeServer', 'runLegacyRuntimeClient']) {
+    tasks.register(name) {
+        dependsOn tasks.named('createSrgToMcp')
+        doLast { throw new GradleException('Preparation must not execute a game task') }
+    }
+}
+// Corresponds to the project's later minecraft { mappings ... } configuration.
+ext.minecraftMappings = 'stable_39-1.12'
+tasks.register('verifyPreparation') {
+    dependsOn tasks.named('runLegacyRuntimeServer'), tasks.named('runLegacyRuntimeClient')
+    doLast {
+        assert project.mappingCaptured == 'stable_39-1.12'
+        assert project.prerequisiteExecuted
+        for (String name : ['runLegacyRuntimeServer', 'runLegacyRuntimeClient']) {
+            def task = tasks.named(name).get()
+            assert !task.enabled
+        }
+        println 'FORGE_112_PREPARATION_LAZY_MAPPINGS_AND_NO_GAME_PASS'
+    }
+}

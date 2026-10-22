@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "simplyspeakers",
+  "version": "${version}",
+  "name": "Simply Speakers",
+  "description": "Custom, synchronized speaker networks with portable audio and redstone control.",
+  "authors": [
+    "NsTut"
+  ],
+  "license": "All Rights Reserved",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.nstut.fabric.simplyspeakers.SimplySpeakersFabric"
+    ],
+    "client": [
+      "com.nstut.fabric.simplyspeakers.SimplySpeakersFabricClient"
+    ],
+    "preLaunch": [
+      "com.nstut.fabric.simplyspeakers.OpenUiDependencyCheck"
+    ]
+  },
+  "mixins": [
+    "simplyspeakers.mixins.json"
+  ],
+  "depends": {
+    "minecraft": "26.2",
+    "java": ">=25",
+    "fabricloader": ">=0.19.5",
+    "fabric-api": ">=0.160.0",
+    "architectury": ">=21.1.12",
+    "packetweave": ">=0.1.4"
+  },
+  "suggests": {
+    "openui_mc": ">=0.0.15",
+    "patchouli": "*"
+  }
+}

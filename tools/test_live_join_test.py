@@ -273,12 +273,32 @@ class LiveHarnessTest(unittest.TestCase):
             self.assertEqual(3, stop.call_count)
             self.assertEqual(unittest.mock.call(server, graceful_server=True), stop.call_args_list[-1])
 
+    def test_cleanup_failure_cannot_be_classified_as_eligibility_only(self):
+        from pathlib import Path
+        from requested_live_join import NativeEligibilityUnavailable
+        server, carrier = Mock(), Mock()
+        server_output, carrier_output = Mock(), Mock()
+        server_output.wait_for.return_value = "Done ("
+        refusal = NativeEligibilityUnavailable("fixture native refusal")
+        carrier_output.wait_for_all.side_effect = refusal
+        with patch.object(live, "prepare_server"), patch.object(live, "prepare_client"), \
+             patch.object(live.subprocess, "run"), patch.object(live, "client_command", return_value=["client"]), \
+             patch.object(live, "popen", side_effect=[server, carrier]), \
+             patch.object(live, "OutputPump", side_effect=[server_output, carrier_output]), \
+             patch.object(live, "stop_tree", side_effect=[RuntimeError("cleanup error"), None]) as stop:
+            with self.assertRaisesRegex(RuntimeError, "cleanup failed") as raised:
+                live.run_target(Path("fixture"), "forge-1.20.1", 30)
+            self.assertNotIsInstance(raised.exception, NativeEligibilityUnavailable)
+            self.assertIs(raised.exception.__context__, refusal)
+            self.assertEqual(2, stop.call_count)
+
     @unittest.skipIf(live.os.name == "nt", "POSIX process-group behavior")
     def test_exited_supervisor_still_terminates_its_game_process_group(self):
         process = Mock(); process.poll.return_value = 1; process.pid = 12345
         with patch.object(live.os, "killpg") as kill:
             live.stop_tree(process)
-        kill.assert_called_once_with(12345, live.signal.SIGTERM)
+        self.assertEqual([unittest.mock.call(12345, live.signal.SIGTERM),
+                          unittest.mock.call(12345, live.signal.SIGKILL)], kill.call_args_list)
 
     def test_all_five_loader_configs_keep_player_names_and_directories_distinct(self):
         from pathlib import Path

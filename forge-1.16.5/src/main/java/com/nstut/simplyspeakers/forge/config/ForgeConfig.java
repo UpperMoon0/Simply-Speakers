@@ -1,0 +1,72 @@
+package com.nstut.simplyspeakers.forge.config;
+
+import com.nstut.simplyspeakers.Config;
+import com.nstut.simplyspeakers.SimplySpeakers;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig.ModConfigEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
+
+/**
+ * Forge-specific configuration handler.
+ */
+@Mod.EventBusSubscriber(modid = SimplySpeakers.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
+public class ForgeConfig {
+    static {
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT)
+            com.nstut.simplyspeakers.client.ListeningPreferencesStore.migrateLegacy(net.minecraftforge.fml.loading.FMLPaths.CONFIGDIR.get());
+    }
+    private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
+
+    public static final ForgeConfigSpec.IntValue SPEAKER_RANGE = BUILDER
+            .comment("The max range of the speaker block")
+            .defineInRange("speakerRange", 64, Config.MIN_RANGE, Config.MAX_RANGE);
+
+    public static final ForgeConfigSpec.BooleanValue DISABLE_UPLOAD = BUILDER
+            .comment("Whether to disable audio uploads")
+            .define("disableUpload", Config.disableUpload);
+
+    public static final ForgeConfigSpec.IntValue MAX_UPLOAD_SIZE = BUILDER
+            .comment("The maximum upload size in bytes")
+            .defineInRange("maxUploadSize", Config.maxUploadSize, Config.MIN_UPLOAD_SIZE, Config.MAX_UPLOAD_SIZE);
+
+    public static final ForgeConfigSpec.BooleanValue ALLOW_REMOTE_STREAMS = BUILDER
+            .comment("Whether clients may stream remote HTTP(S) audio URLs through this server")
+            .define("allowRemoteStreams", Config.allowRemoteStreams);
+
+    public static final ForgeConfigSpec.BooleanValue DEBUG_LOGGING = BUILDER
+            .comment("Enable debug logging for troubleshooting audio/settings issues")
+            .define("debugLogging", Config.debugLogging);
+
+    public static final ForgeConfigSpec SPEC = BUILDER.build();
+
+    /**
+     * Handles the config loading event.
+     * @param event The config event
+     */
+    @SubscribeEvent
+    public static void onLoad(final ModConfigEvent event) {
+        if (event.getConfig().getSpec() == SPEC) {
+            Config.setLocalConfig(SPEAKER_RANGE.get(), DISABLE_UPLOAD.get(), MAX_UPLOAD_SIZE.get(), ALLOW_REMOTE_STREAMS.get());
+            Config.debugLogging = DEBUG_LOGGING.get();
+
+            // Set logger level based on debug config
+            // The logger name is the MOD_ID ("simplyspeakers")
+            if (Config.debugLogging) {
+                Configurator.setLevel(SimplySpeakers.MOD_ID, Level.DEBUG);
+                SimplySpeakers.LOGGER.info("Debug logging enabled for Simply Speakers");
+            } else {
+                Configurator.setLevel(SimplySpeakers.MOD_ID, Level.INFO);
+            }
+
+            if (event instanceof net.minecraftforge.fml.config.ModConfig.Reloading) {
+                net.minecraft.server.MinecraftServer server = net.minecraftforge.fml.server.ServerLifecycleHooks.getCurrentServer();
+                if (server != null) {
+                    SimplySpeakers.broadcastConfig(server);
+                }
+            }
+        }
+    }
+}

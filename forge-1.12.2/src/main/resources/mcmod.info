@@ -1,0 +1,1 @@
+[{"modid":"simplyspeakers","name":"Simply Speakers","description":"Portable and synchronized MP3/WAV speaker networks with playlists, ownership, redstone control and OpenUI.","version":"${version}","mcversion":"1.12.2","authorList":["NsTut"],"dependencies":["openui_mc","packetweave"]}]
