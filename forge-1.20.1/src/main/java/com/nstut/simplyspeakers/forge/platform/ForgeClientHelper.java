@@ -26,11 +26,8 @@ public class ForgeClientHelper implements IClientHelper {
 
     @Override
     public void openFileDialog(String filter, Consumer<File> callback) {
-        new Thread(() -> {
-            String result = TinyFileDialogs.tinyfd_openFileDialog("Open Audio File", "", null, filter, false);
-            if (result != null) {
-                callback.accept(new File(result));
-            }
-        }).start();
+        com.nstut.simplyspeakers.platform.ClientFileSelection.open(
+                () -> TinyFileDialogs.tinyfd_openFileDialog("Open Audio File", "", null, filter, false),
+                net.minecraft.client.Minecraft.getInstance()::execute, callback);
     }
 }

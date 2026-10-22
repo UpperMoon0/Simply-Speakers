@@ -1,0 +1,7 @@
+// Resolve the exact native prerequisite graph without executing the game action.
+// configureEach preserves ForgeGradle's late mapping configuration.
+gradle.beforeProject { project ->
+    project.tasks.configureEach { task ->
+        if(task.name == 'runIntegratedAcceptance') task.enabled = false
+    }
+}

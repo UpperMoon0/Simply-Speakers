@@ -1,0 +1,78 @@
+// Applied scripts have an isolated buildscript classloader in Gradle 5.
+buildscript { dependencies { classpath files(project.buildscript.configurations.classpath) } }
+
+import com.amadornes.artifactural.api.artifact.ArtifactIdentifier
+import com.amadornes.artifactural.api.artifact.ArtifactType
+import com.amadornes.artifactural.api.repository.ArtifactProvider
+import com.amadornes.artifactural.base.artifact.StreamableArtifact
+import com.amadornes.artifactural.base.repository.SimpleRepository
+import com.amadornes.artifactural.gradle.GradleRepositoryAdapter
+import net.minecraftforge.gradle.common.util.Artifact
+import net.minecraftforge.gradle.mcp.MCPRepo
+import org.gradle.api.GradleException
+
+// FG3's notch-obfuscated path asks for joined:<game version>, ignoring the
+// timestamped MCP version in Forge userdev. The old plain 1.12.2 MCP config
+// injects MergeTool's incompatible Side enum; the official pinned config uses
+// --inject false. Redirect only that raw joined artifact, not other libraries.
+// Deliberately do NOT extend BaseRepo: it swallows every failure as "not found",
+// which would let the next repository silently supply the known-bad old merge.
+class Pinned112MergeRepository implements ArtifactProvider<ArtifactIdentifier> {
+    private final Closure<File> resolvePinned
+    Pinned112MergeRepository(Closure<File> resolvePinned) { this.resolvePinned = resolvePinned }
+    @Override
+    com.amadornes.artifactural.api.artifact.Artifact getArtifact(ArtifactIdentifier artifact) {
+        if (artifact.group != 'net.minecraft' || artifact.name != 'joined' ||
+                artifact.version != '1.12.2' || artifact.extension != 'jar' || artifact.classifier)
+            return com.amadornes.artifactural.api.artifact.Artifact.none()
+        File merged = resolvePinned.call(Artifact.from('net.minecraft:joined:1.12.2-20200226.224830'))
+        if (merged == null || !merged.isFile())
+            throw new GradleException('Pinned Forge 1.12 MCP merge did not resolve; refusing the incompatible plain-version fallback.')
+        return StreamableArtifact.ofFile(artifact, ArtifactType.BINARY, merged)
+    }
+}
+
+def provider = new Pinned112MergeRepository({ ArtifactIdentifier pinned ->
+    ((MCPRepo) MCPRepo.create(project)).findFile(pinned)
+})
+def repository = GradleRepositoryAdapter.add(repositories, 'PINNED_FORGE_112_MERGE', file("$buildDir/pinned-mcp-merge"),
+        SimpleRepository.of(provider))
+repositories.remove(repository)
+repositories.addFirst(repository)
+// FG3 otherwise reuses a globally cached mapped jar whose key does not include
+// its joined input. An empty, versioned AT gives this build its own fg_cache
+// namespace and hash. It changes no game access flags or game class contents.
+minecraft.accessTransformer file('../gradle/forge-1122-merge-cache.cfg')
+
+// Real build-time negative controls: a failed pin must not use an available
+// legacy fallback. This task does not download or launch Minecraft.
+def verifyPinnedMergeRepository = tasks.register('verifyPinnedMergeRepository') {
+    doLast {
+        def requested = Artifact.from('net.minecraft:joined:1.12.2')
+        int fallbacks = 0
+        def resolve = { candidate ->
+            def result = candidate.getArtifact(requested)
+            if (!result.present) fallbacks++
+            return result
+        }
+        for (Closure failure : [{ null }, { throw new IOException('missing pinned fixture') }]) {
+            boolean failed = false
+            try { resolve(new Pinned112MergeRepository(failure)) }
+            catch (Exception expected) { failed = true }
+            if (!failed || fallbacks != 0) throw new GradleException('Pinned MCP failure reached legacy fallback')
+        }
+        def fixture = file("$buildDir/pinned-mcp-merge/contract/pinned.jar")
+        fixture.parentFile.mkdirs()
+        fixture.text = 'Pinned resolver contract fixture, not a game artifact'
+        def success = new Pinned112MergeRepository({ ArtifactIdentifier id ->
+            if (id.version != '1.12.2-20200226.224830') throw new GradleException('Wrong MCP merge pin')
+            fixture
+        })
+        if (!resolve(success).present || fallbacks != 0) throw new GradleException('Pinned MCP resolution failed')
+        if (success.getArtifact(Artifact.from('example:unrelated:1')).present)
+            throw new GradleException('Pinned merge intercepted an unrelated artifact')
+    }
+}
+// FG3 snapshots its mapping string when tasks are realized. Keep this lazy so
+// applying the helper before minecraft { mappings ... } cannot capture null.
+tasks.named('check').configure { dependsOn verifyPinnedMergeRepository }

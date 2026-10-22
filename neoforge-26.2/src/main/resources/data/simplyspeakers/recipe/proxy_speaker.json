@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": "simplyspeakers:audio_circuit",
+    "R": "minecraft:redstone",
+    "P": "#minecraft:planks"
+  },
+  "pattern": [
+    "PPP",
+    "RAR",
+    "PPP"
+  ],
+  "result": {
+    "id": "simplyspeakers:proxy_speaker"
+  },
+  "show_notification": true
+}

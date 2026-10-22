@@ -1,0 +1,149 @@
+name: Requested generation ports
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      minecraft_eula_accepted:
+        description: 'I accept https://www.minecraft.net/en-us/eula for the temporary Forge 1.12.2 test server'
+        required: false
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: requested-speaker-ports-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - run: python3 -m unittest discover -s tools -p 'test_requested*.py' -v
+      - run: python3 -m unittest discover -s tools -p 'test_forge_1122_sources.py' -v
+      - run: python3 -m unittest discover -s tools -p 'test_openui_dependency.py' -v
+  native:
+    needs: structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        target: [forge-1.12.2, fabric-1.16.5, forge-1.16.5, fabric-26.2, neoforge-26.2]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/OpenUI-MC
+          ref: 672b5b2b7169bef30f5f10b34f296812abe31460
+          path: .port-deps/OpenUI-MC
+      - uses: actions/checkout@v4
+        with:
+          repository: UpperMoon0/PacketWeave
+          ref: b9af8be1c8dae497a852342a0d323f811b80b54a
+          path: .port-deps/PacketWeave
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            8
+            17
+            25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build pinned native dependencies and consumer
+        id: native-build
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          python3 tools/build_requested_release.py "$TARGET"
+          export JAVA_HOME="$JAVA_HOME_8_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          if [[ "$TARGET" == 'forge-1.12.2' ]]; then
+            bash forge-1.12.2/gradlew --project-dir tools/fixtures/requested-1122-preparation \
+              --init-script "$PWD/tools/prepare_requested_1122_runtime.gradle" verifyPreparation \
+              --offline --no-daemon --max-workers=2 -Dorg.gradle.jvmargs='-Xmx256m -XX:ActiveProcessorCount=2'
+          fi
+      - name: Verify isolated Forge 1.12 acceptance scope
+        if: matrix.target == 'forge-1.12.2'
+        id: legacy-consent
+        shell: bash
+        run: |
+          python3 tools/requested_1122_ci_gate.py --event-name "$GITHUB_EVENT_NAME" \
+            --event-path "$GITHUB_EVENT_PATH" --repository "$GITHUB_REPOSITORY" \
+            --ref "$GITHUB_REF" --output "$GITHUB_OUTPUT"
+      - name: Opt-in native Forge 1.12 client and server acceptance
+        if: matrix.target == 'forge-1.12.2' && steps.legacy-consent.outputs.accepted == 'true'
+        shell: bash
+        env:
+          ALSOFT_DRIVERS: 'null'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          export JAVA_HOME="$JAVA_HOME_8_X64" JAVA17_HOME="$JAVA_HOME_17_X64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          # LWJGL 2 invokes the real xrandr CLI; xvfb alone does not supply it.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends x11-xserver-utils
+          command -v xrandr
+          mkdir -p forge-1.12.2/run/legacy-runtime/server forge-1.12.2/build/runtime-evidence
+          printf 'eula=true\n' > forge-1.12.2/run/legacy-runtime/server/eula.txt
+          python3 tools/requested_1122_runtime.py \
+            --openui-jar "$PWD/.port-deps/OpenUI-MC/forge-1.12.2/build/libs/openui-mc-forge-1.12.2-0.0.15.jar" \
+            --packetweave-jar "$PWD/.port-deps/PacketWeave/targets/forge-1.12.2/build/libs/packetweave-forge-1.12.2-0.1.4.jar" \
+            --timeout 600 2>&1 | tee forge-1.12.2/build/runtime-evidence/native-runtime.log
+      - name: Real native server and two-client audio acceptance
+        if: matrix.target != 'forge-1.12.2'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ALSOFT_DRIVERS: 'null'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == 'forge-1.16.5' ]]; then export JAVA_HOME="$JAVA_HOME_17_X64"; else export JAVA_HOME="$JAVA_HOME_25_X64"; fi
+          export PATH="$JAVA_HOME/bin:$PATH"
+          mkdir -p "$TARGET/build/runtime-evidence"
+          python3 tools/requested_live_join.py --target "$TARGET" --timeout 900 2>&1 | tee "$TARGET/build/runtime-evidence/native-runtime.log"
+      - name: Check separate integrated-world eligibility
+        if: always() && (matrix.target == 'fabric-1.16.5' || matrix.target == 'forge-1.16.5') && steps.native-build.outcome == 'success'
+        id: integrated-boundary
+        env:
+          TARGET: ${{ matrix.target }}
+        run: python3 tools/requested_integrated_acceptance.py --target "$TARGET" --check-boundary --github-output "$GITHUB_OUTPUT"
+      - name: Separate ordinary Singleplayer-menu acceptance
+        if: always() && steps.integrated-boundary.outputs.accepted == 'true'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ALSOFT_DRIVERS: 'null'
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == 'forge-1.16.5' ]]; then export JAVA_HOME="$JAVA_HOME_17_X64"; else export JAVA_HOME="$JAVA_HOME_25_X64"; fi
+          export PATH="$JAVA_HOME/bin:$PATH"
+          python3 tools/requested_integrated_acceptance.py --target "$TARGET" --timeout 600 2>&1 | tee "$TARGET/build/runtime-evidence/integrated-runtime.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: requested-${{ matrix.target }}
+          path: |
+            ${{ matrix.target }}/build/libs/*.jar
+            ${{ matrix.target }}/build/reports/tests/
+            ${{ matrix.target }}/build/test-results/
+            ${{ matrix.target }}/build/runtime-evidence/
+            ${{ matrix.target }}/run/live-join/*/logs/latest.log
+            ${{ matrix.target }}/run/live-join/*/screenshots/*.png
+            ${{ matrix.target }}/run/legacy-runtime/receipts/
+            ${{ matrix.target }}/run/legacy-runtime/*/logs/latest.log
+            ${{ matrix.target }}/run/legacy-runtime/client/screenshots/placed-speaker-1122.png
+            ${{ matrix.target }}/run/integrated-acceptance/**/receipt.json
+            ${{ matrix.target }}/run/integrated-acceptance/**/integrated.log
+            ${{ matrix.target }}/run/integrated-acceptance/**/logs/latest.log
+          if-no-files-found: warn

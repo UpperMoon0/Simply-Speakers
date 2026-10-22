@@ -1,0 +1,43 @@
+plugins { id 'net.fabricmc.fabric-loom-remap' version '1.17.9' }
+apply from:'../gradle/legacy-port.gradle'
+// Loom 1.17's internal Xvfb command omits the bare Java 8 classpath.
+// The acceptance harness already owns Xvfb; use JavaExec's real launcher here.
+tasks.withType(net.fabricmc.loom.task.AbstractRunTask).configureEach { useXvfb.set(false) }
+dependencies {
+    minecraft 'com.mojang:minecraft:1.16.5'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.19.5'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.42.0+1.16'
+    modImplementation 'me.shedaniel:architectury-fabric:1.32.68'
+    modImplementation files(portOpenuiJar)
+    modRuntimeOnly files(portPacketweaveJar)
+    include 'javazoom:jlayer:1.0.1'
+}
+
+// Opt-in native acceptance uses isolated worlds, real packet traffic and OpenAL.
+loom.runs {
+    liveJoinTestClient {
+        client(); runDir('run/live-join/client')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        programArgs '--username', 'SSCarrier', '--server', '127.0.0.1', '--port', '25575'
+    }
+    liveJoinTestObserver {
+        client(); runDir('run/live-join/observer')
+        property 'simplyspeakers.liveJoinTest', 'true'
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.livePlaybackRole', 'observer'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        programArgs '--username', 'SSObserver', '--server', '127.0.0.1', '--port', '25575'
+    }
+    liveJoinTestServer {
+        server(); runDir('run/live-join/server')
+        property 'simplyspeakers.livePlaybackTest', 'true'
+        property 'simplyspeakers.requestedPortRuntime', 'true'
+        programArg 'nogui'
+    }
+}
+apply from: '../gradle/requested-live-runtime.gradle'
+
+apply from: '../gradle/integrated-acceptance.gradle'

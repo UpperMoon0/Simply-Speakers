@@ -1,0 +1,122 @@
+package com.nstut.simplyspeakers;
+
+import com.nstut.simplyspeakers.audio.AudioFileManager;
+import com.nstut.simplyspeakers.items.ItemRegistries;
+import com.nstut.simplyspeakers.platform.Services;
+import com.nstut.simplyspeakers.speakers.ServerPlaybackManager;
+import com.nstut.simplyspeakers.client.ClientEvents;
+import dev.architectury.event.events.common.PlayerEvent;
+import dev.architectury.networking.NetworkManager;
+import com.nstut.simplyspeakers.network.SyncConfigPacketS2C;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredRegister;
+import net.neoforged.neoforge.registries.DeferredItem;
+import dev.architectury.platform.Platform;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.ItemStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import java.nio.file.Path;
+
+/**
+ * Main class for the Simply Speakers mod.
+ */
+public class SimplySpeakers {
+    // Define mod id in a common place for everything to reference
+    public static final String MOD_ID = "simplyspeakers";
+    // Directly reference a slf4j logger - use MOD_ID for consistent logging prefix
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+    private static AudioFileManager audioFileManager;
+    private static boolean initialized = false;
+    public static final DeferredRegister<SoundEvent> SOUND_EVENTS = DeferredRegister.create(Registries.SOUND_EVENT, MOD_ID);
+    public static final DeferredRegister<CreativeModeTab> CREATIVE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MOD_ID);
+
+    // Register sound events
+    public static final Identifier MUSIC_SOUND_ID = Identifier.fromNamespaceAndPath(MOD_ID, "custom.music");
+    public static final DeferredHolder<SoundEvent, SoundEvent> MUSIC = SOUND_EVENTS.register("custom.music",
+            () -> SoundEvent.createVariableRangeEvent(MUSIC_SOUND_ID));
+
+    public static final DeferredHolder<CreativeModeTab, CreativeModeTab> CREATIVE_TAB = CREATIVE_TABS.register("tab", () ->
+            dev.architectury.registry.CreativeTabRegistry.create(Component.translatable("itemGroup." + MOD_ID + ".tab"),
+                    () -> new ItemStack(Services.ITEMS.getSpeakerItem())));
+
+    /**
+     * Initializes the mod.
+     * NOTE: DeferredRegister registration is handled by platform-specific modules.
+     * This method only handles common initialization logic.
+     */
+    public static void init() {
+        // Guard against double initialization (can happen with Architectury transformer)
+        if (initialized) {
+            LOGGER.info("Simply Speakers already initialized, skipping");
+            return;
+        }
+        initialized = true;
+
+        LOGGER.info("Initializing Simply Speakers");
+
+        // NOTE: DeferredRegister registration (SOUND_EVENTS, CREATIVE_TABS, BLOCKS,
+        // BLOCK_ENTITIES, ITEMS) must be done in platform-specific modules
+        // (e.g., SimplySpeakersForge for NeoForge) by calling .register() directly.
+        // This is required for proper registration with the mod event bus.
+
+        // NOTE: PacketRegistries.init() should NOT be called manually!
+        // Architectury's transformer automatically registers the NetworkChannel
+        // when getChannel() is called. Manual registration causes double registration.
+
+        // Synchronize server configuration to connecting players
+        PlayerEvent.PLAYER_JOIN.register(player -> {
+            LOGGER.info("Sending server config to joining player: {} (speakerRange={}, disableUpload={}, maxUploadSize={})",
+                    player.getName().getString(), Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+            NetworkManager.sendToPlayer(player, new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize));
+        });
+
+        // Drop centralized playback subscriptions when a player disconnects or changes dimension
+        PlayerEvent.PLAYER_QUIT.register(player -> {
+            if (audioFileManager != null) audioFileManager.cancelUploads(player.getUUID());
+            ServerPlaybackManager.handlePlayerQuit(player.level().getServer(), player.getUUID());
+        });
+        PlayerEvent.CHANGE_DIMENSION.register((player, oldLevel, newLevel) -> ServerPlaybackManager.handlePlayerDimensionChange(player.level().getServer(), player.getUUID()));
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd, removalReason) -> ServerPlaybackManager.handlePlayerDimensionChange(player.level().getServer(), player.getUUID()));
+
+        // Register client-side events only on the client
+        LOGGER.info("Platform.getEnv() = '{}', checking if CLIENT...", Platform.getEnv().toString());
+        if (Platform.getEnv().toString().equals("CLIENT")) {
+            LOGGER.info("Client environment detected, registering client events...");
+            ClientEvents.register();
+        } else {
+            LOGGER.info("Server environment detected, skipping client events registration");
+        }
+
+        // Let each platform handle their own initialization
+        Services.PLATFORM.init();
+    }
+
+    public static void initializeAudio(Path worldSavePath) {
+        if (audioFileManager != null) {
+            audioFileManager.shutdown();
+        }
+        audioFileManager = new AudioFileManager(worldSavePath);
+    }
+
+    public static void shutdownAudio() {
+        if (audioFileManager != null) {
+            audioFileManager.shutdown();
+            audioFileManager = null;
+        }
+    }
+
+    public static void broadcastConfig(net.minecraft.server.MinecraftServer server) {
+        if (server == null) return;
+        SyncConfigPacketS2C packet = new SyncConfigPacketS2C(Config.speakerRange, Config.disableUpload, Config.maxUploadSize);
+        dev.architectury.networking.NetworkManager.sendToPlayers(server.getPlayerList().getPlayers(), packet);
+    }
+
+    public static AudioFileManager getAudioFileManager() {
+        return audioFileManager;
+    }
+}

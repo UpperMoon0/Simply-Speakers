@@ -1,0 +1,16 @@
+// These opt-in runs are independent of all existing supported-version fixtures.
+tasks.withType(JavaExec).configureEach {
+    if(name.startsWith('runLiveJoinTest')) {
+        maxHeapSize='768m'
+        jvmArgs '-XX:ActiveProcessorCount=2'
+        if(project.name.endsWith('1.16.5')) javaLauncher=javaToolchains.launcherFor { languageVersion=JavaLanguageVersion.of(8) }
+    }
+    if(name in ['runLiveJoinTestClient','runLiveJoinTestObserver']) {
+        def role=name.endsWith('Observer')?'observer':'client'
+        def scratch=project.file("run/live-join/${role}/tmp")
+        def natives=new File(scratch,'lwjgl')
+        systemProperty 'java.io.tmpdir',scratch.absolutePath
+        systemProperty 'org.lwjgl.system.SharedLibraryExtractPath',natives.absolutePath
+        doFirst { if(!natives.isDirectory() && !natives.mkdirs())throw new GradleException("Cannot create native extraction directory: ${natives}") }
+    }
+}

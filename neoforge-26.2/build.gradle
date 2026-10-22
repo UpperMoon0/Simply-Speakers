@@ -1,0 +1,53 @@
+plugins { id 'java-library'; id 'net.neoforged.moddev' version '2.0.148' }
+apply from: '../gradle/requested-port.gradle'
+sourceSets.main.java.srcDir '../shared/loader-neoforge/src/main/java'
+neoForge {
+    version='26.2.0.93'
+    runs { client { client() }; server { server(); programArgument '--nogui' } }
+    mods { simplyspeakers { sourceSet(sourceSets.main) } }
+    unitTest { enable(); testedMod=mods.simplyspeakers }
+}
+dependencies {
+    implementation('dev.architectury:architectury-neoforge:21.1.12') { exclude group:'net.neoforged', module:'neoforge' }
+    implementation files(portOpenuiJar)
+    runtimeOnly files(portPacketweaveJar)
+    jarJar 'javazoom:jlayer:1.0.1'
+}
+test { systemProperty 'simplyspeakers.testPayloadVerificationOnly', 'true' }
+def generateModMetadata=tasks.register('generateModMetadata', ProcessResources) {
+    def values=[mod_id:'simplyspeakers', mod_name:'Simply Speakers', mod_license:'All Rights Reserved',
+        mod_authors:'NsTut', mod_description:'Custom, synchronized speaker networks with portable audio and redstone control.',
+        mod_version:project.version, neo_version:'26.2.0.93', minecraft_version:'26.2', minecraft_version_range:'[26.2]',
+        architectury_version:'21.1.12', openui_version:openuiPortVersion]
+    inputs.properties values
+    expand values
+    from 'src/main/templates'
+    into layout.buildDirectory.dir('generated/modMetadata')
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+neoForge.runs {
+    liveJoinTestClient {
+        client(); gameDirectory=project.file('run/live-join/client')
+        systemProperty 'simplyspeakers.liveJoinTest', 'true'
+        systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+        systemProperty 'simplyspeakers.requestedPortRuntime', 'true'
+        programArguments.addAll '--username', 'SSCarrier', '--quickPlayMultiplayer', '127.0.0.1:25575'
+    }
+    liveJoinTestObserver {
+        client(); gameDirectory=project.file('run/live-join/observer')
+        systemProperty 'simplyspeakers.liveJoinTest', 'true'
+        systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+        systemProperty 'simplyspeakers.livePlaybackRole', 'observer'
+        systemProperty 'simplyspeakers.requestedPortRuntime', 'true'
+        programArguments.addAll '--username', 'SSObserver', '--quickPlayMultiplayer', '127.0.0.1:25575'
+    }
+    liveJoinTestServer {
+        server(); gameDirectory=project.file('run/live-join/server')
+        systemProperty 'simplyspeakers.livePlaybackTest', 'true'
+        systemProperty 'simplyspeakers.requestedPortRuntime', 'true'
+        programArgument '--nogui'
+    }
+}
+apply from: '../gradle/requested-live-runtime.gradle'

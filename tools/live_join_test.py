@@ -69,10 +69,11 @@ class OutputPump:
 
     def _read(self) -> None:
         assert self.process.stdout is not None
-        for line in self.process.stdout:
-            print(f"[{self.prefix}] {line}", end="", flush=True)
-            self.history.append(line)
-            self.lines.put(line)
+        with self.process.stdout:
+            for line in self.process.stdout:
+                print(f"[{self.prefix}] {line}", end="", flush=True)
+                self.history.append(line)
+                self.lines.put(line)
 
     def wait_for(self, markers: tuple[str, ...], timeout: int) -> str | None:
         deadline = time.monotonic() + timeout
@@ -155,40 +156,61 @@ def popen(cmd: list[str], root: Path) -> subprocess.Popen[str]:
 
 
 def stop_tree(process: subprocess.Popen[str], graceful_server: bool = False) -> None:
-    if process.poll() is not None:
-        # A failed supervising Gradle process can leave its game child alive.
-        if os.name != "nt":
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        return
-    if graceful_server and process.stdin is not None:
-        try:
-            process.stdin.write("stop\n")
-            process.stdin.flush()
-            process.wait(timeout=15)
+    """Retire the owned group created by popen, even after its leader exits."""
+    try:
+        if os.name == "nt":
+            # Windows CREATE_NEW_PROCESS_GROUP is not a POSIX session. Do not
+            # target an already-exited (and potentially reused) PID with taskkill.
+            if process.poll() is not None:
+                return
+            if graceful_server and process.stdin is not None:
+                try:
+                    process.stdin.write("stop\n")
+                    process.stdin.flush()
+                    process.wait(timeout=15)
+                    return
+                except (BrokenPipeError, subprocess.TimeoutExpired):
+                    pass
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                check=False, timeout=10,
+            )
+            process.wait(timeout=10)
             return
-        except (BrokenPipeError, subprocess.TimeoutExpired):
-            pass
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        )
-        process.wait(timeout=10)
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-            process.wait(timeout=10)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
+
+        def signal_group(value: int) -> None:
             try:
-                os.killpg(process.pid, signal.SIGKILL)
+                os.killpg(process.pid, value)
             except ProcessLookupError:
                 pass
+
+        try:
+            if process.poll() is None and graceful_server and process.stdin is not None:
+                try:
+                    process.stdin.write("stop\n")
+                    process.stdin.flush()
+                    process.wait(timeout=15)
+                except (BrokenPipeError, subprocess.TimeoutExpired):
+                    pass
+            # A completed graceful shutdown or failed supervisor says nothing
+            # about its surviving Gradle/tool/game descendants.
+            signal_group(signal.SIGTERM)
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
+        finally:
+            # Reap resistant descendants even if TERM killed only the parent.
+            # This is our dedicated group, never the harness's process group.
+            signal_group(signal.SIGKILL)
             process.wait(timeout=10)
+    finally:
+        if process.stdin is not None:
+            try:
+                process.stdin.close()
+            except BrokenPipeError:
+                pass
 
 
 def prepare_server(module_dir: Path) -> None:
@@ -319,9 +341,10 @@ def run_target(root: Path, target: str, timeout: int) -> None:
             cleanup_errors.append(str(error))
         if cleanup_errors:
             message = f"{target}: cleanup failed: " + "; ".join(cleanup_errors)
-            if sys.exc_info()[0] is None:
-                raise RuntimeError(message)
-            print(message, file=sys.stderr, flush=True)
+            # Cleanup failure is an additional failure, not an eligibility-only
+            # refusal that could authorize a separate isolated acceptance lane.
+            # Python preserves an in-flight game exception as this error's context.
+            raise RuntimeError(message)
 
 
 

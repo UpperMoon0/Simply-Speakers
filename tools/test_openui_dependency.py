@@ -94,7 +94,7 @@ class OpenUiDependencyTest(unittest.TestCase):
             javac = str(Path(java_home) / 'bin/javac') if java_home else shutil.which('javac')
             java = str(Path(java_home) / 'bin/java') if java_home else shutil.which('java')
             self.assertTrue(javac and java, 'A JDK is required')
-            for target in ('fabric-1.20.1', 'fabric-1.21.1'):
+            for target in ('fabric-1.20.1', 'fabric-1.21.1', 'fabric-1.16.5', 'fabric-26.2'):
                 with self.subTest(target=target):
                     data = json.loads((ROOT / target / 'src/main/resources/fabric.mod.json').read_text())
                     self.assertEqual(data.get('environment', '*'), '*')

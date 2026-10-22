@@ -136,3 +136,16 @@ and its exact-head CI must be checked independently. The helper/workflow input k
 changes, so its first producer run is another cold cache generation, not a warm
 benchmark. Current-head verification and later measurements belong in the PR's
 validation summary; this section preserves the original measured evidence.
+
+## Integration with requested-generation ports
+
+The optimization is integrated with main `23ed9ae060df9632f418cf8d8b5e9d89a82e7f98`.
+The ten-target release workflow, requested-generation workflow and production
+version 0.10.2 remain unchanged from that main. The optimization continues to
+apply to the original five-target native acceptance matrix; it does not replace
+the separate port qualification or claim new native runtime coverage. Legacy
+1.16.5 retains Java 8. Existing dedicated-client eligibility limitations remain
+explicit in the port documentation.
+
+Exact-head CI after integration must pass before this PR is ready. An artifact
+quota failure is an infrastructure blocker, not a passing qualification result.
