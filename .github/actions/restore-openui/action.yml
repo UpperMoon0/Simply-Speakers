@@ -1,0 +1,24 @@
+name: Restore verified OpenUI
+description: Restore the exact prepared dependency cache or this run's artifact, then verify integrity.
+inputs:
+  cache-key:
+    description: Exact key from the successful prepare-openui job
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Restore exact OpenUI cache
+      id: cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.m2/repository/com/nstut
+        key: ${{ inputs.cache-key }}
+    - name: Download verified producer artifact on cache miss
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/download-artifact@v4
+      with:
+        name: openui-verification-m2
+        path: ~/.m2/repository/com/nstut
+    - name: Validate every restored OpenUI file
+      shell: bash
+      run: python3 tools/openui_cache.py validate

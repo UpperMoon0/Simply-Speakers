@@ -41,6 +41,29 @@ class ReleaseMetadataTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cache keys"):
                 check.validate()
 
+    def test_unrelated_dependency_pin_does_not_change_openui_contract(self):
+        original = Path.read_text
+        def read(path, *args, **kwargs):
+            text = original(path, *args, **kwargs)
+            if path.name == "release.yml":
+                text += "\n        ref: " + "a" * 40 + "\n        path: .packetweave\n"
+            return text
+        with patch.object(Path, "read_text", read):
+            check.validate()
+
+    def test_ci_helper_pin_drift_is_rejected(self):
+        original = Path.read_text
+        def read(path, *args, **kwargs):
+            text = original(path, *args, **kwargs)
+            if path.name == "openui_cache.py":
+                import re
+                text = re.sub(r'SOURCE_PIN = "[0-9a-f]{40}"',
+                              'SOURCE_PIN = "' + "a" * 40 + '"', text)
+            return text
+        with patch.object(Path, "read_text", read):
+            with self.assertRaisesRegex(ValueError, "cache keys"):
+                check.validate()
+
     def test_wrong_openui_checkout_version_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             checkout = Path(directory)
