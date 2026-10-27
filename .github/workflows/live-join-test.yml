@@ -41,6 +41,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+          # Resolve a published build before handing its exact version to other runners.
+          # Hosted tool-cache labels can differ from downloadable Temurin build numbers.
+          check-latest: true
           cache: gradle
       - name: Compute toolchain and source-specific OpenUI key
         id: openui-key
