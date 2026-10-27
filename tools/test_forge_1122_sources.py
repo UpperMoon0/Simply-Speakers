@@ -6,6 +6,13 @@ from unittest.mock import patch
 import forge_1122_sources as port
 
 class Forge1122GenerationTests(unittest.TestCase):
+    def test_download_readiness_report_uses_native_chat_packet(self):
+        source=port.ROOT/'shared/runtime-verification/src/main/java/com/nstut/simplyspeakers/client/LiveDownloadClientProbe.java'
+        generated=port.convert(source.read_text(encoding='utf-8'),source.name)
+        self.assertIn('client.getConnection().sendPacket(new net.minecraft.network.play.client.CPacketChatMessage',generated)
+        self.assertIn('"/" + ("simplyspeakers_verify_download " + audioId)',generated)
+        self.assertNotIn('.sendCommand(',generated)
+
     def test_wire_registry_preserves_every_packet(self):
         source=port.ROOT/'common-1.20.1/src/main/java/com/nstut/simplyspeakers/network/PacketRegistries.java'
         before=source.read_text();after=port.convert(before,source.name)
