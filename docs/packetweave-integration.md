@@ -63,7 +63,10 @@ the transfer needs about 12 seconds; a 60 MiB fixture would need 15,360 windows 
 at least 768 seconds even at one 50 ms tick per receipt. Each client must
 report `SIMPLYSPEAKERS_DOWNLOAD_PLAY_PASS` with download time and request-to-decoded
 OpenAL playback time, within the isolated fixture's 30-second budget. A cached
-playback or server-only dispatch timing cannot satisfy this marker.
+playback or server-only dispatch timing cannot satisfy this marker. The server waits
+for both authenticated fixture connections to report their own initial decoded
+playback before advancing pause/seek/restart controls. That readiness barrier has
+its own fixed 30-second deadline and never resets either client's latency clock.
 
 The two-player live harness uploads the same bounded, valid WAV using real
 request/data/receipt packets while the second player exercises spatial playback.

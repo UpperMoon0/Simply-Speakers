@@ -132,6 +132,9 @@ class AudioDownloadTransferTest {
         Object[] connection = {mock(Minecraft.class.getMethod("getConnection").getReturnType())};
         Minecraft client = mock(Minecraft.class, call -> call.getMethod().getName().equals("getConnection")
                 ? connection[0] : RETURNS_DEFAULTS.answer(call));
+        // 26.2 reads screen state through the native Gui owner, rather than Minecraft.screen.
+        Field guiOwner = field(Minecraft.class, "gui");
+        guiOwner.set(client, mock(guiOwner.getType()));
         try (var mc = mockStatic(Minecraft.class)) {
             mc.when(Minecraft::getInstance).thenReturn(client);
             Class<?> type = Class.forName(ClientAudioPlayer.class.getName() + "$UploadProcess");

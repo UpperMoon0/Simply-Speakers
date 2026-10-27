@@ -350,6 +350,13 @@ class PacedFixtureContractTest(unittest.TestCase):
         self.assertIn('snapshot.playing()', download)
         self.assertIn('snapshot.decodedBytes() <= 0', download)
         self.assertIn('snapshot.sources() != 1', download)
+        self.assertLess(download.index('snapshot.sources() != 1'), download.index('sendCommand("simplyspeakers_verify_download '))
+        self.assertIn('TimeUnit.SECONDS.toNanos(30)', playback)
+        self.assertIn('sender == player || sender == observer', playback)
+        self.assertIn('getPlayer(sender.getUUID()) == sender', playback)
+        self.assertIn('audio.getUuid().equals(audioId)', playback)
+        self.assertIn('initialDownloads.add(sender.getUUID())', playback)
+        self.assertIn('initialStartedPending && initialDownloadsReady()', playback)
 
 
 if __name__ == "__main__": unittest.main()

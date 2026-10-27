@@ -35,5 +35,8 @@ final class LiveDownloadClientProbe {
                 + System.getProperty("simplyspeakers.livePlaybackRole", "carrier")
                 + " download-ms=" + TimeUnit.NANOSECONDS.toMillis(downloaded - requested)
                 + " request-to-decoded-play-ms=" + TimeUnit.NANOSECONDS.toMillis(now - requested));
+        var client = net.minecraft.client.Minecraft.getInstance();
+        if (client.getConnection() != null)
+            client.getConnection().sendCommand("simplyspeakers_verify_download " + audioId);
     }
 }
