@@ -13,7 +13,8 @@ import build_requested_release as build
 import release_artifacts as release
 
 
-def make_jar(directory, target, version='0.10.2', **changes):
+def make_jar(directory, target, version=None, **changes):
+    version = version or release.version()
     path = directory / release.jar_name(target, version)
     loader, mc = target.split('-', 1)
     with zipfile.ZipFile(path, 'w') as archive:
@@ -59,10 +60,10 @@ class ReleaseArtifactsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             directory = Path(raw)
             for target in release.TARGETS: make_jar(directory, target)
-            path = directory / release.jar_name('forge-1.12.2', '0.10.2')
+            path = directory / release.jar_name('forge-1.12.2', release.version())
             path.unlink()
             with self.assertRaisesRegex(ValueError, 'missing='): release.bundle(directory)
-            make_jar(directory, 'forge-1.12.2', '0.10.3')
+            make_jar(directory, 'forge-1.12.2', '9.9.9')
             with self.assertRaisesRegex(ValueError, 'extra='): release.bundle(directory)
             make_jar(directory, 'forge-1.12.2')
             with self.assertRaisesRegex(ValueError, 'extra='): release.bundle(directory)
@@ -71,7 +72,7 @@ class ReleaseArtifactsTest(unittest.TestCase):
         for change in ({'metadata_version': '0.10.1'}, {'minecraft': '1.20.1'}, {'major': 61}, {'shaded': True}):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as raw:
                 path = make_jar(Path(raw), 'forge-1.12.2', **change)
-                with self.assertRaises(ValueError): release.verify_jar(path, 'forge-1.12.2', '0.10.2')
+                with self.assertRaises(ValueError): release.verify_jar(path, 'forge-1.12.2', release.version())
 
     def test_dependency_release_requires_complete_assets_and_reviewed_tree(self):
         pins = json.loads((release.ROOT / 'docs/requested-port-dependencies.json').read_text())

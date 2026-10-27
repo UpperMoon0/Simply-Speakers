@@ -44,7 +44,7 @@ public class AudioFileManager {
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("simplyspeakers");
     private static final String AUDIO_DIR_NAME = "simply_speakers_audios";
     private static final String MANIFEST_FILE_NAME = "audio_manifest.json";
-    private static final int MAX_CHUNK_SIZE = 32000;
+    private static final int MAX_CHUNK_SIZE = com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES;
     private static final int MAX_CONCURRENT_UPLOADS = 5;
     private static final long UPLOAD_TIMEOUT_MS = 60_000L;
 
@@ -56,14 +56,6 @@ public class AudioFileManager {
     private final BoundedFileReceiver uploadReceiver = new BoundedFileReceiver(
             MAX_CHUNK_SIZE, Config.MAX_FILE_SIZE, MAX_CONCURRENT_UPLOADS, 1, Duration.ofMillis(UPLOAD_TIMEOUT_MS));
     private final Map<UUID, UploadSession> activeUploads = new ConcurrentHashMap<>();
-    private final TransferRequestCoordinator<String> activeDownloads =
-            new TransferRequestCoordinator<>(Duration.ofSeconds(30));
-    private final ExecutorService audioFileExecutor =
-            java.util.concurrent.Executors.newFixedThreadPool(2, task -> {
-                Thread thread = new Thread(task, "Simply Speakers Audio File");
-                thread.setDaemon(true);
-                return thread;
-            });
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private final Path audioDirPath;
@@ -187,8 +179,6 @@ public class AudioFileManager {
             // commit can start. This does not wait for blocked validation or filesystem I/O.
             uploadReceiver.drainAndClose();
         }
-        activeDownloads.clear();
-        audioFileExecutor.shutdownNow();
         LOGGER.info("AudioFileManager stopped admission; accepted commits are draining.");
     }
 
@@ -482,25 +472,29 @@ public class AudioFileManager {
         return AudioOwnership.ownedBy(manifest.values(), AudioFileMetadata::getOwnerUUID, playerUUID);
     }
 
-    public void sendAudioFile(ServerPlayer player, String audioId) {
+    public void sendAudioFile(ServerPlayer player, String audioId, UUID transferId) {
         AudioFileMetadata metadata = manifest.get(audioId);
         String playerId = player.getUUID().toString();
-        String grantKey = playerId + ":" + audioId;
-        boolean owner = metadata != null && AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerId);
-        Long grantExpiry = playbackGrants.get(grantKey);
-        long now = System.currentTimeMillis();
-        if (grantExpiry != null && grantExpiry < now) playbackGrants.remove(grantKey, grantExpiry);
-        if (!owner && (grantExpiry == null || grantExpiry < System.currentTimeMillis())) return;
-        String transferKey = player.getUUID() + ":" + audioId;
-        activeDownloads.tryStart(transferKey, () -> {
-            Path filePath = this.getAudioFilePath(audioId);
-            if (filePath == null || !Files.exists(filePath)) {
-                activeDownloads.release(transferKey);
-                return;
-            }
-            MinecraftServer server = player.getServer();
-            audioFileExecutor.execute(() -> sendAudioFileAsync(player, server, audioId, filePath, transferKey));
-        });
+        Long grantExpiry = playbackGrants.get(playerId + ":" + audioId);
+        if (metadata == null || (!AudioOwnership.isOwnedBy(metadata.getOwnerUUID(), playerId)
+                && (grantExpiry == null || grantExpiry < System.currentTimeMillis()))) return;
+        MinecraftServer server = player.getServer();
+        if (server == null || stopped) return;
+        Path path = getAudioFilePath(audioId);
+        if (path == null) return;
+        boolean admitted = com.nstut.packetweave.api.OutboundTransfers.shared().start(player, transferId, path,
+                Config.MAX_FILE_SIZE, server::execute, (index, total, chunk) -> {
+                    if (stopped || server.getPlayerList().getPlayer(player.getUUID()) != player)
+                        throw new IOException("Player disconnected during audio transfer");
+                    PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(
+                            audioId, transferId, index, chunk, index == total - 1));
+                }, failure -> {
+                    if (failure != null) server.execute(() -> {
+                        if (server.getPlayerList().getPlayer(player.getUUID()) == player)
+                            PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, transferId, -1, new byte[0], true));
+                    });
+                });
+        if (!admitted) PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, transferId, -1, new byte[0], true));
     }
 
     public void grantPlaybackDownload(ServerPlayer player, String audioId) {
@@ -511,30 +505,6 @@ public class AudioFileManager {
         }
         playbackGrants.put(player.getUUID() + ":" + audioId, now + 120_000L);
     }
-
-    private void sendAudioFileAsync(ServerPlayer player, MinecraftServer server, String audioId, Path filePath, String transferKey) {
-        try {
-            long fileSize = Files.size(filePath);
-            if (fileSize > Config.MAX_FILE_SIZE) {
-                activeDownloads.release(transferKey);
-                LOGGER.warn("Refusing to send audio {} because it is {} bytes, over hard limit", audioId, fileSize);
-                return;
-            }
-
-            if (server == null) return;
-            ChunkedTransfer.streamFileBatched(filePath, MAX_CHUNK_SIZE, Config.MAX_FILE_SIZE,
-                    16, server::execute, Duration.ofSeconds(30), (index, total, chunk) -> {
-                        if (stopped) throw new IOException("Audio manager stopped");
-                        PacketRegistries.CHANNEL.sendToPlayer(player, new SendAudioFilePacketS2C(audioId, chunk, index == total - 1));
-                    });
-        } catch (IOException e) {
-            activeDownloads.release(transferKey);
-            LOGGER.error("Failed to stream audio file for download", e);
-        } finally {
-            activeDownloads.release(transferKey);
-        }
-    }
-
 
     /**
      * Replaces the manifest entry for an audio id with updated library

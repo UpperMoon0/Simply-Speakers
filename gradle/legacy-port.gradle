@@ -2,7 +2,7 @@
 def shared=new Properties(); file('../gradle.properties').withInputStream { shared.load(it) }
 group=shared.getProperty('maven_group'); version=shared.getProperty('mod_version')
 base { archivesName="simplyspeakers-${project.name}" }
-ext.openuiPortVersion='0.0.15'; ext.packetweavePortVersion='0.1.4'
+ext.openuiPortVersion='0.0.15'; ext.packetweavePortVersion='0.1.5'
 ext.portOpenuiJar=file(providers.gradleProperty('openuiJar').getOrElse("../../OpenUI-MC/${project.name}/build/libs/openui-mc-${project.name}-${openuiPortVersion}.jar"))
 ext.portPacketweaveJar=file(providers.gradleProperty('packetweaveJar').getOrElse("../../PacketWeave/targets/${project.name}/build/libs/packetweave-${project.name}-${packetweavePortVersion}.jar"))
 repositories { mavenCentral(); maven { url='https://maven.architectury.dev/' } }

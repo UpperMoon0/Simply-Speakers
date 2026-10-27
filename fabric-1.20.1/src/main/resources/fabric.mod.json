@@ -35,6 +35,6 @@
     "java": ">=17",
     "architectury": ">=${architectury_api_version}",
     "fabric-api": "*",
-    "packetweave": ">=0.1.2"
+    "packetweave": ">=0.1.5"
   }
 }

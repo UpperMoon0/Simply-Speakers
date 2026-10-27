@@ -738,14 +738,18 @@ class AudioContextRecoveryIntegrationTest {
 
     private void finishDownload(AudioFileMetadata metadata) throws Exception {
         File cache = (File) field(ClientAudioPlayer.class, "CACHE_DIR").get(null);
-        createdFiles.add(new File(cache, metadata.getUuid() + ".part"));
         createdFiles.add(new File(cache, metadata.getUuid() + ".wav"));
         Class<?> downloadType = Class.forName(ClientAudioPlayer.class.getName() + "$DownloadProcess");
         var constructor = downloadType.getDeclaredConstructor(String.class, String.class);
         constructor.setAccessible(true);
         Object download = constructor.newInstance(metadata.getUuid(), metadata.getOriginalFilename());
         map("activeDownloads").put(metadata.getUuid(), download);
-        ClientAudioPlayer.handleAudioFileChunk(metadata.getUuid(), new byte[]{1, 2, 3, 4}, true);
+        createdFiles.add((File)field(downloadType, "partFile").get(download));
+        // These tests isolate playback/context recovery. File receipt dispatch has
+        // separate wire/worker coverage; finish its IO phase on this test thread.
+        invoke(download, "addData", new Class<?>[]{int.class, byte[].class}, 0, new byte[]{1, 2, 3, 4});
+        invoke(download, "complete", new Class<?>[0]);
+        takeTask().run();
     }
 
     private void ageTimeline(Object intent, long elapsedNanos) throws Exception {

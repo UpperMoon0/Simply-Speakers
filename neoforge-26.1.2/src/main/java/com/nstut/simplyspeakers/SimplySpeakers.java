@@ -86,6 +86,7 @@ public class SimplySpeakers {
 
         // Drop centralized playback subscriptions when a player disconnects or changes dimension
         PlayerEvent.PLAYER_QUIT.register(player -> {
+            com.nstut.packetweave.api.OutboundTransfers.shared().cancelPeer(player);
             if (audioFileManager != null) audioFileManager.cancelUploads(player.getUUID());
             ServerPlaybackManager.handlePlayerQuit(player.level().getServer(), player.getUUID());
         });

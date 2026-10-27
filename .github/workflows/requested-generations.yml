@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: UpperMoon0/PacketWeave
-          ref: b9af8be1c8dae497a852342a0d323f811b80b54a
+          ref: 88046f276ed059df4b9c2f1c0e1d643d26472b1c
           path: .port-deps/PacketWeave
       - uses: actions/setup-java@v4
         with:
@@ -96,7 +96,7 @@ jobs:
           printf 'eula=true\n' > forge-1.12.2/run/legacy-runtime/server/eula.txt
           python3 tools/requested_1122_runtime.py \
             --openui-jar "$PWD/.port-deps/OpenUI-MC/forge-1.12.2/build/libs/openui-mc-forge-1.12.2-0.0.15.jar" \
-            --packetweave-jar "$PWD/.port-deps/PacketWeave/targets/forge-1.12.2/build/libs/packetweave-forge-1.12.2-0.1.4.jar" \
+            --packetweave-jar "$PWD/.port-deps/PacketWeave/targets/forge-1.12.2/build/libs/packetweave-forge-1.12.2-0.1.5.jar" \
             --timeout 600 2>&1 | tee forge-1.12.2/build/runtime-evidence/native-runtime.log
       - name: Real native server and two-client audio acceptance
         if: matrix.target != 'forge-1.12.2'

@@ -17,23 +17,26 @@ public class RequestAudioFilePacketC2S implements CustomPacketPayload {
         StreamCodec.of(RequestAudioFilePacketC2S::encode, RequestAudioFilePacketC2S::decode);
 
     private final String audioId;
+    private final java.util.UUID transferId;
 
-    public RequestAudioFilePacketC2S(String audioId) {
+    public RequestAudioFilePacketC2S(String audioId, java.util.UUID transferId) {
         this.audioId = audioId;
+        this.transferId = transferId;
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, RequestAudioFilePacketC2S packet) {
         buffer.writeUtf(packet.audioId);
+        buffer.writeUUID(packet.transferId);
     }
 
     public static RequestAudioFilePacketC2S decode(RegistryFriendlyByteBuf buffer) {
-        return new RequestAudioFilePacketC2S(buffer.readUtf());
+        return new RequestAudioFilePacketC2S(buffer.readUtf(), buffer.readUUID());
     }
 
     public static void handle(RequestAudioFilePacketC2S packet, NetworkManager.PacketContext context) {
         ServerPlayer player = (ServerPlayer) context.getPlayer();
         context.queue(() -> {
-            SimplySpeakers.getAudioFileManager().sendAudioFile(player, packet.audioId);
+            SimplySpeakers.getAudioFileManager().sendAudioFile(player, packet.audioId, packet.transferId);
         });
     }
 

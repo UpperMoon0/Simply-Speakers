@@ -50,7 +50,7 @@ def dependency_arguments(root,target):
     openui=checkout/'OpenUI-MC' if checkout.is_dir() else root.parent/'OpenUI-MC'
     packetweave=checkout/'PacketWeave' if checkout.is_dir() else root.parent/'PacketWeave'
     return [f'-PopenuiJar={openui/target/"build/libs"/f"openui-mc-{target}-0.0.15.jar"}',
-            f'-PpacketweaveJar={packetweave/"targets"/target/"build/libs"/f"packetweave-{target}-0.1.4.jar"}',
+            f'-PpacketweaveJar={packetweave/"targets"/target/"build/libs"/f"packetweave-{target}-0.1.5.jar"}',
             f'-PpacketweaveSource={packetweave/"core/src/main/java"}']
 
 def command(root,task):

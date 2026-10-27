@@ -116,6 +116,6 @@ config = "simplyspeakers.mixins.json"
 [[dependencies.simplyspeakers]]
 modId = "packetweave"
 type = "required"
-versionRange = "[0.1.4,)"
+versionRange = "[0.1.5,)"
 ordering = "NONE"
 side = "BOTH"

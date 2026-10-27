@@ -7,6 +7,7 @@ import dev.architectury.utils.Env;
 
 public class PacketRegistries {
     public static void registerC2S() {
+        NetworkManager.registerReceiver(NetworkManager.c2s(), AudioDownloadReceiptPacketC2S.TYPE, AudioDownloadReceiptPacketC2S.STREAM_CODEC, AudioDownloadReceiptPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), AddRemoteAudioPacketC2S.TYPE, AddRemoteAudioPacketC2S.STREAM_CODEC, AddRemoteAudioPacketC2S::handle);
         NetworkManager.registerReceiver(NetworkManager.c2s(), ConfigureControllerPacketC2S.TYPE, ConfigureControllerPacketC2S.STREAM_CODEC, ConfigureControllerPacketC2S::handle);
         // Client to Server packets - register receivers on server side

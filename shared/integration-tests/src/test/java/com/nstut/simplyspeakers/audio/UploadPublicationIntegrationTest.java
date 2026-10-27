@@ -135,13 +135,26 @@ class UploadPublicationIntegrationTest {
         field.setAccessible(true);
         var receiver = (BoundedFileReceiver) field.get(manager);
         var upload = new Upload(session, receiver, new AtomicInteger(), new AtomicInteger());
+        var committed = new java.util.concurrent.atomic.AtomicLong();
         assertTrue(receiver.begin(session.key, session.tempFilePath, bytes.length, new BoundedFileReceiver.Listener() {
             public void committed(long count, boolean complete) throws Exception {
+                committed.set(count);
                 if (complete) { manager.publishUpload(session); upload.successes.incrementAndGet(); }
             }
             public void failed(Exception error) { upload.failures.incrementAndGet(); }
         }));
-        assertTrue(receiver.accept(session.key, 0, bytes));
+        // Follow the same committed-byte receipt boundary as the production sender.
+        int chunkBytes = com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES;
+        for (int offset=0, index=0; offset<bytes.length; index++) {
+            int end=Math.min(bytes.length,offset+chunkBytes);
+            if (index>0) {
+                long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);
+                while (committed.get()<offset && System.nanoTime()<deadline) Thread.sleep(1);
+                assertEquals(offset,committed.get());
+            }
+            assertTrue(receiver.accept(session.key,index,java.util.Arrays.copyOfRange(bytes,offset,end)));
+            offset=end;
+        }
         return upload;
     }
 
