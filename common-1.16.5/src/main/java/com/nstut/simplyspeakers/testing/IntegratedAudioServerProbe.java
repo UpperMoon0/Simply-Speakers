@@ -87,7 +87,7 @@ public final class IntegratedAudioServerProbe {
             speaker.setSpeakerId(ID);
             fullKey = speaker.getFullStateKey();
             AudioFileMetadata audio = SimplySpeakers.getAudioFileManager().saveFile(
-                    new ByteArrayInputStream(WaveFixture.tone(30)), "integrated-acceptance.wav",
+                    new ByteArrayInputStream(WaveFixture.liveTransferTone()), "integrated-acceptance.wav",
                     participant.getUUID().toString());
             audioId = audio.getUuid();
             SpeakerState state = state();
@@ -99,7 +99,7 @@ public final class IntegratedAudioServerProbe {
             level.sendBlockUpdated(position, speaker.getBlockState(), speaker.getBlockState(), 3);
             require(!state.isPlaying(), "fixture must wait for production client transport control");
             System.out.println("SIMPLYSPEAKERS_INTEGRATED_FIXTURE_READY participant=" + participant.getUUID()
-                    + " audio=" + audioId + " key=" + fullKey + " wavBytes=1323044 speakers=1");
+                    + " audio=" + audioId + " key=" + fullKey + " wavBytes=" + WaveFixture.LIVE_TRANSFER_BYTES + " speakers=1");
         } catch (Exception error) {
             throw new IllegalStateException("SIMPLYSPEAKERS_INTEGRATED_FAIL fixture setup", error);
         }

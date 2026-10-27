@@ -1,5 +1,6 @@
 import json
 import unittest
+import tempfile
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 class PacketWeaveIntegrationTest(unittest.TestCase):
@@ -29,4 +30,23 @@ class PacketWeaveIntegrationTest(unittest.TestCase):
             packet = (ROOT/target/'src/main/java/com/nstut/simplyspeakers/network/UploadAudioDataPacketC2S.java').read_text()
             self.assertIn('readByteArray(32000)', packet)
             self.assertIn('readVarInt()', packet)
+    def test_generated_targets_preserve_receipt_codec_and_shared_sender(self):
+        import legacy_speaker_sources, forge_1165_sources, forge_1122_sources, modern_speaker_sources
+        for generator in (legacy_speaker_sources.generate, forge_1165_sources.generate,
+                          forge_1122_sources.generate, modern_speaker_sources.generate):
+            with self.subTest(generator=generator.__module__), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                generator(root)
+                network = root/'com/nstut/simplyspeakers/network'
+                receipt = (network/'AudioDownloadReceiptPacketC2S.java').read_text(encoding='utf-8')
+                self.assertIn('transferId', receipt)
+                self.assertIn('readLong()', receipt)
+                self.assertIn('OutboundTransfers.shared().acknowledge(player,', receipt)
+                self.assertIn('AudioDownloadReceiptPacketC2S', (network/'PacketRegistries.java').read_text(encoding='utf-8'))
+                chunk = (network/'SendAudioFilePacketS2C.java').read_text(encoding='utf-8')
+                self.assertIn('transferId', chunk)
+                self.assertIn('readByteArray(com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES)', chunk)
+                client = (root/'com/nstut/simplyspeakers/client/ClientAudioPlayer.java').read_text(encoding='utf-8')
+                self.assertIn('OutboundTransfers.shared().start(peer, transactionId,', client)
+                self.assertIn('Audio download cancelled before publication', client)
 if __name__ == '__main__': unittest.main()

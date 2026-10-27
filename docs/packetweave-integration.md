@@ -1,6 +1,6 @@
 # PacketWeave integration
 
-Simply Speakers 0.9.1 requires PacketWeave 0.1.2 or later on both sides.
+Simply Speakers 0.10.3 requires PacketWeave 0.1.5 or later on both sides.
 Install the native PacketWeave jar matching the Minecraft version and loader.
 The upload protocol changed; update clients and server together.
 
@@ -16,7 +16,7 @@ do not add it to production shadow configurations.
 ## Upload contract
 The authenticated owner and transaction identify an upload. The server admits
 at most five uploads and one per owner, including final validation. The client
-has one 32,000-byte chunk outstanding, indexed from zero. Empty, oversized,
+has one 4,096-byte chunk outstanding, indexed from zero. Empty, oversized,
 duplicate and out-of-order packets are rejected. Chunk packet decode is bounded.
 
 A response with a positive chunk size approves a transfer. A response with
@@ -27,7 +27,7 @@ dedicated worker; main-thread callbacks only send packets. The final receipt
 precedes the terminal audio-validation acknowledgement.
 
 The disk writer retains at most five queued chunk arrays plus the current worker chunk
-(192,000 bytes of payload, plus bounded transient packet/copy allocations), rather than a whole audio file.
+(24,576 bytes of payload, plus bounded transient packet/copy allocations), rather than a whole audio file.
 Slow writes reduce throughput instead of growing queues. File opening, disk
 writes, partial-file deletion and expiry cleanup run off the server thread.
 The per-chunk acknowledgement naturally limits ordinary gameplay-thread dispatch.
@@ -41,11 +41,14 @@ commits without blocking the server. Unpublished files use unique paths and rema
 by PacketWeave until manifest persistence succeeds. Persistence failure propagates and
 cleanup is retried without exposing a manifest entry. File cleanup occurs after any current
 filesystem call returns. Final audio validation is serialized on the upload
-worker, isolated from the download executor. Downloads use PacketWeave chunking
-and bounded game-thread dispatch: at most 16 packets (512,000 payload bytes) per
-dispatch, with one outstanding batch per download worker. A 60 MiB download takes
-123 dispatches rather than 1,967. This is a dispatch bound, not a measured network
-throughput guarantee. Audio-specific cache/playback state remains here.
+worker, isolated from the download executor. Uploads and downloads use PacketWeave's
+shared receipt-paced scheduler: at most two active sends per authenticated connection
+across Screens and Speakers, 32 globally, and one outstanding 4 KiB chunk per send.
+There is no waiting send queue. A worker waits for a receiver receipt after each
+chunk; game-thread dispatch and keepalives remain free to progress. A stalled
+receipt or dispatch times out after ten seconds. This deliberately trades media
+throughput for bounded game-connection backlog. Audio-specific cache/playback
+state remains here.
 
 ## Verification
 PacketWeave tests cover 60 MiB receive/content parity, an intentionally blocked
@@ -53,12 +56,16 @@ writer, fixed session/owner/window limits, ordering/replay, existing-file safety
 disconnect, expiry and shutdown cleanup. These are JVM/disk regression tests,
 not multiplayer tick-time measurements.
 
-The fixture also serves an uncached 60 MiB WAV to both real clients. Each must
+The fixture serves an uncached 480,044-byte WAV to both real clients. It contains
+120 seconds of nonzero 2 kHz, mono 16-bit PCM, preserving seek and context-reload
+coverage while using only 118 receipt windows. At a conservative 100 ms per window,
+the transfer needs about 12 seconds; a 60 MiB fixture would need 15,360 windows and
+at least 768 seconds even at one 50 ms tick per receipt. Each client must
 report `SIMPLYSPEAKERS_DOWNLOAD_PLAY_PASS` with download time and request-to-decoded
 OpenAL playback time, within the isolated fixture's 30-second budget. A cached
 playback or server-only dispatch timing cannot satisfy this marker.
 
-The existing two-player live harness now uploads a valid 60 MiB WAV using real
+The two-player live harness uploads the same bounded, valid WAV using real
 request/data/receipt packets while the second player exercises spatial playback.
 It requires `SIMPLYSPEAKERS_CLIENT_UPLOAD_PASS` and
 `SIMPLYSPEAKERS_SERVER_UPLOAD_PASS`, reporting sampled completed server tick

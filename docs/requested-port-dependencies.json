@@ -6,7 +6,7 @@
   },
   "packetweave": {
     "repository": "UpperMoon0/PacketWeave",
-    "commit": "88046f276ed059df4b9c2f1c0e1d643d26472b1c",
+    "commit": "73a7ade839191fde0fcccc66e1d88ad1b86cb447",
     "version": "0.1.5"
   },
   "targets": [
