@@ -16,7 +16,7 @@ There is no official Fabric target for 1.12.2. No unofficial Legacy Fabric distr
 
 The complete commit/version contract is in [`requested-port-dependencies.json`](requested-port-dependencies.json). The requested-generation CI checks out those exact commits and verifies them before building matching native OpenUI and PacketWeave artifacts. It does not assume unpublished versions already exist in a package registry.
 
-OpenUI MC 0.0.15 is required on clients. PacketWeave 0.1.4 is a separate required client/server mod. Neither API is shaded into Simply Speakers. The PacketWeave core source set is compile-only and must come from the pinned checkout. Existing targets keep their existing dependency pins.
+OpenUI MC 0.0.15 is required on clients. PacketWeave 0.1.5 is a separate required client/server mod. Neither API is shaded into Simply Speakers. The PacketWeave core source set is compile-only and must come from the pinned checkout. All targets now require the receipt-driven PacketWeave 0.1.5 API.
 
 For a manual build, check out the pinned repositories as sibling `OpenUI-MC` and `PacketWeave` directories, build their matching target, then run the target wrapper, for example:
 
@@ -30,7 +30,7 @@ Alternative checkout/artifact locations are explicit:
 ```sh
 bash gradlew build \
   -PopenuiJar=/absolute/path/openui-mc-fabric-1.16.5-0.0.15.jar \
-  -PpacketweaveJar=/absolute/path/packetweave-fabric-1.16.5-0.1.4.jar \
+  -PpacketweaveJar=/absolute/path/packetweave-fabric-1.16.5-0.1.5.jar \
   -PpacketweaveSource=/absolute/path/PacketWeave/core/src/main/java
 ```
 
@@ -164,9 +164,9 @@ The release workflow builds the five retained targets and all five requested
 standalone targets before either publisher runs. Requested builds use the same
 `tools/build_requested_release.py` path as native CI, including reviewed dependency
 commit/version checks, all native build tests and production JAR verification.
-Their published OpenUI 0.0.15 and PacketWeave 0.1.4 releases must contain every
+Their published OpenUI 0.0.15 and PacketWeave 0.1.5 releases must contain every
 requested native artifact and have the same source trees as the reviewed pins.
-The retained targets keep their existing dependency versions and build path.
+The retained targets keep their build path and also require PacketWeave 0.1.5.
 
 A ten-target bundle gate rejects missing or unexpected JARs, wrong native IDs,
 versions, Minecraft metadata, embedded dependency classes or incompatible bytecode.

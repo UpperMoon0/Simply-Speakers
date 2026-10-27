@@ -14,7 +14,7 @@ Java 17 in `JAVA17_HOME` for compilation, the real `xrandr` executable
 ```sh
 python3 tools/requested_1122_runtime.py \
   --openui-jar /path/to/openui-mc-forge-1.12.2-0.0.15.jar \
-  --packetweave-jar /path/to/packetweave-forge-1.12.2-0.1.4.jar
+  --packetweave-jar /path/to/packetweave-forge-1.12.2-0.1.5.jar
 ```
 
 The harness requires an already accepted `eula=true` in
