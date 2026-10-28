@@ -26,6 +26,7 @@ public class ClientEvents {
         if (client.level == null || client.player == null) DirectionalPreview.clear();
         ClientPortableSpeakers.tick();
         SpeakerUiPreviewProbe.tick(client);
+        ZonePreviewRuntimeProbe.tick(client);
         if (client.player != null && client.level != null) {
             PlayAudioPacketS2C.processPendingPlays();
             finishLiveJoinTest(client);

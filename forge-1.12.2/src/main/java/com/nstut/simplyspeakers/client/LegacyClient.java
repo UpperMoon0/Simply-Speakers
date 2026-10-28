@@ -24,7 +24,7 @@ public final class LegacyClient extends com.nstut.simplyspeakers.forge.CommonPro
   }
   float partial=event.getPartialTicks();
   DirectionalPreview.renderWorld(zoneMatrix,camera.lastTickPosX+(camera.posX-camera.lastTickPosX)*partial,
-   camera.lastTickPosY+(camera.posY-camera.lastTickPosY)*partial,camera.lastTickPosZ+(camera.posZ-camera.lastTickPosZ)*partial);
+   camera.lastTickPosY+(camera.posY-camera.lastTickPosY)*partial,camera.lastTickPosZ+(camera.posZ-camera.lastTickPosZ)*partial,partial);
  }
  @SubscribeEvent public void reloadZone(net.minecraftforge.client.event.TextureStitchEvent.Pre event){DirectionalPreview.reload();}
  private net.minecraft.world.World previousWorld;

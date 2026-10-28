@@ -31,8 +31,9 @@ public final class ZonePreviewRenderer {
     private final boolean compatibilityFallback = hasShaderIntegration();
 
     private static RenderPipeline pipeline(String name, CompareOp depth) {
-        return RenderPipeline.builder().withLocation("simplyspeakers:pipeline/zone_preview_" + name)
-            .withVertexShader("simplyspeakers:core/zone_preview").withFragmentShader("simplyspeakers:core/zone_preview")
+        return RenderPipeline.builder().withLocation(net.minecraft.resources.Identifier.fromNamespaceAndPath("simplyspeakers","pipeline/zone_preview_" + name))
+            .withVertexShader(net.minecraft.resources.Identifier.fromNamespaceAndPath("simplyspeakers","core/zone_preview"))
+            .withFragmentShader(net.minecraft.resources.Identifier.fromNamespaceAndPath("simplyspeakers","core/zone_preview"))
             .withUniform("ZonePreview", UniformType.UNIFORM_BUFFER)
             .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.TRIANGLES)
             .withCull(false).withDepthStencilState(new DepthStencilState(depth, false))
@@ -40,6 +41,7 @@ public final class ZonePreviewRenderer {
     }
 
     public boolean available() { return !failed && !compatibilityFallback && !Boolean.getBoolean("simplyspeakers.previewHudOnly"); }
+    public boolean hasResources() { return vertices!=null && available(); }
 
     private static boolean hasShaderIntegration() {
         for (String name : new String[]{"net.irisshaders.iris.Iris", "net.coderbot.iris.Iris",

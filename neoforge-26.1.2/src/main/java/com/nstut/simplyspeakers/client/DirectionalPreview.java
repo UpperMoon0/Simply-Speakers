@@ -67,21 +67,21 @@ public final class DirectionalPreview {
                                    net.minecraft.world.phys.Vec3 camera) {
         var client=Minecraft.getInstance();
         if (remaining<=0 || client.level==null || client.level!=world || client.screen!=null) return;
+        double originX=renderOrigin.x,originY=renderOrigin.y,originZ=renderOrigin.z;
         if (portableHolder != null) {
             var holder=client.level.getPlayerByUUID(portableHolder);
             if(holder==null || !holder.isAlive()) { clear(); return; }
             float partial=client.getDeltaTracker().getGameTimeDeltaPartialTick(false);
-            renderOrigin=new net.minecraft.world.phys.Vec3(
-                net.minecraft.util.Mth.lerp(partial,holder.xo,holder.getX()),
-                net.minecraft.util.Mth.lerp(partial,holder.yo,holder.getY())+.5,
-                net.minecraft.util.Mth.lerp(partial,holder.zo,holder.getZ()));
+            originX=net.minecraft.util.Mth.lerp(partial,holder.xo,holder.getX());
+            originY=net.minecraft.util.Mth.lerp(partial,holder.yo,holder.getY())+.5;
+            originZ=net.minecraft.util.Mth.lerp(partial,holder.zo,holder.getZ());
             rotation=Math.toRadians(net.minecraft.util.Mth.rotLerp(partial,holder.yRotO,holder.getYRot())+180);
         }
         if(mesh!=null) { renderer.upload(mesh); mesh=null; }
         viewProjection.set(projection).mul(view).get(0,matrixBuffer);
-        try { renderer.draw(matrixBuffer,renderOrigin.x-camera.x,renderOrigin.y-camera.y,renderOrigin.z-camera.z,rotation); }
+        try { renderer.draw(matrixBuffer,originX-camera.x,originY-camera.y,originZ-camera.z,rotation); }
         catch (RuntimeException error) { renderer.fail(error); }
-        emitted++;
+        if(renderer.hasResources()) emitted++;
     }
     public static void reload() { clear(); renderer.reload(); }
     /** North-up plan plus actual 3D listener gain; all samples use the playback attenuation function. */

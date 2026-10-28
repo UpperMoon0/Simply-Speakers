@@ -27,6 +27,9 @@ void main() {
         vec2 normal = vec2(-delta.y, delta.x) / max(length(delta), 0.00001);
         vec4 p = mix(a, b, Corner.x);
         p.xy += normal * Corner.y * 3.0 / Viewport * p.w;
+        // Diagnostic boundaries may exceed the terrain view distance. Keep their
+        // projected shape while testing against the farthest available terrain depth.
+        p.z = min(p.z, p.w * 0.99999);
         gl_Position = p;
     }
     lineColor = Color;

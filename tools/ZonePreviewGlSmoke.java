@@ -42,6 +42,9 @@ public final class ZonePreviewGlSmoke {
             scene(renderer,"depth-occlusion-fixture",16,new Vector3f(25,16,25),new Vector3f(0,0,0),0,0,true);
             renderer.upload(ZonePreviewMesh.create(512,1,1,90,.9f,2));
             scene(renderer,"large-outside",512,new Vector3f(850,500,850),new Vector3f(0,0,0),0,0,false);
+            scene(renderer,"large-outside-short-far",512,new Vector3f(850,500,850),new Vector3f(0,0,0),0,0,false);
+            check(Files.mismatch(output.resolve("large-outside.png"),output.resolve("large-outside-short-far.png"))==-1,
+                "Far terrain plane clipped the diagnostic boundary");
             scene(renderer,"large-inside",512,new Vector3f(20,15,20),new Vector3f(0,0,-512),0,0,false);
             int vbo=field(renderer,"vbo"),vao=field(renderer,"vao"),program=field(renderer,"program");
             check(GL15.glIsBuffer(vbo)&&GL30.glIsVertexArray(vao)&&GL20.glIsProgram(program),"Expected retained GL resources");
@@ -55,7 +58,7 @@ public final class ZonePreviewGlSmoke {
             check(!renderer.available()&&field(renderer,"vbo")==0,"Forced fallback allocated a GPU buffer");
             System.clearProperty("simplyspeakers.previewHudOnly");
             check(GL11.glGetError()==GL11.GL_NO_ERROR,"OpenGL reported an error");
-            System.out.println("ZONE_SHADER_FIXTURE_PASS: resources, reload, fallback, state restoration and 7 GPU captures");
+            System.out.println("ZONE_SHADER_FIXTURE_PASS: resources, reload, fallback, state restoration and 8 GPU captures");
             System.out.println("NOT Minecraft integration or particle-baseline performance acceptance.");
         } finally {
             GLFW.glfwDestroyWindow(window); GLFW.glfwTerminate(); callback.free();
@@ -72,7 +75,7 @@ public final class ZonePreviewGlSmoke {
             GL11.glClear(GL11.GL_COLOR_BUFFER_BIT|GL11.GL_DEPTH_BUFFER_BIT);
             GL11.glDisable(GL11.GL_SCISSOR_TEST); GL11.glClearDepth(1);
         }
-        new Matrix4f().perspective((float)Math.toRadians(70),(float)WIDTH/HEIGHT,.05f,range*8f)
+        new Matrix4f().perspective((float)Math.toRadians(70),(float)WIDTH/HEIGHT,.05f,name.endsWith("short-far")?range:range*8f)
             .lookAt(eye,target,new Vector3f(0,1,0)).get(0,MATRIX);
         GL11.glDisable(GL11.GL_DEPTH_TEST); GL11.glDisable(GL11.GL_BLEND); GL11.glEnable(GL11.GL_CULL_FACE);
         GL11.glDepthMask(true); GL11.glDepthFunc(GL11.GL_ALWAYS);

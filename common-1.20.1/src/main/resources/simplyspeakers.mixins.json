@@ -6,7 +6,9 @@
   "client": [
     "SoundEngineMixin",
     "ZonePreviewLevelMixin",
-    "ZonePreviewReloadMixin"
+    "ZonePreviewReloadMixin",
+    "ZonePreviewFrameProbeMixin",
+    "ZonePreviewOffscreenMixin"
   ],
   "mixins": [],
   "injectors": {

@@ -19,8 +19,10 @@ public final class ZonePreviewRenderer {
     private boolean failed;
     private final boolean compatibilityFallback = hasShaderIntegration();
     private final IntBuffer viewport = BufferUtils.createIntBuffer(4);
+    private final FloatBuffer upload = BufferUtils.createFloatBuffer(ZonePreviewMesh.MAX_SEGMENTS * 6 * ZonePreviewMesh.FLOATS_PER_VERTEX);
 
     public boolean available() { return !failed && !compatibilityFallback && !Boolean.getBoolean("simplyspeakers.previewHudOnly"); }
+    public boolean hasResources() { return program!=0 && vbo!=0 && available(); }
 
     private static boolean hasShaderIntegration() {
         for (String name : new String[]{"net.irisshaders.iris.Iris", "net.coderbot.iris.Iris",
@@ -58,9 +60,8 @@ public final class ZonePreviewRenderer {
             vao = GL30.glGenVertexArrays(); vbo = GL15.glGenBuffers();
             GL30.glBindVertexArray(vao); GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vbo);
             float[] vertices = mesh.copyVertices();
-            FloatBuffer data = BufferUtils.createFloatBuffer(vertices.length);
-            data.put(vertices).flip();
-            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, data, GL15.GL_STATIC_DRAW);
+            upload.clear(); upload.put(vertices).flip();
+            GL15.glBufferData(GL15.GL_ARRAY_BUFFER, upload, GL15.GL_STATIC_DRAW);
             int stride = ZonePreviewMesh.FLOATS_PER_VERTEX * 4;
             attribute(0, 3, stride, 0); attribute(1, 3, stride, 12);
             attribute(2, 3, stride, 24); attribute(3, 2, stride, 36);

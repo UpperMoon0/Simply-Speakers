@@ -131,6 +131,8 @@ neoForge {
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
+
+
         liveJoinTestServer {
             server()
             systemProperty "simplyspeakers.livePlaybackTest", "true"
@@ -314,4 +316,3 @@ dependencies {
 
 // Prepared by tools/prepare_packetweave.py; standalone mod, never shaded.
 dependencies { localRuntime files('../vendor/packetweave/targets/neoforge-26.1.2/build/libs/packetweave-neoforge-26.1.2-0.1.2.jar') }
-

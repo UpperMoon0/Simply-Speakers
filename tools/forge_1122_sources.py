@@ -186,12 +186,21 @@ def convert(text,name):
         text=text.replace('    private static final org.joml.Matrix4f viewProjection = new org.joml.Matrix4f();\n','')
         begin=text.index('    public static void renderWorld(')
         end=text.index('    public static void reload()',begin)
-        text=text[:begin]+'''    public static void renderWorld(java.nio.FloatBuffer matrixBuffer, double cameraX, double cameraY, double cameraZ) {
+        text=text[:begin]+'''    public static void renderWorld(java.nio.FloatBuffer matrixBuffer, double cameraX, double cameraY, double cameraZ, float partial) {
         var client=net.minecraft.client.Minecraft.getMinecraft();
         if(remaining<=0 || client.world==null || client.world!=world || client.currentScreen!=null)return;
+        double originX=renderOrigin.x,originY=renderOrigin.y,originZ=renderOrigin.z;
+        if(portableHolder!=null) {
+            var holder=client.world.getPlayerEntityByUUID(portableHolder);
+            if(holder==null || !holder.isEntityAlive()) { clear(); return; }
+            originX=holder.lastTickPosX+(holder.posX-holder.lastTickPosX)*partial;
+            originY=holder.lastTickPosY+(holder.posY-holder.lastTickPosY)*partial+.5;
+            originZ=holder.lastTickPosZ+(holder.posZ-holder.lastTickPosZ)*partial;
+            rotation=Math.toRadians(holder.prevRotationYaw+net.minecraft.util.math.MathHelper.wrapDegrees(holder.rotationYaw-holder.prevRotationYaw)*partial+180);
+        }
         if(mesh!=null) { renderer.upload(mesh); mesh=null; }
-        try { renderer.draw(matrixBuffer,renderOrigin.x-cameraX,renderOrigin.y-cameraY,renderOrigin.z-cameraZ,rotation); } catch(RuntimeException error) { renderer.fail(error); }
-        emitted++;
+        try { renderer.draw(matrixBuffer,originX-cameraX,originY-cameraY,originZ-cameraZ,rotation); } catch(RuntimeException error) { renderer.fail(error); }
+        if(renderer.hasResources()) emitted++;
     }
 '''+text[end:]
     if name=='DirectionalPreview.java':
@@ -210,7 +219,7 @@ def generate(output):
         source=ROOT/folder
         for path in source.rglob('*.java'):
             if folder=='shared/runtime-verification/src/main/java' and path.name not in ['LiveUploadServerProbe.java','LiveUploadClientProbe.java','LiveDownloadClientProbe.java']:continue
-            if path.name in ('ZonePreviewLevelMixin.java','ZonePreviewReloadMixin.java'):continue
+            if path.name in ('ZonePreviewLevelMixin.java','ZonePreviewReloadMixin.java','ZonePreviewRuntimeProbe.java','ZonePreviewFrameProbeMixin.java','ZonePreviewOffscreenMixin.java'):continue
             if folder=='common-1.20.1/src/main/java' and path.name in OVERRIDES:continue
             target=output/path.relative_to(source);target.parent.mkdir(parents=True,exist_ok=True)
             value=path.read_text(encoding='utf-8')

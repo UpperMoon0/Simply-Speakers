@@ -13,6 +13,13 @@ public final class DirectionalPreview {
     private static final org.joml.Matrix4f viewProjection = new org.joml.Matrix4f();
     private static final java.nio.FloatBuffer matrixBuffer = org.lwjgl.BufferUtils.createFloatBuffer(16);
     private static Object world;
+    private static final InterpolatedPosition holderPosition = new InterpolatedPosition();
+    private static final class InterpolatedPosition implements net.minecraft.core.Position {
+        double x,y,z;
+        public double x() { return x; }
+        public double y() { return y; }
+        public double z() { return z; }
+    }
     private static BlockPos origin;
     private static Object dimension;
     private static java.util.UUID portableHolder;
@@ -58,12 +65,18 @@ public final class DirectionalPreview {
     }
     /** Use the same world-space render pose as playback, including fixed speakers on moving bodies. */
     private static boolean updateRenderPose(Minecraft client) {
+        return updateRenderPose(client,1);
+    }
+    private static boolean updateRenderPose(Minecraft client,float partial) {
         if (portableHolder != null) {
             var holder = client.level.getPlayerByUUID(portableHolder);
             if (holder == null || !holder.isAlive()) return false;
-            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, holder.position());
-            double yaw = Math.toRadians(holder.getYRot());
-            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, holder.position(), -Math.sin(yaw), Math.cos(yaw));
+            holderPosition.x=net.minecraft.util.Mth.lerp(partial,holder.xo,holder.getX());
+            holderPosition.y=net.minecraft.util.Mth.lerp(partial,holder.yo,holder.getY());
+            holderPosition.z=net.minecraft.util.Mth.lerp(partial,holder.zo,holder.getZ());
+            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, holderPosition);
+            double yaw = Math.toRadians(net.minecraft.util.Mth.rotLerp(partial,holder.yRotO,holder.getYRot()));
+            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, holderPosition, -Math.sin(yaw), Math.cos(yaw));
             if (base == null || facing == null) return false;
             renderOrigin = base.add(0, .5, 0);
             rotation = Math.atan2(-facing[0], facing[1]) + Math.PI;
@@ -81,12 +94,12 @@ public final class DirectionalPreview {
                                    net.minecraft.world.phys.Vec3 camera) {
         var client=Minecraft.getInstance();
         if (remaining<=0 || client.level==null || client.level!=world || client.screen!=null) return;
-        if (!updateRenderPose(client)) { clear(); return; }
+        if (!updateRenderPose(client,client.getTimer().getGameTimeDeltaPartialTick(false))) { clear(); return; }
         if(mesh!=null) { renderer.upload(mesh); mesh=null; }
         viewProjection.set(projection).mul(view).get(0,matrixBuffer);
         try { renderer.draw(matrixBuffer,renderOrigin.x-camera.x,renderOrigin.y-camera.y,renderOrigin.z-camera.z,rotation); }
         catch (RuntimeException error) { renderer.fail(error); }
-        emitted++;
+        if(renderer.hasResources()) emitted++;
     }
     public static void reload() { clear(); renderer.reload(); }
     /** North-up plan plus actual 3D listener gain; all samples use the playback attenuation function. */
@@ -132,5 +145,8 @@ public final class DirectionalPreview {
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.dismiss"),x+10,y+95,0xFFB7C7D8);
         if(!renderer.available()) g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.fallback"),x+10,y+107,0xFFFFD166);
     }
-    public static void clear() { remaining=0;origin=null;dimension=null;portableHolder=null;renderOrigin=null;rotation=0;samples=List.of(); }
+    public static void clear() {
+        remaining=0;origin=null;dimension=null;world=null;portableHolder=null;
+        renderOrigin=null;rotation=0;mesh=null;samples=List.of();renderer.close();
+    }
 }

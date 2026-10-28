@@ -17,6 +17,7 @@ def convert(text,name):
         # primitive topology, and uses reversed depth for world rendering.
         text=text.replace('.withUniform("ZonePreview", UniformType.UNIFORM_BUFFER)',
             '.withBindGroupLayout(com.mojang.blaze3d.pipeline.BindGroupLayout.builder().withUniform("ZonePreview", UniformType.UNIFORM_BUFFER).build())')
+        text=text.replace('RenderPipeline.builder().withLocation', 'RenderPipeline.builder().withShaderDefine("ZONE_REVERSED_DEPTH").withLocation')
         text=text.replace('.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.TRIANGLES)',
             '.withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL).withPrimitiveTopology(com.mojang.blaze3d.PrimitiveTopology.TRIANGLES)')
         text=text.replace('CompareOp.LESS_THAN_OR_EQUAL','CompareOp.GREATER_THAN_OR_EQUAL').replace('CompareOp.GREATER_THAN);','CompareOp.LESS_THAN);')

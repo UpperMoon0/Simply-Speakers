@@ -21,6 +21,11 @@ void main() {
     vec2 delta=(q.xy* p.w - p.xy*q.w)*RotationViewport.zw;
     vec2 perpendicular=vec2(-delta.y,delta.x)/max(length(delta),0.00001);
     p.xy+=perpendicular*UV0.x*3.0/RotationViewport.zw*p.w;
+#ifdef ZONE_REVERSED_DEPTH
+    p.z=max(p.z,p.w*0.00001);
+#else
+    p.z=min(p.z,p.w*0.99999);
+#endif
     gl_Position=p;
     lineColor=Color.rgb;
     edge=UV0.x;

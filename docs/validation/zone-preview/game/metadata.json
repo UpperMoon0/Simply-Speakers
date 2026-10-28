@@ -1,0 +1,45 @@
+{
+  "baseline_commit": "fc75a98",
+  "baseline_preview_and_geometry_unchanged": true,
+  "fixture_identical": true,
+  "gpu": "NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2",
+  "driver": "NVIDIA 581.15",
+  "opengl": "3.2.0",
+  "os": "Windows-10-10.0.19045-SP0",
+  "minecraft": "1.20.1",
+  "loader": "Fabric",
+  "java_game_runtime": 17,
+  "window": [
+    960,
+    540
+  ],
+  "hidden_window_asserted": true,
+  "render_distance_chunks": 8,
+  "vsync": false,
+  "fps_limit": 260,
+  "hand_rendered": false,
+  "warmup_ticks_per_scene": 100,
+  "samples_per_scene": 300,
+  "baseline_sha": {
+    "common-1.20.1/src/main/java/com/nstut/simplyspeakers/client/DirectionalPreview.java": "44e1644da31d7990f0a033d8e965e7ba151fa154fa828f1f0a283b7cdd8239f9",
+    "common/src/main/java/com/nstut/simplyspeakers/audio/DirectionalPreviewGeometry.java": "a84e09602b2fb4f8ff1a87d8fd7334d7678a0a06dbc7bd584e7b8760d3b36a1b"
+  },
+  "render_sources_sha256": {
+    "common-1.20.1/src/main/java/com/nstut/simplyspeakers/client/DirectionalPreview.java": "9ad36e248e97ae1f274848b2e3b2bc4af039e63b504194a3720ffdd00db35ff1",
+    "shared/client-preview/src/main/java/com/nstut/simplyspeakers/client/ZonePreviewRenderer.java": "a73c0f20e83742291cefcc37ae82faeb2dcc413e3b1a7e4af0df106a6c332626",
+    "common/src/main/java/com/nstut/simplyspeakers/audio/ZonePreviewMesh.java": "684214fe819a84610d18984c4b170093e71c2ab11ca9cd0d463f5430afeb2a61",
+    "common/src/main/resources/assets/simplyspeakers/shaders/zone_preview.vert": "2a3524e7acc4e58b1725e010602077a0e1d475a8bffec87f4beb9066b4c27bcd",
+    "common/src/main/resources/assets/simplyspeakers/shaders/zone_preview.frag": "780bc2630497fdba3af74bb78bdd7c9716ca7e2abae5f6f92437f1a2e9288c9d"
+  },
+  "fixture_sha256": "29307cbc87d5dcc5cc676937727aa0542b0c592bcad8b03be382657505c7c9f3",
+  "scope": "CPU: GameRenderer.render submission. GPU: GL_TIME_ELAPSED around GameRenderer.render. Frame: head-to-head intervals; first zero discarded. Whole scene including HUD, not preview-exclusive GPU cost.",
+  "camera": "Detached camera follows fixed poses; listener stays near the speaker. HUD reports listener distance, not detached camera distance.",
+  "large_outside": "Shader boundary remains visible beyond the terrain far plane. Original particles may be clipped at this distance.",
+  "limitations": [
+    "One paired run; no controlled idle-machine/GPU-clock claim.",
+    "Shader run first, particles second.",
+    "World passive entities and host load may vary.",
+    "Moving holder is driven at a fixed tick rate; final pose can differ with frame rate.",
+    "Only Fabric 1.20.1 was measured; other variants need their own performance qualification."
+  ]
+}

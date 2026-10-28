@@ -71,7 +71,7 @@ dependencies {
 configurations.implementation.extendsFrom configurations.shade
 sourceSets.each { def directory=file("$buildDir/sourceSets/$it.name");it.output.resourcesDir=directory;it.java.outputDir=directory }
 task generateLegacySources(type:Exec) {
-    ['../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'].each { inputs.dir it }
+    ['../shared/client-preview/src/main/java','../common/src/main/java','../common-1.20.1/src/main/java','../common-legacy/src/main/java','../shared/runtime-verification/src/main/java','src/main/java'].each { inputs.dir it }
     inputs.files '../tools/forge_1122_sources.py','../tools/legacy_speaker_sources.py','../tools/java8_records.py','../gradle.properties'
     outputs.dir "$buildDir/generated/simplyspeakers"
     commandLine 'python3','../tools/forge_1122_sources.py','--output',"$buildDir/generated/simplyspeakers"

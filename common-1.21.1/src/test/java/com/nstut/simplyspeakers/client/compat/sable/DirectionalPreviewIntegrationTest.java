@@ -60,9 +60,14 @@ class DirectionalPreviewIntegrationTest {
         when(sable.isInPlotGrid(level, POSITION)).thenReturn(true);
         spatial = mockStatic(ClientSpeakerSpatialResolver.class, call -> {
             if (call.getMethod().getName().equals("resolveRender") && call.getArguments().length == 2)
-                return ClientSpeakerSpatialResolver.resolveRender(sable, level, (BlockPos) call.getArgument(1));
+                return call.getArgument(1) instanceof BlockPos block
+                    ? ClientSpeakerSpatialResolver.resolveRender(sable,level,block)
+                    : ClientSpeakerSpatialResolver.resolveRender(sable,level,(net.minecraft.core.Position)call.getArgument(1));
             if (call.getMethod().getName().equals("resolveRenderFacing") && call.getArguments().length == 3)
                 return ClientSpeakerSpatialResolver.resolveRenderFacing(sable, level, (BlockPos) call.getArgument(1), call.getArgument(2));
+            if (call.getMethod().getName().equals("resolveRenderFacing") && call.getArguments().length == 4 && call.getArgument(0) instanceof ClientLevel)
+                return ClientSpeakerSpatialResolver.resolveRenderFacing(sable,level,(net.minecraft.core.Position)call.getArgument(1),
+                    call.getArgument(2),call.getArgument(3));
             return CALLS_REAL_METHODS.answer(call);
         });
         DirectionalPreview.clear();
@@ -155,6 +160,26 @@ class DirectionalPreviewIntegrationTest {
         for(String name:new String[]{"origin","world","dimension","portableHolder","renderOrigin","mesh"})
             assertNull(field(name),name);
         assertTrue(((java.util.List<?>)field("samples")).isEmpty());
+    }
+
+    @Test void portablePreviewInterpolatesPositionAndYawAndClearsWhenHolderDisappears() throws Exception {
+        var holder=mock(net.minecraft.client.player.LocalPlayer.class);
+        var id=java.util.UUID.fromString("00000000-0000-0000-0000-000000000024");
+        client.player=holder;
+        when(holder.getUUID()).thenReturn(id);when(holder.isAlive()).thenReturn(true);
+        when(level.getPlayerByUUID(id)).thenReturn(holder);
+        when(holder.getX()).thenReturn(10d);when(holder.getY()).thenReturn(20d);when(holder.getZ()).thenReturn(30d);
+        when(holder.getYRot()).thenReturn(90f);
+        when(sable.getContaining(eq(level),any(net.minecraft.core.Position.class))).thenReturn(null);
+        when(sable.isInPlotGrid(eq(level),any(net.minecraft.core.Position.class))).thenReturn(false);
+        DirectionalPreview.show(new BlockPos(0,-2048,0),16,1,1,90,.9);
+        var update=DirectionalPreview.class.getDeclaredMethod("updateRenderPose",Minecraft.class,float.class);
+        update.setAccessible(true);assertEquals(true,update.invoke(null,client,.5f));
+        assertPosition(5,10.5,15);
+        assertEquals(Math.PI*1.25,(double)field("rotation"),1e-6);
+        when(level.getPlayerByUUID(id)).thenReturn(null);
+        DirectionalPreview.tick(client);
+        assertCleared();
     }
 
     private void assertFacingMatchesPlayback(int ordinal) throws Exception {
