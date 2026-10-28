@@ -233,3 +233,11 @@ reported `multiplayerAllowed=false` after loading. No eligibility override was
 attempted. That acceptance requires a launch profile for which native Minecraft
 reports multiplayer eligibility. This is distinct from a renderer compilation or
 shader failure. Final-head CI status must still be checked separately.
+
+Forge 1.16.5 at `7040b75` failed before compiling this mod: the pinned OpenUI
+standalone build could not resolve `net.minecraftforge:binarypatcher:1.0.12`
+(`no repositories are defined` in ForgeGradle's downloader configuration), then
+could not produce `forge:1.16.5-36.2.42_mapped_official_1.16.5`. This requires the
+pinned dependency build's ForgeGradle repository/mapping resolution to succeed;
+it is not a newly observed renderer source error. No pinned dependency sources
+or runtime eligibility assertions were changed to bypass these failures.
