@@ -1,0 +1,15 @@
+// ForgeGradle 6's Maven downloader falls back only to non-Maven repositories.
+// Keep an exact-version fallback on the same official HTTPS endpoint so a
+// manual Maven miss does not resolve against an empty repository list.
+gradle.beforeProject { project ->
+    project.repositories.ivy {
+        name = 'SimplySpeakersForgeToolsFallback'
+        url = 'https://maven.minecraftforge.net/'
+        patternLayout {
+            artifact '[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
+            m2compatible = true
+        }
+        metadataSources { artifact() }
+        content { includeVersion 'net.minecraftforge', 'binarypatcher', '1.0.12' }
+    }
+}

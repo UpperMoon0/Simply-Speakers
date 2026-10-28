@@ -148,3 +148,6 @@ sourceSets.main.java.srcDir('../shared/runtime-verification/src/main/java')
 
 // Exercise the real icon/focus widget in headless integration tests.
 test { classpath += files(sourceSets.main.compileClasspath.filter { it.name.contains("openui") }) }
+
+sourceSets.main.java.srcDir('../shared/client-preview/src/main/java')
+sourceSets.main.java.srcDir('../shared/zone-verification/src/main/java')

@@ -23,6 +23,8 @@ def build(target, root=ROOT):
     env['JAVA17_HOME'] = os.environ['JAVA_HOME_17_X64']
     env['PATH'] = str(Path(env['JAVA_HOME']) / 'bin') + os.pathsep + env['PATH']
     options = ['build', '--no-daemon', '--no-parallel', '--max-workers=2']
+    if target == 'forge-1.16.5':
+        options += ['--init-script', str(root / 'tools/forge_1165_repositories.gradle')]
     for project in (root / '.port-deps/OpenUI-MC' / target,
                     root / '.port-deps/PacketWeave/targets' / target):
         subprocess.run(['bash', 'gradlew', *options], cwd=project, env=env, check=True)

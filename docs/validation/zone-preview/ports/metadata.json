@@ -1,0 +1,7 @@
+{
+  "head": "77370190d779047151e4ba1956557a09dffb934f",
+  "run": "https://github.com/UpperMoon0/Simply-Speakers/actions/runs/40641372748",
+  "artifact": "requested-neoforge-26.2",
+  "scene": "Existing live fixture inside a 16-block preview; not the seven-scene 1.20.1 benchmark",
+  "inspection": "HUD and thin colored zone bands visible at horizon; limited camera pose. Not shaderpack or Vulkan qualification."
+}

@@ -13,6 +13,7 @@ import subprocess
 import tomllib
 import xml.etree.ElementTree as ET
 import zipfile
+from urllib.request import Request, urlopen
 
 from check_release_metadata import property_value, validate_openui
 
@@ -41,6 +42,36 @@ def runtime_toolchain():
     return {"distribution": "temurin", "java_major": 21, "java_version": version,
             "java_runtime_version": fields.get("JAVA_RUNTIME_VERSION", version),
             "vendor": vendor, "jvm_arch": arch}
+
+
+def setup_java_selector():
+    """Resolve the observed runtime to its exact published setup-java SemVer.
+
+    Temurin hotfix 21.0.12.1+1-LTS is published as 21.0.12+101.0.LTS;
+    neither JAVA_VERSION nor setup-java's cached output preserves that spelling.
+    Consumers are Linux x64; validate() additionally checks their full identity.
+    """
+    runtime = runtime_toolchain()["java_runtime_version"]
+    for page in range(5):
+        url = ("https://api.adoptium.net/v3/assets/feature_releases/21/ga?"
+               "architecture=x64&image_type=jdk&os=linux&jvm_impl=hotspot&"
+               f"project=jdk&vendor=eclipse&page_size=20&page={page}")
+        request = Request(url, headers={'User-Agent': 'Simply-Speakers-CI/1.0',
+                                        'Accept': 'application/json'})
+        with urlopen(request, timeout=30) as response:
+            releases = json.load(response)
+        matches = {item["version_data"]["semver"] for item in releases
+                   if item.get("version_data", {}).get("openjdk_version") == runtime}
+        if len(matches) == 1:
+            selector = matches.pop()
+            if not re.fullmatch(r"21\.\d+\.\d+\+\d+(?:\.[A-Za-z0-9]+)*", selector):
+                raise ValueError("Adoptium returned an invalid exact Temurin selector")
+            return selector
+        if matches:
+            raise ValueError("Adoptium returned ambiguous Temurin runtime selectors")
+        if len(releases) < 20:
+            break
+    raise ValueError(f"No published Linux x64 Temurin selector for exact runtime {runtime}")
 
 
 def contract(root=ROOT):
@@ -132,11 +163,13 @@ def validate(directory, root=ROOT):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("key", "create", "validate"))
+    parser.add_argument("mode", choices=("key", "java-selector", "create", "validate"))
     parser.add_argument("--directory", type=Path, default=Path.home() / ".m2/repository/com/nstut")
     parser.add_argument("--checkout", type=Path)
     args = parser.parse_args()
-    if args.mode == "key":
+    if args.mode == "java-selector":
+        print(setup_java_selector())
+    elif args.mode == "key":
         print(cache_key())
     else:
         if args.mode == "create":

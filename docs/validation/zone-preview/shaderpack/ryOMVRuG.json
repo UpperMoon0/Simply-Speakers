@@ -1,0 +1,38 @@
+{
+  "game_versions": [
+    "1.20.1"
+  ],
+  "loaders": [
+    "fabric",
+    "quilt"
+  ],
+  "environment": "client_only",
+  "id": "ryOMVRuG",
+  "project_id": "AANobbMI",
+  "author_id": "TEZXhE2U",
+  "featured": false,
+  "name": "Sodium 0.5.12 (Beta 2) for Fabric 1.20.1",
+  "version_number": "mc1.20.1-0.5.12-beta.2-fabric",
+  "changelog": "This version backports many improvements and bug fixes from newer versions of Sodium 0.6. We recommend that players and mod pack authors update to this version, as some changes can significantly improve performance and stability.\n\n## Mod Compatibility\n\nSpecial care has been taken to minimize the number of breaking changes for other mods, so there should be few issues upgrading to this release for the vast majority of users. However, there are some exceptions:\n\n- ⚠️ If using the _Indium_ mod, you must update to version 1.0.36 or newer.\n- ⚠️ If using the _Iris_ mod, you must update to version 1.7.6 or newer.\n\n## Highlights\n\n- The quality of terrain rendering has been significantly improved (adding greater vertex and texture precision). This fixes many issues with special block models, and especially with modded content. With large mod packs or resource packs, there is significantly reduced texture bleeding between blocks when compared to the previous release.\n- Virtual memory utilization has been dramatically reduced while loading chunks. This can have a large impact on how quickly chunks are loaded on the client, and on many systems, can reduce the amount of micro-stutter significantly.\n- Improved performance on integrated Intel GPUs significantly with additional terrain rendering optimizations (up to 10-15% faster, depending on the render distance) and enhanced framebuffer copies (up to 3-5% faster, regardless of render distance).\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15%, especially when using higher render distances.\n- All improvements for hardware and driver compatibility from Sodium 0.6+ have been back-ported in this release, helping to improve the user experience considerably.\n\n## Other changes\n- Fixed the handling of sub-texel offsets in terrain rendering, which caused texture seams to appear between blocks when very large texture atlases were used (common in large mod packs).\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed the rendering of block models which have quads with different shading modes (i.e. VT's Bushy Leaves, Bray's World...)\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed a bug where very large block entities in nearby chunk sections would be incorrectly culled.\n- Startup warnings about incompatible NVIDIA or Intel GPU driver versions will now only be shown if the GPU is actually in use.\n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- Fixed a bug that prevented the \"Help\" button in dialog boxes from opening the default web browser on Windows.\n- Fixed many issues around the handling of chunks with large amounts of geometry, fixing some rare crashes and graphical issues.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n- Improved the driver workarounds for NVIDIA GPUs on Windows, potentially improving performance on laptops with hybrid graphics.\n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the Sprite Tracking API (originally introduced in Sodium 0.6.9.)",
+  "changelog_url": null,
+  "date_published": "2025-02-26T00:54:03.278312Z",
+  "downloads": 613122,
+  "version_type": "beta",
+  "status": "listed",
+  "requested_status": null,
+  "files": [
+    {
+      "id": "QRwpUN42",
+      "hashes": {
+        "sha1": "8f6bdf3c1fe2737f819fd4f186f5d89ad68d2e51",
+        "sha512": "e6906b77e709c17bfe445d065353010853cad58a65252f70f9e7e06113156f21c85e91a71e5ccebb4ea0f0168280737bb12ae407e115a9f1df3b5e8d21b87ec5"
+      },
+      "url": "https://cdn.modrinth.com/data/AANobbMI/versions/ryOMVRuG/sodium-fabric-0.5.12-beta.2%2Bmc1.20.1.jar",
+      "filename": "sodium-fabric-0.5.12-beta.2+mc1.20.1.jar",
+      "primary": true,
+      "size": 971376,
+      "file_type": null
+    }
+  ],
+  "dependencies": []
+}

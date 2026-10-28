@@ -1,0 +1,15 @@
+{
+  "order": [
+    "compatibility"
+  ],
+  "samples_per_scene": 300,
+  "warmup_ticks": 100,
+  "graphics_files": [
+    "iris-1.7.6+mc1.20.1.jar",
+    "sodium-fabric-0.5.12-beta.2+mc1.20.1.jar",
+    "jcpp-1.4.14.jar",
+    "antlr4-runtime-4.13.1.jar",
+    "glsl-transformer-2.0.1.jar"
+  ],
+  "shaderpack": "ComplementaryReimagined_r5.9.3.zip"
+}

@@ -16,6 +16,55 @@ public final class ClientSpeakerSpatialResolver {
 
     private ClientSpeakerSpatialResolver() {}
 
+    /** Caller-owned storage for a position and its horizontal facing resolved together. */
+    public static final class RenderPose {
+        public final org.joml.Vector3d position = new org.joml.Vector3d();
+        public final org.joml.Vector3d facing = new org.joml.Vector3d();
+    }
+
+    public static boolean resolveRenderPose(ClientLevel level, BlockPos position, double facingX,
+                                            double facingZ, RenderPose destination) {
+        return resolveRenderPose(SABLE, level, position, facingX, facingZ, destination);
+    }
+
+    public static boolean resolveRenderPose(ClientLevel level, Position position, double facingX,
+                                            double facingZ, RenderPose destination) {
+        return resolveRenderPose(SABLE, level, position, facingX, facingZ, destination);
+    }
+
+    static boolean resolveRenderPose(SableCompanion sable, ClientLevel level, BlockPos position,
+                                     double facingX, double facingZ, RenderPose destination) {
+        SubLevelAccess subLevel = sable.getContaining(level, position);
+        boolean unresolved = !(subLevel instanceof ClientSubLevelAccess) && sable.isInPlotGrid(level, position);
+        return resolveRenderPose(subLevel, unresolved, position.getX() + .5, position.getY() + .5,
+                position.getZ() + .5, facingX, facingZ, destination);
+    }
+
+    static boolean resolveRenderPose(SableCompanion sable, ClientLevel level, Position position,
+                                     double facingX, double facingZ, RenderPose destination) {
+        SubLevelAccess subLevel = sable.getContaining(level, position);
+        boolean unresolved = !(subLevel instanceof ClientSubLevelAccess) && sable.isInPlotGrid(level, position);
+        return resolveRenderPose(subLevel, unresolved, position.x(), position.y(), position.z(),
+                facingX, facingZ, destination);
+    }
+
+    private static boolean resolveRenderPose(SubLevelAccess subLevel, boolean unresolved,
+                                             double x, double y, double z, double facingX,
+                                             double facingZ, RenderPose destination) {
+        if (unresolved) return false;
+        destination.position.set(x, y, z);
+        destination.facing.set(facingX, 0, facingZ);
+        if (subLevel instanceof ClientSubLevelAccess clientSubLevel) {
+            var pose = clientSubLevel.renderPose();
+            pose.transformPosition(destination.position);
+            pose.transformNormal(destination.facing);
+        }
+        double length = Math.hypot(destination.facing.x, destination.facing.z);
+        if (length < 1.0E-6) destination.facing.set(0, 0, -1);
+        else destination.facing.set(destination.facing.x / length, 0, destination.facing.z / length);
+        return true;
+    }
+
     public static @Nullable Vec3 resolveRender(ClientLevel level, BlockPos position) {
         return resolveRender(SABLE, level, position);
     }

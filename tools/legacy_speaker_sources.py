@@ -79,6 +79,13 @@ def isolate_client_packet_handlers(text,name,side_reject='{context}.get().getEnv
 
 def convert(text, name):
     text=java8(text)
+    if name in ('DirectionalPreview.java','ZonePreviewLevelMixin.java'):
+        text=text.replace('org.joml.Matrix4f','com.mojang.math.Matrix4f')
+        text=text.replace('    private static final com.mojang.math.Matrix4f viewProjection = new com.mojang.math.Matrix4f();',
+            '    private static final java.nio.FloatBuffer projectionBuffer=org.lwjgl.BufferUtils.createFloatBuffer(16), viewBuffer=org.lwjgl.BufferUtils.createFloatBuffer(16);')
+        text=text.replace('viewProjection.set(projection).mul(view).get(0,matrixBuffer);',
+            'projection.store(projectionBuffer); view.store(viewBuffer); com.nstut.simplyspeakers.audio.ZonePreviewMatrices.multiply(projectionBuffer,viewBuffer,matrixBuffer);')
+
     text=text.replace('dev.architectury.', 'me.shedaniel.architectury.')
     text=text.replace('me.shedaniel.architectury.registry.registries.', 'me.shedaniel.architectury.registry.')
     text=text.replace('me.shedaniel.architectury.event.events.common.', 'me.shedaniel.architectury.event.events.')
@@ -160,6 +167,7 @@ def convert(text, name):
     if name=='DirectionalPreview.java':
         text=text.replace('new org.joml.Vector3f(((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f)', '((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f')
     if name=='ClientEvents.java':
+        text=text.replace('        ZonePreviewRuntimeProbe.tick(client);\n','')
         text=text.replace('    public static void register() {','    public static void register() {\n        com.nstut.simplyspeakers.testing.RuntimeReceipt.emit(System.getProperty("simplyspeakers.livePlaybackRole","client"));')
         text=text.replace('public class ClientEvents {','public class ClientEvents {\n    private static final com.nstut.simplyspeakers.testing.JoinWaitDiagnostics JOIN_WAIT = new com.nstut.simplyspeakers.testing.JoinWaitDiagnostics();')
         text=text.replace('    private static void onClientTick(Minecraft client) {','''    private static void onClientTick(Minecraft client) {
@@ -184,10 +192,11 @@ def convert(text, name):
 
 def generate(output, fabric=True):
     generated=set()
-    sources=['common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','common-1.16.5/src/main/java']
+    sources=['shared/client-preview/src/main/java','common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','common-1.16.5/src/main/java']
     for folder in sources:
         root=ROOT/folder
         for path in root.rglob('*.java'):
+            if path.name in ('ZonePreviewRuntimeProbe.java','ZonePreviewFrameProbeMixin.java','ZonePreviewOffscreenMixin.java'): continue
             if path.name=='CcLuaServerProbe.java': continue
             relative=path.relative_to(root);target=output/relative
             text=path.read_text(encoding='utf-8')

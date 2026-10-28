@@ -63,5 +63,10 @@
   "net.minecraft.world.level.block.state.properties.DirectionProperty": "net.minecraft.state.DirectionProperty",
   "net.minecraft.world.level.storage.LevelResource": "net.minecraft.world.storage.FolderName",
   "net.minecraft.world.phys.BlockHitResult": "net.minecraft.util.math.BlockRayTraceResult",
-  "net.minecraft.world.phys.Vec3": "net.minecraft.util.math.vector.Vector3d"
+  "net.minecraft.world.phys.Vec3": "net.minecraft.util.math.vector.Vector3d",
+  "com.mojang.math.Matrix4f": "net.minecraft.util.math.vector.Matrix4f",
+  "com.mojang.blaze3d.vertex.PoseStack": "com.mojang.blaze3d.matrix.MatrixStack",
+  "net.minecraft.client.Camera": "net.minecraft.client.renderer.ActiveRenderInfo",
+  "net.minecraft.client.renderer.LevelRenderer": "net.minecraft.client.renderer.WorldRenderer",
+  "net.minecraft.util.Mth": "net.minecraft.util.math.MathHelper"
 }

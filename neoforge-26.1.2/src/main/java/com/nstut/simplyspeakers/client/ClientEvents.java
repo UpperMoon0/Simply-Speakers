@@ -28,6 +28,7 @@ public class ClientEvents {
     }
 
     private static void onClientTick(Minecraft client) {
+        if (client.level == null || client.player == null) DirectionalPreview.clear();
         ClientPortableSpeakers.tick();
         SpeakerUiPreviewProbe.tick(client);
         if (client.player != null && client.level != null) {

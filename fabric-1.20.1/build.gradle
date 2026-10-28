@@ -15,6 +15,19 @@ architectury {
 
 loom {
     runs {
+        zonePreviewClient {
+            client()
+            runDir("run/zone-preview/client")
+            property "simplyspeakers.zoneShaderAcceptance", "true"
+            property "simplyspeakers.zonePreviewBackend", project.findProperty('zonePreviewBackend') ?: 'shader'
+            property "simplyspeakers.zoneSamples", project.findProperty('zoneSamples') ?: '300'
+            programArgs "--username", "SSZoneProbe", "--quickPlayMultiplayer", "127.0.0.1:25586", "--width", "960", "--height", "540"
+        }
+        zonePreviewServer {
+            server()
+            runDir("run/zone-preview/server")
+            programArg "nogui"
+        }
         ccLuaTestServer {
             server()
             property "simplyspeakers.ccLuaTest", "true"
@@ -61,6 +74,10 @@ configurations {
         canBeResolved = true
         canBeConsumed = false
     }
+}
+
+if(project.hasProperty('zoneGraphicsMods')) dependencies {
+    modRuntimeOnly files(project.property('zoneGraphicsMods').toString().split(java.io.File.pathSeparator))
 }
 
 dependencies {

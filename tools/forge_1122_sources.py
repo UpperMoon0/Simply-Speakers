@@ -178,6 +178,31 @@ def convert(text,name):
     if name=='SpeakerScreen.java':
         text=text.replace('var mouse = Minecraft.getMinecraft().mouseHandler;', 'var mouse = new '+P+'LegacyMouse();')
         text=text.replace('var window = Minecraft.getMinecraft().getWindow();', 'var window = new '+P+'LegacyWindow();')
+    if name=='ZonePreviewRenderer.java':
+        text=text.replace('org.lwjgl.opengl.GL.getCapabilities()', 'org.lwjgl.opengl.GLContext.getCapabilities()')
+        text=text.replace('GL11.glGetIntegerv(', 'GL11.glGetInteger(')
+        text=text.replace('GL20.glUniformMatrix4fv(', 'GL20.glUniformMatrix4(')
+    if name=='DirectionalPreview.java':
+        text=text.replace('    private static final org.joml.Matrix4f viewProjection = new org.joml.Matrix4f();\n','')
+        begin=text.index('    public static void renderWorld(')
+        end=text.index('    public static void reload()',begin)
+        text=text[:begin]+'''    public static void renderWorld(java.nio.FloatBuffer matrixBuffer, double cameraX, double cameraY, double cameraZ, float partial) {
+        var client=net.minecraft.client.Minecraft.getMinecraft();
+        if(remaining<=0 || client.world==null || client.world!=world || client.currentScreen!=null)return;
+        double originX=renderOrigin.x,originY=renderOrigin.y,originZ=renderOrigin.z;
+        if(portableHolder!=null) {
+            var holder=client.world.getPlayerEntityByUUID(portableHolder);
+            if(holder==null || !holder.isEntityAlive()) { clear(); return; }
+            originX=holder.lastTickPosX+(holder.posX-holder.lastTickPosX)*partial;
+            originY=holder.lastTickPosY+(holder.posY-holder.lastTickPosY)*partial+.5;
+            originZ=holder.lastTickPosZ+(holder.posZ-holder.lastTickPosZ)*partial;
+            rotation=Math.toRadians(holder.prevRotationYaw+net.minecraft.util.math.MathHelper.wrapDegrees(holder.rotationYaw-holder.prevRotationYaw)*partial+180);
+        }
+        if(mesh!=null) { renderer.upload(mesh); mesh=null; }
+        try { renderer.draw(matrixBuffer,originX-cameraX,originY-cameraY,originZ-cameraZ,rotation); } catch(RuntimeException error) { renderer.fail(error); }
+        if(renderer.hasResources()) emitted++;
+    }
+'''+text[end:]
     if name=='DirectionalPreview.java':
         text=re.sub(r'\s*var particle=new DustParticleOptions\([^;]*;\s*client.world.addAlwaysVisibleParticle\([^;]*;', '\n            client.world.spawnParticle(net.minecraft.util.EnumParticleTypes.REDSTONE, renderOrigin.x+x, renderOrigin.y+point.y(), renderOrigin.z+z, Math.max(0.001, ((color>>16)&255)/255.0), ((color>>8)&255)/255.0, (color&255)/255.0);',text)
         text=text.replace('import net.minecraft.core.particles.DustParticleOptions;','')
@@ -190,10 +215,11 @@ def convert(text,name):
 
 def generate(output):
     generated=set()
-    for folder in ['common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','forge-1.12.2/src/main/java']:
+    for folder in ['shared/client-preview/src/main/java','common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','forge-1.12.2/src/main/java']:
         source=ROOT/folder
         for path in source.rglob('*.java'):
             if folder=='shared/runtime-verification/src/main/java' and path.name not in ['LiveUploadServerProbe.java','LiveUploadClientProbe.java','LiveDownloadClientProbe.java']:continue
+            if path.name in ('ZonePreviewLevelMixin.java','ZonePreviewReloadMixin.java','ZonePreviewRuntimeProbe.java','ZonePreviewFrameProbeMixin.java','ZonePreviewOffscreenMixin.java'):continue
             if folder=='common-1.20.1/src/main/java' and path.name in OVERRIDES:continue
             target=output/path.relative_to(source);target.parent.mkdir(parents=True,exist_ok=True)
             value=path.read_text(encoding='utf-8')

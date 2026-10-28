@@ -1,0 +1,42 @@
+[
+  {
+    "file": "antlr4-runtime-4.13.1.jar",
+    "sha512": "a45af7c89efacaf682d57fabd62e760a1c863f981be97e9aadf0258cd99a0191dbcbee20d03ba1d44f49d56a14fdcbf610cbf1b296ff9ff28c3133aa3e3edbfd",
+    "nested_from_iris": true
+  },
+  {
+    "file": "ComplementaryReimagined_r5.9.3.zip",
+    "sha512": "45304b1d7862afdb2177b7e6226fc9c6737911d17a4ad46cc9c519ca4deb935f05072cd337cd8b19a15bb8062b57b54eceec7bdee4cd572d94858e2946d37d85",
+    "nested_from_iris": false
+  },
+  {
+    "file": "fabric-api-base-0.4.31+1802ada577.jar",
+    "sha512": "e01b33c76751accdab76596f97a9657b69c44bf91ed61d0401a40386f10af11ce6349f37fcb9b53e3d93e04edee31b8696c57c42abedaf72836a9fd897c0eaad",
+    "nested_from_iris": true
+  },
+  {
+    "file": "fabric-key-binding-api-v1-1.0.37+1802ada577.jar",
+    "sha512": "b26bc1d4155beb6ff121577d201cdd1093ce9ca15baa8eba765d3d6fadad6e7bc3656df8b43baa106d2de7fd264c0d938b2456fc22fe614a3183e6d67c576b2c",
+    "nested_from_iris": true
+  },
+  {
+    "file": "glsl-transformer-2.0.1.jar",
+    "sha512": "85527f42551ac4e0629d4acc6b63cc56630ee984e43ddf7095c86d9dbb49ad3fb1df18a2a56a82c3ffc930a6c1a40bb0577649e0bca36821e7e3ff6a760be16b",
+    "nested_from_iris": true
+  },
+  {
+    "file": "iris-1.7.6+mc1.20.1.jar",
+    "sha512": "f1337b0441c31269bd3bfcb28647d521326a83e73128c1ac8d065615f8a5a4ca1e8c96a468b356584236ece5b164ec8d8a52b1878064f4e391ecf4f32885e301",
+    "nested_from_iris": false
+  },
+  {
+    "file": "jcpp-1.4.14.jar",
+    "sha512": "0da2554740ff3d76725bb3db8d771bf453707576ad9213b4fbdd435aac21ab57ba1dc937fac5a6b52d59081ab5e8adc19af39ac4e0c24a3450aa5215573c8c82",
+    "nested_from_iris": true
+  },
+  {
+    "file": "sodium-fabric-0.5.12-beta.2+mc1.20.1.jar",
+    "sha512": "e6906b77e709c17bfe445d065353010853cad58a65252f70f9e7e06113156f21c85e91a71e5ccebb4ea0f0168280737bb12ae407e115a9f1df3b5e8d21b87ec5",
+    "nested_from_iris": false
+  }
+]

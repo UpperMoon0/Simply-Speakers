@@ -1,0 +1,41 @@
+buildscript {
+    repositories { maven { url='https://maven.minecraftforge.net/' }; mavenCentral() }
+    dependencies { classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.54' }
+}
+import java.lang.reflect.Proxy
+import org.gradle.api.Project
+import org.gradle.api.invocation.Gradle
+import net.minecraftforge.gradle.common.util.MavenArtifactDownloader
+
+tasks.register('probeDownloader') {
+    doLast {
+        def ownedHome=file('build/owned-downloader-home')
+        def realGradle=project.gradle
+        def proxyGradle=Proxy.newProxyInstance(Gradle.classLoader,[Gradle] as Class[], { o,m,a ->
+            m.name=='getGradleUserHomeDir' ? ownedHome : m.invoke(realGradle,a)
+        } as java.lang.reflect.InvocationHandler)
+        def realProject=project
+        def proxyProject=Proxy.newProxyInstance(Project.classLoader,[Project] as Class[], { o,m,a ->
+            if(m.name=='getGradle') return proxyGradle
+            if(m.name=='hashCode') return System.identityHashCode(o)
+            if(m.name=='equals') return o.is(a[0])
+            return m.invoke(realProject,a)
+        } as java.lang.reflect.InvocationHandler)
+        repositories.maven { url='https://maven.minecraftforge.net/'; content { excludeModule 'net.minecraftforge','binarypatcher' } }
+        def fallback=repositories.findByName('SimplySpeakersForgeToolsFallback')
+        assert fallback!=null : 'Run with --init-script tools/forge_1165_repositories.gradle'
+        repositories.remove(fallback)
+        def original=new ArrayList(repositories)
+        def coordinate='net.minecraftforge:binarypatcher:1.0.12:fatjar'
+        def first=MavenArtifactDownloader.gradle(proxyProject,coordinate,false)
+        assert first==null : 'Control unexpectedly resolved without fallback'
+        repositories.clear(); repositories.addAll(original)
+        repositories.add(fallback)
+        def resolved=MavenArtifactDownloader.gradle(proxyProject,coordinate,false)
+        assert resolved!=null && resolved.length()>1000000
+        assert repositories.findByName('SimplySpeakersForgeToolsFallback')!=null : 'Repositories not restored'
+        def digest=java.security.MessageDigest.getInstance('SHA-256').digest(resolved.bytes).encodeHex().toString()
+        assert digest=='16454ff27db627d408d58d267e64fc9c48bcf9f691a71c2e65bbd65a61f0a627'
+        println 'FORGE_DOWNLOADER_FALLBACK_PASS coordinate='+coordinate+' bytes='+resolved.length()+' sha256='+digest
+    }
+}
