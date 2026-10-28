@@ -30,6 +30,7 @@ public final class ZonePreviewRuntimeProbe {
     private volatile boolean written;
     private BlockPos speaker;
     private ArmorStand camera;
+    private boolean checkedWindow;
 
     public static void tick(Minecraft client) { if(RUN!=null) RUN.update(client); }
     public static void beginFrame() { if(RUN!=null) RUN.begin(); }
@@ -38,6 +39,12 @@ public final class ZonePreviewRuntimeProbe {
     public static void endPreview(int kind) { if(RUN!=null) RUN.previewEnd(kind); }
 
     private void update(Minecraft client) {
+        if(client.screen instanceof net.minecraft.client.gui.screens.DisconnectedScreen) {
+            try {
+                var reason=client.screen.getClass().getDeclaredField("reason");reason.setAccessible(true);
+                throw new IllegalStateException("Zone fixture disconnected before completion: "+reason.get(client.screen));
+            } catch(ReflectiveOperationException error) { throw new IllegalStateException("Zone fixture disconnected",error); }
+        }
         if(client.level==null || client.player==null) return;
         if(++worldTicks<200 || client.screen!=null) return;
         client.level.setDayTime(6000);
@@ -114,6 +121,12 @@ public final class ZonePreviewRuntimeProbe {
     }
 
     private void begin() {
+        if(!checkedWindow) {
+            var window=Minecraft.getInstance().getWindow().getWindow();
+            if(org.lwjgl.glfw.GLFW.glfwGetWindowAttrib(window,org.lwjgl.glfw.GLFW.GLFW_VISIBLE)!=0)
+                throw new IllegalStateException("Zone acceptance requires an invisible window");
+            checkedWindow=true;System.out.println("ZONE_PREVIEW_RUNTIME_WINDOW hidden=true");
+        }
         if(!timing) return;
         long now=System.nanoTime();
         if(cpuCount<SAMPLES) frames[cpuCount]=lastFrame==0?0:now-lastFrame;

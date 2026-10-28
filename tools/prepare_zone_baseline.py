@@ -23,7 +23,7 @@ def prepare(output: Path,ref: str,refresh: bool):
     fixture=Path('shared/zone-verification/src/main/java')
     names=['com/nstut/simplyspeakers/client/ZonePreviewRuntimeProbe.java',
            'com/nstut/mixin/ZonePreviewFrameProbeMixin.java','com/nstut/mixin/ZonePreviewOffscreenMixin.java',
-           'com/nstut/mixin/ZonePreviewParticleTimingMixin.java']
+           'com/nstut/mixin/ZonePreviewParticleTimingMixin.java','com/nstut/mixin/ZonePreviewMixinPlugin.java']
     for name in names:
         source=ROOT/fixture/name
         old=output/'common-1.20.1/src/main/java'/name
@@ -43,6 +43,7 @@ def prepare(output: Path,ref: str,refresh: bool):
     path=output/'common-1.20.1/src/main/resources/simplyspeakers.mixins.json';data=json.loads(path.read_text())
     for name in ['ZonePreviewFrameProbeMixin','ZonePreviewOffscreenMixin','ZonePreviewParticleTimingMixin']:
         if name not in data['client']:data['client'].append(name)
+    data['plugin']='com.nstut.mixin.ZonePreviewMixinPlugin'
     path.write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'fabric-1.20.1/build.gradle',output/'fabric-1.20.1/build.gradle')
     for name in git(vendor,'ls-files','-z').split('\0'):

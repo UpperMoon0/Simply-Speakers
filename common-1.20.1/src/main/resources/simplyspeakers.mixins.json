@@ -15,5 +15,6 @@
   "mixins": [],
   "injectors": {
     "defaultRequire": 1
-  }
+  },
+  "plugin": "com.nstut.mixin.ZonePreviewMixinPlugin"
 }

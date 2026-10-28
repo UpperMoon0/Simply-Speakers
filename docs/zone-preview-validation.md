@@ -277,3 +277,14 @@ closed; full consumer runtime/build/vendor/architecture validation is retained.
 The real installed hotfix resolved to the expected published value locally.
 Standard/hotfix/missing-version tests pass, including rejection of another runtime
 build. The 45 changed cache/workflow/generation/build-routing tests passed in Linux.
+
+A later Forge 1.20.1 runtime found that its older Mixin rejects constructor
+`@Inject` at an invocation. The capture hook now redirects GLFW's default-hints
+call (leaving Sodium's window-creation hook intact), and an opt-in mixin plugin
+excludes all capture/timing hooks from ordinary clients. A regression test passed
+for all four verification hooks and the retained production render/reload hooks.
+The replacement hook booted Iris locally; that follow-up attempt disconnected
+from the private server before a new capture, so no replacement capture is claimed.
+The original successful shaderpack evidence remains unchanged. Test-only early
+window/connection diagnostics now fail promptly instead of idling after disconnect.
+Final-head Forge runtime CI is required for the compatibility correction.
