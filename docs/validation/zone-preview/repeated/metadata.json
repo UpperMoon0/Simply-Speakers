@@ -18,5 +18,6 @@
     "Only two repetitions per backend",
     "No cross-machine or all-version GPU performance certification"
   ],
-  "baseline_preview_unchanged": true
+  "baseline_preview_unchanged": true,
+  "review_qualification": "Historical portable motion samples different orbit segments at different backend frame rates, and the following terrain/fallback scenes retain the different final listener pose. Portable and terrain timings are not equivalent-pose comparisons. Raw CSVs, images and original provenance remain unchanged; see docs/zone-preview-validation.md for the corrected settled-v1 protocol, which has not yet produced replacement game evidence."
 }

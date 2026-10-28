@@ -194,6 +194,13 @@ jobs:
             build/verification/live-${{ matrix.target }}.*
             build/verification/cc-${{ matrix.target }}.*
           if-no-files-found: error
+      - name: Preserve actual world preview captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-captures-${{ matrix.target }}
+          path: ${{ matrix.target }}/run/live-join/client/screenshots/directional-preview-world.png
+          if-no-files-found: warn
       - name: Preserve game logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

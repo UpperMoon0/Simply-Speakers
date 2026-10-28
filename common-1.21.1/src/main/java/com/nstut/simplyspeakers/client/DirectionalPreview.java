@@ -2,6 +2,7 @@ package com.nstut.simplyspeakers.client;
 
 import com.nstut.simplyspeakers.audio.DirectionalPreviewGeometry;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
+import com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import java.util.List;
@@ -27,7 +28,10 @@ public final class DirectionalPreview {
     private static int rangeBlocks;
     private static float dropoff, strength, angle, rear;
     private static int facingOrdinal;
-    private static net.minecraft.world.phys.Vec3 renderOrigin;
+    private static final ClientSpeakerSpatialResolver.RenderPose renderPose = new ClientSpeakerSpatialResolver.RenderPose();
+    private static org.joml.Vector3d renderOrigin;
+    private static double localFacingX, localFacingZ;
+    private static com.nstut.simplyspeakers.audio.SpatialAudioCalculator.ConeSettings cone;
     private static double rotation;
     private static int emitted;
     private static int hudFrames;
@@ -51,6 +55,9 @@ public final class DirectionalPreview {
         rangeBlocks=Math.max(1,Math.min(512,(int)Math.round(range)));
         DirectionalPreview.dropoff=(float)dropoff; DirectionalPreview.strength=(float)strength;
         DirectionalPreview.angle=(float)angle; DirectionalPreview.rear=(float)rear; facingOrdinal=facing;
+        double[] localFacing=com.nstut.simplyspeakers.audio.DirectionalAudio.facingFromOrdinal(facing);
+        localFacingX=localFacing[0]; localFacingZ=localFacing[1];
+        cone=new com.nstut.simplyspeakers.audio.SpatialAudioCalculator.ConeSettings((float)strength,(float)angle,(float)rear);
         samples=DirectionalPreviewGeometry.samples((int)Math.round(range),(float)dropoff,(float)strength,(float)angle,(float)rear,facing);
         mesh=com.nstut.simplyspeakers.audio.ZonePreviewMesh.create(rangeBlocks,(float)dropoff,(float)strength,(float)angle,(float)rear,facing);
         if (!updateRenderPose(client)) clear();
@@ -74,19 +81,14 @@ public final class DirectionalPreview {
             holderPosition.x=net.minecraft.util.Mth.lerp(partial,holder.xo,holder.getX());
             holderPosition.y=net.minecraft.util.Mth.lerp(partial,holder.yo,holder.getY());
             holderPosition.z=net.minecraft.util.Mth.lerp(partial,holder.zo,holder.getZ());
-            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, holderPosition);
             double yaw = Math.toRadians(net.minecraft.util.Mth.rotLerp(partial,holder.yRotO,holder.getYRot()));
-            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, holderPosition, -Math.sin(yaw), Math.cos(yaw));
-            if (base == null || facing == null) return false;
-            renderOrigin = base.add(0, .5, 0);
-            rotation = Math.atan2(-facing[0], facing[1]) + Math.PI;
+            if (!ClientSpeakerSpatialResolver.resolveRenderPose(client.level, holderPosition, -Math.sin(yaw), Math.cos(yaw), renderPose)) return false;
+            renderOrigin = renderPose.position.add(0, .5, 0);
+            rotation = Math.atan2(-renderPose.facing.x, renderPose.facing.z) + Math.PI;
         } else {
-            var base = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRender(client.level, origin);
-            var facing = com.nstut.simplyspeakers.client.compat.sable.ClientSpeakerSpatialResolver.resolveRenderFacing(client.level, origin, facingOrdinal);
-            if (base == null || facing == null) return false;
-            double[] local = com.nstut.simplyspeakers.audio.DirectionalAudio.facingFromOrdinal(facingOrdinal);
-            renderOrigin = base;
-            rotation = Math.atan2(facing[1], facing[0]) - Math.atan2(local[1], local[0]);
+            if (!ClientSpeakerSpatialResolver.resolveRenderPose(client.level, origin, localFacingX, localFacingZ, renderPose)) return false;
+            renderOrigin = renderPose.position;
+            rotation = Math.atan2(renderPose.facing.z, renderPose.facing.x) - Math.atan2(localFacingZ, localFacingX);
         }
         return true;
     }
@@ -125,11 +127,10 @@ public final class DirectionalPreview {
         var listener=client.gameRenderer.getMainCamera().getPosition();
         double dx=listener.x-renderOrigin.x, dy=listener.y-renderOrigin.y, dz=listener.z-renderOrigin.z;
         double distance=Math.sqrt(dx*dx+dy*dy+dz*dz);
-        double[] facing=com.nstut.simplyspeakers.audio.DirectionalAudio.facingFromOrdinal(facingOrdinal);
-        double fx=facing[0]*Math.cos(rotation)-facing[1]*Math.sin(rotation);
-        double fz=facing[0]*Math.sin(rotation)+facing[1]*Math.cos(rotation);
+        double fx=localFacingX*Math.cos(rotation)-localFacingZ*Math.sin(rotation);
+        double fz=localFacingX*Math.sin(rotation)+localFacingZ*Math.cos(rotation);
         float gain=com.nstut.simplyspeakers.audio.SpatialAudioCalculator.calculateDistanceGain(distance,rangeBlocks,1,dropoff,fx,fz,dx,dz,
-            new com.nstut.simplyspeakers.audio.SpatialAudioCalculator.ConeSettings(strength,angle,rear));
+            cone);
         double mapScale=Math.max(rangeBlocks,Math.hypot(dx,dz)/1.15);
         int playerX=cx+(int)Math.round(dx/mapScale*radius), playerY=cy+(int)Math.round(dz/mapScale*radius);
         g.fill(playerX-2,playerY-2,playerX+3,playerY+3,0xFFFFD166);
@@ -147,6 +148,7 @@ public final class DirectionalPreview {
     }
     public static void clear() {
         remaining=0;origin=null;dimension=null;world=null;portableHolder=null;
-        renderOrigin=null;rotation=0;mesh=null;samples=List.of();renderer.close();
+        renderOrigin=null;renderPose.position.zero();renderPose.facing.zero();cone=null;
+        rotation=0;mesh=null;samples=List.of();renderer.close();
     }
 }

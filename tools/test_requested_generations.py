@@ -8,6 +8,18 @@ import port_resources
 import modern_speaker_sources as modern
 ROOT=Path(__file__).resolve().parents[1]
 class RequestedGenerationTest(unittest.TestCase):
+    def test_native_projection_capture_uses_the_same_upload_call_across_local_type_changes(self):
+        source=(ROOT/'neoforge-26.1.2/src/main/java/com/nstut/mixin/ZonePreviewLevelMixin.java').read_text()
+        generated=modern.convert(source,'ZonePreviewLevelMixin.java')
+        anchor='ProjectionMatrixBuffer;getBuffer(Lorg/joml/Matrix4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;'
+        for text in (source,generated):
+            self.assertIn('@org.spongepowered.asm.mixin.injection.ModifyArg(method="renderLevel"',text)
+            self.assertIn(anchor,text)
+            self.assertNotIn('ModifyVariable',text)
+            self.assertIn('index=0',text)
+        self.assertIn('LevelRenderer;render(',generated)
+        self.assertNotIn('LevelRenderer;renderLevel(',generated)
+
     def test_forge_1165_preview_uses_native_matrix_camera_and_renderer_types(self):
         source = 'com.mojang.math.Matrix4f com.mojang.blaze3d.vertex.PoseStack net.minecraft.client.Camera net.minecraft.client.renderer.LevelRenderer net.minecraft.util.Mth'
         mapped = forge.convert(source)

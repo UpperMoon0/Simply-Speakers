@@ -5,6 +5,7 @@ contain the identical test fixture while retaining its original preview code.
 """
 import argparse, csv, json, os, shutil, subprocess, threading, time
 from pathlib import Path
+from live_join_test import stop_tree
 ROOT=Path(__file__).resolve().parents[1]
 
 def profile(root: Path, server: bool):
@@ -39,14 +40,17 @@ clouds:false
 ''',encoding='utf-8')
     return directory
 
-def stop(process):
-    if process.poll() is not None:return
-    if process.stdin:
-        try: process.stdin.write('stop\n');process.stdin.flush();process.wait(timeout=30);return
-        except (OSError,subprocess.TimeoutExpired):pass
-    if os.name=='nt':subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True)
-    else:process.terminate()
-    process.wait(timeout=30)
+def start_process(command, root, environment):
+    """Own a POSIX session; Windows groups cannot retire an exited leader's orphans."""
+    ownership = ({'creationflags': subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
+                 if os.name == 'nt' else {'start_new_session': True})
+    return subprocess.Popen(command, cwd=root, env=environment, stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                            encoding='utf-8', errors='replace', **ownership)
+
+
+def stop(process, graceful_server=False):
+    stop_tree(process, graceful_server=graceful_server)
 
 def run(baseline: Path|None,java_home: Path,order: list[str],samples: int,output: Path,graphics: list[Path],shaderpack: Path|None):
     output=output.resolve();output.mkdir(parents=True,exist_ok=True)
@@ -61,11 +65,9 @@ def run(baseline: Path|None,java_home: Path,order: list[str],samples: int,output
         command=[str(wrapper),':fabric-1.20.1:'+task,'--no-daemon','--console=plain','--max-workers=2',
                  '-Dorg.gradle.jvmargs=-Xmx1024m','-PzonePreviewBackend='+backend,'-PzoneSamples='+str(samples)]
         if graphics and backend=='compatibility':command.append('-PzoneGraphicsMods='+os.pathsep.join(str(p.resolve()) for p in graphics))
-        flags=(subprocess.CREATE_NEW_PROCESS_GROUP|subprocess.CREATE_NO_WINDOW) if os.name=='nt' else 0
-        process=subprocess.Popen(command,cwd=root,env=environment,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',creationflags=flags)
+        process=start_process(command, root, environment)
         def collect():
-            with (output/(name+'.log')).open('w',encoding='utf-8') as log:
+            with process.stdout, (output/(name+'.log')).open('w',encoding='utf-8') as log:
                 for line in process.stdout:
                     log.write(line);log.flush()
                     if 'Done (' in line:ready.set()
@@ -117,9 +119,13 @@ def run(baseline: Path|None,java_home: Path,order: list[str],samples: int,output
                     rows=list(csv.DictReader(path.open()))
                     if len(rows)!=samples:raise RuntimeError('Wrong timing sample count: '+str(path))
                 print(backend+': verified '+str(expected)+' game screenshots and raw timing CSVs',flush=True)
-            finally:stop(client)
+            finally:
+                stop(client)
+                reader.join(timeout=10)
+                if reader.is_alive():raise RuntimeError('Client output remained open after cleanup')
     finally:
-        stop(server);server_reader.join(timeout=10)
+        stop(server, graceful_server=True);server_reader.join(timeout=10)
+        if server_reader.is_alive():raise RuntimeError('Server output remained open after cleanup')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--baseline',type=Path);parser.add_argument('--java-home',type=Path,required=True)

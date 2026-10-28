@@ -4,7 +4,10 @@ package com.nstut.mixin;
 @org.spongepowered.asm.mixin.Mixin(net.minecraft.client.renderer.GameRenderer.class)
 public abstract class ZonePreviewLevelMixin {
     @org.spongepowered.asm.mixin.Unique private org.joml.Matrix4f simplyspeakers$projection;
-    @org.spongepowered.asm.mixin.injection.ModifyVariable(method="renderLevel", at=@org.spongepowered.asm.mixin.injection.At("STORE"), ordinal=0)
+    // 26.1.2 has a Matrix4f view local before projection; 26.2 uses Matrix4fc.
+    // Capture the uploaded projection rather than depending on either local ordinal.
+    @org.spongepowered.asm.mixin.injection.ModifyArg(method="renderLevel", at=@org.spongepowered.asm.mixin.injection.At(
+        value="INVOKE",target="Lnet/minecraft/client/renderer/ProjectionMatrixBuffer;getBuffer(Lorg/joml/Matrix4f;)Lcom/mojang/blaze3d/buffers/GpuBufferSlice;"), index=0)
     private org.joml.Matrix4f simplyspeakers$captureProjection(org.joml.Matrix4f matrix) {
         simplyspeakers$projection=matrix;
         return matrix;

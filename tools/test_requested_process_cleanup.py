@@ -32,6 +32,9 @@ class ProcessObservationTest(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform.startswith('linux'), 'Real owned-session checks require Linux process state')
 class SharedProcessCleanupTest(unittest.TestCase):
+    create_process = staticmethod(live.popen)
+    stop_process = staticmethod(live.stop_tree)
+
     def run_fixture(self, mode):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -49,7 +52,7 @@ class SharedProcessCleanupTest(unittest.TestCase):
                 "import subprocess,sys,time\nfrom pathlib import Path\n"
                 "subprocess.Popen([sys.executable,'child.py'])\n"
                 "while not Path('child.pid').is_file(): time.sleep(.01)\n" + ending)
-            process = live.popen([sys.executable, str(root / 'parent.py')], root)
+            process = self.create_process([sys.executable, str(root / 'parent.py')], root)
             output = live.OutputPump(process, 'cleanup-' + mode)
             try:
                 # Allow a heavily scheduled CI host to start the synthetic child.
@@ -61,7 +64,7 @@ class SharedProcessCleanupTest(unittest.TestCase):
                 child = int((root / 'child.pid').read_text())
                 self.assertTrue(running(child))
                 if mode == 'exited': process.wait(timeout=3)
-                live.stop_tree(process, graceful_server=mode == 'graceful')
+                self.stop_process(process, graceful_server=mode == 'graceful')
                 output.thread.join(timeout=3)
                 deadline = time.monotonic() + 3
                 while running(child) and time.monotonic() < deadline: time.sleep(.01)
@@ -88,6 +91,20 @@ class SharedProcessCleanupTest(unittest.TestCase):
 
     def test_term_killed_parent_does_not_leave_resistant_child(self):
         self.run_fixture('running')
+
+
+@unittest.skipUnless(sys.platform.startswith('linux'), 'Real owned-session checks require Linux process state')
+class ZoneProcessCleanupTest(SharedProcessCleanupTest):
+    """The benchmark launcher must own and retire the same descendant session."""
+    @staticmethod
+    def create_process(command, root):
+        import zone_runtime_test as zone
+        return zone.start_process(command, root, dict(os.environ))
+
+    @staticmethod
+    def stop_process(process, graceful_server=False):
+        import zone_runtime_test as zone
+        zone.stop(process, graceful_server=graceful_server)
 
 
 class WindowsProcessSafetyTest(unittest.TestCase):

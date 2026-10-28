@@ -75,12 +75,7 @@ public final class ZonePreviewRuntimeProbe {
             return;
         }
         phaseTicks++;
-        if(phase==4) {
-            double radians=phaseTicks*.035;
-            client.player.setPos(speaker.getX()+Math.cos(radians)*3,speaker.getY(),speaker.getZ()+Math.sin(radians)*3);
-            client.player.setYRot((float)Math.toDegrees(radians));
-            client.player.setDeltaMovement(0,0,0);
-        }
+        applyListener(client);
         if(phaseTicks==100) {
             if(backend.equals("compatibility")) return;
             cpuCount=0;gpuCount=0;lastFrame=0;timing=true;
@@ -102,6 +97,7 @@ public final class ZonePreviewRuntimeProbe {
             System.out.println("ZONE_PREVIEW_RUNTIME_PASS backend="+backend+" scenes="+captures+" cpuGpuSamples="+SAMPLES);
             client.stop();return;
         }
+        applyListener(client);
         if(phase==5) for(int y=0;y<=10;y++)for(int z=-12;z<=12;z++)
             client.level.setBlock(speaker.offset(5,y,z),Blocks.STONE.defaultBlockState(),3);
         System.setProperty("simplyspeakers.previewHudOnly",Boolean.toString(phase==6 && !backend.equals("compatibility")));
@@ -117,7 +113,19 @@ public final class ZonePreviewRuntimeProbe {
         camera.setXRot((float)-Math.toDegrees(Math.atan2(dy,Math.hypot(dx,dz))));
         camera.setOldPosAndRot();
         DirectionalPreview.show(phase==4?new BlockPos(0,-2048,0):speaker,range,1,1,90,.9);
-        System.out.println("ZONE_PREVIEW_RUNTIME_SCENE backend="+backend+" scene="+SCENES[phase]+" range="+range);
+        System.out.println("ZONE_PREVIEW_RUNTIME_SCENE backend="+backend+" scene="+SCENES[phase]+" range="+range
+                +" poseProtocol=settled-v1 portableSettleTick="+ZonePreviewScenario.PORTABLE_SETTLE_TICK);
+    }
+
+    private void applyListener(Minecraft client) {
+        var pose=ZonePreviewScenario.listener(phase,phaseTicks);
+        var player=client.player;
+        player.setPos(pose.x(),pose.y(),pose.z());
+        player.setYRot(pose.yaw());player.setXRot(0);
+        player.yHeadRot=pose.yaw();player.yHeadRotO=pose.yaw();
+        player.yBodyRot=pose.yaw();player.yBodyRotO=pose.yaw();
+        player.setDeltaMovement(0,0,0);
+        player.setOldPosAndRot();
     }
 
     private void begin() {

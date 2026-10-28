@@ -62,6 +62,29 @@ far plane while retaining depth tests and without requesting chunks.
 ![Changed portable pose fixture](validation/zone-preview/portable-pose-b.png)
 ![Controlled depth fixture](validation/zone-preview/depth-occlusion-fixture.png)
 
+## Review qualification of retained measurements
+
+The historical `game/` and `repeated/` data below remain unchanged. Independent
+review found that the portable scene moved the listener by game tick but stopped
+after a fixed number of rendered samples. The repeated shader runs covered about
+5.40 seconds of motion, versus 6.79 and 7.47 seconds for particles. They therefore
+sampled different orbit segments. The fixture also retained the final portable
+listener position/yaw in the following terrain/fallback scenes. Those historical
+portable and subsequent terrain timings are **not equivalent-pose comparisons**;
+their screenshots still document the individual captured views. Other stationary
+scenes precede portable and are unaffected by this carry-over. Scoped preview CPU
+results remain measurements of their actual individual workloads, with mixed GPU
+and p95 results; they do not establish an overall performance improvement.
+
+The corrected `settled-v1` fixture resets listener position, yaw, interpolation
+history and velocity at every phase. Portable motion runs for 20 warmup ticks,
+then settles at a common pose for the remaining 80 warmup ticks and all measured
+frames. Thus timing covers a settled portable speaker after exercising movement,
+not motion throughout measurement. A pure pose-schedule regression covers
+different backend render throughputs and phase resets. No new game captures or
+benchmarks from this correction have been collected yet; fresh paired
+portable/terrain captures and samples are still required to qualify those paths.
+
 ## Actual Minecraft comparison
 
 The final paired run used **actual Minecraft 1.20.1/Fabric**, Java 17, an invisible
@@ -288,3 +311,24 @@ from the private server before a new capture, so no replacement capture is claim
 The original successful shaderpack evidence remains unchanged. Test-only early
 window/connection diagnostics now fail promptly instead of idling after disconnect.
 Final-head Forge runtime CI is required for the compatibility correction.
+
+
+## Independent review follow-up (2026-10-28)
+
+Independent rendering, lifecycle, adapter and validation reviews found and fixed:
+26.1.2 captured a view local instead of projection (now captures vanilla's exact
+projection upload, also valid for26.2); 1.21.1 render pose resolution allocated
+per frame (now retained caller-owned storage); POSIX fixture cleanup missed
+surviving descendants; portable timing used unequal motion paths. Regression
+coverage now checks actual Minecraft projection-upload bytecode, retained Sable
+pose reuse/cleanup, real Linux resistant descendants, and deterministic scene poses.
+Native26.1.2's227 tests passed after fixing the new test's forbidden direct Mixin
+class load. Common1.20.1/1.21.1 and core suites passed in the combined adapter run;
+its native test was rerun separately with that correction. The25 generated-source
+checks and9 Linux process regressions passed. Windows process groups cannot
+retire orphan descendants after their wrapper exits; the harness reports a still
+open output pipe rather than targeting a potentially reused PID.
+
+Corrected hidden-game captures/timings and requested released graphics-stack
+qualification are in progress; no new compatibility or universal performance
+claim follows from these source/unit checks.

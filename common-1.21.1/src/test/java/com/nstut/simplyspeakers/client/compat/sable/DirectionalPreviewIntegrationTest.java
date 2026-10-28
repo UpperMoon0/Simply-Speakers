@@ -59,6 +59,12 @@ class DirectionalPreviewIntegrationTest {
         when(sable.getContaining(level, POSITION)).thenReturn(body);
         when(sable.isInPlotGrid(level, POSITION)).thenReturn(true);
         spatial = mockStatic(ClientSpeakerSpatialResolver.class, call -> {
+            if (call.getMethod().getName().equals("resolveRenderPose") && call.getArguments().length == 5)
+                return call.getArgument(1) instanceof BlockPos block
+                    ? ClientSpeakerSpatialResolver.resolveRenderPose(sable, level, block,
+                        call.getArgument(2), call.getArgument(3), call.getArgument(4))
+                    : ClientSpeakerSpatialResolver.resolveRenderPose(sable, level, (net.minecraft.core.Position)call.getArgument(1),
+                        call.getArgument(2), call.getArgument(3), call.getArgument(4));
             if (call.getMethod().getName().equals("resolveRender") && call.getArguments().length == 2)
                 return call.getArgument(1) instanceof BlockPos block
                     ? ClientSpeakerSpatialResolver.resolveRender(sable,level,block)
@@ -112,10 +118,11 @@ class DirectionalPreviewIntegrationTest {
         assertNull(renderOrigin());
     }
 
-    @Test void unresolvedFacingDismissesEvenWhenPositionResolves() throws Exception {
+    @Test void unresolvedCombinedPoseDismisses() throws Exception {
         DirectionalPreview.show(POSITION, 16, 1, 1, 90, 1);
-        spatial.when(() -> ClientSpeakerSpatialResolver.resolveRenderFacing(level, POSITION, Direction.NORTH.ordinal()))
-                .thenReturn(null);
+        var destination=(ClientSpeakerSpatialResolver.RenderPose)field("renderPose");
+        spatial.when(() -> ClientSpeakerSpatialResolver.resolveRenderPose(level, POSITION, 0, -1, destination))
+                .thenReturn(false);
         DirectionalPreview.tick(client);
         assertEquals(0, remaining());
         assertNull(renderOrigin());
@@ -157,9 +164,12 @@ class DirectionalPreviewIntegrationTest {
 
     private static void assertCleared() throws Exception {
         assertEquals(0,remaining());
-        for(String name:new String[]{"origin","world","dimension","portableHolder","renderOrigin","mesh"})
+        for(String name:new String[]{"origin","world","dimension","portableHolder","renderOrigin","mesh","cone"})
             assertNull(field(name),name);
         assertTrue(((java.util.List<?>)field("samples")).isEmpty());
+        var retained=(ClientSpeakerSpatialResolver.RenderPose)field("renderPose");
+        assertEquals(0,retained.position.lengthSquared());
+        assertEquals(0,retained.facing.lengthSquared());
     }
 
     @Test void portablePreviewInterpolatesPositionAndYawAndClearsWhenHolderDisappears() throws Exception {
@@ -177,6 +187,12 @@ class DirectionalPreviewIntegrationTest {
         update.setAccessible(true);assertEquals(true,update.invoke(null,client,.5f));
         assertPosition(5,10.5,15);
         assertEquals(Math.PI*1.25,(double)field("rotation"),1e-6);
+        Object retainedOrigin=field("renderOrigin");
+        for(int frame=0;frame<200;frame++) {
+            assertEquals(true,update.invoke(null,client,.5f));
+            assertSame(retainedOrigin,field("renderOrigin"));
+            assertPosition(5,10.5,15);
+        }
         when(level.getPlayerByUUID(id)).thenReturn(null);
         DirectionalPreview.tick(client);
         assertCleared();
@@ -191,7 +207,10 @@ class DirectionalPreviewIntegrationTest {
     }
 
     private static int remaining() throws Exception { return (int) field("remaining"); }
-    private static Vec3 renderOrigin() throws Exception { return (Vec3) field("renderOrigin"); }
+    private static Vec3 renderOrigin() throws Exception {
+        var position=(org.joml.Vector3d)field("renderOrigin");
+        return position==null ? null : new Vec3(position.x,position.y,position.z);
+    }
     private static void assertPosition(double x, double y, double z) throws Exception {
         Vec3 origin = renderOrigin();
         assertNotNull(origin);

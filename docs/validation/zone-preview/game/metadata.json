@@ -35,6 +35,7 @@
   "scope": "CPU: GameRenderer.render submission. GPU: GL_TIME_ELAPSED around GameRenderer.render. Frame: head-to-head intervals; first zero discarded. Whole scene including HUD, not preview-exclusive GPU cost.",
   "camera": "Detached camera follows fixed poses; listener stays near the speaker. HUD reports listener distance, not detached camera distance.",
   "large_outside": "Shader boundary remains visible beyond the terrain far plane. Original particles may be clipped at this distance.",
+  "review_qualification": "Historical portable motion samples different orbit segments at different backend frame rates, and the following terrain/fallback scenes retain the different final listener pose. Portable and terrain timings are not equivalent-pose comparisons. Raw CSVs, images and original provenance remain unchanged; see docs/zone-preview-validation.md for the corrected settled-v1 protocol, which has not yet produced replacement game evidence.",
   "limitations": [
     "One paired run; no controlled idle-machine/GPU-clock claim.",
     "Shader run first, particles second.",

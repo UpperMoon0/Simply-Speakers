@@ -22,6 +22,7 @@ def prepare(output: Path,ref: str,refresh: bool):
     else:subprocess.run(['git','worktree','add','--detach',str(output),commit],cwd=ROOT,check=True)
     fixture=Path('shared/zone-verification/src/main/java')
     names=['com/nstut/simplyspeakers/client/ZonePreviewRuntimeProbe.java',
+           'com/nstut/simplyspeakers/client/ZonePreviewScenario.java',
            'com/nstut/mixin/ZonePreviewFrameProbeMixin.java','com/nstut/mixin/ZonePreviewOffscreenMixin.java',
            'com/nstut/mixin/ZonePreviewParticleTimingMixin.java','com/nstut/mixin/ZonePreviewMixinPlugin.java']
     for name in names:
