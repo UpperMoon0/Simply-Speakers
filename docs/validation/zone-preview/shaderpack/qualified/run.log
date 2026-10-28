@@ -1,0 +1,8 @@
+Fixture server ready on localhost:25586
+01-compatibility: [13:42:29] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_GPU backend=compatibility hidden=true renderer=NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2 version=3.2.0 NVIDIA 581.15
+01-compatibility: [13:42:29] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_SHADERPACK_ACTIVE pack=ComplementaryReimagined_r5.9.3.zip pipeline=net.irisshaders.iris.pipeline.IrisRenderingPipeline
+01-compatibility: [13:42:29] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=compatibility scene=fallback range=16
+01-compatibility: [13:42:34] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_COMPATIBILITY_PASS automaticFallback=true forcedHudOnly=false
+01-compatibility: [13:42:34] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as compatibility-fallback.png
+01-compatibility: [13:42:34] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_PASS backend=compatibility scenes=1 cpuGpuSamples=300
+compatibility: verified 1 game screenshots and raw timing CSVs

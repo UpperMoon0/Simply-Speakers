@@ -1,0 +1,430 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :
+Architect Plugin: 3.4.164
+Architectury Loom: 1.11.458
+
+> Configure project :fabric-1.20.1
+Mod was built with a newer version of Loom (1.17.11), you are using Loom (1.11.458)
+Mod was built with a newer version of Loom (1.17.11), you are using Loom (1.11.458)
+Mod was built with a newer version of Loom (1.17.9), you are using Loom (1.11.458)
+
+> Task :common:processResources UP-TO-DATE
+> Task :packetweave-api:compileJava UP-TO-DATE
+> Task :common:compileJava UP-TO-DATE
+> Task :common:classes UP-TO-DATE
+> Task :common:jar UP-TO-DATE
+> Task :fabric-1.20.1:processResources UP-TO-DATE
+> Task :fabric-1.20.1:generateLog4jConfig UP-TO-DATE
+> Task :fabric-1.20.1:generateRemapClasspath UP-TO-DATE
+> Task :fabric-1.20.1:generateDLIConfig UP-TO-DATE
+> Task :common-1.20.1:transformResources
+> Task :common-1.20.1:compileJava UP-TO-DATE
+> Task :common-1.20.1:transformRecipes
+> Task :common-1.20.1:processResources UP-TO-DATE
+> Task :common-1.20.1:classes UP-TO-DATE
+> Task :common-1.20.1:jar UP-TO-DATE
+> Task :fabric-1.20.1:prepareArchitecturyTransformer
+> Task :fabric-1.20.1:compileJava UP-TO-DATE
+> Task :fabric-1.20.1:classes UP-TO-DATE
+> Task :fabric-1.20.1:configureLaunch
+> Task :fabric-1.20.1:downloadAssets UP-TO-DATE
+> Task :fabric-1.20.1:configureClientLaunch
+
+> Task :fabric-1.20.1:runZonePreviewClient
+[Architectury Transformer] Architectury Runtime 5.2.91
+[Architectury Transformer] Read classpath in 1.693 s
+[Architectury Transformer] Listening at C:\Users\NsTut\Documents\Codex\2026-10-28\task-2\speakers\common-1.20.1\build\devlibs\simplyspeakers-common-1.20.1-0.10.2-dev.jar
+[13:19:26] [main/INFO] (FabricLoader/GameProvider) Loading Minecraft 1.20.1 with Fabric Loader 0.18.4
+[13:19:26] [main/INFO] (FabricLoader) Loading 66 mods:
+	- architectury 9.2.14
+	- computercraft 1.120.2
+	- fabric-api 0.92.5+1.20.1
+	- fabric-api-base 0.4.32+1802ada577
+	- fabric-api-lookup-api-v1 1.6.37+1802ada577
+	- fabric-biome-api-v1 13.0.14+1802ada577
+	- fabric-block-api-v1 1.0.12+1802ada577
+	- fabric-block-view-api-v2 1.0.3+924f046a77
+	- fabric-blockrenderlayer-v1 1.1.42+1802ada577
+	- fabric-client-tags-api-v1 1.1.3+1802ada577
+	- fabric-command-api-v1 1.2.35+f71b366f77
+	- fabric-command-api-v2 2.2.14+1802ada577
+	- fabric-commands-v0 0.2.52+df3654b377
+	- fabric-containers-v0 0.1.66+df3654b377
+	- fabric-content-registries-v0 4.0.13+1802ada577
+	- fabric-convention-tags-v1 1.5.6+1802ada577
+	- fabric-crash-report-info-v1 0.2.20+1802ada577
+	- fabric-data-attachment-api-v1 1.0.2+de0fd6d177
+	- fabric-data-generation-api-v1 12.3.6+1802ada577
+	- fabric-dimensions-v1 2.1.55+1802ada577
+	- fabric-entity-events-v1 1.6.1+1c78457f77
+	- fabric-events-interaction-v0 0.6.4+13a40c6677
+	- fabric-events-lifecycle-v0 0.2.64+df3654b377
+	- fabric-game-rule-api-v1 1.0.41+1802ada577
+	- fabric-gametest-api-v1 1.2.15+1802ada577
+	- fabric-item-api-v1 2.1.29+1802ada577
+	- fabric-item-group-api-v1 4.0.14+1802ada577
+	- fabric-key-binding-api-v1 1.0.38+1802ada577
+	- fabric-keybindings-v0 0.2.36+df3654b377
+	- fabric-lifecycle-events-v1 2.2.23+1802ada577
+	- fabric-loot-api-v2 1.2.3+1802ada577
+	- fabric-loot-tables-v1 1.1.47+9e7660c677
+	- fabric-message-api-v1 5.1.10+1802ada577
+	- fabric-mining-level-api-v1 2.1.52+1802ada577
+	- fabric-model-loading-api-v1 1.0.4+1802ada577
+	- fabric-models-v0 0.4.3+9386d8a777
+	- fabric-networking-api-v1 1.3.13+13a40c6677
+	- fabric-networking-v0 0.3.53+df3654b377
+	- fabric-object-builder-api-v1 11.1.5+e35120df77
+	- fabric-particles-v1 1.1.3+1802ada577
+	- fabric-recipe-api-v1 1.0.23+1802ada577
+	- fabric-registry-sync-v0 2.3.5+1802ada577
+	- fabric-renderer-api-v1 3.2.2+1802ada577
+	- fabric-renderer-indigo 1.5.3+85287f9f77
+	- fabric-renderer-registries-v1 3.2.47+df3654b377
+	- fabric-rendering-data-attachment-v1 0.3.39+92a0d36777
+	- fabric-rendering-fluids-v1 3.0.29+1802ada577
+	- fabric-rendering-v0 1.1.50+df3654b377
+	- fabric-rendering-v1 3.0.9+1802ada577
+	- fabric-resource-conditions-api-v1 2.3.9+1802ada577
+	- fabric-resource-loader-v0 0.11.12+fb82e9d777
+	- fabric-screen-api-v1 2.0.9+1802ada577
+	- fabric-screen-handler-api-v1 1.3.32+1802ada577
+	- fabric-sound-api-v1 1.0.14+1802ada577
+	- fabric-transfer-api-v1 3.3.6+8dd72ea377
+	- fabric-transitive-access-wideners-v1 4.3.2+1802ada577
+	- fabricloader 0.18.4
+	- fiber 0.23.0-2
+	- generated_d7b1fba 1.0.0
+	- java 17
+	- minecraft 1.20.1
+	- mixinextras 0.4.1
+	- openui_mc 0.0.14
+	- packetweave 0.1.2
+	- patchouli 1.20.1-85-FABRIC
+	- simplyspeakers 0.10.2
+[13:19:26] [main/INFO] (FabricLoader/Mixin) SpongePowered MIXIN Subsystem Version=0.8.7 Source=file:/D:/DevCaches/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.5+mixin.0.8.7/22f9eb729e216a091673a574a5906dc1b9027fb3/sponge-mixin-0.15.5+mixin.0.8.7.jar Service=Knot/Fabric Env=CLIENT
+[13:19:26] [main/INFO] (FabricLoader/Mixin) Loaded Fabric development mappings for mixin remapper!
+[13:19:27] [main/INFO] (FabricLoader/Mixin) Compatibility level set to JAVA_16
+[13:19:27] [main/INFO] (FabricLoader/Mixin) Compatibility level set to JAVA_17
+[13:19:29] [main/INFO] (FabricLoader/MixinExtras|Service) Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.4.1).
+[13:19:36] [Datafixer Bootstrap/INFO] (Minecraft) 188 Datafixer optimizations took 806 milliseconds
+[13:19:38] [Render thread/INFO] (Minecraft) Environment: authHost='https://authserver.mojang.com', accountsHost='https://api.mojang.com', sessionHost='https://sessionserver.mojang.com', servicesHost='https://api.minecraftservices.com', name='PROD'
+[13:19:39] [Render thread/INFO] (Minecraft) Setting user: SSZoneProbe
+[13:19:41] [Render thread/INFO] (simplyspeakers) Initializing Simply Speakers
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/705a0fc1927735d59589fb9c76769ba0
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/705a0fc1927735d59589fb9c76769ba0
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/42bfdc34a77c352d9225aaff91a9d7ba
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/42bfdc34a77c352d9225aaff91a9d7ba
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/625b623614583ae08e2cfda0b9b3dbf2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/625b623614583ae08e2cfda0b9b3dbf2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a1ccd30a90a3305188fd255e8c0e0f50
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a1ccd30a90a3305188fd255e8c0e0f50
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/9cb04a10860c35309e4d9cbe66757ce2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/9cb04a10860c35309e4d9cbe66757ce2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/1c4f4b2ff49139f6bf0822fa7b8a069b
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/1c4f4b2ff49139f6bf0822fa7b8a069b
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/5366ce4aca6334ccae965361dc427204
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/5366ce4aca6334ccae965361dc427204
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/6160100438cc3b96a813b1bcc7323e15
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/6160100438cc3b96a813b1bcc7323e15
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/40db44e6d96b3486b6e295be58b9652b
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/40db44e6d96b3486b6e295be58b9652b
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/75408f61515b306cbb59b6cf80a4fa43
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/75408f61515b306cbb59b6cf80a4fa43
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/644aa40ab4f73349a724ddec03f154a6
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/644aa40ab4f73349a724ddec03f154a6
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/13652b87354f3f7d8fb6ce4da21482af
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/13652b87354f3f7d8fb6ce4da21482af
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a8c86c0d069e3475a43edd93ff7a9357
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a8c86c0d069e3475a43edd93ff7a9357
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/afb718a0ac983e87a5e56e6a561285b2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/afb718a0ac983e87a5e56e6a561285b2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/405fac02058d31f0ac02b67c5862eb8d
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/405fac02058d31f0ac02b67c5862eb8d
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/8b3b3decb7943c368a8c0f59989d6219
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/8b3b3decb7943c368a8c0f59989d6219
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/0cb01a36281237a1917803ddf6c9eccf
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/0cb01a36281237a1917803ddf6c9eccf
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/79ec1b1bc0933892a74e81f525c51ff5
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/79ec1b1bc0933892a74e81f525c51ff5
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/c9cba2eed5cf336ab3f06389cc0d3a6f
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/c9cba2eed5cf336ab3f06389cc0d3a6f
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/74cc8df7bac53b439db56c9983684b0c
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/74cc8df7bac53b439db56c9983684b0c
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/dae53f09cac83fb8aad84d04c4f643b8
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/dae53f09cac83fb8aad84d04c4f643b8
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/2471cfcbcf9e33ef8732fdee545c4289
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/2471cfcbcf9e33ef8732fdee545c4289
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/81df03877ec032a1995542a64e264a76
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/81df03877ec032a1995542a64e264a76
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/e7f27aeecb66316caef9a01ad5cfe481
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/e7f27aeecb66316caef9a01ad5cfe481
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/d956cd0ea16f31f79dfdd4252ada6477
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/d956cd0ea16f31f79dfdd4252ada6477
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/b46c2650d1a736608c87f7462da19617
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/b46c2650d1a736608c87f7462da19617
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/aa54753dfc4431379bbc15ef81188a14
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/aa54753dfc4431379bbc15ef81188a14
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/f9fc6b37bc4037278cb497af21e63e99
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/f9fc6b37bc4037278cb497af21e63e99
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a09f4cb8cd4b33b3bef94a017ce33d19
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a09f4cb8cd4b33b3bef94a017ce33d19
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a22babe298d8379a9b20a90790873902
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a22babe298d8379a9b20a90790873902
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/5ae41006efc3367a8f7a7c228d436ee2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/5ae41006efc3367a8f7a7c228d436ee2
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a0494594f9c830cdb591360dca468975
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a0494594f9c830cdb591360dca468975
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/c36e3b2c333c3e4eb51e1fe385ffb85e
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/c36e3b2c333c3e4eb51e1fe385ffb85e
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/045856c60f0339d285d0d158d8c0e260
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/045856c60f0339d285d0d158d8c0e260
+[13:19:41] [Render thread/INFO] (FabricConfigFile) Loading config from C:\Users\NsTut\Documents\Codex\2026-10-28\task-2\speakers\fabric-1.20.1\run\zone-preview\client\config\computercraft-client.toml
+[13:19:41] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id architectury:spawn_entity_packet
+[13:19:42] [Render thread/INFO] (Indigo) [Indigo] Registering Indigo renderer!
+[13:19:42] [Render thread/INFO] (Minecraft) Backend library: LWJGL version 3.3.1 SNAPSHOT
+[13:19:45] [Render thread/INFO] (Minecraft) Reloading ResourceManager: vanilla, fabric (fabric-api-lookup-api-v1, fabric-dimensions-v1, computercraft, fabric-content-registries-v0, fabric-rendering-data-attachment-v1, fabric-resource-conditions-api-v1, fabric-loot-tables-v1, fabric-command-api-v1, fabric-transitive-access-wideners-v1, fabric-item-api-v1, fabric-screen-handler-api-v1, fabric-rendering-fluids-v1, fabric-block-api-v1, fabric-block-view-api-v2, patchouli, fabric-rendering-v0, fabric-key-binding-api-v1, fabric-crash-report-info-v1, fabric-game-rule-api-v1, fabric-gametest-api-v1, fabric-api-base, fabric-object-builder-api-v1, fabric-mining-level-api-v1, fabric-resource-loader-v0, fabric-entity-events-v1, fabric-message-api-v1, fabricloader, fabric-transfer-api-v1, fabric-events-lifecycle-v0, fabric-containers-v0, fabric-keybindings-v0, fabric-renderer-registries-v1, fabric-commands-v0, fabric-convention-tags-v1, fabric-model-loading-api-v1, fabric-data-attachment-api-v1, fabric-client-tags-api-v1, fabric-biome-api-v1, fabric-blockrenderlayer-v1, fabric-networking-api-v1, generated_d7b1fba, fabric-item-group-api-v1, fabric-screen-api-v1, fabric-renderer-api-v1, fabric-particles-v1, fabric-command-api-v2, fabric-models-v0, fabric-renderer-indigo, fabric-api, fabric-networking-v0, fabric-recipe-api-v1, fabric-registry-sync-v0, packetweave, fabric-data-generation-api-v1, fabric-loot-api-v2, fabric-events-interaction-v0, fabric-sound-api-v1, fabric-rendering-v1, fabric-lifecycle-events-v1)
+[13:19:45] [Worker-Main-1/WARN] (Minecraft) File simplyspeakers:sounds/custom/music.ogg does not exist, cannot add it to event simplyspeakers:custom.music
+[13:19:45] [Worker-Main-3/INFO] (Minecraft) Found unifont_all_no_pua-15.0.06.hex, loading
+[13:19:49] [Render thread/WARN] (Minecraft) Missing sound for event: minecraft:item.goat_horn.play
+[13:19:49] [Render thread/WARN] (Minecraft) Missing sound for event: minecraft:entity.goat.screaming.horn_break
+[13:19:49] [Render thread/INFO] (Minecraft) OpenAL initialized on device No Output
+[13:19:49] [Render thread/INFO] (Minecraft) Sound engine started
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 1024x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
+[13:19:50] [Render thread/INFO] (Minecraft) Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
+[13:19:50] [Render thread/WARN] (Minecraft) Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
+[13:19:51] [Render thread/INFO] (Minecraft) Created: 256x256x0 minecraft:textures/atlas/particles.png-atlas
+[13:19:51] [Render thread/INFO] (Minecraft) Created: 256x256x0 minecraft:textures/atlas/paintings.png-atlas
+[13:19:51] [Render thread/INFO] (Minecraft) Created: 128x128x0 minecraft:textures/atlas/mob_effects.png-atlas
+[13:19:51] [Render thread/INFO] (Minecraft) Created: 128x128x0 computercraft:textures/atlas/gui.png-atlas
+[13:19:51] [Render thread/INFO] (patchouli) BookContentResourceListenerLoader preloaded 28 jsons
+[13:19:51] [Render thread/INFO] (Minecraft) [STDOUT]: [SimplySpeakers] Player logging out, initiating fast audio cleanup...
+[13:19:51] [Render thread/INFO] (Minecraft) Connecting to 127.0.0.1, 25586
+[13:19:57] [Render thread/INFO] (simplyspeakers) Received server config: speakerRange=64, disableUpload=false, maxUploadSize=5242880, allowRemoteStreams=false
+[13:19:57] [Render thread/INFO] (Minecraft) Loaded 2 advancements
+[13:19:57] [Render thread/INFO] (patchouli) BookContentResourceListenerLoader: Files found in 118.5 μs
+[13:19:57] [Render thread/INFO] (patchouli) BookContentResourceListenerLoader: Files found in 122.6 μs
+[13:19:57] [Render thread/INFO] (patchouli) BookContentResourceListenerLoader: Files found in 1.429 ms
+[13:20:06] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_GPU backend=shader hidden=true renderer=NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2 version=3.2.0 NVIDIA 581.15
+[13:20:06] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=small-outside range=16
+[13:20:11] [Render thread/ERROR] (Minecraft) Unreported exception thrown!
+java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0
+	at com.nstut.simplyspeakers.client.ZonePreviewRuntimeProbe.begin(ZonePreviewRuntimeProbe.java:119) ~[simplyspeakers-common-1.20.1-0.10.2-dev.jar:?]
+	at com.nstut.simplyspeakers.client.ZonePreviewRuntimeProbe.beginFrame(ZonePreviewRuntimeProbe.java:35) ~[simplyspeakers-common-1.20.1-0.10.2-dev.jar:?]
+	at net.minecraft.client.renderer.GameRenderer.handler$zmi000$simplyspeakers$beginFrame(GameRenderer.java:3095) ~[minecraft-merged-6b4e1d60d8-1.20.1-loom.mappings.1_20_1.layered+hash.40359-v2.jar:?]
+	at net.minecraft.client.renderer.GameRenderer.render(GameRenderer.java) ~[minecraft-merged-6b4e1d60d8-1.20.1-loom.mappings.1_20_1.layered+hash.40359-v2.jar:?]
+	at net.minecraft.client.Minecraft.runTick(Minecraft.java:1219) ~[minecraft-merged-6b4e1d60d8-1.20.1-loom.mappings.1_20_1.layered+hash.40359-v2.jar:?]
+	at net.minecraft.client.Minecraft.run(Minecraft.java:802) ~[minecraft-merged-6b4e1d60d8-1.20.1-loom.mappings.1_20_1.layered+hash.40359-v2.jar:?]
+	at net.minecraft.client.main.Main.main(Main.java:250) ~[minecraft-merged-6b4e1d60d8-1.20.1-loom.mappings.1_20_1.layered+hash.40359-v2.jar:?]
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:514) ~[fabric-loader-0.18.4.jar:?]
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72) ~[fabric-loader-0.18.4.jar:?]
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23) ~[fabric-loader-0.18.4.jar:?]
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86) ~[dev-launch-injector-0.2.1+build.8.jar:?]
+	at dev.architectury.transformer.TransformerRuntime.main(TransformerRuntime.java:220) ~[architectury-transformer-5.2.91-runtime.jar:?]
+[13:20:11] [Render thread/INFO] (Minecraft) [STDOUT]: [SimplySpeakers] Player logging out, initiating fast audio cleanup...
+---- Minecraft Crash Report ----
+// My bad.
+
+Time: 2026-10-28 13:20:11
+Description: Unexpected error
+
+java.lang.ArrayIndexOutOfBoundsException: Index 0 out of bounds for length 0
+	at knot//com.nstut.simplyspeakers.client.ZonePreviewRuntimeProbe.begin(ZonePreviewRuntimeProbe.java:119)
+	at knot//com.nstut.simplyspeakers.client.ZonePreviewRuntimeProbe.beginFrame(ZonePreviewRuntimeProbe.java:35)
+	at knot//net.minecraft.client.renderer.GameRenderer.handler$zmi000$simplyspeakers$beginFrame(GameRenderer.java:3095)
+	at knot//net.minecraft.client.renderer.GameRenderer.render(GameRenderer.java)
+	at knot//net.minecraft.client.Minecraft.runTick(Minecraft.java:1219)
+	at knot//net.minecraft.client.Minecraft.run(Minecraft.java:802)
+	at knot//net.minecraft.client.main.Main.main(Main.java:250)
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:514)
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72)
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23)
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86)
+	at dev.architectury.transformer.TransformerRuntime.main(TransformerRuntime.java:220)
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Thread: Render thread
+Stacktrace:
+	at knot//com.nstut.simplyspeakers.client.ZonePreviewRuntimeProbe.begin(ZonePreviewRuntimeProbe.java:119)
+	at knot//com.nstut.simplyspeakers.client.ZonePreviewRuntimeProbe.beginFrame(ZonePreviewRuntimeProbe.java:35)
+	at knot//net.minecraft.client.renderer.GameRenderer.handler$zmi000$simplyspeakers$beginFrame(GameRenderer.java:3095)
+
+-- Affected level --
+Details:
+	All players: 1 total; [LocalPlayer['SSZoneProbe'/55, l='ClientLevel', x=-0.41, y=-60.00, z=0.00]]
+	Chunk stats: 529, 313
+	Level dimension: minecraft:overworld
+	Level spawn location: World: (0,-60,0), Section: (at 0,4,0 in 0,-4,0; chunk contains blocks 0,-64,0 to 15,319,15), Region: (0,0; contains chunks 0,0 to 31,31, blocks 0,-64,0 to 511,319,511)
+	Level time: 23068 game time, 6000 day time
+	Server brand: fabric
+	Server type: Non-integrated multiplayer server
+Stacktrace:
+	at knot//net.minecraft.client.multiplayer.ClientLevel.fillReportDetails(ClientLevel.java:458)
+	at knot//net.minecraft.client.Minecraft.fillReport(Minecraft.java:2406)
+	at knot//net.minecraft.client.Minecraft.run(Minecraft.java:826)
+	at knot//net.minecraft.client.main.Main.main(Main.java:250)
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:514)
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72)
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23)
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86)
+	at dev.architectury.transformer.TransformerRuntime.main(TransformerRuntime.java:220)
+
+-- Last reload --
+Details:
+	Reload number: 1
+	Reload reason: initial
+	Finished: Yes
+	Packs: vanilla, fabric
+
+-- System Details --
+Details:
+	Minecraft Version: 1.20.1
+	Minecraft Version ID: 1.20.1
+	Operating System: Windows 10 (amd64) version 10.0
+	Java Version: 17.0.20.1, Eclipse Adoptium
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Eclipse Adoptium
+	Memory: 672533472 bytes (641 MiB) / 1480589312 bytes (1412 MiB) up to 4278190080 bytes (4080 MiB)
+	CPUs: 4
+	Processor Vendor: GenuineIntel
+	Processor Name: Intel(R) Core(TM) i3-8100 CPU @ 3.60GHz
+	Identifier: Intel64 Family 6 Model 158 Stepping 11
+	Microarchitecture: Coffee Lake
+	Frequency (GHz): 3.60
+	Number of physical packages: 1
+	Number of physical CPUs: 4
+	Number of logical CPUs: 4
+	Graphics card #0 name: NVIDIA GeForce GTX 1050 Ti
+	Graphics card #0 vendor: NVIDIA (0x10de)
+	Graphics card #0 VRAM (MB): 4095.00
+	Graphics card #0 deviceId: 0x1c82
+	Graphics card #0 versionInfo: DriverVersion=32.0.15.8115
+	Memory slot #0 capacity (MB): 8192.00
+	Memory slot #0 clockSpeed (GHz): 2.13
+	Memory slot #0 type: DDR4
+	Memory slot #1 capacity (MB): 8192.00
+	Memory slot #1 clockSpeed (GHz): 2.13
+	Memory slot #1 type: DDR4
+	Virtual memory max (MB): 48061.06
+	Virtual memory used (MB): 25226.62
+	Swap memory total (MB): 31744.00
+	Swap memory used (MB): 2404.82
+	JVM Flags: 0 total; 
+	Fabric Mods: 
+		architectury: Architectury 9.2.14
+		computercraft: CC: Tweaked 1.120.2
+		fabric-api: Fabric API 0.92.5+1.20.1
+		fabric-api-base: Fabric API Base 0.4.32+1802ada577
+		fabric-api-lookup-api-v1: Fabric API Lookup API (v1) 1.6.37+1802ada577
+		fabric-biome-api-v1: Fabric Biome API (v1) 13.0.14+1802ada577
+		fabric-block-api-v1: Fabric Block API (v1) 1.0.12+1802ada577
+		fabric-block-view-api-v2: Fabric BlockView API (v2) 1.0.3+924f046a77
+		fabric-blockrenderlayer-v1: Fabric BlockRenderLayer Registration (v1) 1.1.42+1802ada577
+		fabric-client-tags-api-v1: Fabric Client Tags 1.1.3+1802ada577
+		fabric-command-api-v1: Fabric Command API (v1) 1.2.35+f71b366f77
+		fabric-command-api-v2: Fabric Command API (v2) 2.2.14+1802ada577
+		fabric-commands-v0: Fabric Commands (v0) 0.2.52+df3654b377
+		fabric-containers-v0: Fabric Containers (v0) 0.1.66+df3654b377
+		fabric-content-registries-v0: Fabric Content Registries (v0) 4.0.13+1802ada577
+		fabric-convention-tags-v1: Fabric Convention Tags 1.5.6+1802ada577
+		fabric-crash-report-info-v1: Fabric Crash Report Info (v1) 0.2.20+1802ada577
+		fabric-data-attachment-api-v1: Fabric Data Attachment API (v1) 1.0.2+de0fd6d177
+		fabric-data-generation-api-v1: Fabric Data Generation API (v1) 12.3.6+1802ada577
+		fabric-dimensions-v1: Fabric Dimensions API (v1) 2.1.55+1802ada577
+		fabric-entity-events-v1: Fabric Entity Events (v1) 1.6.1+1c78457f77
+		fabric-events-interaction-v0: Fabric Events Interaction (v0) 0.6.4+13a40c6677
+		fabric-events-lifecycle-v0: Fabric Events Lifecycle (v0) 0.2.64+df3654b377
+		fabric-game-rule-api-v1: Fabric Game Rule API (v1) 1.0.41+1802ada577
+		fabric-gametest-api-v1: Fabric Game Test API (v1) 1.2.15+1802ada577
+		fabric-item-api-v1: Fabric Item API (v1) 2.1.29+1802ada577
+		fabric-item-group-api-v1: Fabric Item Group API (v1) 4.0.14+1802ada577
+		fabric-key-binding-api-v1: Fabric Key Binding API (v1) 1.0.38+1802ada577
+		fabric-keybindings-v0: Fabric Key Bindings (v0) 0.2.36+df3654b377
+		fabric-lifecycle-events-v1: Fabric Lifecycle Events (v1) 2.2.23+1802ada577
+		fabric-loot-api-v2: Fabric Loot API (v2) 1.2.3+1802ada577
+		fabric-loot-tables-v1: Fabric Loot Tables (v1) 1.1.47+9e7660c677
+		fabric-message-api-v1: Fabric Message API (v1) 5.1.10+1802ada577
+		fabric-mining-level-api-v1: Fabric Mining Level API (v1) 2.1.52+1802ada577
+		fabric-model-loading-api-v1: Fabric Model Loading API (v1) 1.0.4+1802ada577
+		fabric-models-v0: Fabric Models (v0) 0.4.3+9386d8a777
+		fabric-networking-api-v1: Fabric Networking API (v1) 1.3.13+13a40c6677
+		fabric-networking-v0: Fabric Networking (v0) 0.3.53+df3654b377
+		fabric-object-builder-api-v1: Fabric Object Builder API (v1) 11.1.5+e35120df77
+		fabric-particles-v1: Fabric Particles (v1) 1.1.3+1802ada577
+		fabric-recipe-api-v1: Fabric Recipe API (v1) 1.0.23+1802ada577
+		fabric-registry-sync-v0: Fabric Registry Sync (v0) 2.3.5+1802ada577
+		fabric-renderer-api-v1: Fabric Renderer API (v1) 3.2.2+1802ada577
+		fabric-renderer-indigo: Fabric Renderer - Indigo 1.5.3+85287f9f77
+		fabric-renderer-registries-v1: Fabric Renderer Registries (v1) 3.2.47+df3654b377
+		fabric-rendering-data-attachment-v1: Fabric Rendering Data Attachment (v1) 0.3.39+92a0d36777
+		fabric-rendering-fluids-v1: Fabric Rendering Fluids (v1) 3.0.29+1802ada577
+		fabric-rendering-v0: Fabric Rendering (v0) 1.1.50+df3654b377
+		fabric-rendering-v1: Fabric Rendering (v1) 3.0.9+1802ada577
+		fabric-resource-conditions-api-v1: Fabric Resource Conditions API (v1) 2.3.9+1802ada577
+		fabric-resource-loader-v0: Fabric Resource Loader (v0) 0.11.12+fb82e9d777
+		fabric-screen-api-v1: Fabric Screen API (v1) 2.0.9+1802ada577
+		fabric-screen-handler-api-v1: Fabric Screen Handler API (v1) 1.3.32+1802ada577
+		fabric-sound-api-v1: Fabric Sound API (v1) 1.0.14+1802ada577
+		fabric-transfer-api-v1: Fabric Transfer API (v1) 3.3.6+8dd72ea377
+		fabric-transitive-access-wideners-v1: Fabric Transitive Access Wideners (v1) 4.3.2+1802ada577
+		fabricloader: Fabric Loader 0.18.4
+		fiber: fiber 0.23.0-2
+		generated_d7b1fba: Generated Mod (Please Ignore) 1.0.0
+		java: OpenJDK 64-Bit Server VM 17
+		minecraft: Minecraft 1.20.1
+		mixinextras: MixinExtras 0.4.1
+		openui_mc: OpenUI MC 0.0.14
+		packetweave: PacketWeave 0.1.2
+		patchouli: Patchouli 1.20.1-85-FABRIC
+		simplyspeakers: Simply Speakers 0.10.2
+	Launched Version: Fabric
+	Backend library: LWJGL version 3.3.1 SNAPSHOT
+	Backend API: NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2 GL version 3.2.0 NVIDIA 581.15, NVIDIA Corporation
+	Window size: 960x540
+	GL Caps: Using framebuffer using OpenGL 3.2
+	GL debug messages: 
+	Using VBOs: Yes
+	Is Modded: Definitely; Client brand changed to 'fabric'
+	Type: Client (map_client.txt)
+	Graphics mode: fancy
+	Resource Packs: fabric
+	Current Language: en_us
+	CPU: 4x Intel(R) Core(TM) i3-8100 CPU @ 3.60GHz
+#@!@# Game crashed! Crash report saved to: #@!@# C:\Users\NsTut\Documents\Codex\2026-10-28\task-2\speakers\fabric-1.20.1\run\zone-preview\client\crash-reports\crash-2026-10-28_13.20.11-client.txt
+
+> Task :fabric-1.20.1:runZonePreviewClient FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/NsTut/Documents/Codex/2026-10-28/task-2/speakers/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':fabric-1.20.1:runZonePreviewClient'.
+> Process 'command 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot\bin\java.exe'' finished with non-zero exit value -1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 1m 12s
+17 actionable tasks: 4 executed, 13 up-to-date

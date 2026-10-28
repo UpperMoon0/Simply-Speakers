@@ -1,0 +1,525 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/8.14/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :
+Architect Plugin: 3.4.164
+Architectury Loom: 1.11.458
+
+> Configure project :fabric-1.20.1
+Mod was built with a newer version of Loom (1.17.11), you are using Loom (1.11.458)
+Mod was built with a newer version of Loom (1.17.11), you are using Loom (1.11.458)
+Mod was built with a newer version of Loom (1.17.9), you are using Loom (1.11.458)
+
+> Task :packetweave-api:compileJava UP-TO-DATE
+> Task :common:processResources UP-TO-DATE
+> Task :common:compileJava UP-TO-DATE
+> Task :common:classes UP-TO-DATE
+> Task :common:jar UP-TO-DATE
+> Task :fabric-1.20.1:processResources UP-TO-DATE
+> Task :fabric-1.20.1:generateLog4jConfig UP-TO-DATE
+> Task :fabric-1.20.1:generateRemapClasspath
+> Task :fabric-1.20.1:generateDLIConfig
+> Task :common-1.20.1:transformResources
+> Task :common-1.20.1:compileJava UP-TO-DATE
+> Task :common-1.20.1:transformRecipes
+> Task :common-1.20.1:processResources UP-TO-DATE
+> Task :common-1.20.1:classes UP-TO-DATE
+> Task :common-1.20.1:jar UP-TO-DATE
+> Task :fabric-1.20.1:prepareArchitecturyTransformer
+> Task :fabric-1.20.1:compileJava UP-TO-DATE
+> Task :fabric-1.20.1:classes UP-TO-DATE
+> Task :fabric-1.20.1:configureLaunch
+> Task :fabric-1.20.1:downloadAssets UP-TO-DATE
+> Task :fabric-1.20.1:configureClientLaunch
+
+> Task :fabric-1.20.1:runZonePreviewClient
+[Architectury Transformer] Architectury Runtime 5.2.91
+[Architectury Transformer] Read classpath in 1.701 s
+[Architectury Transformer] Listening at C:\Users\NsTut\Documents\Codex\2026-10-28\task-2\speakers\common-1.20.1\build\devlibs\simplyspeakers-common-1.20.1-0.10.2-dev.jar
+[13:38:54] [main/INFO] (FabricLoader/GameProvider) Loading Minecraft 1.20.1 with Fabric Loader 0.18.4
+[13:38:54] [main/INFO] (FabricLoader) Loading 68 mods:
+	- architectury 9.2.14
+	- computercraft 1.120.2
+	- fabric-api 0.92.5+1.20.1
+	- fabric-api-base 0.4.32+1802ada577
+	- fabric-api-lookup-api-v1 1.6.37+1802ada577
+	- fabric-biome-api-v1 13.0.14+1802ada577
+	- fabric-block-api-v1 1.0.12+1802ada577
+	- fabric-block-view-api-v2 1.0.3+924f046a77
+	- fabric-blockrenderlayer-v1 1.1.42+1802ada577
+	- fabric-client-tags-api-v1 1.1.3+1802ada577
+	- fabric-command-api-v1 1.2.35+f71b366f77
+	- fabric-command-api-v2 2.2.14+1802ada577
+	- fabric-commands-v0 0.2.52+df3654b377
+	- fabric-containers-v0 0.1.66+df3654b377
+	- fabric-content-registries-v0 4.0.13+1802ada577
+	- fabric-convention-tags-v1 1.5.6+1802ada577
+	- fabric-crash-report-info-v1 0.2.20+1802ada577
+	- fabric-data-attachment-api-v1 1.0.2+de0fd6d177
+	- fabric-data-generation-api-v1 12.3.6+1802ada577
+	- fabric-dimensions-v1 2.1.55+1802ada577
+	- fabric-entity-events-v1 1.6.1+1c78457f77
+	- fabric-events-interaction-v0 0.6.4+13a40c6677
+	- fabric-events-lifecycle-v0 0.2.64+df3654b377
+	- fabric-game-rule-api-v1 1.0.41+1802ada577
+	- fabric-gametest-api-v1 1.2.15+1802ada577
+	- fabric-item-api-v1 2.1.29+1802ada577
+	- fabric-item-group-api-v1 4.0.14+1802ada577
+	- fabric-key-binding-api-v1 1.0.38+1802ada577
+	- fabric-keybindings-v0 0.2.36+df3654b377
+	- fabric-lifecycle-events-v1 2.2.23+1802ada577
+	- fabric-loot-api-v2 1.2.3+1802ada577
+	- fabric-loot-tables-v1 1.1.47+9e7660c677
+	- fabric-message-api-v1 5.1.10+1802ada577
+	- fabric-mining-level-api-v1 2.1.52+1802ada577
+	- fabric-model-loading-api-v1 1.0.4+1802ada577
+	- fabric-models-v0 0.4.3+9386d8a777
+	- fabric-networking-api-v1 1.3.13+13a40c6677
+	- fabric-networking-v0 0.3.53+df3654b377
+	- fabric-object-builder-api-v1 11.1.5+e35120df77
+	- fabric-particles-v1 1.1.3+1802ada577
+	- fabric-recipe-api-v1 1.0.23+1802ada577
+	- fabric-registry-sync-v0 2.3.5+1802ada577
+	- fabric-renderer-api-v1 3.2.2+1802ada577
+	- fabric-renderer-indigo 1.5.3+85287f9f77
+	- fabric-renderer-registries-v1 3.2.47+df3654b377
+	- fabric-rendering-data-attachment-v1 0.3.39+92a0d36777
+	- fabric-rendering-fluids-v1 3.0.29+1802ada577
+	- fabric-rendering-v0 1.1.50+df3654b377
+	- fabric-rendering-v1 3.0.9+1802ada577
+	- fabric-resource-conditions-api-v1 2.3.9+1802ada577
+	- fabric-resource-loader-v0 0.11.12+fb82e9d777
+	- fabric-screen-api-v1 2.0.9+1802ada577
+	- fabric-screen-handler-api-v1 1.3.32+1802ada577
+	- fabric-sound-api-v1 1.0.14+1802ada577
+	- fabric-transfer-api-v1 3.3.6+8dd72ea377
+	- fabric-transitive-access-wideners-v1 4.3.2+1802ada577
+	- fabricloader 0.18.4
+	- fiber 0.23.0-2
+	- generated_ac0aef0 1.0.0
+	- iris 1.7.6+mc1.20.1
+	- java 17
+	- minecraft 1.20.1
+	- mixinextras 0.4.1
+	- openui_mc 0.0.14
+	- packetweave 0.1.2
+	- patchouli 1.20.1-85-FABRIC
+	- simplyspeakers 0.10.2
+	- sodium 0.5.12-beta.2+mc1.20.1
+[13:38:54] [main/INFO] (FabricLoader/Mixin) SpongePowered MIXIN Subsystem Version=0.8.7 Source=file:/D:/DevCaches/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.5+mixin.0.8.7/22f9eb729e216a091673a574a5906dc1b9027fb3/sponge-mixin-0.15.5+mixin.0.8.7.jar Service=Knot/Fabric Env=CLIENT
+[13:38:55] [main/INFO] (FabricLoader/Mixin) Loaded Fabric development mappings for mixin remapper!
+[13:38:55] [main/INFO] (FabricLoader/Mixin) Compatibility level set to JAVA_16
+[13:38:55] [main/INFO] (FabricLoader/Mixin) Compatibility level set to JAVA_17
+[13:38:55] [main/INFO] (Sodium) Loaded configuration file for Sodium: 42 options available, 3 override(s) found
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.entity.CuboidMixin' as rule 'mixin.features.render.entity' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.entity.ModelPartMixin' as rule 'mixin.features.render.entity' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.entity.cull.EntityRendererMixin' as rule 'mixin.features.render.entity' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.entity.shadows.EntityRenderDispatcherMixin' as rule 'mixin.features.render.entity' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.gui.font.GlyphRendererMixin' as rule 'mixin.features.render.gui.font' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.world.sky.BackgroundRendererMixin' as rule 'mixin.features.render.world.sky' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.world.sky.ClientWorldMixin' as rule 'mixin.features.render.world.sky' (added by mods [iris]) disables it and children
+[13:38:56] [main/WARN] (Sodium) Force-disabling mixin 'features.render.world.sky.WorldRendererMixin' as rule 'mixin.features.render.world.sky' (added by mods [iris]) disables it and children
+[13:38:56] [main/INFO] (Sodium-GraphicsAdapterProbe) Searching for graphics cards...
+[13:38:56] [main/INFO] (Sodium-GraphicsAdapterProbe) Found graphics adapter: AdapterInfo{vendor=NVIDIA, description='NVIDIA GeForce GTX 1050 Ti', adapterType=0x0000030B, openglIcdFilePath='C:\Windows\System32\DriverStore\FileRepository\nv_dispi.inf_amd64_3496fbfac7a2d1ba\nvoglv64.dll', openglIcdVersion=32.0.15.8115}
+[13:38:56] [main/WARN] (Sodium-Workarounds) Sodium has applied one or more workarounds to prevent crashes or other issues on your system: [NVIDIA_THREADED_OPTIMIZATIONS_BROKEN]
+[13:38:56] [main/WARN] (Sodium-Workarounds) This is not necessarily an issue, but it may result in certain features or optimizations being disabled. You can sometimes fix these issues by upgrading your graphics driver.
+[13:38:57] [main/INFO] (FabricLoader/MixinExtras|Service) Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.4.1).
+[13:39:04] [Datafixer Bootstrap/INFO] (Minecraft) 188 Datafixer optimizations took 327 milliseconds
+[13:39:07] [Render thread/INFO] (Minecraft) Environment: authHost='https://authserver.mojang.com', accountsHost='https://api.mojang.com', sessionHost='https://sessionserver.mojang.com', servicesHost='https://api.minecraftservices.com', name='PROD'
+[13:39:08] [Render thread/INFO] (Minecraft) Setting user: SSZoneProbe
+[13:39:09] [Render thread/INFO] (simplyspeakers) Initializing Simply Speakers
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/705a0fc1927735d59589fb9c76769ba0
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/705a0fc1927735d59589fb9c76769ba0
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/42bfdc34a77c352d9225aaff91a9d7ba
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/42bfdc34a77c352d9225aaff91a9d7ba
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/625b623614583ae08e2cfda0b9b3dbf2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/625b623614583ae08e2cfda0b9b3dbf2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a1ccd30a90a3305188fd255e8c0e0f50
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a1ccd30a90a3305188fd255e8c0e0f50
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/9cb04a10860c35309e4d9cbe66757ce2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/9cb04a10860c35309e4d9cbe66757ce2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/1c4f4b2ff49139f6bf0822fa7b8a069b
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/1c4f4b2ff49139f6bf0822fa7b8a069b
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/5366ce4aca6334ccae965361dc427204
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/5366ce4aca6334ccae965361dc427204
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/6160100438cc3b96a813b1bcc7323e15
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/6160100438cc3b96a813b1bcc7323e15
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/40db44e6d96b3486b6e295be58b9652b
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/40db44e6d96b3486b6e295be58b9652b
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/75408f61515b306cbb59b6cf80a4fa43
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/75408f61515b306cbb59b6cf80a4fa43
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/644aa40ab4f73349a724ddec03f154a6
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/644aa40ab4f73349a724ddec03f154a6
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/13652b87354f3f7d8fb6ce4da21482af
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/13652b87354f3f7d8fb6ce4da21482af
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a8c86c0d069e3475a43edd93ff7a9357
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a8c86c0d069e3475a43edd93ff7a9357
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/afb718a0ac983e87a5e56e6a561285b2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/afb718a0ac983e87a5e56e6a561285b2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/405fac02058d31f0ac02b67c5862eb8d
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/405fac02058d31f0ac02b67c5862eb8d
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/8b3b3decb7943c368a8c0f59989d6219
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/8b3b3decb7943c368a8c0f59989d6219
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/0cb01a36281237a1917803ddf6c9eccf
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/0cb01a36281237a1917803ddf6c9eccf
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/79ec1b1bc0933892a74e81f525c51ff5
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/79ec1b1bc0933892a74e81f525c51ff5
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/c9cba2eed5cf336ab3f06389cc0d3a6f
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/c9cba2eed5cf336ab3f06389cc0d3a6f
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/74cc8df7bac53b439db56c9983684b0c
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/74cc8df7bac53b439db56c9983684b0c
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/dae53f09cac83fb8aad84d04c4f643b8
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/dae53f09cac83fb8aad84d04c4f643b8
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/2471cfcbcf9e33ef8732fdee545c4289
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/2471cfcbcf9e33ef8732fdee545c4289
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/81df03877ec032a1995542a64e264a76
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/81df03877ec032a1995542a64e264a76
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/e7f27aeecb66316caef9a01ad5cfe481
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/e7f27aeecb66316caef9a01ad5cfe481
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/d956cd0ea16f31f79dfdd4252ada6477
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/d956cd0ea16f31f79dfdd4252ada6477
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/b46c2650d1a736608c87f7462da19617
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/b46c2650d1a736608c87f7462da19617
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/aa54753dfc4431379bbc15ef81188a14
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/aa54753dfc4431379bbc15ef81188a14
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/f9fc6b37bc4037278cb497af21e63e99
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/f9fc6b37bc4037278cb497af21e63e99
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a09f4cb8cd4b33b3bef94a017ce33d19
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a09f4cb8cd4b33b3bef94a017ce33d19
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a22babe298d8379a9b20a90790873902
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a22babe298d8379a9b20a90790873902
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/5ae41006efc3367a8f7a7c228d436ee2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/5ae41006efc3367a8f7a7c228d436ee2
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/a0494594f9c830cdb591360dca468975
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/a0494594f9c830cdb591360dca468975
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/c36e3b2c333c3e4eb51e1fe385ffb85e
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/c36e3b2c333c3e4eb51e1fe385ffb85e
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering C2S receiver with id simplyspeakers:main/045856c60f0339d285d0d158d8c0e260
+[13:39:09] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id simplyspeakers:main/045856c60f0339d285d0d158d8c0e260
+[13:39:10] [Render thread/INFO] (FabricConfigFile) Loading config from C:\Users\NsTut\Documents\Codex\2026-10-28\task-2\speakers\fabric-1.20.1\run\zone-preview\client\config\computercraft-client.toml
+[13:39:11] [Render thread/INFO] (NetworkManagerImpl) Registering S2C receiver with id architectury:spawn_entity_packet
+[13:39:11] [Render thread/INFO] (Indigo) [Indigo] Different rendering plugin detected; not applying Indigo.
+[13:39:11] [Render thread/INFO] (Minecraft) Backend library: LWJGL version 3.3.1 SNAPSHOT
+[13:39:11] [Render thread/INFO] (Sodium-NvidiaWorkarounds) Modifying process environment to apply workarounds for the NVIDIA graphics driver...
+[13:39:12] [Render thread/INFO] (Minecraft) OpenGL Vendor: NVIDIA Corporation
+[13:39:12] [Render thread/INFO] (Minecraft) OpenGL Renderer: NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2
+[13:39:12] [Render thread/INFO] (Minecraft) OpenGL Version: 3.2.0 NVIDIA 581.15
+[13:39:12] [Render thread/INFO] (Sodium-NvidiaWorkarounds) Modifying OpenGL context to apply workarounds for the NVIDIA graphics driver...
+[13:39:12] [Render thread/INFO] (Sodium-NvidiaWorkarounds) Enabling GL_DEBUG_OUTPUT_SYNCHRONOUS to force the NVIDIA driver to disable threadedcommand submission
+[13:39:12] [Render thread/INFO] (Iris) Debug functionality is disabled.
+[13:39:12] [Render thread/INFO] (Iris) ARB_direct_state_access detected, enabling DSA.
+---- Minecraft Crash Report ----
+// My bad.
+
+Time: 2026-10-28 13:39:12
+Description: Initializing game
+
+java.lang.NoClassDefFoundError: org/anarres/cpp/PreprocessorListener
+	at knot//net.irisshaders.iris.shaderpack.ShaderPack.loadProperties(ShaderPack.java:348)
+	at knot//net.irisshaders.iris.shaderpack.ShaderPack.<init>(ShaderPack.java:119)
+	at knot//net.irisshaders.iris.Iris.loadExternalShaderpack(Iris.java:319)
+	at knot//net.irisshaders.iris.Iris.loadShaderpack(Iris.java:237)
+	at knot//net.irisshaders.iris.Iris.onRenderSystemInit(Iris.java:127)
+	at knot//com.mojang.blaze3d.systems.RenderSystem.handler$zja000$iris$onRendererInit(RenderSystem.java:1974)
+	at knot//com.mojang.blaze3d.systems.RenderSystem.initRenderer(RenderSystem.java:854)
+	at knot//net.minecraft.client.Minecraft.<init>(Minecraft.java:505)
+	at knot//net.minecraft.client.main.Main.main(Main.java:211)
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:514)
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72)
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23)
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86)
+	at dev.architectury.transformer.TransformerRuntime.main(TransformerRuntime.java:220)
+Caused by: java.lang.ClassNotFoundException: org.anarres.cpp.PreprocessorListener
+	at java.base/jdk.internal.loader.BuiltinClassLoader.loadClass(BuiltinClassLoader.java:641)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:525)
+	at net.fabricmc.loader.impl.launch.knot.KnotClassDelegate.loadClass(KnotClassDelegate.java:239)
+	at net.fabricmc.loader.impl.launch.knot.KnotClassLoader.loadClass(KnotClassLoader.java:119)
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:525)
+	... 14 more
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Thread: Render thread
+Stacktrace:
+	at knot//net.irisshaders.iris.shaderpack.ShaderPack.loadProperties(ShaderPack.java:348)
+	at knot//net.irisshaders.iris.shaderpack.ShaderPack.<init>(ShaderPack.java:119)
+	at knot//net.irisshaders.iris.Iris.loadExternalShaderpack(Iris.java:319)
+	at knot//net.irisshaders.iris.Iris.loadShaderpack(Iris.java:237)
+	at knot//net.irisshaders.iris.Iris.onRenderSystemInit(Iris.java:127)
+	at knot//com.mojang.blaze3d.systems.RenderSystem.handler$zja000$iris$onRendererInit(RenderSystem.java:1974)
+	at knot//com.mojang.blaze3d.systems.RenderSystem.initRenderer(RenderSystem.java:854)
+	at knot//net.minecraft.client.Minecraft.<init>(Minecraft.java:505)
+
+-- Initialization --
+Details:
+	Modules: 
+		ADVAPI32.dll:Advanced Windows 32 Base API:10.0.19041.5678 (WinBuild.160101.0800):Microsoft Corporation
+		COMCTL32.dll:User Experience Controls Library:6.10 (WinBuild.160101.0800):Microsoft Corporation
+		CRYPT32.dll:Crypto API32:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		CRYPTBASE.dll:Base cryptographic API DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		CRYPTSP.dll:Cryptographic Service Provider API:10.0.19041.5856 (WinBuild.160101.0800):Microsoft Corporation
+		ColorAdapterClient.dll:Microsoft Color Adapter Client:10.0.19041.5129 (WinBuild.160101.0800):Microsoft Corporation
+		CoreMessaging.dll:Microsoft CoreMessaging Dll:10.0.19041.5915:Microsoft Corporation
+		CoreUIComponents.dll:Microsoft Core UI Components Dll:10.0.19041.3636:Microsoft Corporation
+		DBGHELP.DLL:Windows Image Helper:10.0.19041.5848 (WinBuild.160101.0800):Microsoft Corporation
+		DEVOBJ.dll:Device Information Set DLL:10.0.19041.5794 (WinBuild.160101.0800):Microsoft Corporation
+		DNSAPI.dll:DNS Client API DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		GDI32.dll:GDI Client DLL:10.0.19041.6157 (WinBuild.160101.0800):Microsoft Corporation
+		GLU32.dll:OpenGL Utility Library DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		IMM32.DLL:Multi-User Windows IMM32 API Client DLL:10.0.19041.6157 (WinBuild.160101.0800):Microsoft Corporation
+		IPHLPAPI.DLL:IP Helper API:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		KERNEL32.DLL:Windows NT BASE API Client DLL:10.0.19041.5915 (WinBuild.160101.0800):Microsoft Corporation
+		KERNELBASE.dll:Windows NT BASE API Client DLL:10.0.19041.5915 (WinBuild.160101.0800):Microsoft Corporation
+		MSCTF.dll:MSCTF Server DLL:10.0.19041.5848 (WinBuild.160101.0800):Microsoft Corporation
+		MpOav.dll:IOfficeAntiVirus Module:4.18.26090.9 (4df2f7dd1ad7282fa3437667daf210904670b7f3):Microsoft Corporation
+		NLAapi.dll:Network Location Awareness 2:10.0.19041.6456 (WinBuild.160101.0800):Microsoft Corporation
+		NSI.dll:NSI User-mode interface DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		NTASN1.dll:Microsoft ASN.1 API:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		OLEAUT32.dll:OLEAUT32.DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		Ole32.dll:Microsoft OLE for Windows:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		POWRPROF.dll:Power Profile Helper DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		PROPSYS.dll:Microsoft Property System:7.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		PSAPI.DLL:Process Status Helper:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		Pdh.dll:Windows Performance Data Helper DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		RPCRT4.dll:Remote Procedure Call Runtime:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		SETUPAPI.dll:Windows Setup API:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		SHCORE.dll:SHCORE:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		SHELL32.dll:Windows Shell Common Dll:10.0.19041.5678 (WinBuild.160101.0800):Microsoft Corporation
+		UMPDC.dll
+		USER32.dll:Multi-User Windows USER API Client DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		USERENV.dll:Userenv:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		VCRUNTIME140.dll:Microsoft® C Runtime Library:14.40.33810.0:Microsoft Corporation
+		VERSION.dll:Version Checking and File Installation Libraries:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		WINHTTP.dll:Windows HTTP Services:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		WINMM.dll:MCI API DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		WINSTA.dll:Winstation Library:10.0.19041.6456 (WinBuild.160101.0800):Microsoft Corporation
+		WINTRUST.dll:Microsoft Trust Verification APIs:10.0.19041.6456 (WinBuild.160101.0800):Microsoft Corporation
+		WS2_32.dll:Windows Socket 2.0 32-Bit DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		WTSAPI32.dll:Windows Remote Desktop Session Host Server SDK APIs:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		Wldp.dll:Windows Lockdown Policy:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		amsi.dll:Anti-Malware Scan Interface:10.0.19041.4355 (WinBuild.160101.0800):Microsoft Corporation
+		apphelp.dll:Application Compatibility Client Library:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		bcrypt.dll:Windows Cryptographic Primitives Library:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		bcryptPrimitives.dll:Windows Cryptographic Primitives Library:10.0.19041.5007 (WinBuild.160101.0800):Microsoft Corporation
+		cfgmgr32.dll:Configuration Manager DLL:10.0.19041.3996 (WinBuild.160101.0800):Microsoft Corporation
+		clbcatq.dll:COM+ Configuration Catalog:2001.12.10941.16384 (WinBuild.160101.0800):Microsoft Corporation
+		combase.dll:Microsoft COM for Windows:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		cryptnet.dll:Crypto Network Related API:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		dbgcore.DLL:Windows Core Debugging Helpers:10.0.19041.5794 (WinBuild.160101.0800):Microsoft Corporation
+		dhcpcsvc.DLL:DHCP Client Service:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		dhcpcsvc6.DLL:DHCPv6 Client:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		dinput8.dll:Microsoft DirectInput:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		drvstore.dll:Driver Store API:10.0.19041.5794 (WinBuild.160101.0800):Microsoft Corporation
+		dwmapi.dll:Microsoft Desktop Window Manager API:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		dxcore.dll:DXCore:10.0.19041.5794 (WinBuild.160101.0800):Microsoft Corporation
+		extnet.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		fwpuclnt.dll:FWP/IPsec User-Mode API:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		gdi32full.dll:GDI Client DLL:10.0.19041.6157 (WinBuild.160101.0800):Microsoft Corporation
+		glfw.dll:GLFW 3.4.0 DLL:3.4.0:GLFW
+		icm32.dll:Microsoft Color Management Module (CMM):10.0.19041.5129 (WinBuild.160101.0800):Microsoft Corporation
+		iertutil.dll:Run time utility for Internet Explorer:11.00.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		imagehlp.dll:Windows NT Image Helper:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		inputhost.dll:InputHost:10.0.19041.5794 (WinBuild.160101.0800):Microsoft Corporation
+		instrument.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		java.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		java.exe:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		jemalloc.dll
+		jimage.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		jli.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		jna3324253856877152302.dll:JNA native library:6.1.4:Java(TM) Native Access (JNA)
+		jsvml.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		jvm.dll:OpenJDK 64-Bit server VM:17.0.20.1:Eclipse Adoptium
+		kernel.appcore.dll:AppModel API Host:10.0.19041.3758 (WinBuild.160101.0800):Microsoft Corporation
+		lwjgl.dll
+		lwjgl_opengl.dll
+		lwjgl_stb.dll
+		management.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		management_ext.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		mdnsNSP.dll:Bonjour Namespace Provider:3,1,0,1:Apple Inc.
+		msasn1.dll:ASN.1 Runtime APIs:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		mscms.dll:Microsoft Color Matching System DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		msvcp140.dll:Microsoft® C Runtime Library:14.40.33810.0:Microsoft Corporation
+		msvcp_win.dll:Microsoft® C Runtime Library:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		msvcrt.dll:Windows NT CRT DLL:7.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		mswsock.dll:Microsoft Windows Sockets 2.0 Service Provider:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		napinsp.dll:E-mail Naming Shim Provider:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		ncrypt.dll:Windows NCrypt Router:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		net.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		netutils.dll:Net Win32 API Helpers DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		nio.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		ntdll.dll:NT Layer DLL:10.0.19041.4842 (WinBuild.160101.0800):Microsoft Corporation
+		ntmarta.dll:Windows NT MARTA provider:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		nvgpucomp64.dll:NVIDIA GPU Compiler Driver, Version 581.15 :32.0.15.8115:NVIDIA Corporation
+		nvoglv64.dll:NVIDIA Compatible OpenGL ICD:32.0.15.8115:NVIDIA Corporation
+		nvspcap64.dll:NVIDIA Game Proxy 8FileVersion  1:11.0.5.420  8Produc:NVIDIA Corporation  L$FileDescriptio
+		opengl32.dll:OpenGL Client DLL:10.0.19041.5794 (WinBuild.160101.0800):Microsoft Corporation
+		perfos.dll:Windows System Performance Objects DLL:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		pnrpnsp.dll:PNRP Name Space Provider:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		profapi.dll:User Profile Basic API:10.0.19041.6033 (WinBuild.160101.0800):Microsoft Corporation
+		rasadhlp.dll:Remote Access AutoDial Helper:10.0.19041.6328 (WinBuild.160101.0800):Microsoft Corporation
+		rsaenh.dll:Microsoft Enhanced Cryptographic Provider:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		sechost.dll:Host for SCM/SDDL/LSA Lookup APIs:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		shlwapi.dll:Shell Light-weight Utility Library:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		srvcli.dll:Server Service Client DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		sunmscapi.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		ucrtbase.dll:Microsoft® C Runtime Library:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		urlmon.dll:OLE32 Extensions for Win32:11.00.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		uxtheme.dll:Microsoft UxTheme Library:10.0.19041.4529 (WinBuild.160101.0800):Microsoft Corporation
+		vcruntime140_1.dll:Microsoft® C Runtime Library:14.40.33810.0:Microsoft Corporation
+		verify.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+		win32u.dll:Win32u:10.0.19041.6456 (WinBuild.160101.0800):Microsoft Corporation
+		windows.storage.dll:Microsoft WinRT Storage API:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		winrnr.dll:LDAP RnR Provider DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		wintypes.dll:Windows Base Types DLL:10.0.19041.3636 (WinBuild.160101.0800):Microsoft Corporation
+		wshbth.dll:Windows Sockets Helper DLL:10.0.19041.5848 (WinBuild.160101.0800):Microsoft Corporation
+		xinput1_4.dll:Microsoft Common Controller API:10.0.19041.1 (WinBuild.160101.0800):Microsoft Corporation
+		zip.dll:OpenJDK Platform binary:17.0.20.1:Eclipse Adoptium
+Stacktrace:
+	at knot//net.minecraft.client.main.Main.main(Main.java:211)
+	at net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider.launch(MinecraftGameProvider.java:514)
+	at net.fabricmc.loader.impl.launch.knot.Knot.launch(Knot.java:72)
+	at net.fabricmc.loader.impl.launch.knot.KnotClient.main(KnotClient.java:23)
+	at net.fabricmc.devlaunchinjector.Main.main(Main.java:86)
+	at dev.architectury.transformer.TransformerRuntime.main(TransformerRuntime.java:220)
+
+-- System Details --
+Details:
+	Minecraft Version: 1.20.1
+	Minecraft Version ID: 1.20.1
+	Operating System: Windows 10 (amd64) version 10.0
+	Java Version: 17.0.20.1, Eclipse Adoptium
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Eclipse Adoptium
+	Memory: 696039408 bytes (663 MiB) / 1583349760 bytes (1510 MiB) up to 4278190080 bytes (4080 MiB)
+	CPUs: 4
+	Processor Vendor: GenuineIntel
+	Processor Name: Intel(R) Core(TM) i3-8100 CPU @ 3.60GHz
+	Identifier: Intel64 Family 6 Model 158 Stepping 11
+	Microarchitecture: Coffee Lake
+	Frequency (GHz): 3.60
+	Number of physical packages: 1
+	Number of physical CPUs: 4
+	Number of logical CPUs: 4
+	Graphics card #0 name: NVIDIA GeForce GTX 1050 Ti
+	Graphics card #0 vendor: NVIDIA (0x10de)
+	Graphics card #0 VRAM (MB): 4095.00
+	Graphics card #0 deviceId: 0x1c82
+	Graphics card #0 versionInfo: DriverVersion=32.0.15.8115
+	Memory slot #0 capacity (MB): 8192.00
+	Memory slot #0 clockSpeed (GHz): 2.13
+	Memory slot #0 type: DDR4
+	Memory slot #1 capacity (MB): 8192.00
+	Memory slot #1 clockSpeed (GHz): 2.13
+	Memory slot #1 type: DDR4
+	Virtual memory max (MB): 48061.06
+	Virtual memory used (MB): 25445.33
+	Swap memory total (MB): 31744.00
+	Swap memory used (MB): 2424.56
+	JVM Flags: 0 total; 
+	Fabric Mods: 
+		architectury: Architectury 9.2.14
+		computercraft: CC: Tweaked 1.120.2
+		fabric-api: Fabric API 0.92.5+1.20.1
+		fabric-api-base: Fabric API Base 0.4.32+1802ada577
+		fabric-api-lookup-api-v1: Fabric API Lookup API (v1) 1.6.37+1802ada577
+		fabric-biome-api-v1: Fabric Biome API (v1) 13.0.14+1802ada577
+		fabric-block-api-v1: Fabric Block API (v1) 1.0.12+1802ada577
+		fabric-block-view-api-v2: Fabric BlockView API (v2) 1.0.3+924f046a77
+		fabric-blockrenderlayer-v1: Fabric BlockRenderLayer Registration (v1) 1.1.42+1802ada577
+		fabric-client-tags-api-v1: Fabric Client Tags 1.1.3+1802ada577
+		fabric-command-api-v1: Fabric Command API (v1) 1.2.35+f71b366f77
+		fabric-command-api-v2: Fabric Command API (v2) 2.2.14+1802ada577
+		fabric-commands-v0: Fabric Commands (v0) 0.2.52+df3654b377
+		fabric-containers-v0: Fabric Containers (v0) 0.1.66+df3654b377
+		fabric-content-registries-v0: Fabric Content Registries (v0) 4.0.13+1802ada577
+		fabric-convention-tags-v1: Fabric Convention Tags 1.5.6+1802ada577
+		fabric-crash-report-info-v1: Fabric Crash Report Info (v1) 0.2.20+1802ada577
+		fabric-data-attachment-api-v1: Fabric Data Attachment API (v1) 1.0.2+de0fd6d177
+		fabric-data-generation-api-v1: Fabric Data Generation API (v1) 12.3.6+1802ada577
+		fabric-dimensions-v1: Fabric Dimensions API (v1) 2.1.55+1802ada577
+		fabric-entity-events-v1: Fabric Entity Events (v1) 1.6.1+1c78457f77
+		fabric-events-interaction-v0: Fabric Events Interaction (v0) 0.6.4+13a40c6677
+		fabric-events-lifecycle-v0: Fabric Events Lifecycle (v0) 0.2.64+df3654b377
+		fabric-game-rule-api-v1: Fabric Game Rule API (v1) 1.0.41+1802ada577
+		fabric-gametest-api-v1: Fabric Game Test API (v1) 1.2.15+1802ada577
+		fabric-item-api-v1: Fabric Item API (v1) 2.1.29+1802ada577
+		fabric-item-group-api-v1: Fabric Item Group API (v1) 4.0.14+1802ada577
+		fabric-key-binding-api-v1: Fabric Key Binding API (v1) 1.0.38+1802ada577
+		fabric-keybindings-v0: Fabric Key Bindings (v0) 0.2.36+df3654b377
+		fabric-lifecycle-events-v1: Fabric Lifecycle Events (v1) 2.2.23+1802ada577
+		fabric-loot-api-v2: Fabric Loot API (v2) 1.2.3+1802ada577
+		fabric-loot-tables-v1: Fabric Loot Tables (v1) 1.1.47+9e7660c677
+		fabric-message-api-v1: Fabric Message API (v1) 5.1.10+1802ada577
+		fabric-mining-level-api-v1: Fabric Mining Level API (v1) 2.1.52+1802ada577
+		fabric-model-loading-api-v1: Fabric Model Loading API (v1) 1.0.4+1802ada577
+		fabric-models-v0: Fabric Models (v0) 0.4.3+9386d8a777
+		fabric-networking-api-v1: Fabric Networking API (v1) 1.3.13+13a40c6677
+		fabric-networking-v0: Fabric Networking (v0) 0.3.53+df3654b377
+		fabric-object-builder-api-v1: Fabric Object Builder API (v1) 11.1.5+e35120df77
+		fabric-particles-v1: Fabric Particles (v1) 1.1.3+1802ada577
+		fabric-recipe-api-v1: Fabric Recipe API (v1) 1.0.23+1802ada577
+		fabric-registry-sync-v0: Fabric Registry Sync (v0) 2.3.5+1802ada577
+		fabric-renderer-api-v1: Fabric Renderer API (v1) 3.2.2+1802ada577
+		fabric-renderer-indigo: Fabric Renderer - Indigo 1.5.3+85287f9f77
+		fabric-renderer-registries-v1: Fabric Renderer Registries (v1) 3.2.47+df3654b377
+		fabric-rendering-data-attachment-v1: Fabric Rendering Data Attachment (v1) 0.3.39+92a0d36777
+		fabric-rendering-fluids-v1: Fabric Rendering Fluids (v1) 3.0.29+1802ada577
+		fabric-rendering-v0: Fabric Rendering (v0) 1.1.50+df3654b377
+		fabric-rendering-v1: Fabric Rendering (v1) 3.0.9+1802ada577
+		fabric-resource-conditions-api-v1: Fabric Resource Conditions API (v1) 2.3.9+1802ada577
+		fabric-resource-loader-v0: Fabric Resource Loader (v0) 0.11.12+fb82e9d777
+		fabric-screen-api-v1: Fabric Screen API (v1) 2.0.9+1802ada577
+		fabric-screen-handler-api-v1: Fabric Screen Handler API (v1) 1.3.32+1802ada577
+		fabric-sound-api-v1: Fabric Sound API (v1) 1.0.14+1802ada577
+		fabric-transfer-api-v1: Fabric Transfer API (v1) 3.3.6+8dd72ea377
+		fabric-transitive-access-wideners-v1: Fabric Transitive Access Wideners (v1) 4.3.2+1802ada577
+		fabricloader: Fabric Loader 0.18.4
+		fiber: fiber 0.23.0-2
+		generated_ac0aef0: Generated Mod (Please Ignore) 1.0.0
+		iris: Iris 1.7.6+mc1.20.1
+		java: OpenJDK 64-Bit Server VM 17
+		minecraft: Minecraft 1.20.1
+		mixinextras: MixinExtras 0.4.1
+		openui_mc: OpenUI MC 0.0.14
+		packetweave: PacketWeave 0.1.2
+		patchouli: Patchouli 1.20.1-85-FABRIC
+		simplyspeakers: Simply Speakers 0.10.2
+		sodium: Sodium 0.5.12-beta.2+mc1.20.1
+	Launched Version: Fabric
+	Backend library: LWJGL version 3.3.1 SNAPSHOT
+	Backend API: NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2 GL version 3.2.0 NVIDIA 581.15, NVIDIA Corporation
+	Window size: <not initialized>
+	GL Caps: Using framebuffer using OpenGL 3.2
+	GL debug messages: 
+	Using VBOs: Yes
+	Is Modded: Definitely; Client brand changed to 'fabric'
+	Type: Client (map_client.txt)
+	CPU: 4x Intel(R) Core(TM) i3-8100 CPU @ 3.60GHz
+#@!@# Game crashed! Crash report saved to: #@!@# C:\Users\NsTut\Documents\Codex\2026-10-28\task-2\speakers\fabric-1.20.1\run\zone-preview\client\crash-reports\crash-2026-10-28_13.39.12-client.txt
+
+> Task :fabric-1.20.1:runZonePreviewClient FAILED
+
+[Incubating] Problems report is available at: file:///C:/Users/NsTut/Documents/Codex/2026-10-28/task-2/speakers/build/reports/problems/problems-report.html
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':fabric-1.20.1:runZonePreviewClient'.
+> Process 'command 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.101-hotspot\bin\java.exe'' finished with non-zero exit value -1
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 9.0.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/8.14/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD FAILED in 45s
+17 actionable tasks: 6 executed, 11 up-to-date
