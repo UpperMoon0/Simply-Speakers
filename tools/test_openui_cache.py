@@ -152,6 +152,16 @@ class OpenUiCacheTest(unittest.TestCase):
                 cache.create(self.directory, self.checkout)
         self.assertFalse((self.directory / cache.MANIFEST).exists())
 
+    def test_setup_selector_avoids_lts_semver_but_runtime_build_stays_exact(self):
+        with patch.object(cache, "runtime_toolchain", return_value={**self.identity,
+                "java_version": "21.0.13", "java_runtime_version": "21.0.13+9-LTS"}):
+            self.assertEqual(cache.setup_java_selector(), "21.0.13")
+            self.create()
+            with patch.object(cache, "runtime_toolchain", return_value={**self.identity,
+                    "java_version": "21.0.13", "java_runtime_version": "21.0.13+10-LTS"}):
+                with self.assertRaisesRegex(ValueError, "toolchain"):
+                    cache.validate(self.directory)
+
     def test_observed_runtime_version_changes_cache_key_and_rejects_warm_manifest(self):
         self.create()
         key = cache.cache_key()

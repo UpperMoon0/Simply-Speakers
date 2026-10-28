@@ -43,6 +43,18 @@ def runtime_toolchain():
             "vendor": vendor, "jvm_arch": arch}
 
 
+def setup_java_selector():
+    """Select the observed patch; validate() still requires the exact runtime build.
+
+    setup-java's installed output can omit Temurin's .0.LTS build suffix,
+    so feeding that output back as an exact SemVer fails on a fresh runner.
+    """
+    version = runtime_toolchain()["java_version"]
+    if not re.fullmatch(r"21\.\d+\.\d+(?:\.\d+)?", version):
+        raise ValueError("Unsupported Temurin release patch selector")
+    return version
+
+
 def contract(root=ROOT):
     digest = hashlib.sha256()
     for name in INPUTS:
@@ -132,11 +144,13 @@ def validate(directory, root=ROOT):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("key", "create", "validate"))
+    parser.add_argument("mode", choices=("key", "java-selector", "create", "validate"))
     parser.add_argument("--directory", type=Path, default=Path.home() / ".m2/repository/com/nstut")
     parser.add_argument("--checkout", type=Path)
     args = parser.parse_args()
-    if args.mode == "key":
+    if args.mode == "java-selector":
+        print(setup_java_selector())
+    elif args.mode == "key":
         print(cache_key())
     else:
         if args.mode == "create":

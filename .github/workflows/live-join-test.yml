@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cache-key: ${{ steps.openui-key.outputs.key }}
-      java-version: ${{ steps.openui-java.outputs.version }}
+      java-version: ${{ steps.openui-key.outputs.java-version }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +44,9 @@ jobs:
           cache: gradle
       - name: Compute toolchain and source-specific OpenUI key
         id: openui-key
-        run: echo "key=$(python3 tools/openui_cache.py key)" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "key=$(python3 tools/openui_cache.py key)" >> "$GITHUB_OUTPUT"
+          echo "java-version=$(python3 tools/openui_cache.py java-selector)" >> "$GITHUB_OUTPUT"
       - name: Restore exact OpenUI Maven Local cache
         id: cache-openui
         uses: actions/cache/restore@v4
