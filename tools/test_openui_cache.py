@@ -1,5 +1,6 @@
 """Cold creation, warm restore and poisoned/incomplete dependency-cache regressions."""
 import json
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -152,10 +153,29 @@ class OpenUiCacheTest(unittest.TestCase):
                 cache.create(self.directory, self.checkout)
         self.assertFalse((self.directory / cache.MANIFEST).exists())
 
-    def test_setup_selector_avoids_lts_semver_but_runtime_build_stays_exact(self):
+    def test_setup_selector_resolves_published_standard_and_hotfix_builds(self):
+        releases = [{'version_data': {'openjdk_version': runtime, 'semver': selector}}
+                    for runtime, selector in [('21.0.13+9-LTS', '21.0.13+9.0.LTS'),
+                                              ('21.0.12.1+1-LTS', '21.0.12+101.0.LTS')]]
+        for release in releases:
+            expected = release['version_data']
+            with self.subTest(runtime=expected['openjdk_version']), \
+                    patch.object(cache, 'runtime_toolchain', return_value={**self.identity,
+                        'java_runtime_version': expected['openjdk_version']}), \
+                    patch.object(cache, 'urlopen', return_value=io.BytesIO(json.dumps(releases).encode())) as request:
+                self.assertEqual(cache.setup_java_selector(), expected['semver'])
+                self.assertTrue(request.call_args.args[0].full_url.startswith('https://api.adoptium.net/'))
+                self.assertEqual(request.call_args.args[0].get_header('Accept'), 'application/json')
+                self.assertEqual(request.call_args.kwargs['timeout'], 30)
+
+    def test_setup_selector_missing_exact_build_fails_closed(self):
+        with patch.object(cache, 'urlopen', return_value=io.BytesIO(b'[]')):
+            with self.assertRaisesRegex(ValueError, 'exact runtime'):
+                cache.setup_java_selector()
+
+    def test_setup_selector_keeps_runtime_build_validation_exact(self):
         with patch.object(cache, "runtime_toolchain", return_value={**self.identity,
                 "java_version": "21.0.13", "java_runtime_version": "21.0.13+9-LTS"}):
-            self.assertEqual(cache.setup_java_selector(), "21.0.13")
             self.create()
             with patch.object(cache, "runtime_toolchain", return_value={**self.identity,
                     "java_version": "21.0.13", "java_runtime_version": "21.0.13+10-LTS"}):

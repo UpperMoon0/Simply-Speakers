@@ -13,6 +13,7 @@ import subprocess
 import tomllib
 import xml.etree.ElementTree as ET
 import zipfile
+from urllib.request import Request, urlopen
 
 from check_release_metadata import property_value, validate_openui
 
@@ -44,15 +45,33 @@ def runtime_toolchain():
 
 
 def setup_java_selector():
-    """Select the observed patch; validate() still requires the exact runtime build.
+    """Resolve the observed runtime to its exact published setup-java SemVer.
 
-    setup-java's installed output can omit Temurin's .0.LTS build suffix,
-    so feeding that output back as an exact SemVer fails on a fresh runner.
+    Temurin hotfix 21.0.12.1+1-LTS is published as 21.0.12+101.0.LTS;
+    neither JAVA_VERSION nor setup-java's cached output preserves that spelling.
+    Consumers are Linux x64; validate() additionally checks their full identity.
     """
-    version = runtime_toolchain()["java_version"]
-    if not re.fullmatch(r"21\.\d+\.\d+(?:\.\d+)?", version):
-        raise ValueError("Unsupported Temurin release patch selector")
-    return version
+    runtime = runtime_toolchain()["java_runtime_version"]
+    for page in range(5):
+        url = ("https://api.adoptium.net/v3/assets/feature_releases/21/ga?"
+               "architecture=x64&image_type=jdk&os=linux&jvm_impl=hotspot&"
+               f"project=jdk&vendor=eclipse&page_size=20&page={page}")
+        request = Request(url, headers={'User-Agent': 'Simply-Speakers-CI/1.0',
+                                        'Accept': 'application/json'})
+        with urlopen(request, timeout=30) as response:
+            releases = json.load(response)
+        matches = {item["version_data"]["semver"] for item in releases
+                   if item.get("version_data", {}).get("openjdk_version") == runtime}
+        if len(matches) == 1:
+            selector = matches.pop()
+            if not re.fullmatch(r"21\.\d+\.\d+\+\d+(?:\.[A-Za-z0-9]+)*", selector):
+                raise ValueError("Adoptium returned an invalid exact Temurin selector")
+            return selector
+        if matches:
+            raise ValueError("Adoptium returned ambiguous Temurin runtime selectors")
+        if len(releases) < 20:
+            break
+    raise ValueError(f"No published Linux x64 Temurin selector for exact runtime {runtime}")
 
 
 def contract(root=ROOT):

@@ -267,3 +267,13 @@ is required separately. The native multiplayer eligibility gate is unchanged.
 ```text
 bash forge-1.16.5/gradlew -p tools/fixtures/forge-1165-downloader --init-script <absolute-repo>/tools/forge_1165_repositories.gradle probeDownloader --no-daemon --max-workers=2
 ```
+
+The next layered CI exposed Temurin hotfix `21.0.12.1`: setup-java does not accept
+four numeric version segments. The selector now asks Adoptium's official release
+metadata for the exact observed `JAVA_RUNTIME_VERSION`, and passes its published
+SemVer (for example `21.0.12.1+1-LTS` maps to `21.0.12+101.0.LTS`). An identified
+JSON request is required by that API. Missing or ambiguous exact matches fail
+closed; full consumer runtime/build/vendor/architecture validation is retained.
+The real installed hotfix resolved to the expected published value locally.
+Standard/hotfix/missing-version tests pass, including rejection of another runtime
+build. The 45 changed cache/workflow/generation/build-routing tests passed in Linux.
