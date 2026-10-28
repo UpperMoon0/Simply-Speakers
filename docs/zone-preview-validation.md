@@ -241,3 +241,29 @@ could not produce `forge:1.16.5-36.2.42_mapped_official_1.16.5`. This requires t
 pinned dependency build's ForgeGradle repository/mapping resolution to succeed;
 it is not a newly observed renderer source error. No pinned dependency sources
 or runtime eligibility assertions were changed to bypass these failures.
+
+## Narrow ForgeGradle downloader correction
+
+A controlled ForgeGradle 6.0.54 / Gradle 8.8 probe reproduced the exact empty
+fallback failure, then succeeded with the consumer's init script. ForgeGradle
+already adds its Maven endpoint, but its last fallback only accepts non-Maven
+repositories. The init script adds an Ivy artifact view of the same official
+`https://maven.minecraftforge.net/` endpoint, restricted to
+`net.minecraftforge:binarypatcher:1.0.12`. It does not change pinned dependency
+sources, tool versions, TLS or authentication. `build_requested_release.py`
+passes it to the two pinned dependency builds and consumer only for Forge 1.16.5.
+
+The resolved fatjar was 3,809,410 bytes, SHA-256
+`16454ff27db627d408d58d267e64fc9c48bcf9f691a71c2e65bbd65a61f0a627`.
+An independent download from the publisher's canonical HTTPS artifact URL matched.
+The publisher's `.sha256` sidecar was unavailable (404), so that is not claimed as
+the checksum source. The probe uses a private ForgeGradle downloader cache, forces
+the manual-Maven miss for its control, tests the actual init script, and checks
+that successful resolution restores the repository list. Its expected control
+stack trace is retained in [the log](validation/zone-preview/forge-downloader.log).
+This proves the narrow fallback mechanism; final native compilation/runtime CI
+is required separately. The native multiplayer eligibility gate is unchanged.
+
+```text
+bash forge-1.16.5/gradlew -p tools/fixtures/forge-1165-downloader --init-script <absolute-repo>/tools/forge_1165_repositories.gradle probeDownloader --no-daemon --max-workers=2
+```
