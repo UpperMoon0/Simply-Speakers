@@ -4,11 +4,15 @@ import com.nstut.simplyspeakers.audio.DirectionalPreviewGeometry;
 import com.nstut.simplyspeakers.blocks.SpeakerBlock;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.DustParticleOptions;
 import java.util.List;
 
-/** Local, temporary particles only; never changes blocks or loads chunks. */
+/** Local, temporary shader preview; never changes blocks or loads chunks. */
 public final class DirectionalPreview {
+    private static final ZonePreviewRenderer renderer = new ZonePreviewRenderer();
+    private static com.nstut.simplyspeakers.audio.ZonePreviewMesh mesh;
+    private static final org.joml.Matrix4f viewProjection = new org.joml.Matrix4f();
+    private static final java.nio.FloatBuffer matrixBuffer = org.lwjgl.BufferUtils.createFloatBuffer(16);
+    private static Object world;
     private static BlockPos origin;
     private static Object dimension;
     private static java.util.UUID portableHolder;
@@ -34,16 +38,19 @@ public final class DirectionalPreview {
             var state=client.level.getBlockState(pos);
             facing=state.hasProperty(SpeakerBlock.FACING)?state.getValue(SpeakerBlock.FACING).ordinal():2;
         }
+        renderer.close();
+        world=client.level;
         origin=pos.immutable(); dimension=client.level.dimension(); remaining=600; emitted=0; hudFrames=0;
         rangeBlocks=Math.max(1,Math.min(512,(int)Math.round(range)));
         DirectionalPreview.dropoff=(float)dropoff; DirectionalPreview.strength=(float)strength;
         DirectionalPreview.angle=(float)angle; DirectionalPreview.rear=(float)rear; facingOrdinal=facing;
         renderOrigin=net.minecraft.world.phys.Vec3.atCenterOf(origin); rotation=0;
         samples=DirectionalPreviewGeometry.samples((int)Math.round(range),(float)dropoff,(float)strength,(float)angle,(float)rear,facing);
+        mesh=com.nstut.simplyspeakers.audio.ZonePreviewMesh.create(rangeBlocks,(float)dropoff,(float)strength,(float)angle,(float)rear,facing);
     }
     public static void tick(Minecraft client) {
         if(remaining<=0) return;
-        if(client.level==null || !client.level.dimension().equals(dimension)) { clear();return; }
+        if(client.level==null || client.level!=world || !client.level.dimension().equals(dimension)) { clear();return; }
         if (client.screen != null) { clear(); return; }
         --remaining;
         renderOrigin = net.minecraft.world.phys.Vec3.atCenterOf(origin);
@@ -54,17 +61,28 @@ public final class DirectionalPreview {
             renderOrigin = holder.position().add(0, .5, 0);
             rotation = Math.toRadians(holder.getYRot() + 180);
         }
-        if (remaining%6!=0) return;
-        for(var point:samples) {
-            double x = point.x()*Math.cos(rotation)-point.z()*Math.sin(rotation);
-            double z = point.x()*Math.sin(rotation)+point.z()*Math.cos(rotation);
-            emitted++;
-            int color=DirectionalPreviewGeometry.color(point);
-            var particle=new DustParticleOptions(new org.joml.Vector3f(((color >> 16) & 255)/255f,((color >> 8) & 255)/255f,(color & 255)/255f),point.kind()==DirectionalPreviewGeometry.Kind.LEVEL?1.0f:1.6f);
-            client.level.addAlwaysVisibleParticle(particle,true,renderOrigin.x+x,renderOrigin.y+point.y(),
-                renderOrigin.z+z,0,0,0);
-        }
+        if (remaining == 0) clear();
     }
+    public static void renderWorld(org.joml.Matrix4f view, org.joml.Matrix4f projection,
+                                   net.minecraft.world.phys.Vec3 camera) {
+        var client=Minecraft.getInstance();
+        if (remaining<=0 || client.level==null || client.level!=world || client.screen!=null) return;
+        if (portableHolder != null) {
+            var holder=client.level.getPlayerByUUID(portableHolder);
+            if(holder==null || !holder.isAlive()) { clear(); return; }
+            float partial=client.getFrameTime();
+            renderOrigin=new net.minecraft.world.phys.Vec3(
+                net.minecraft.util.Mth.lerp(partial,holder.xo,holder.getX()),
+                net.minecraft.util.Mth.lerp(partial,holder.yo,holder.getY())+.5,
+                net.minecraft.util.Mth.lerp(partial,holder.zo,holder.getZ()));
+            rotation=Math.toRadians(net.minecraft.util.Mth.rotLerp(partial,holder.yRotO,holder.getYRot())+180);
+        }
+        if(mesh!=null) { renderer.upload(mesh); mesh=null; }
+        viewProjection.set(projection).mul(view).get(0,matrixBuffer);
+        renderer.draw(matrixBuffer,renderOrigin.x-camera.x,renderOrigin.y-camera.y,renderOrigin.z-camera.z,rotation);
+        emitted++;
+    }
+    public static void reload() { clear(); renderer.reload(); }
     /** North-up plan plus actual 3D listener gain; all samples use the playback attenuation function. */
     public static void renderHud(net.minecraft.client.gui.GuiGraphics g) {
         var client=Minecraft.getInstance();
@@ -106,5 +124,5 @@ public final class DirectionalPreview {
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(strength>0?"direction":"omni")),x+10,y+85,0xFFB7C7D8);
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.dismiss"),x+10,y+95,0xFFB7C7D8);
     }
-    public static void clear() { remaining=0;origin=null;dimension=null;portableHolder=null;samples=List.of(); }
+    public static void clear() { remaining=0;origin=null;dimension=null;world=null;portableHolder=null;renderOrigin=null;mesh=null;samples=List.of();renderer.close(); }
 }

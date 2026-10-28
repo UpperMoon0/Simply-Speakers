@@ -76,3 +76,5 @@ test {
         rootProject.file('neoforge-1.21.1/src/main/resources/META-INF/neoforge.mods.toml')
     )
 }
+
+sourceSets.main.java.srcDir('../shared/client-preview/src/main/java')
