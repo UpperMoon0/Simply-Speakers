@@ -1,0 +1,46 @@
+Fixture server ready on localhost:25586
+shader: [12:41:39] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_GPU backend=shader hidden=true renderer=NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2 version=3.2.0 NVIDIA 581.15
+shader: [12:41:39] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=small-outside range=16
+shader: [12:41:46] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=small-outside samples=300 cpuMedianUs=5033 cpuP95Us=9368 gpuMedianUs=2234 gpuP95Us=5754
+shader: [12:41:47] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-small-outside.png
+shader: [12:41:47] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=small-inside range=16
+shader: [12:41:54] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=small-inside samples=300 cpuMedianUs=4869 cpuP95Us=10985 gpuMedianUs=2296 gpuP95Us=5435
+shader: [12:41:54] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-small-inside.png
+shader: [12:41:54] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=large-outside range=512
+shader: [12:42:01] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=large-outside samples=300 cpuMedianUs=4353 cpuP95Us=6926 gpuMedianUs=2079 gpuP95Us=4760
+shader: [12:42:01] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-large-outside.png
+shader: [12:42:01] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=large-inside range=512
+shader: [12:42:09] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=large-inside samples=300 cpuMedianUs=4725 cpuP95Us=6621 gpuMedianUs=2064 gpuP95Us=4632
+shader: [12:42:09] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-large-inside.png
+shader: [12:42:09] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=portable range=16
+shader: [12:42:17] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=portable samples=300 cpuMedianUs=4733 cpuP95Us=12748 gpuMedianUs=2630 gpuP95Us=8091
+shader: [12:42:17] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-portable.png
+shader: [12:42:17] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=terrain range=16
+shader: [12:42:25] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=terrain samples=300 cpuMedianUs=5260 cpuP95Us=22064 gpuMedianUs=2631 gpuP95Us=10216
+shader: [12:42:25] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-terrain.png
+shader: [12:42:25] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=shader scene=fallback range=16
+shader: [12:42:33] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=shader scene=fallback samples=300 cpuMedianUs=4761 cpuP95Us=10806 gpuMedianUs=2723 gpuP95Us=5904
+shader: [12:42:33] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as shader-fallback.png
+shader: [12:42:33] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_PASS backend=shader scenes=7 cpuGpuSamples=300
+shader: verified 7 game screenshots and raw timing CSVs
+particles: [12:43:48] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_GPU backend=particles hidden=true renderer=NVIDIA GeForce GTX 1050 Ti/PCIe/SSE2 version=3.2.0 NVIDIA 581.15
+particles: [12:43:48] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=particles scene=small-outside range=16
+particles: [12:43:56] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=particles scene=small-outside samples=300 cpuMedianUs=5935 cpuP95Us=12161 gpuMedianUs=2287 gpuP95Us=5106
+particles: [12:43:56] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as particles-small-outside.png
+particles: [12:43:57] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=particles scene=small-inside range=16
+particles: [12:44:04] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=particles scene=small-inside samples=300 cpuMedianUs=5692 cpuP95Us=8687 gpuMedianUs=2039 gpuP95Us=4716
+particles: [12:44:04] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as particles-small-inside.png
+particles: [12:44:04] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=particles scene=large-outside range=512
+particles: [12:44:12] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=particles scene=large-outside samples=300 cpuMedianUs=5620 cpuP95Us=9169 gpuMedianUs=2022 gpuP95Us=4945
+particles: [12:44:12] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as particles-large-outside.png
+particles: [12:44:12] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=particles scene=large-inside range=512
+particles: [12:44:20] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=particles scene=large-inside samples=300 cpuMedianUs=5674 cpuP95Us=12344 gpuMedianUs=2111 gpuP95Us=5157
+particles: [12:44:20] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as particles-large-inside.png
+particles: [12:44:20] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=particles scene=portable range=16
+particles: [12:44:28] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=particles scene=portable samples=300 cpuMedianUs=5803 cpuP95Us=9211 gpuMedianUs=2180 gpuP95Us=5236
+particles: [12:44:28] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as particles-portable.png
+particles: [12:44:28] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_SCENE backend=particles scene=terrain range=16
+particles: [12:44:37] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_TIMING backend=particles scene=terrain samples=300 cpuMedianUs=5544 cpuP95Us=13085 gpuMedianUs=2222 gpuP95Us=5792
+particles: [12:44:37] [IO-Worker-4/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_CAPTURE Saved screenshot as particles-terrain.png
+particles: [12:44:37] [Render thread/INFO] (Minecraft) [STDOUT]: ZONE_PREVIEW_RUNTIME_PASS backend=particles scenes=6 cpuGpuSamples=300
+particles: verified 6 game screenshots and raw timing CSVs
