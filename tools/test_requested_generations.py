@@ -8,6 +8,11 @@ import port_resources
 import modern_speaker_sources as modern
 ROOT=Path(__file__).resolve().parents[1]
 class RequestedGenerationTest(unittest.TestCase):
+    def test_forge_1165_preview_uses_native_matrix_camera_and_renderer_types(self):
+        source = 'com.mojang.math.Matrix4f com.mojang.blaze3d.vertex.PoseStack net.minecraft.client.Camera net.minecraft.client.renderer.LevelRenderer'
+        mapped = forge.convert(source)
+        self.assertEqual(mapped, 'net.minecraft.util.math.vector.Matrix4f com.mojang.blaze3d.matrix.MatrixStack net.minecraft.client.renderer.ActiveRenderInfo net.minecraft.client.renderer.WorldRenderer')
+
     def test_native_block_entity_sync_uses_loader_callbacks_and_shared_identity_checks(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);legacy.generate(root/'fabric');forge.generate(root/'forge')
