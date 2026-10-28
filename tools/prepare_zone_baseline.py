@@ -22,7 +22,8 @@ def prepare(output: Path,ref: str,refresh: bool):
     else:subprocess.run(['git','worktree','add','--detach',str(output),commit],cwd=ROOT,check=True)
     fixture=Path('shared/zone-verification/src/main/java')
     names=['com/nstut/simplyspeakers/client/ZonePreviewRuntimeProbe.java',
-           'com/nstut/mixin/ZonePreviewFrameProbeMixin.java','com/nstut/mixin/ZonePreviewOffscreenMixin.java']
+           'com/nstut/mixin/ZonePreviewFrameProbeMixin.java','com/nstut/mixin/ZonePreviewOffscreenMixin.java',
+           'com/nstut/mixin/ZonePreviewParticleTimingMixin.java']
     for name in names:
         source=ROOT/fixture/name
         old=output/'common-1.20.1/src/main/java'/name
@@ -40,7 +41,7 @@ def prepare(output: Path,ref: str,refresh: bool):
     if anchor not in text:raise RuntimeError('Baseline tick anchor changed')
     if 'ZonePreviewRuntimeProbe.tick' not in text:path.write_text(text.replace(anchor,anchor+'\n        ZonePreviewRuntimeProbe.tick(client);'),encoding='utf-8')
     path=output/'common-1.20.1/src/main/resources/simplyspeakers.mixins.json';data=json.loads(path.read_text())
-    for name in ['ZonePreviewFrameProbeMixin','ZonePreviewOffscreenMixin']:
+    for name in ['ZonePreviewFrameProbeMixin','ZonePreviewOffscreenMixin','ZonePreviewParticleTimingMixin']:
         if name not in data['client']:data['client'].append(name)
     path.write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
     shutil.copy2(ROOT/'fabric-1.20.1/build.gradle',output/'fabric-1.20.1/build.gradle')

@@ -1,0 +1,582 @@
+{
+  "01-shader": {
+    "fallback": {
+      "cpu_render_ns": {
+        "median_ms": 4.6251,
+        "p95_ms": 11.2391
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.625536,
+        "p95_ms": 5.735424
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.161201,
+        "p95_ms": 15.786601
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0011,
+        "p95_ms": 0.002399
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.001024,
+        "p95_ms": 0.002048
+      }
+    },
+    "large-inside": {
+      "cpu_render_ns": {
+        "median_ms": 4.7889,
+        "p95_ms": 11.2749
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.464768,
+        "p95_ms": 6.079488
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.1531,
+        "p95_ms": 16.0126
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0283,
+        "p95_ms": 0.065801
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.022528,
+        "p95_ms": 0.0256
+      }
+    },
+    "large-outside": {
+      "cpu_render_ns": {
+        "median_ms": 4.4368,
+        "p95_ms": 10.184
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.087936,
+        "p95_ms": 5.574656
+      },
+      "frame_interval_ns": {
+        "median_ms": 6.9396,
+        "p95_ms": 12.8624
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0277,
+        "p95_ms": 0.0652
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.007168,
+        "p95_ms": 0.008192
+      }
+    },
+    "portable": {
+      "cpu_render_ns": {
+        "median_ms": 4.958,
+        "p95_ms": 9.074
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.59072,
+        "p95_ms": 5.600256
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.501201,
+        "p95_ms": 13.5887
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0339,
+        "p95_ms": 0.074799
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.032768,
+        "p95_ms": 0.03584
+      }
+    },
+    "small-inside": {
+      "cpu_render_ns": {
+        "median_ms": 4.929,
+        "p95_ms": 8.8482
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.423808,
+        "p95_ms": 5.905408
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.212001,
+        "p95_ms": 13.0094
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0291,
+        "p95_ms": 0.064699
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.029696,
+        "p95_ms": 0.031744
+      }
+    },
+    "small-outside": {
+      "cpu_render_ns": {
+        "median_ms": 5.8579,
+        "p95_ms": 9.256199
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.69312,
+        "p95_ms": 5.99552
+      },
+      "frame_interval_ns": {
+        "median_ms": 9.8084,
+        "p95_ms": 16.526101
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0327,
+        "p95_ms": 0.078399
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.032768,
+        "p95_ms": 0.037888
+      }
+    },
+    "terrain": {
+      "cpu_render_ns": {
+        "median_ms": 4.775899,
+        "p95_ms": 10.4711
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.65728,
+        "p95_ms": 5.595136
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.1076,
+        "p95_ms": 13.818101
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0263,
+        "p95_ms": 0.059701
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.031744,
+        "p95_ms": 0.034816
+      }
+    }
+  },
+  "02-particles": {
+    "large-inside": {
+      "cpu_render_ns": {
+        "median_ms": 5.781799,
+        "p95_ms": 10.739399
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.144256,
+        "p95_ms": 5.092352
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.4883,
+        "p95_ms": 15.357
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.1237,
+        "p95_ms": 1.9199
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.034816,
+        "p95_ms": 0.038912
+      }
+    },
+    "large-outside": {
+      "cpu_render_ns": {
+        "median_ms": 5.2707,
+        "p95_ms": 6.251799
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.875968,
+        "p95_ms": 4.169728
+      },
+      "frame_interval_ns": {
+        "median_ms": 6.4074,
+        "p95_ms": 9.7637
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.126601,
+        "p95_ms": 1.3916
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.01024,
+        "p95_ms": 0.013312
+      }
+    },
+    "portable": {
+      "cpu_render_ns": {
+        "median_ms": 5.8715,
+        "p95_ms": 12.576201
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.563072,
+        "p95_ms": 6.316032
+      },
+      "frame_interval_ns": {
+        "median_ms": 9.815799,
+        "p95_ms": 19.483801
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.124599,
+        "p95_ms": 2.8204
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.06144,
+        "p95_ms": 0.07168
+      }
+    },
+    "small-inside": {
+      "cpu_render_ns": {
+        "median_ms": 5.495599,
+        "p95_ms": 6.610599
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.773568,
+        "p95_ms": 4.191232
+      },
+      "frame_interval_ns": {
+        "median_ms": 6.628,
+        "p95_ms": 10.6834
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.044201,
+        "p95_ms": 1.3091
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.0256,
+        "p95_ms": 0.027648
+      }
+    },
+    "small-outside": {
+      "cpu_render_ns": {
+        "median_ms": 5.9051,
+        "p95_ms": 8.377801
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.946624,
+        "p95_ms": 4.590592
+      },
+      "frame_interval_ns": {
+        "median_ms": 7.299001,
+        "p95_ms": 13.6583
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.0926,
+        "p95_ms": 1.6394
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.018432,
+        "p95_ms": 0.019456
+      }
+    },
+    "terrain": {
+      "cpu_render_ns": {
+        "median_ms": 5.533201,
+        "p95_ms": 12.083201
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.390016,
+        "p95_ms": 5.622784
+      },
+      "frame_interval_ns": {
+        "median_ms": 9.384699,
+        "p95_ms": 18.9918
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.0851,
+        "p95_ms": 2.681
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.052224,
+        "p95_ms": 0.058368
+      }
+    }
+  },
+  "03-particles": {
+    "large-inside": {
+      "cpu_render_ns": {
+        "median_ms": 5.9298,
+        "p95_ms": 13.2648
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.333664,
+        "p95_ms": 5.777408
+      },
+      "frame_interval_ns": {
+        "median_ms": 9.522701,
+        "p95_ms": 21.5621
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.1969,
+        "p95_ms": 3.094199
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.037888,
+        "p95_ms": 0.039936
+      }
+    },
+    "large-outside": {
+      "cpu_render_ns": {
+        "median_ms": 5.2885,
+        "p95_ms": 8.509901
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.83808,
+        "p95_ms": 4.447232
+      },
+      "frame_interval_ns": {
+        "median_ms": 7.347899,
+        "p95_ms": 12.5119
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.1847,
+        "p95_ms": 1.993101
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.019456,
+        "p95_ms": 0.024576
+      }
+    },
+    "portable": {
+      "cpu_render_ns": {
+        "median_ms": 5.802599,
+        "p95_ms": 18.6022
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.663424,
+        "p95_ms": 6.647808
+      },
+      "frame_interval_ns": {
+        "median_ms": 10.0862,
+        "p95_ms": 26.8603
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.144301,
+        "p95_ms": 3.743101
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.060416,
+        "p95_ms": 0.073728
+      }
+    },
+    "small-inside": {
+      "cpu_render_ns": {
+        "median_ms": 5.6421,
+        "p95_ms": 12.1834
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.071552,
+        "p95_ms": 4.769792
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.1718,
+        "p95_ms": 15.3892
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.125301,
+        "p95_ms": 2.280701
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.060416,
+        "p95_ms": 0.065536
+      }
+    },
+    "small-outside": {
+      "cpu_render_ns": {
+        "median_ms": 5.739099,
+        "p95_ms": 12.3388
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.187264,
+        "p95_ms": 4.996096
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.3351,
+        "p95_ms": 17.3978
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.122401,
+        "p95_ms": 2.534
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.044032,
+        "p95_ms": 0.048128
+      }
+    },
+    "terrain": {
+      "cpu_render_ns": {
+        "median_ms": 5.4653,
+        "p95_ms": 12.1691
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.419712,
+        "p95_ms": 5.238752
+      },
+      "frame_interval_ns": {
+        "median_ms": 9.3061,
+        "p95_ms": 16.9891
+      },
+      "cpu_preview_ns": {
+        "median_ms": 1.0968,
+        "p95_ms": 2.8135
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.052224,
+        "p95_ms": 0.05632
+      }
+    }
+  },
+  "04-shader": {
+    "fallback": {
+      "cpu_render_ns": {
+        "median_ms": 4.5325,
+        "p95_ms": 11.2828
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.622464,
+        "p95_ms": 6.92736
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.2458,
+        "p95_ms": 16.356701
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0017,
+        "p95_ms": 0.0035
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.001024,
+        "p95_ms": 0.002048
+      }
+    },
+    "large-inside": {
+      "cpu_render_ns": {
+        "median_ms": 4.4212,
+        "p95_ms": 5.1504
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.85856,
+        "p95_ms": 4.161536
+      },
+      "frame_interval_ns": {
+        "median_ms": 5.4943,
+        "p95_ms": 7.4979
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0264,
+        "p95_ms": 0.0492
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.00512,
+        "p95_ms": 0.00512
+      }
+    },
+    "large-outside": {
+      "cpu_render_ns": {
+        "median_ms": 4.0913,
+        "p95_ms": 4.6181
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.799168,
+        "p95_ms": 4.030464
+      },
+      "frame_interval_ns": {
+        "median_ms": 5.129401,
+        "p95_ms": 6.834801
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0261,
+        "p95_ms": 0.0341
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.003072,
+        "p95_ms": 0.004096
+      }
+    },
+    "portable": {
+      "cpu_render_ns": {
+        "median_ms": 4.587699,
+        "p95_ms": 10.9809
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.60608,
+        "p95_ms": 6.409216
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.3524,
+        "p95_ms": 14.6681
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0273,
+        "p95_ms": 0.0647
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.032768,
+        "p95_ms": 0.037856
+      }
+    },
+    "small-inside": {
+      "cpu_render_ns": {
+        "median_ms": 4.4568,
+        "p95_ms": 5.1748
+      },
+      "gpu_render_ns": {
+        "median_ms": 1.78688,
+        "p95_ms": 4.098048
+      },
+      "frame_interval_ns": {
+        "median_ms": 5.597201,
+        "p95_ms": 7.3888
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0257,
+        "p95_ms": 0.0487
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.007168,
+        "p95_ms": 0.008192
+      }
+    },
+    "small-outside": {
+      "cpu_render_ns": {
+        "median_ms": 4.874901,
+        "p95_ms": 6.0591
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.03264,
+        "p95_ms": 4.33152
+      },
+      "frame_interval_ns": {
+        "median_ms": 6.0308,
+        "p95_ms": 8.371
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.0272,
+        "p95_ms": 0.0511
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.007168,
+        "p95_ms": 0.008192
+      }
+    },
+    "terrain": {
+      "cpu_render_ns": {
+        "median_ms": 4.486099,
+        "p95_ms": 10.4236
+      },
+      "gpu_render_ns": {
+        "median_ms": 2.424832,
+        "p95_ms": 5.48864
+      },
+      "frame_interval_ns": {
+        "median_ms": 8.0226,
+        "p95_ms": 15.1246
+      },
+      "cpu_preview_ns": {
+        "median_ms": 0.024701,
+        "p95_ms": 0.0584
+      },
+      "gpu_preview_span_ns": {
+        "median_ms": 0.03072,
+        "p95_ms": 0.033792
+      }
+    }
+  }
+}

@@ -8,7 +8,9 @@
     "ZonePreviewLevelMixin",
     "ZonePreviewReloadMixin",
     "ZonePreviewFrameProbeMixin",
-    "ZonePreviewOffscreenMixin"
+    "ZonePreviewOffscreenMixin",
+    "ZonePreviewShaderTimingMixin",
+    "ZonePreviewParticleTimingMixin"
   ],
   "mixins": [],
   "injectors": {

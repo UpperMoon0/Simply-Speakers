@@ -3,7 +3,7 @@
 Uses isolated development profiles and localhost port 25586. The baseline must
 contain the identical test fixture while retaining its original preview code.
 """
-import argparse, os, subprocess, threading, time
+import argparse, csv, json, os, shutil, subprocess, threading, time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -48,8 +48,10 @@ def stop(process):
     else:process.terminate()
     process.wait(timeout=30)
 
-def run(baseline: Path|None,java_home: Path):
-    output=ROOT/'build/zone-runtime';output.mkdir(parents=True,exist_ok=True)
+def run(baseline: Path|None,java_home: Path,order: list[str],samples: int,output: Path,graphics: list[Path],shaderpack: Path|None):
+    output=output.resolve();output.mkdir(parents=True,exist_ok=True)
+    if any(mode not in ('shader','particles','compatibility') for mode in order):raise ValueError('Unknown run backend')
+    if 'particles' in order and baseline is None:raise ValueError('Particle runs require an unchanged baseline')
     environment=dict(os.environ);environment['JAVA_HOME']=str(java_home)
     environment['PATH']=str(java_home/'bin')+os.pathsep+environment['PATH']
     environment['ALSOFT_DRIVERS']='null'
@@ -57,7 +59,8 @@ def run(baseline: Path|None,java_home: Path):
     def start(root,task,name,backend):
         wrapper=root/('gradlew.bat' if os.name=='nt' else 'gradlew')
         command=[str(wrapper),':fabric-1.20.1:'+task,'--no-daemon','--console=plain','--max-workers=2',
-                 '-Dorg.gradle.jvmargs=-Xmx1024m','-PzonePreviewBackend='+backend]
+                 '-Dorg.gradle.jvmargs=-Xmx1024m','-PzonePreviewBackend='+backend,'-PzoneSamples='+str(samples)]
+        if graphics and backend=='compatibility':command.append('-PzoneGraphicsMods='+os.pathsep.join(str(p.resolve()) for p in graphics))
         flags=(subprocess.CREATE_NEW_PROCESS_GROUP|subprocess.CREATE_NO_WINDOW) if os.name=='nt' else 0
         process=subprocess.Popen(command,cwd=root,env=environment,stdin=subprocess.PIPE,stdout=subprocess.PIPE,
                                  stderr=subprocess.STDOUT,text=True,encoding='utf-8',errors='replace',creationflags=flags)
@@ -77,19 +80,42 @@ def run(baseline: Path|None,java_home: Path):
             if server.poll() is not None:raise RuntimeError('Fixture server exited; see '+str(output/'server.log'))
             if time.monotonic()>deadline:raise RuntimeError('Fixture server readiness timed out')
         print('Fixture server ready on localhost:25586',flush=True)
-        for root,backend in [(ROOT,'shader')]+([(baseline,'particles')] if baseline else []):
+        # A deterministic empty arena avoids changing passive-entity draw costs between runs.
+        for command in ('gamerule doMobSpawning false','gamerule doDaylightCycle false','gamerule doWeatherCycle false','time set 6000','weather clear','kill @e[type=!minecraft:player]'):
+            server.stdin.write(command+'\n')
+        server.stdin.flush()
+        (output/'protocol.json').write_text(json.dumps({'order':order,'samples_per_scene':samples,'warmup_ticks':100,
+            'graphics_files':[str(p.name) for p in graphics],'shaderpack':shaderpack.name if shaderpack else None},indent=2)+'\n',encoding='utf-8')
+        for index,backend in enumerate(order):
+            root=baseline if backend=='particles' else ROOT
             directory=profile(root,False)
-            client,reader=start(root,'runZonePreviewClient',backend,backend)
+            tag=f'{index+1:02}-{backend}'
+            for folder,pattern in [('screenshots',backend+'-*.png'),('zone-preview-evidence',backend+'-*.csv')]:
+                for path in (directory/folder).glob(pattern):
+                    if not path.resolve().is_relative_to(root.resolve()):raise RuntimeError('Evidence path escapes test checkout')
+                    path.unlink()
+            if shaderpack is not None and backend=='compatibility':
+                packs=directory/'shaderpacks';packs.mkdir(exist_ok=True);shutil.copy2(shaderpack,packs/shaderpack.name)
+                config=directory/'config';config.mkdir(exist_ok=True)
+                (config/'iris.properties').write_text('enableShaders=true\nshaderPack='+shaderpack.name+'\nmaxShadowRenderDistance=8\n',encoding='utf-8')
+            client,reader=start(root,'runZonePreviewClient',tag,backend)
             try:
                 client.wait(timeout=600)
                 reader.join(timeout=10)
-                log=(output/(backend+'.log')).read_text(encoding='utf-8')
+                log=(output/(tag+'.log')).read_text(encoding='utf-8')
                 if client.returncode!=0 or 'ZONE_PREVIEW_RUNTIME_PASS backend='+backend not in log:
-                    raise RuntimeError(backend+' game acceptance failed; see '+str(output/(backend+'.log')))
-                expected=7 if backend=='shader' else 6
+                    raise RuntimeError(backend+' game acceptance failed; see '+str(output/(tag+'.log')))
+                expected=7 if backend=='shader' else 1 if backend=='compatibility' else 6
                 captures=list((directory/'screenshots').glob(backend+'-*.png'))
                 raw=list((directory/'zone-preview-evidence').glob(backend+'-*.csv'))
-                if len(captures)!=expected or len(raw)!=expected:raise RuntimeError(backend+' capture/sample count mismatch')
+                if len(captures)!=expected or len(raw)!=(0 if backend=='compatibility' else expected):raise RuntimeError(backend+' capture/sample count mismatch')
+                if backend=='compatibility' and ('ZONE_PREVIEW_SHADERPACK_ACTIVE' not in log or 'automaticFallback=true forcedHudOnly=false' not in log):
+                    raise RuntimeError('Shaderpack or automatic fallback was not verified')
+                destination=output/tag;destination.mkdir(exist_ok=True)
+                for path in captures+raw:shutil.copy2(path,destination/path.name)
+                for path in raw:
+                    rows=list(csv.DictReader(path.open()))
+                    if len(rows)!=samples:raise RuntimeError('Wrong timing sample count: '+str(path))
                 print(backend+': verified '+str(expected)+' game screenshots and raw timing CSVs',flush=True)
             finally:stop(client)
     finally:
@@ -97,4 +123,7 @@ def run(baseline: Path|None,java_home: Path):
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--baseline',type=Path);parser.add_argument('--java-home',type=Path,required=True)
-    args=parser.parse_args();run(args.baseline,args.java_home)
+    parser.add_argument('--order',default='shader,particles');parser.add_argument('--samples',type=int,default=300)
+    parser.add_argument('--output',type=Path,default=ROOT/'build/zone-runtime')
+    parser.add_argument('--graphics-mod',type=Path,action='append',default=[]);parser.add_argument('--shaderpack',type=Path)
+    args=parser.parse_args();run(args.baseline,args.java_home,args.order.split(','),args.samples,args.output,args.graphics_mod,args.shaderpack)

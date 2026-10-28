@@ -134,3 +134,102 @@ timing method. Do not compare an idle scene to an active scene. Preserve both
 raw frame samples and screenshots. Include a moving portable speaker and a
 stationary camera; repeat with small and maximum ranges, inside/outside views,
 terrain crossings, resource reload, disconnect, and HUD-only fallback.
+
+## Repeated performance investigation
+
+A second experiment used shader / particles / particles / shader order, 100 warmup
+ticks and 600 samples per scene. All four processes completed, producing 26 PNGs
+and 15,600 raw whole-frame CPU/GPU samples. The original paired experiment above
+is retained unchanged. [Every run and percentile](validation/zone-preview/repeated/comparison.md),
+[raw data and provenance](validation/zone-preview/repeated/metadata.json) are committed.
+The failed first attempt (fixture static initialization, no samples collected) is
+also retained, followed by the corrected run.
+
+The additional instrumentation brackets the shader render method or the entire
+particle engine in the empty fixture. Median preview CPU submission cost was
+0.025–0.034 ms for shaders versus 1.044–1.196 ms for particles. This is a measured
+reduction in this fixture, not a universal frame-rate claim. GPU timestamps measure
+submission spans including pipeline idle time; they do not isolate GPU busy time.
+
+Whole-scene GPU and p95 differences are not consistently reproduced across order.
+For example, large-outside shader/particle GPU medians were 2.088/1.876 ms in the
+first pair but 1.799/1.838 ms in the reversed pair. Shader preview spans in that
+scene were 0.007 and 0.003 ms versus particle spans of 0.010 and 0.019 ms. Terrain
+whole GPU medians were 2.657/2.391 and 2.425/2.420 ms, with shader preview spans
+0.032/0.031 ms and particle spans 0.053/0.052 ms. This evidence points to substantial
+whole-scene/host variation; it does not establish a repeatable material preview
+GPU regression to optimize. Two repetitions and uncontrolled clocks/scheduling
+cannot prove GPU equivalence. GPU/p95 acceptance remains limited, and all slower
+shader results remain in the report. No production geometry was removed to improve
+a benchmark score. The 512-block shader also displays boundaries beyond the terrain
+far plane where the baseline has no visible particles, so useful visible work differs.
+
+The final repeated small/large, inside/outside, portable, terrain and fallback
+captures were inspected. Thin cyan range hoops, white direction and colored gain
+rings remain legible; hidden terrain guides are faint dashed lines. The HUD listener
+continues to be separate from the detached inspection camera as described above.
+
+Reproduce the repeated experiment:
+
+```text
+python tools/prepare_zone_baseline.py --output ../particle-baseline --refresh-fixture
+python tools/zone_runtime_test.py --baseline ../particle-baseline --java-home <JDK21> --order shader,particles,particles,shader --samples 600 --output build/zone-repeat
+python tools/zone_runtime_report.py build/zone-repeat
+```
+
+## Additional version visual evidence
+
+[NeoForge 26.2 screenshot](validation/zone-preview/ports/neoforge-26.2-ci.png) comes
+from the passing native CI fixture at `7737019` (provenance beside the image).
+It was viewed: the HUD and colored zone bands are present. Its camera is close to
+the speaker inside the volume, so it is narrower coverage than the seven-scene
+1.20.1 fixture. This is not a Vulkan or shaderpack qualification.
+
+## Actual shaderpack qualification
+
+Fabric 1.20.1 + Iris 1.7.6 + its required Sodium 0.5.12-beta.2 + Complementary
+Reimagined r5.9.3 passed the hidden real-game fallback fixture on the same GTX 1050 Ti.
+The probe required a nonempty Iris pack and an active `IrisRenderingPipeline`,
+`hidden=true`, `forcedHudOnly=false`, active HUD and zero submitted zone geometry.
+The [actual screenshot](validation/zone-preview/shaderpack/qualified/01-compatibility/compatibility-fallback.png)
+was viewed: the shaderpack scene and labeled HUD render normally, with no zone
+ribbons. Full logs, publisher metadata, versions and SHA-512s are in the
+[qualification evidence](validation/zone-preview/shaderpack).
+
+Two failed attempts are retained: the old hidden-window redirect conflicted with
+Sodium's own creation redirect; it was replaced with an injection after GLFW resets
+its hints, leaving Sodium's driver workaround intact. The next attempt lacked
+Iris's bundled JCPP runtime in the development classpath. The final run explicitly
+loaded the verified jar's nested JCPP/ANTLR/GLSL-transformer libraries. Nothing was
+removed from Iris, Sodium, or the shaderpack. Iris emitted warnings for newer biome
+names/block IDs, which remain in the log; its shader pipeline stayed active and
+the scene rendered successfully. No external mod binaries are committed.
+
+Reproduce with the files named and hashed in `shaderpack/files.json`, extracting
+Iris's bundled JCPP/ANTLR/GLSL-transformer jars for Loom's development runtime:
+
+```text
+python tools/zone_runtime_test.py --java-home <JDK21> --order compatibility --output build/zone-iris --graphics-mod <iris.jar> --graphics-mod <sodium.jar> --graphics-mod <jcpp.jar> --graphics-mod <antlr.jar> --graphics-mod <glsl-transformer.jar> --shaderpack <Complementary.zip>
+```
+
+This qualifies the conservative HUD-only compatibility path for this exact stack.
+It does not qualify ribbons inside Iris, other shaderpacks/versions, OptiFine, or
+Vulkan. Those require their version-matched runtime dependencies and an equivalent
+active-pipeline capture fixture; no such results are claimed here.
+
+## CI findings during follow-up
+
+The Forge 1.16.5 adapter needed native matrix/pose/camera/renderer type mappings;
+these are corrected and covered by the generation suite. The CI JDK producer's
+`21.0.13+9` output could not be resolved on a fresh setup-java runner whose catalog
+uses `21.0.13+9.0.LTS`. Consumers now select the producer's observed patch, then the
+existing provenance validator still requires the exact runtime build, vendor,
+architecture and artifact hashes. A regression test rejects a different build.
+The 42 changed cache/workflow/generation tests passed on Linux.
+
+At `7040b75`, Fabric 1.16.5 built and its independent ordinary Singleplayer menu
+acceptance passed. Its dedicated/two-client check failed because native Minecraft
+reported `multiplayerAllowed=false` after loading. No eligibility override was
+attempted. That acceptance requires a launch profile for which native Minecraft
+reports multiplayer eligibility. This is distinct from a renderer compilation or
+shader failure. Final-head CI status must still be checked separately.

@@ -1,0 +1,12 @@
+{
+  "order": [
+    "shader",
+    "particles",
+    "particles",
+    "shader"
+  ],
+  "samples_per_scene": 600,
+  "warmup_ticks": 100,
+  "graphics_files": [],
+  "shaderpack": null
+}

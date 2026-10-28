@@ -1,0 +1,22 @@
+{
+  "production_head": "7040b7533aac392adad7ad8305da208ffac1d16d",
+  "baseline": "fc75a98e5fa1c159d1f6a4bd8c4c28f1fddf5c4e",
+  "fixture_sha256": "dac73cb07d01cf1a7a66f0bd5f1c6f20a4e0539d70c4aca612da7abf16859796",
+  "samples_per_scene": 600,
+  "warmup_ticks": 100,
+  "order": [
+    "shader",
+    "particles",
+    "particles",
+    "shader"
+  ],
+  "preview_scope": "Shader renderWorld versus complete otherwise-empty particle engine; GPU timestamps are submission spans, not busy time",
+  "original_comparison": "../game remains unchanged",
+  "failed_run": "v1 configurable sample count was initialized after RUN, giving empty arrays; failed before collecting samples. Full failed log retained. v2 initializes constants first.",
+  "limitations": [
+    "Uncontrolled host GPU clocks and scheduling",
+    "Only two repetitions per backend",
+    "No cross-machine or all-version GPU performance certification"
+  ],
+  "baseline_preview_unchanged": true
+}
