@@ -9,6 +9,24 @@ import net.minecraftforge.client.event.*;
 import com.nstut.simplyspeakers.network.PlayAudioPacketS2C;
 /** Client references are isolated behind Forge's side proxy. */
 public final class LegacyClient extends com.nstut.simplyspeakers.forge.CommonProxy {
+ private final java.nio.FloatBuffer zoneProjection=org.lwjgl.BufferUtils.createFloatBuffer(16);
+ private final java.nio.FloatBuffer zoneView=org.lwjgl.BufferUtils.createFloatBuffer(16);
+ private final java.nio.FloatBuffer zoneMatrix=org.lwjgl.BufferUtils.createFloatBuffer(16);
+ @SubscribeEvent public void zone(RenderWorldLastEvent event) {
+  Minecraft mc=Minecraft.getMinecraft();net.minecraft.entity.Entity camera=mc.getRenderViewEntity();
+  if(camera==null)return;
+  zoneProjection.clear();zoneView.clear();zoneMatrix.clear();
+  org.lwjgl.opengl.GL11.glGetFloat(org.lwjgl.opengl.GL11.GL_PROJECTION_MATRIX,zoneProjection);
+  org.lwjgl.opengl.GL11.glGetFloat(org.lwjgl.opengl.GL11.GL_MODELVIEW_MATRIX,zoneView);
+  for(int column=0;column<4;column++)for(int row=0;row<4;row++) {
+   float value=0;for(int k=0;k<4;k++)value+=zoneProjection.get(k*4+row)*zoneView.get(column*4+k);
+   zoneMatrix.put(column*4+row,value);
+  }
+  float partial=event.getPartialTicks();
+  DirectionalPreview.renderWorld(zoneMatrix,camera.lastTickPosX+(camera.posX-camera.lastTickPosX)*partial,
+   camera.lastTickPosY+(camera.posY-camera.lastTickPosY)*partial,camera.lastTickPosZ+(camera.posZ-camera.lastTickPosZ)*partial);
+ }
+ @SubscribeEvent public void reloadZone(net.minecraftforge.client.event.TextureStitchEvent.Pre event){DirectionalPreview.reload();}
  private net.minecraft.world.World previousWorld;
  @SubscribeEvent public void models(ModelRegistryEvent event){for(com.nstut.simplyspeakers.compat.RegistryValue<net.minecraft.item.Item> value:com.nstut.simplyspeakers.items.ItemRegistries.ITEM_LIST){net.minecraft.item.Item item=value.get();net.minecraftforge.client.model.ModelLoader.setCustomModelResourceLocation(item,0,new net.minecraft.client.renderer.block.model.ModelResourceLocation(item.getRegistryName(),"inventory"));}}
 

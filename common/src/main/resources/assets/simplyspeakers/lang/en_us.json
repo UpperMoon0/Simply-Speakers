@@ -277,5 +277,6 @@
   "gui.simplyspeakers.library.add_to_library": "Add to Library",
   "gui.simplyspeakers.library.add_failed": "Could not add audio. Check the URL, server policy, and the 256-link library limit.",
   "gui.simplyspeakers.library.remove": "Remove from Library",
-  "gui.simplyspeakers.library.remove_confirm": "Remove %s from your Library? Saved playlists and running playback are kept."
+  "gui.simplyspeakers.library.remove_confirm": "Remove %s from your Library? Saved playlists and running playback are kept.",
+  "gui.simplyspeakers.preview.fallback": "HUD preview (shader unavailable)"
 }

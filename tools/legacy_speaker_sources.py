@@ -79,6 +79,11 @@ def isolate_client_packet_handlers(text,name,side_reject='{context}.get().getEnv
 
 def convert(text, name):
     text=java8(text)
+    if name in ('DirectionalPreview.java','ZonePreviewLevelMixin.java'):
+        text=text.replace('org.joml.Matrix4f','com.mojang.math.Matrix4f')
+        text=text.replace('viewProjection.set(projection).mul(view).get(0,matrixBuffer);',
+            'viewProjection.load(projection); viewProjection.multiply(view); viewProjection.store(matrixBuffer); matrixBuffer.rewind();')
+
     text=text.replace('dev.architectury.', 'me.shedaniel.architectury.')
     text=text.replace('me.shedaniel.architectury.registry.registries.', 'me.shedaniel.architectury.registry.')
     text=text.replace('me.shedaniel.architectury.event.events.common.', 'me.shedaniel.architectury.event.events.')
@@ -184,7 +189,7 @@ def convert(text, name):
 
 def generate(output, fabric=True):
     generated=set()
-    sources=['common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','common-1.16.5/src/main/java']
+    sources=['shared/client-preview/src/main/java','common/src/main/java','common-1.20.1/src/main/java','shared/runtime-verification/src/main/java','common-legacy/src/main/java','common-1.16.5/src/main/java']
     for folder in sources:
         root=ROOT/folder
         for path in root.rglob('*.java'):

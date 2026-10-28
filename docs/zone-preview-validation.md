@@ -23,15 +23,40 @@ retained. The 1.21.1 Sable resolver remains the source of transformed speaker po
 ## Acceptance status
 
 - Baseline core Gradle suite: passed locally with JDK 21.
-- New mesh tests and native compile checks: pending.
-- 1.20.1/1.21.1 adapters: implemented, runtime validation pending.
-- Legacy derived ports and 26.x adapter: implementation pending.
+- New mesh tests: passed with the existing core suite.
+- 1.20.1/1.21.1 adapters and derived legacy/26.x adapters: implemented; native
+  build and runtime checks are in progress.
+- Requested-generation source suite: 23 tests passed (`python -X utf8`).
+- Native 26.1.2 build and existing adapter tests passed. Added GPU lifecycle tests
+  are awaiting their next run.
 - Equivalent-scene particle-versus-shader frame/GPU timing: not measured.
 - Actual game screenshots for small/large range, inside/outside, moving portable
   speaker, terrain occlusion, and fallback: not captured.
 - Shaderpack and mod compatibility: not verified in a game runtime.
 
 No synthetic image or source-only timing is presented as Minecraft acceptance.
+
+## Hidden-window graphics fixture
+
+`tools/zone_shader_smoke.py` compiles the actual OpenGL renderer and creates an
+invisible GLFW window. On this machine it reported NVIDIA GeForce GTX 1050 Ti,
+OpenGL 3.3.0, NVIDIA 581.15. It passed program compilation, actual draw output,
+restoration of non-default GL state, resource deletion, reload, and forced fallback.
+
+Seven actual GPU captures were inspected: small outside/inside, large
+outside/inside, two moving-origin/direction poses, and controlled depth occlusion.
+These are **shader-fixture captures, not Minecraft screenshots**. The depth case
+uses a controlled scissored depth buffer, not Minecraft terrain. The portable cases
+exercise uniform changes, not Minecraft's holder tracking or Sable integration.
+They establish shader output and state/resource behavior, not game acceptance or
+particle-baseline performance.
+
+![Small outside shader fixture](validation/zone-preview/small-outside.png)
+![Small inside shader fixture](validation/zone-preview/small-inside.png)
+![Large outside shader fixture](validation/zone-preview/large-outside.png)
+![Large inside shader fixture](validation/zone-preview/large-inside.png)
+![Changed portable pose fixture](validation/zone-preview/portable-pose-b.png)
+![Controlled depth fixture](validation/zone-preview/depth-occlusion-fixture.png)
 
 ## Required measurement protocol
 

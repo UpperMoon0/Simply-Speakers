@@ -79,7 +79,8 @@ public final class DirectionalPreview {
         }
         if(mesh!=null) { renderer.upload(mesh); mesh=null; }
         viewProjection.set(projection).mul(view).get(0,matrixBuffer);
-        renderer.draw(matrixBuffer,renderOrigin.x-camera.x,renderOrigin.y-camera.y,renderOrigin.z-camera.z,rotation);
+        try { renderer.draw(matrixBuffer,renderOrigin.x-camera.x,renderOrigin.y-camera.y,renderOrigin.z-camera.z,rotation); }
+        catch (RuntimeException error) { renderer.fail(error); }
         emitted++;
     }
     public static void reload() { clear(); renderer.reload(); }
@@ -90,8 +91,8 @@ public final class DirectionalPreview {
         hudFrames++;
         var font=client.font;
         int x=8, y=8, width=Math.min(230,client.getWindow().getGuiScaledWidth()-16);
-        g.fill(x,y,x+width,y+107,0xE619232E);
-        g.fill(x,y,x+3,y+107,0xFF5EE3CB);
+        g.fill(x,y,x+width,y+(renderer.available()?107:119),0xE619232E);
+        g.fill(x,y,x+3,y+(renderer.available()?107:119),0xFF5EE3CB);
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.title",(remaining+19)/20),x+10,y+9,0xFFF4F7FF);
         int cx=x+31, cy=y+50, radius=21;
         for(var point:samples) {
@@ -123,6 +124,7 @@ public final class DirectionalPreview {
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.legend"),x+10,y+75,0xFFB7C7D8);
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview."+(strength>0?"direction":"omni")),x+10,y+85,0xFFB7C7D8);
         g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.dismiss"),x+10,y+95,0xFFB7C7D8);
+        if(!renderer.available()) g.drawString(font,net.minecraft.network.chat.Component.translatable("gui.simplyspeakers.preview.fallback"),x+10,y+107,0xFFFFD166);
     }
     public static void clear() { remaining=0;origin=null;dimension=null;world=null;portableHolder=null;renderOrigin=null;mesh=null;samples=List.of();renderer.close(); }
 }

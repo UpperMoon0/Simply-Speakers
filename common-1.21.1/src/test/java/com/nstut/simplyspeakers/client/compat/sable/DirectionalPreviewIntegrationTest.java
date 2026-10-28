@@ -124,6 +124,39 @@ class DirectionalPreviewIntegrationTest {
         assertEquals(0, (double) field("rotation"), 1e-9);
     }
 
+    @Test void expiryClearsAllRetainedPreviewState() throws Exception {
+        DirectionalPreview.show(POSITION, 512, 1, 1, 90, .9);
+        for (int tick=0; tick<600; tick++) DirectionalPreview.tick(client);
+        assertCleared();
+    }
+
+    @Test void replacementWorldWithSameDimensionClearsPreview() throws Exception {
+        DirectionalPreview.show(POSITION, 16, 1, 1, 90, .9);
+        ClientLevel replacement=mock(ClientLevel.class);
+        when(replacement.dimension()).thenReturn(Level.OVERWORLD);
+        client.level=replacement;
+        DirectionalPreview.tick(client);
+        assertCleared();
+    }
+
+    @Test void resourceReloadAndScreenDismissalClearPreview() throws Exception {
+        DirectionalPreview.show(POSITION, 16, 1, 1, 90, .9);
+        DirectionalPreview.reload();
+        assertCleared();
+        DirectionalPreview.show(POSITION, 16, 1, 1, 90, .9);
+        assertTrue(remaining()>0);
+        client.screen=mock(net.minecraft.client.gui.screens.Screen.class);
+        DirectionalPreview.tick(client);
+        assertCleared();
+    }
+
+    private static void assertCleared() throws Exception {
+        assertEquals(0,remaining());
+        for(String name:new String[]{"origin","world","dimension","portableHolder","renderOrigin","mesh"})
+            assertNull(field(name),name);
+        assertTrue(((java.util.List<?>)field("samples")).isEmpty());
+    }
+
     private void assertFacingMatchesPlayback(int ordinal) throws Exception {
         double rotation = (double) field("rotation");
         double[] local = DirectionalAudio.facingFromOrdinal(ordinal);

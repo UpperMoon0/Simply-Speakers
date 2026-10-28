@@ -17,16 +17,31 @@ public final class ZonePreviewRenderer {
     private int program, vao, vbo, count;
     private int matrixLocation, originLocation, rotationLocation, viewportLocation, occludedLocation;
     private boolean failed;
+    private final boolean compatibilityFallback = hasShaderIntegration();
     private final IntBuffer viewport = BufferUtils.createIntBuffer(4);
 
-    public boolean available() { return !failed && !Boolean.getBoolean("simplyspeakers.previewHudOnly"); }
+    public boolean available() { return !failed && !compatibilityFallback && !Boolean.getBoolean("simplyspeakers.previewHudOnly"); }
+
+    private static boolean hasShaderIntegration() {
+        for (String name : new String[]{"net.irisshaders.iris.Iris", "net.coderbot.iris.Iris",
+                "net.optifine.shaders.Shaders", "shadersmod.client.Shaders"}) {
+            try { Class.forName(name, false, ZonePreviewRenderer.class.getClassLoader()); return true; }
+            catch (ClassNotFoundException absent) { /* Try the next supported integration. */ }
+            catch (LinkageError incompatible) { return true; }
+        }
+        return false;
+    }
 
     public void upload(ZonePreviewMesh mesh) {
         close();
         if (!available()) return;
-        int previousVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
-        int previousBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+        int previousVao = 0, previousBuffer = 0;
+        boolean captured = false;
         try {
+            if (!org.lwjgl.opengl.GL.getCapabilities().OpenGL32) { failed = true; return; }
+            previousVao = GL11.glGetInteger(GL30.GL_VERTEX_ARRAY_BINDING);
+            previousBuffer = GL11.glGetInteger(GL15.GL_ARRAY_BUFFER_BINDING);
+            captured = true;
             program = GL20.glCreateProgram();
             attach(GL20.GL_VERTEX_SHADER, "vert");
             attach(GL20.GL_FRAGMENT_SHADER, "frag");
@@ -55,8 +70,10 @@ public final class ZonePreviewRenderer {
             System.err.println("[SimplySpeakers] Zone shader unavailable; using HUD preview: " + ex.getMessage());
             close();
         } finally {
-            GL30.glBindVertexArray(previousVao);
-            GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, previousBuffer);
+            if (captured) {
+                GL30.glBindVertexArray(previousVao);
+                GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, previousBuffer);
+            }
         }
     }
 
@@ -132,6 +149,12 @@ public final class ZonePreviewRenderer {
         if (vao != 0) GL30.glDeleteVertexArrays(vao);
         if (program != 0) GL20.glDeleteProgram(program);
         vbo = 0; vao = 0; program = 0; count = 0;
+    }
+
+    public void fail(RuntimeException error) {
+        failed = true;
+        close();
+        System.err.println("[SimplySpeakers] Zone preview disabled; HUD remains available: " + error.getMessage());
     }
 
     /** Called on resource reload, permitting one new compile attempt for the next preview. */

@@ -12,6 +12,22 @@ ROOTS=('neoforge-26.1.2/src/main/java','shared/minecraft-1.21plus/src/main/java'
 NATIVE={'SimplySpeakers.java','ItemRegistries.java','BlockRegistries.java','BlockEntityRegistries.java','CcLuaServerProbe.java'}
 
 def convert(text,name):
+    if name=='ZonePreviewRenderer.java':
+        # 26.2 replaces uniform declarations/vertex modes with bind layouts and
+        # primitive topology, and uses reversed depth for world rendering.
+        text=text.replace('.withUniform("ZonePreview", UniformType.UNIFORM_BUFFER)',
+            '.withBindGroupLayout(com.mojang.blaze3d.pipeline.BindGroupLayout.builder().withUniform("ZonePreview", UniformType.UNIFORM_BUFFER).build())')
+        text=text.replace('.withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL, VertexFormat.Mode.TRIANGLES)',
+            '.withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR_NORMAL).withPrimitiveTopology(com.mojang.blaze3d.PrimitiveTopology.TRIANGLES)')
+        text=text.replace('CompareOp.LESS_THAN_OR_EQUAL','CompareOp.GREATER_THAN_OR_EQUAL').replace('CompareOp.GREATER_THAN);','CompareOp.LESS_THAN);')
+        text=text.replace('Minecraft.getInstance().getMainRenderTarget()', 'Minecraft.getInstance().gameRenderer.mainRenderTarget()')
+        text=text.replace('OptionalInt.empty()', 'java.util.Optional.empty()')
+        text=text.replace('pass.setVertexBuffer(0,vertices)', 'pass.setVertexBuffer(0,vertices.slice())')
+        text=text.replace('pass.draw(0,count)', 'pass.draw(count,1,0,0)')
+    if name=='ZonePreviewLevelMixin.java':
+        text=text.replace('getGameRenderState()', 'gameRenderState()')
+        text=text.replace('LevelRenderer;renderLevel(', 'LevelRenderer;render(')
+        text=text.replace(';ZLnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;)V', ';Z)V')
     for owner in ('client','Minecraft.getInstance()'):
         text=re.sub(re.escape(owner)+r'\.screen\b',lambda match: owner+'.gui.screen()',text)
         text=text.replace(owner+'.setScreen(',owner+'.gui.setScreen(')
