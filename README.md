@@ -124,7 +124,8 @@ Edit the mod config file to adjust:
 
 - **Architectury API** (matching your Minecraft version and loader)
 - **Fabric API** (for Fabric versions)
-- **OpenUI MC 0.0.14 or newer** (matching your Minecraft version and loader)
+- **OpenUI MC 0.0.14 or newer** for supported builds (0.0.15 or newer for requested-generation builds), matching your Minecraft version and loader
+- **PacketWeave 0.1.5 or newer** on both the client and server, matching your Minecraft version and loader
 - **Patchouli** (optional, matching your Minecraft version and loader; enables the in-game guide and its recipe. Included in development environments for guide verification)
 
 ## Speaker Controllers and Guide
@@ -244,11 +245,11 @@ The guide's first chapter shows its crafting recipe.
 
 ## Dependencies
 
-Simply Speakers 0.9.1 requires **PacketWeave 0.1.2 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.
+Simply Speakers 0.10.3 requires **PacketWeave 0.1.5 or newer** on both the client and server. Install the matching jar and publish PacketWeave 0.1.5 before Speakers 0.10.3. Upgrade clients and servers together: media packets and receipts are incompatible with older Simply Speakers / PacketWeave transfer formats. Saved audio libraries and completed cache files do not require migration.
 
 ### OpenUI on clients and dedicated servers
 
-OpenUI MC is required on clients only. Dedicated servers can run without it.
-On Fabric, the client requirement is checked before client initialization; missing or
-incompatible OpenUI versions produce an installation error before the UI loads.
-Forge and NeoForge declare the dependency with `side="CLIENT"`.
+OpenUI MC is required on clients. Fabric metadata also declares it mandatory on
+dedicated servers because it cannot express this client-only constraint. Install
+the matching OpenUI jar on Fabric servers. Forge and NeoForge declare OpenUI
+with `side="CLIENT"`, so their dedicated servers do not require it.
