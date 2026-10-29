@@ -132,8 +132,15 @@ same-display diagnostic boundary are recorded in `RUNTIME_ACCEPTANCE.md`.
 The separately named integrated lane runs only after a current, exact-target and
 exact-commit receipt records native multiplayer refusal. Missing receipts, other
 failures, stale receipts and successful dedicated runs cannot enter this route.
-The failed dedicated/two-client job result remains failed; an integrated pass does
-not replace or satisfy it.
+Dedicated/two-client qualification remains explicitly **blocked**, not passed, if
+Minecraft refuses multiplayer eligibility. For anonymous CI, a precisely
+classified 1.16.5 permission refusal can complete the native *attempt* step
+without claiming multiplayer qualification **only when** a separate,
+exact-commit passing integrated-world receipt satisfies the final CI coverage
+gate. Missing evidence, runtime crashes, build errors, timeouts, unexpected
+permission states, and failed integrated acceptance still fail CI. Manual
+dedicated acceptance remains strict by default. This distinction does not
+replace a genuine dedicated/two-client gameplay qualification for release.
 
 A fresh isolated run directory opens the ordinary vanilla title screen and clicks
 only the actual enabled, visible Singleplayer and Create New World controls via

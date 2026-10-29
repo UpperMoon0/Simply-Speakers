@@ -110,7 +110,13 @@ jobs:
           if [[ "$TARGET" == 'forge-1.16.5' ]]; then export JAVA_HOME="$JAVA_HOME_17_X64"; else export JAVA_HOME="$JAVA_HOME_25_X64"; fi
           export PATH="$JAVA_HOME/bin:$PATH"
           mkdir -p "$TARGET/build/runtime-evidence"
-          python3 tools/requested_live_join.py --target "$TARGET" --timeout 900 2>&1 | tee "$TARGET/build/runtime-evidence/native-runtime.log"
+          native_args=()
+          # The anonymous 1.16.5 Minecraft session may be refused by Mojang's
+          # social-interactions permission service. Preserve the failed native
+          # qualification receipt; never bypass Minecraft or call it a join pass.
+          # The final coverage gate requires exact passing integrated evidence.
+          if [[ "$TARGET" == *-1.16.5 ]]; then native_args+=(--accept-unqualified-legacy); fi
+          python3 tools/requested_live_join.py --target "$TARGET" --timeout 900 "${native_args[@]}" 2>&1 | tee "$TARGET/build/runtime-evidence/native-runtime.log"
       - name: Check separate integrated-world eligibility
         if: always() && (matrix.target == 'fabric-1.16.5' || matrix.target == 'forge-1.16.5') && steps.native-build.outcome == 'success'
         id: integrated-boundary
@@ -129,6 +135,12 @@ jobs:
           if [[ "$TARGET" == 'forge-1.16.5' ]]; then export JAVA_HOME="$JAVA_HOME_17_X64"; else export JAVA_HOME="$JAVA_HOME_25_X64"; fi
           export PATH="$JAVA_HOME/bin:$PATH"
           python3 tools/requested_integrated_acceptance.py --target "$TARGET" --timeout 600 2>&1 | tee "$TARGET/build/runtime-evidence/integrated-runtime.log"
+      - name: Enforce native or separate integrated coverage
+        if: always() && (matrix.target == 'fabric-1.16.5' || matrix.target == 'forge-1.16.5')
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: python3 tools/requested_integrated_acceptance.py --target "$TARGET" --require-ci-coverage
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -37,6 +37,19 @@ class RequestedLiveJoinTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             port.reject_failure('fabric-26.2/carrier', 'SIMPLYSPEAKERS_VERIFY_FAIL native fault')
 
+    def test_ci_refusal_remains_unqualified_and_strict_manual_mode_is_default(self):
+        import inspect
+        source=inspect.getsource(port.main)
+        self.assertIn("args.accept_unqualified_legacy",source)
+        self.assertIn("not args.target.endswith('1.16.5')",source)
+        self.assertIn("receipt.update(result='blocked-native-multiplayer'",source)
+        self.assertIn("return 0",source)
+        self.assertIn("raise",source)
+        workflow=(port.ROOT/'.github/workflows/requested-generations.yml').read_text()
+        self.assertIn('--require-ci-coverage',workflow)
+        self.assertIn('--accept-unqualified-legacy',workflow)
+        self.assertNotIn('continue-on-error',workflow)
+
     def test_native_tasks_use_own_wrapper_and_bounded_jvm(self):
         root=Path('/fixture')
         for target in port.TARGETS:

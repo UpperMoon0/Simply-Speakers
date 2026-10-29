@@ -73,7 +73,11 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target',choices=TARGETS,required=True)
     parser.add_argument('--timeout',type=int,default=900)
+    parser.add_argument('--accept-unqualified-legacy',action='store_true',
+                        help='CI only: allow a precisely observed 1.16.5 native permission refusal, requiring separate integrated acceptance')
     args=parser.parse_args()
+    if args.accept_unqualified_legacy and not args.target.endswith('1.16.5'):
+        parser.error('--accept-unqualified-legacy applies only to the two 1.16.5 loaders')
     # Reuse the maintained fail-closed process supervision and per-role markers.
     # Only module invocation and two explicitly unsupported OPTIONAL integrations differ.
     live.TARGETS={target:target for target in TARGETS}
@@ -90,6 +94,10 @@ def main():
             receipt.update(result='passed',runtime_qualified=True)
         except NativeEligibilityUnavailable:
             receipt.update(result='blocked-native-multiplayer',native_multiplayer_allowed=False)
+            if args.accept_unqualified_legacy:
+                print('SIMPLYSPEAKERS_NATIVE_UNQUALIFIED nativeMultiplayer=false; '
+                      'dedicated/two-client acceptance NOT passed; separate integrated evidence required',flush=True)
+                return 0
             raise
         finally:
             receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')
