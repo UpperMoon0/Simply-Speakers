@@ -289,6 +289,10 @@ class AudioContextRecoveryIntegrationTest {
                  doAnswer(call -> { alive.set(true); return null; }).when(thread).start();
              });
              var cache = mockStatic(ClientCacheManager.class)) {
+            // Keep the real atomic publish/move: the context-restore scan must
+            // find the cached file even though eviction side effects are mocked.
+            cache.when(() -> ClientCacheManager.publishCompleted(any(File.class), any(File.class)))
+                    .thenCallRealMethod();
             al.when(AL10::alGenSources).thenReturn(17);
             al.when(() -> AL10.alGenBuffers(any(int[].class))).thenAnswer(call -> {
                 int[] buffers = call.getArgument(0);
