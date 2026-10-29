@@ -30,4 +30,10 @@ public final class BoundedAudioDownloadQueue {
     }
     public synchronized void clear() { entries.clear(); }
     public synchronized int size() { return entries.size(); }
+
+    /** Bounded backoff when another integration occupies the peer's send budget. */
+    public static long retryDelayMillis(int failures) {
+        if (failures < 1 || failures > 6) return -1;
+        return Math.min(30_000L, 1_000L << (failures - 1));
+    }
 }
