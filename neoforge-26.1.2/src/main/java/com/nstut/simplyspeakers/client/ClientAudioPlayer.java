@@ -119,7 +119,10 @@ public class ClientAudioPlayer {
     // retired for asynchronous cleanup instead of blocking the game thread.
     private static final java.util.Set<DownloadProcess> retiredDownloads =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
-    // FIFO backlog independent from the eight active transfer slots.
+    // PacketWeave permits two outbound transfers per authenticated peer across integrations.
+    private static final int MAX_ACTIVE_DOWNLOADS = 2;
+    private static final Map<String, Integer> busyRetryCounts = new ConcurrentHashMap<>();
+    // FIFO backlog independent from active transfer slots.
     private static final BoundedAudioDownloadQueue deferredDownloads = new BoundedAudioDownloadQueue(64);
     private static final java.util.concurrent.ScheduledExecutorService DOWNLOAD_REAPER =
             java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
@@ -141,7 +144,34 @@ public class ClientAudioPlayer {
                 process.client.execute(() -> {
                     if (process.client.getConnection() != process.peer) return;
                     if (activeDownloads.containsKey(process.audioId)) return;
-                    ClientAudioPlayer.pendingPlays.remove(process.audioId);
+                    List<PlayRequest> waiting = pendingPlays.get(process.audioId);
+                    if (process.busyRejected && waiting != null && !waiting.isEmpty()) {
+                        int failures = busyRetryCounts.merge(process.audioId, 1, Integer::sum);
+                        long delay = BoundedAudioDownloadQueue.retryDelayMillis(failures);
+                        if (delay >= 0) {
+                            DOWNLOAD_REAPER.schedule(() -> process.client.execute(() -> {
+                                if (process.client.getConnection() != process.peer || activeDownloads.containsKey(process.audioId)) return;
+                                List<PlayRequest> pending = pendingPlays.get(process.audioId);
+                                if (pending == null || pending.isEmpty()) {
+                                    busyRetryCounts.remove(process.audioId);
+                                    return;
+                                }
+                                if (!deferredDownloads.offer(process.audioId, process.filename)) {
+                                    pendingPlays.remove(process.audioId);
+                                    busyRetryCounts.remove(process.audioId);
+                                    SimplySpeakers.LOGGER.warn("Audio retry queue full for {}", process.audioId);
+                                }
+                                drainDownloads();
+                            }), delay, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        } else {
+                            pendingPlays.remove(process.audioId);
+                            busyRetryCounts.remove(process.audioId);
+                            SimplySpeakers.LOGGER.warn("Audio download repeatedly rejected for {}; replay to retry", process.audioId);
+                        }
+                    } else {
+                        pendingPlays.remove(process.audioId);
+                        busyRetryCounts.remove(process.audioId);
+                    }
                     drainDownloads();
                     NetworkManager.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(-1, process.transferId));
                 });
@@ -1081,6 +1111,7 @@ public class ClientAudioPlayer {
             }
         }
         deferredDownloads.clear();
+        busyRetryCounts.clear();
         for (var upload : activeUploads.entrySet()) com.nstut.packetweave.api.OutboundTransfers.shared().cancel(upload.getValue().peer, upload.getKey());
         activeUploads.clear();
 
@@ -1288,7 +1319,7 @@ public class ClientAudioPlayer {
     }
 
     private static void requestFileFromServer(String audioId, String filename) {
-        if (activeDownloads.containsKey(audioId) || deferredDownloads.contains(audioId)) return;
+        if (activeDownloads.containsKey(audioId) || deferredDownloads.contains(audioId) || busyRetryCounts.containsKey(audioId)) return;
         if (!deferredDownloads.offer(audioId, filename)) {
             pendingPlays.remove(audioId);
             SimplySpeakers.LOGGER.warn("Audio download queue full; cannot schedule {}", audioId);
@@ -1298,7 +1329,7 @@ public class ClientAudioPlayer {
     }
 
     private static void drainDownloads() {
-        while (activeDownloads.size() < 8) {
+        while (activeDownloads.size() < MAX_ACTIVE_DOWNLOADS) {
             BoundedAudioDownloadQueue.Request next = deferredDownloads.poll();
             if (next == null) return;
             List<PlayRequest> waiting = pendingPlays.get(next.audioId());
@@ -1321,6 +1352,7 @@ public class ClientAudioPlayer {
         audioList.clear();
         pendingPlays.clear();
         deferredDownloads.clear();
+        busyRetryCounts.clear();
     }
 
     public static void setAudioList(List<AudioFileMetadata> newAudioList) {
@@ -1334,8 +1366,9 @@ public class ClientAudioPlayer {
         DownloadProcess process = activeDownloads.get(audioId);
         if (process == null || !process.transferId.equals(transferId) || process.peer != Minecraft.getInstance().getConnection()) return;
         if (index == -1 && data.length == 0) {
-            process.cancelled = true; pendingPlays.remove(audioId);
-            SimplySpeakers.LOGGER.warn("Audio download was busy, cancelled, or timed out. Replay to retry.");
+            process.busyRejected = true;
+            process.cancelled = true;
+            SimplySpeakers.LOGGER.warn("Audio download rejected or timed out; retrying with bounded backoff: {}", audioId);
             return;
         }
         if (process.cancelled || !process.inFlight.compareAndSet(false, true)) {
@@ -1425,6 +1458,7 @@ public class ClientAudioPlayer {
         private final Object peer = client.getConnection();
         private final java.util.concurrent.atomic.AtomicBoolean inFlight = new java.util.concurrent.atomic.AtomicBoolean();
         private volatile boolean cancelled;
+        private volatile boolean busyRejected;
         private volatile long activity = System.nanoTime();
         private volatile long retiredAt;
         private int nextIndex;
@@ -1482,6 +1516,7 @@ public class ClientAudioPlayer {
                 client.execute(() -> {
                 try {
                 if (cancelled || Minecraft.getInstance().getConnection() != peer || !activeDownloads.remove(audioId, this)) return;
+                busyRetryCounts.remove(audioId);
                 List<PlayRequest> requests = pendingPlays.remove(audioId);
                 if (requests != null && !requests.isEmpty()) {
                     Map<String, PlayRequest> requestsByNetwork = new LinkedHashMap<>();
