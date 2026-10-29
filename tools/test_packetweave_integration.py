@@ -36,6 +36,9 @@ class PacketWeaveIntegrationTest(unittest.TestCase):
                 self.assertIn('busyRetryCounts.merge(process.audioId, 1, Integer::sum)', content)
                 self.assertIn('retryDelayMillis(failures)', content)
                 self.assertIn('busyRetryCounts.clear()', content)
+                reaper = content.split('static {', 1)[1].split('private static final Map<String, List<PlayRequest>> pendingPlays', 1)[0]
+                self.assertNotRegex(reaper, r'(?<!ClientAudioPlayer\\.)\\bpendingPlays\\b',
+                    'Static reaper must qualify references to later-declared fields (Java forward-reference rule)')
 
     def test_no_api_is_embedded(self):
         for target in ('fabric-1.20.1', 'forge-1.20.1', 'fabric-1.21.1', 'neoforge-1.21.1', 'neoforge-26.1.2'):
