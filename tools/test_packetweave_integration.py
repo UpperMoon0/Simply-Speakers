@@ -15,6 +15,17 @@ class PacketWeaveIntegrationTest(unittest.TestCase):
             block = (ROOT/target/resource).read_text().split('modId = "packetweave"')[1]
             self.assertIn('side = "BOTH"', block)
             self.assertIn('versionRange = "[0.1.5,)"', block)
+    def test_pinned_packetweave_matches_vendor_gitlink(self):
+        import subprocess
+        pin = json.loads((ROOT/'docs/requested-port-dependencies.json').read_text())['packetweave']['commit']
+        if not (ROOT/'.git').exists():
+            self.skipTest('Git checkout required to inspect submodule gitlink')
+        gitlink = subprocess.check_output(
+            ['git', 'ls-files', '--stage', '--', 'vendor/packetweave'], cwd=ROOT, text=True
+        ).strip().split()
+        self.assertEqual(gitlink[0], '160000')
+        self.assertEqual(gitlink[1], pin, 'Pinned PacketWeave source and vendor gitlink must match')
+
     def test_no_api_is_embedded(self):
         for target in ('fabric-1.20.1', 'forge-1.20.1', 'fabric-1.21.1', 'neoforge-1.21.1', 'neoforge-26.1.2'):
             build = (ROOT/target/'build.gradle').read_text()
