@@ -93,6 +93,19 @@ class ReleaseArtifactsTest(unittest.TestCase):
             with self.subTest(failure=failure), self.assertRaises(ValueError):
                 release.verify_dependency_releases(fetch=broken)
 
+    def test_release_workflow_source_pins_match_dependency_lockfile(self):
+        """The publish path must use exactly the source verified and released."""
+        pins = json.loads((release.ROOT / 'docs/requested-port-dependencies.json').read_text())
+        for workflow_name in ('release.yml', 'requested-generations.yml'):
+            workflow = (release.ROOT / '.github/workflows' / workflow_name).read_text()
+            with self.subTest(workflow=workflow_name):
+                for key in ('openui', 'packetweave'):
+                    repo = pins[key]['repository']
+                    pattern = r'repository:\\s*' + re.escape(repo) + r'\\s+ref:\\s*([0-9a-f]{40})'
+                    matches = re.findall(pattern, workflow)
+                    self.assertEqual([pins[key]['commit']], matches,
+                        f'{workflow_name}: {key} checkout must match release source lockfile')
+
     def test_native_ci_and_release_share_build_and_verifier(self):
         workflow = (release.ROOT / '.github/workflows/release.yml').read_text()
         def job(name):
