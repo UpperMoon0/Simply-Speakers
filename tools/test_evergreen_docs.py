@@ -10,6 +10,13 @@ EVERGREEN = (
     "docs/packetweave-integration.md",
     "docs/listener_audio.md",
     "docs/requested-generations.md",
+    "TESTING.md",
+    "docs/ui_audit.md",
+    "docs/ci-optimization.md",
+    "docs/cc_api.md",
+    "docs/technical_design.md",
+    "docs/portable_speaker.md",
+    "docs/settings.md",
 )
 PINNED_RELEASE = re.compile(r"(?<![0-9])(?:[0-9]+\\.){2}[0-9]+(?![0-9])")
 
