@@ -66,10 +66,12 @@ class AudioDownloadTransferTest {
                 // empty -1 chunk; cleanup must release this slot for the FIFO drain.
                 ClientAudioPlayer.handleAudioFileChunk(audioId, transferId, -1, new byte[0], false);
                 assertEquals(true, field(type, "cancelled").get(process));
+                assertEquals(true, field(type, "busyRejected").get(process),
+                        "server rejection must remain eligible for bounded retry");
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
                 while (active.containsKey(audioId) && System.nanoTime() < deadline)
                     Thread.sleep(25);
-                assertFalse(active.containsKey(audioId), "busy transfer must not strand the eighth slot");
+                assertFalse(active.containsKey(audioId), "busy transfer must not strand a shared peer slot");
             } finally {
                 active.remove(audioId, process);
             }
