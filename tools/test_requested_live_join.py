@@ -42,8 +42,8 @@ class RequestedLiveJoinTest(unittest.TestCase):
         root=Path('/fixture')
         failure=Mock(returncode=1,stdout='> Task :downloadAssets FAILED\\nnet.fabricmc.loom.util.download.DownloadException: Failed to download',stderr='')
         success=Mock(returncode=0,stdout='BUILD SUCCESSFUL',stderr='')
-        with patch.object(port.subprocess,'run',side_effect=[failure,success]) as run, \\
-             patch.object(port.time,'sleep') as sleep, \\
+        with patch.object(port.subprocess,'run',side_effect=[failure,success]) as run, \
+             patch.object(port.time,'sleep') as sleep, \
              patch.object(port,'ORIGINAL_PREPARE_CLIENT_RUNTIMES') as original:
             port.prepare_client_runtimes(root,'fabric-1.16.5',90)
         self.assertEqual(2,run.call_count)
@@ -58,8 +58,8 @@ class RequestedLiveJoinTest(unittest.TestCase):
         invalid=Mock(returncode=1,stdout='> Task :compileJava FAILED',stderr='bad java')
         network=Mock(returncode=1,stdout='> Task :downloadAssets FAILED\\nnet.fabricmc.loom.util.download.DownloadException: Failed to download',stderr='')
         for outcomes, count in [([invalid],1),([network]*3,3)]:
-            with patch.object(port.subprocess,'run',side_effect=outcomes) as run, \\
-                 patch.object(port.time,'sleep') as sleep, \\
+            with patch.object(port.subprocess,'run',side_effect=outcomes) as run, \
+                 patch.object(port.time,'sleep') as sleep, \
                  patch.object(port,'ORIGINAL_PREPARE_CLIENT_RUNTIMES') as original:
                 with self.assertRaises(port.subprocess.CalledProcessError):
                     port.prepare_client_runtimes(root,'fabric-1.16.5',90)
@@ -69,7 +69,7 @@ class RequestedLiveJoinTest(unittest.TestCase):
 
     def test_asset_preflight_does_not_change_other_targets(self):
         from unittest.mock import patch
-        with patch.object(port.subprocess,'run') as run, \\
+        with patch.object(port.subprocess,'run') as run, \
              patch.object(port,'ORIGINAL_PREPARE_CLIENT_RUNTIMES') as original:
             port.prepare_client_runtimes(Path('/fixture'),'forge-1.16.5',90)
             port.prepare_client_runtimes(Path('/fixture'),'fabric-26.2',90)
