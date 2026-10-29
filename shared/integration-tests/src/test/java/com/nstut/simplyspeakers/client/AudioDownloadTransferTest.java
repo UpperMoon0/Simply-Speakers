@@ -76,6 +76,48 @@ class AudioDownloadTransferTest {
         }
     }
 
+    @Test @SuppressWarnings("unchecked")
+    void disconnectReleasesActiveDownloadSlotsWithoutWaitingForDiskCleanup() throws Exception {
+        Minecraft client = mock(Minecraft.class);
+        try (var mc = mockStatic(Minecraft.class)) {
+            mc.when(Minecraft::getInstance).thenReturn(client);
+            Class<?> type = Class.forName(ClientAudioPlayer.class.getName() + "$DownloadProcess");
+            Constructor<?> constructor = type.getDeclaredConstructor(String.class, String.class);
+            constructor.setAccessible(true);
+            String audioId = UUID.randomUUID().toString();
+            Object old = constructor.newInstance(audioId, "old.wav");
+            Map<String,Object> active = (Map<String,Object>)field(ClientAudioPlayer.class, "activeDownloads").get(null);
+            Set<Object> retired = (Set<Object>)field(ClientAudioPlayer.class, "retiredDownloads").get(null);
+            File part = (File)field(type, "partFile").get(old);
+            Files.createDirectories(part.toPath().getParent());
+            Files.write(part.toPath(), new byte[]{1, 2, 3});
+            active.put(audioId, old);
+            try {
+                ClientAudioPlayer.stopAll();
+                assertFalse(active.containsKey(audioId),
+                    "disconnect must not block an immediate same-ID request on a new server");
+                assertTrue(retired.contains(old) || !part.exists(),
+                    "cancelled partial files must remain owned until cleaned");
+                assertEquals(true, field(type, "cancelled").get(old));
+                Object replacement = constructor.newInstance(audioId, "new.wav");
+                assertNull(active.putIfAbsent(audioId, replacement),
+                    "new connection must be able to reserve the same audio ID immediately");
+                active.remove(audioId, replacement);
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while ((retired.contains(old) || part.exists()) && System.nanoTime() < deadline)
+                    Thread.sleep(25);
+                assertFalse(part.exists(), "retired partial must be deleted off-thread");
+                assertFalse(retired.contains(old), "completed cleanup must release its metadata");
+            } finally {
+                active.remove(audioId, old);
+                retired.remove(old);
+                Method cleanup = type.getDeclaredMethod("cleanup");
+                cleanup.setAccessible(true);
+                cleanup.invoke(old);
+            }
+        }
+    }
+
     @Test void serverMetadataCannotEscapeTheAudioCache() throws Exception {
         try (var mc = mockStatic(Minecraft.class)) {
         mc.when(Minecraft::getInstance).thenReturn(mock(Minecraft.class));

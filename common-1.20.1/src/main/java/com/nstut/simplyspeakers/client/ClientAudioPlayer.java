@@ -115,6 +115,10 @@ public class ClientAudioPlayer {
             2, 2, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, new java.util.concurrent.ArrayBlockingQueue<>(32),
             task -> { Thread thread = new Thread(task, "Simply Speakers Download IO"); thread.setDaemon(true); return thread; });
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
+    // Disconnect must free request slots immediately. Old partial files are
+    // retired for asynchronous cleanup instead of blocking the game thread.
+    private static final java.util.Set<DownloadProcess> retiredDownloads =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
     // FIFO backlog independent from the eight active transfer slots.
     private static final BoundedAudioDownloadQueue deferredDownloads = new BoundedAudioDownloadQueue(64);
     private static final java.util.concurrent.ScheduledExecutorService DOWNLOAD_REAPER =
@@ -141,6 +145,14 @@ public class ClientAudioPlayer {
                     drainDownloads();
                     PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(-1, process.transferId));
                 });
+            }
+            for (DownloadProcess process : retiredDownloads) {
+                if (process.cleanup()) {
+                    retiredDownloads.remove(process);
+                } else if (System.nanoTime() - process.retiredAt > 120_000_000_000L) {
+                    retiredDownloads.remove(process);
+                    SimplySpeakers.LOGGER.warn("Could not delete retired audio partial file for {}", process.audioId);
+                }
             }
         }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
     }
@@ -1059,9 +1071,14 @@ public class ClientAudioPlayer {
         directionalExtras.clear();
         pendingPlays.clear();
         // Cleanup can wait for disk on its dedicated worker, never on this game thread.
-        for (DownloadProcess download : activeDownloads.values()) {
+        for (var entry : activeDownloads.entrySet()) {
+            DownloadProcess download = entry.getValue();
             download.cancelled = true;
-            download.releasePublished();
+            if (activeDownloads.remove(entry.getKey(), download)) {
+                download.releasePublished();
+                download.retiredAt = System.nanoTime();
+                retiredDownloads.add(download);
+            }
         }
         deferredDownloads.clear();
         for (var upload : activeUploads.entrySet()) com.nstut.packetweave.api.OutboundTransfers.shared().cancel(upload.getValue().peer, upload.getKey());
@@ -1331,7 +1348,8 @@ public class ClientAudioPlayer {
             DOWNLOAD_IO.execute(() -> {
                 long receipt = -1;
                 try {
-                    if (process.cancelled || activeDownloads.get(audioId) != process) return;
+                    if (process.cancelled || activeDownloads.get(audioId) != process)
+                        throw new IOException("Audio download invalidated");
                     process.addData(index, data);
                     if (isLast) process.complete();
                     receipt = process.received;
@@ -1342,7 +1360,7 @@ public class ClientAudioPlayer {
                 long committed = receipt;
                 process.client.execute(() -> {
                     if (process.client.getConnection() == process.peer) {
-                        PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(committed, transferId));
+                        PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(process.cancelled ? -1 : committed, transferId));
                     }
                 });
             });
@@ -1409,6 +1427,7 @@ public class ClientAudioPlayer {
         private final java.util.concurrent.atomic.AtomicBoolean inFlight = new java.util.concurrent.atomic.AtomicBoolean();
         private volatile boolean cancelled;
         private volatile long activity = System.nanoTime();
+        private volatile long retiredAt;
         private int nextIndex;
         private long received;
         private volatile File publishedFile;

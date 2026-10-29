@@ -18,10 +18,15 @@ EVERGREEN = (
     "docs/portable_speaker.md",
     "docs/settings.md",
 )
-PINNED_RELEASE = re.compile(r"(?<![0-9])(?:[0-9]+\\.){2}[0-9]+(?![0-9])")
+PINNED_RELEASE = re.compile(r"(?<![0-9])(?:[0-9]+\.){2}[0-9]+(?![0-9])")
 
 
 class EvergreenDocumentationTest(unittest.TestCase):
+    def test_version_pattern_actually_rejects_real_release_numbers(self):
+        self.assertIsNotNone(PINNED_RELEASE.search("PacketWeave 0.1.5"))
+        self.assertIsNotNone(PINNED_RELEASE.search("Minecraft 1.20.1"))
+        self.assertIsNone(PINNED_RELEASE.search("Minecraft version and loader"))
+
     def test_user_facing_guides_have_no_pinned_releases(self):
         for path in EVERGREEN:
             with self.subTest(path=path):
