@@ -98,6 +98,9 @@ class ReleaseArtifactsTest(unittest.TestCase):
         pins = json.loads((release.ROOT / 'docs/requested-port-dependencies.json').read_text())
         for workflow_name in ('release.yml', 'requested-generations.yml'):
             workflow = (release.ROOT / '.github/workflows' / workflow_name).read_text()
+            if workflow_name == 'release.yml':
+                # Modern OpenUI has its own independently reviewed source pin.
+                workflow = workflow.split('\n  build-requested:', 1)[1].split('\n  bundle:', 1)[0]
             with self.subTest(workflow=workflow_name):
                 for key in ('openui', 'packetweave'):
                     repo = pins[key]['repository']
