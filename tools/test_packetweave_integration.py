@@ -26,6 +26,17 @@ class PacketWeaveIntegrationTest(unittest.TestCase):
         self.assertEqual(gitlink[0], '160000')
         self.assertEqual(gitlink[1], pin, 'Pinned PacketWeave source and vendor gitlink must match')
 
+    def test_client_download_admission_respects_shared_peer_budget(self):
+        for target in ('common-1.20.1', 'common-1.21.1', 'neoforge-26.1.2'):
+            with self.subTest(target=target):
+                path = ROOT / target / 'src/main/java/com/nstut/simplyspeakers/client/ClientAudioPlayer.java'
+                content = path.read_text(encoding='utf-8')
+                self.assertIn('MAX_ACTIVE_DOWNLOADS = 2', content)
+                self.assertIn('activeDownloads.size() < MAX_ACTIVE_DOWNLOADS', content)
+                self.assertIn('busyRetryCounts.merge(process.audioId, 1, Integer::sum)', content)
+                self.assertIn('retryDelayMillis(failures)', content)
+                self.assertIn('busyRetryCounts.clear()', content)
+
     def test_no_api_is_embedded(self):
         for target in ('fabric-1.20.1', 'forge-1.20.1', 'fabric-1.21.1', 'neoforge-1.21.1', 'neoforge-26.1.2'):
             build = (ROOT/target/'build.gradle').read_text()
