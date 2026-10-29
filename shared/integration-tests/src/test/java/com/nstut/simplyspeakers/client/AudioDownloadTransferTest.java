@@ -48,6 +48,34 @@ class AudioDownloadTransferTest {
             }
         }
     }
+    @Test @SuppressWarnings("unchecked")
+    void serverAdmissionRejectionReleasesTheActiveSlotForDeferredDownloads() throws Exception {
+        Minecraft client = mock(Minecraft.class);
+        try (var mc = mockStatic(Minecraft.class)) {
+            mc.when(Minecraft::getInstance).thenReturn(client);
+            Class<?> type = Class.forName(ClientAudioPlayer.class.getName() + "$DownloadProcess");
+            Constructor<?> constructor = type.getDeclaredConstructor(String.class, String.class);
+            constructor.setAccessible(true);
+            String audioId = UUID.randomUUID().toString();
+            Object process = constructor.newInstance(audioId, "busy.wav");
+            UUID transferId = (UUID)field(type, "transferId").get(process);
+            Map<String,Object> active = (Map<String,Object>)field(ClientAudioPlayer.class, "activeDownloads").get(null);
+            active.put(audioId, process);
+            try {
+                // PacketWeave's rejected/busy admission is encoded by the server's
+                // empty -1 chunk; cleanup must release this slot for the FIFO drain.
+                ClientAudioPlayer.handleAudioFileChunk(audioId, transferId, -1, new byte[0], false);
+                assertEquals(true, field(type, "cancelled").get(process));
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while (active.containsKey(audioId) && System.nanoTime() < deadline)
+                    Thread.sleep(25);
+                assertFalse(active.containsKey(audioId), "busy transfer must not strand the eighth slot");
+            } finally {
+                active.remove(audioId, process);
+            }
+        }
+    }
+
     @Test void serverMetadataCannotEscapeTheAudioCache() throws Exception {
         try (var mc = mockStatic(Minecraft.class)) {
         mc.when(Minecraft::getInstance).thenReturn(mock(Minecraft.class));
