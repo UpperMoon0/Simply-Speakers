@@ -38,6 +38,40 @@ def allowed_boundary(data,target,commit):
             data.get('result')=='blocked-native-multiplayer' and data.get('runtime_qualified') is False and
             data.get('native_multiplayer_allowed') is False)
 
+def valid_integrated_receipt(data,target,commit):
+    return (isinstance(data,dict) and data.get('target')==target and
+            data.get('source_commit')==commit and
+            data.get('mode')=='integrated-singleplayer-development' and
+            data.get('result')=='passed' and data.get('dedicated_qualified') is False and
+            data.get('two_client_qualified') is False and
+            data.get('physical_audibility_tested') is False)
+
+def ci_coverage(root,target,commit):
+    """Do not mistake a blocked dedicated run for multiplayer qualification.
+
+    A blocked native 1.16.5 run is only an acceptable CI fallback if the
+    separate ordinary Singleplayer run produced a matching passing receipt.
+    Every other native failure remains fatal.
+    """
+    try:
+        native=json.loads((root/target/'build/runtime-evidence/dedicated-qualification.json').read_text())
+    except (OSError,ValueError):
+        return None
+    if not isinstance(native,dict) or native.get('target') != target or native.get('source_commit') != commit or native.get('mode') != 'dedicated-two-client':
+        return None
+    if native.get('result') == 'passed' and native.get('runtime_qualified') is True:
+        return 'dedicated-two-client'
+    if not allowed_boundary(native,target,commit):
+        return None
+    for file in (root/target/'run/integrated-acceptance').glob('run-*/receipt.json'):
+        try:
+            integrated=json.loads(file.read_text())
+        except (OSError,ValueError):
+            continue
+        if valid_integrated_receipt(integrated,target,commit):
+            return 'integrated-only-native-blocked'
+    return None
+
 def boundary(root,target,commit):
     try: data=json.loads((root/target/'build/runtime-evidence/dedicated-qualification.json').read_text())
     except (OSError,ValueError): return False
@@ -96,9 +130,18 @@ def main(argv=None):
     parser.add_argument('--target',choices=TARGETS,required=True)
     parser.add_argument('--timeout',type=int,default=600)
     parser.add_argument('--check-boundary',action='store_true')
+    parser.add_argument('--require-ci-coverage',action='store_true')
     parser.add_argument('--github-output',type=Path)
     args=parser.parse_args(argv)
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+    if args.require_ci_coverage:
+        outcome=ci_coverage(ROOT,args.target,commit)
+        if outcome is None:
+            raise RuntimeError('No valid dedicated multiplayer or verified integrated fallback evidence for this commit')
+        print('SIMPLYSPEAKERS_CI_COVERAGE_PASS qualification='+outcome+
+              (' dedicated=true twoClient=true' if outcome=='dedicated-two-client'
+               else ' dedicated=false twoClient=false nativeBlocked=true'))
+        return 0
     if args.check_boundary:
         allowed=boundary(ROOT,args.target,commit)
         print('Separate integrated alternative: '+('permitted by observed native refusal' if allowed else 'not entered; no exact native-refusal receipt'))

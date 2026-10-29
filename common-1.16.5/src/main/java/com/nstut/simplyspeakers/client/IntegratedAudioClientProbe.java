@@ -181,6 +181,10 @@ public final class IntegratedAudioClientProbe {
         if (!ClientAudioPlayer.contextAvailable() || epoch <= reloadOldEpoch || ALC10.alcGetCurrentContext() == 0) return false;
         ClientAudioPlayer.VerificationSnapshot snapshot = ClientAudioPlayer.verificationSnapshot(KEY);
         Object current = resource();
+        if (phaseTicks % 100 == 0)
+            System.out.println("SIMPLYSPEAKERS_INTEGRATED_RELOAD_WAIT playing=" + playing
+                    + " epoch=" + reloadOldEpoch + "->" + epoch + " offset=" + reloadOldOffset + "->" + snapshot.offset()
+                    + " newResource=" + (current != reloadResource) + " oldWorkerCleaned=" + cleaned(reloadResource));
         if (playing) {
             if (!playing(snapshot) || current == null || current == reloadResource || !cleaned(reloadResource)) return false;
             if (((Number) field(current, "contextEpoch")).longValue() != epoch || snapshot.offset() <= reloadOldOffset + .25f) return false;

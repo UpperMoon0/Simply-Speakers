@@ -17,17 +17,23 @@ public class SendAudioFilePacketS2C implements CustomPacketPayload {
         StreamCodec.of(SendAudioFilePacketS2C::encode, SendAudioFilePacketS2C::decode);
 
     private final String audioId;
+    private final java.util.UUID transferId;
+    private final int index;
     private final byte[] data;
     private final boolean isLast;
 
-    public SendAudioFilePacketS2C(String audioId, byte[] data, boolean isLast) {
+    public SendAudioFilePacketS2C(String audioId, java.util.UUID transferId, int index, byte[] data, boolean isLast) {
         this.audioId = audioId;
+        this.transferId = transferId;
+        this.index = index;
         this.data = data;
         this.isLast = isLast;
     }
 
     public static void encode(RegistryFriendlyByteBuf buffer, SendAudioFilePacketS2C packet) {
         buffer.writeUtf(packet.audioId);
+        buffer.writeUUID(packet.transferId);
+        buffer.writeVarInt(packet.index);
         buffer.writeByteArray(packet.data);
         buffer.writeBoolean(packet.isLast);
     }
@@ -35,14 +41,16 @@ public class SendAudioFilePacketS2C implements CustomPacketPayload {
     public static SendAudioFilePacketS2C decode(RegistryFriendlyByteBuf buffer) {
         return new SendAudioFilePacketS2C(
             buffer.readUtf(),
-            buffer.readByteArray(),
+            buffer.readUUID(),
+            buffer.readVarInt(),
+            buffer.readByteArray(com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES),
             buffer.readBoolean()
         );
     }
 
     public static void handle(SendAudioFilePacketS2C packet, NetworkManager.PacketContext context) {
         context.queue(() -> {
-            ClientAudioPlayer.handleAudioFileChunk(packet.audioId, packet.data, packet.isLast);
+            ClientAudioPlayer.handleAudioFileChunk(packet.audioId, packet.transferId, packet.index, packet.data, packet.isLast);
         });
     }
 

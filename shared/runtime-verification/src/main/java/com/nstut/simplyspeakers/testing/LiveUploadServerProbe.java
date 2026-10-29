@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Real server tick-time evidence for the opt-in two-player, 60 MiB upload fixture. */
+/** Real server tick-time evidence for the opt-in two-player, receipt-paced upload fixture. */
 public final class LiveUploadServerProbe {
     private static UUID transaction;
     private static volatile long committed;
@@ -33,7 +33,7 @@ public final class LiveUploadServerProbe {
         else {
             after.add(ms);
             if (++recoveryTicks >= 100) {
-                if (committed != 60L * 1024 * 1024 || during.isEmpty()
+                if (committed != WaveFixture.LIVE_TRANSFER_BYTES || during.isEmpty()
                         || server.getPlayerList().getPlayers().size() < 2)
                     throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL upload size or audience");
                 System.out.println("SIMPLYSPEAKERS_SERVER_UPLOAD_PASS bytes=" + committed

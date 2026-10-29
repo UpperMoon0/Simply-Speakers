@@ -1,8 +1,9 @@
 # ComputerCraft API
 
-Main Speaker blocks expose `simply_speaker` on Fabric/Forge 1.20.1 and
-Fabric/NeoForge 1.21.1. Proxies and controllers do not expose peripherals.
-NeoForge 26.1.2 has no CC integration.
+Main Speaker blocks expose `simply_speaker` on supported loader
+builds with CC:Tweaked integration. Proxies and controllers do not expose
+peripherals. Check the selected build's loader metadata and test matrix
+for optional ComputerCraft support; not every loader has it.
 
 Computers are anonymous: playback requires Public access. Local recordings and
 saved playlists come from the network owner's library. Unclaimed networks have

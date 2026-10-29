@@ -10,6 +10,28 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** One wire contract compiled against each version's actual packet implementations. */
 class PlaybackWireContractTest {
+    private Object mediaField(Object packet, String name) throws Exception {
+        var field = packet.getClass().getDeclaredField(name); field.setAccessible(true); return field.get(packet);
+    }
+    @Test void acknowledgedDownloadsPreserveRequestIdentityAndRejectOversizedChunks() throws Exception {
+        var request = java.util.UUID.randomUUID();
+        byte[] bytes = new byte[com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES];
+        var decoded = roundTrip(new SendAudioFilePacketS2C("track", request, 7, bytes, false));
+        assertEquals(request, mediaField(decoded, "transferId"));
+        assertEquals(7, mediaField(decoded, "index"));
+        assertArrayEquals(bytes, (byte[])mediaField(decoded, "data"));
+        var rejected = roundTrip(new SendAudioFilePacketS2C("track", request, -1, new byte[0], true));
+        assertEquals(-1, mediaField(rejected, "index"));
+        assertThrows(java.lang.reflect.InvocationTargetException.class, () -> roundTrip(
+                new SendAudioFilePacketS2C("track", request, 0, new byte[bytes.length+1], false)));
+    }
+    @Test void downloadRequestsAndReceiptsKeepTheirUniqueTransferIdentity() throws Exception {
+        var id = java.util.UUID.randomUUID();
+        assertEquals(id, mediaField(roundTrip(new RequestAudioFilePacketC2S("track", id)), "transferId"));
+        var receipt = roundTrip(new AudioDownloadReceiptPacketC2S(4096, id));
+        assertEquals(id, mediaField(receipt, "transferId"));
+        assertEquals(4096L, mediaField(receipt, "committedBytes"));
+    }
     @SuppressWarnings("unchecked")
     private <T> T roundTrip(T packet) throws Exception {
         FriendlyByteBuf buffer;

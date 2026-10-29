@@ -12,12 +12,14 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 import live_join_test as live
 from verify import checkout_lock
 TARGETS=('fabric-1.16.5','forge-1.16.5','fabric-26.2','neoforge-26.2')
 ROOT=Path(__file__).resolve().parents[1]
 ORIGINAL_MARKERS=live.required_markers
 ORIGINAL_PREPARE_SERVER=live.prepare_server
+ORIGINAL_PREPARE_CLIENT_RUNTIMES=live.prepare_client_runtimes
 ORIGINAL_REJECT_FAILURE=live.reject_failure
 
 def required_markers(target):
@@ -50,7 +52,7 @@ def dependency_arguments(root,target):
     openui=checkout/'OpenUI-MC' if checkout.is_dir() else root.parent/'OpenUI-MC'
     packetweave=checkout/'PacketWeave' if checkout.is_dir() else root.parent/'PacketWeave'
     return [f'-PopenuiJar={openui/target/"build/libs"/f"openui-mc-{target}-0.0.15.jar"}',
-            f'-PpacketweaveJar={packetweave/"targets"/target/"build/libs"/f"packetweave-{target}-0.1.4.jar"}',
+            f'-PpacketweaveJar={packetweave/"targets"/target/"build/libs"/f"packetweave-{target}-0.1.5.jar"}',
             f'-PpacketweaveSource={packetweave/"core/src/main/java"}']
 
 def command(root,task):
@@ -69,16 +71,45 @@ def prepare_server(module):
         path=module/'run/live-join/server/server.properties'
         path.write_text(path.read_text().replace('level-type=minecraft:flat','level-type=flat'),encoding='utf-8')
 
+def prepare_client_runtimes(root, target, timeout):
+    # Fabric Loom's downloadAssets is an external Mojang/CDN dependency.
+    # Prepare it separately so an intermittent network error can be retried
+    # without rerunning or masking Minecraft acceptance, builds, or test code.
+    if target == 'fabric-1.16.5':
+        cmd = command(root, ':' + target + ':downloadAssets') + ['--stacktrace']
+        for attempt in range(1, 4):
+            outcome = subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=timeout)
+            if outcome.returncode == 0:
+                break
+            output = (outcome.stdout or '') + '\\n' + (outcome.stderr or '')
+            # Include the nested cause and URL on failure; the plain Loom
+            # message "Failed to download" hides the actionable network error.
+            print('Fabric 1.16.5 asset preflight attempt %d/3 failed (exit %d):\\n%s' %
+                  (attempt, outcome.returncode, output[-12000:]), flush=True)
+            # Configuration, Java, or plugin failures are not CDN failures.
+            if (':downloadAssets FAILED' not in output or
+                    'net.fabricmc.loom.util.download.DownloadException' not in output):
+                raise subprocess.CalledProcessError(outcome.returncode, cmd, output=output)
+            if attempt == 3:
+                raise subprocess.CalledProcessError(outcome.returncode, cmd, output=output)
+            time.sleep(attempt * 5)
+    ORIGINAL_PREPARE_CLIENT_RUNTIMES(root, target, timeout)
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target',choices=TARGETS,required=True)
     parser.add_argument('--timeout',type=int,default=900)
+    parser.add_argument('--accept-unqualified-legacy',action='store_true',
+                        help='CI only: allow a precisely observed 1.16.5 native permission refusal, requiring separate integrated acceptance')
     args=parser.parse_args()
+    if args.accept_unqualified_legacy and not args.target.endswith('1.16.5'):
+        parser.error('--accept-unqualified-legacy applies only to the two 1.16.5 loaders')
     # Reuse the maintained fail-closed process supervision and per-role markers.
     # Only module invocation and two explicitly unsupported OPTIONAL integrations differ.
     live.TARGETS={target:target for target in TARGETS}
     live.command=command;live.required_markers=required_markers;live.prepare_server=prepare_server
     live.reject_failure=reject_failure
+    live.prepare_client_runtimes=prepare_client_runtimes
     with checkout_lock(ROOT,'requested-live-join.lock'):
         receipt_path=ROOT/args.target/'build/runtime-evidence/dedicated-qualification.json'
         receipt_path.parent.mkdir(parents=True,exist_ok=True)
@@ -90,6 +121,10 @@ def main():
             receipt.update(result='passed',runtime_qualified=True)
         except NativeEligibilityUnavailable:
             receipt.update(result='blocked-native-multiplayer',native_multiplayer_allowed=False)
+            if args.accept_unqualified_legacy:
+                print('SIMPLYSPEAKERS_NATIVE_UNQUALIFIED nativeMultiplayer=false; '
+                      'dedicated/two-client acceptance NOT passed; separate integrated evidence required',flush=True)
+                return 0
             raise
         finally:
             receipt_path.write_text(json.dumps(receipt,indent=2)+'\n')

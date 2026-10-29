@@ -33,4 +33,4 @@ Positional mono remains the default, including the existing stereo/surround down
 
 Streaming, cache identity, seek and loop positions are unchanged: seek uses decoded frame sizes, including four-byte stereo frames. Downloaded files remain the original encoded audio and can be used in either mode. Stereo preference changes take effect on the next source allocation, not halfway through queued OpenAL buffers.
 
-The range-exit stop packet now includes an explicit reason flag; update server and clients together to 0.10.0.
+The range-exit stop packet now includes an explicit reason flag; update the server and clients together when the packet protocol changes.

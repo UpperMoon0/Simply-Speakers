@@ -12,7 +12,7 @@ Simply Speakers adds configurable speaker blocks that play your own MP3 and WAV 
 - **Per-speaker controls:** Configure volume, audible range, distance dropoff, and looping.
 - **Redstone control:** Power speakers to play and remove power to stop.
 - **Multiplayer synchronization:** Nearby players hear the same playback position while the server remains authoritative.
-- **Moving-body audio on 1.21.1:** When Sable is installed, speakers mounted on physics bodies follow their actual moving and rotating positions.
+- **Moving-body audio (compatible builds):** When Sable is installed, speakers mounted on physics bodies follow their actual moving and rotating positions.
 - **Internet streams:** When the server enables `allowRemoteStreams`, direct `http(s)` MP3/WAV URLs can be selected as tracks and are streamed live by clients without caching. Private/internal network addresses are always rejected.
 
 ## Getting Started
@@ -30,11 +30,11 @@ Install **Patchouli** for your Minecraft version and loader to enable the Simply
 
 ## Optional Sable Integration
 
-On Minecraft 1.21.1, installing **Sable 2.0.5** enables correct spatial audio for speakers placed on Sable physics bodies. Audio follows moving, rotating, and scaled bodies without restarting playback. Networks can span multiple moving bodies and ordinary world speakers.
+On builds compatible with **Sable**, installing the matching Sable release enables spatial audio for speakers placed on moving physics bodies. Audio follows moving, rotating, and scaled bodies without restarting playback. Networks can span moving bodies and ordinary world speakers.
 
 Sable is optional. Simply Speakers works normally without it; only moving-body spatial compatibility is unavailable.
 
-**Create Aeronautics is not required by Simply Speakers.** Install Aeronautics and its dependencies only if you want its physics-body blocks and gameplay. Aeronautics is currently available for NeoForge 1.21.1.
+**Create Aeronautics is not required by Simply Speakers.** Install Aeronautics and its dependencies only on compatible builds if you want its physics-body blocks and gameplay. Consult each mod release for supported loaders.
 
 Sable Companion is already bundled with Simply Speakers, and Sable's official jar includes its physics backend. Users should not install those components separately.
 
@@ -57,18 +57,16 @@ Audio files are stored in `simply_speakers_audios` inside the world's save direc
 
 ## Supported Platforms
 
-- Fabric 1.20.1
-- Forge 1.20.1
-- Fabric 1.21.1
-- NeoForge 1.21.1
-- NeoForge 26.1.2
-
-Sable integration is currently available only on the Minecraft 1.21.1 builds.
+Simply Speakers provides **Fabric, Forge and NeoForge** builds. Use the
+CurseForge file filters and loader metadata to choose a file for your
+Minecraft version and loader. Optional integrations such as Sable work
+only on compatible builds.
 
 ## Required Dependencies
 
 - **Architectury API** matching your Minecraft version and loader
-- **OpenUI MC 0.0.7 or newer** matching your Minecraft version and loader
+- **OpenUI MC**, at the compatible version declared by the selected mod jar, required on clients and on Fabric servers when their metadata requires it
+- **PacketWeave**, at the compatible version declared by the selected mod jar, on **both client and server**
 - **Fabric API** on Fabric
 
 ## Configuration
@@ -84,6 +82,13 @@ Sable integration is currently available only on the Minecraft 1.21.1 builds.
 - [Join the Discord community](https://discord.gg/4vD9WuT2As)
 - [Report bugs on GitHub](https://github.com/UpperMoon0/Simply-Speakers/issues)
 
-## Dependencies
+## Updating an Installation
 
-Simply Speakers 0.9.1 requires **PacketWeave 0.1.2 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.
+Check your selected release's loader metadata and versioned changelog for
+exact minimum OpenUI and PacketWeave requirements. Install matching mod
+jars for your Minecraft version and loader. When media packet or receipt
+formats change, update clients and server together; mixed protocol
+generations may be incompatible. Existing libraries and completed audio
+caches remain usable unless the release notes state otherwise. Fabric
+server metadata may also require OpenUI; Forge and NeoForge generally
+require it only on clients.

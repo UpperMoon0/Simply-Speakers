@@ -332,4 +332,31 @@ class LiveHarnessTest(unittest.TestCase):
                 self.assertIn(setting, properties)
 
 
+class PacedFixtureContractTest(unittest.TestCase):
+    def test_native_probes_share_exact_bounded_fixture_and_keep_decode_deadline(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        probes = root/'shared/runtime-verification/src/main/java/com/nstut/simplyspeakers'
+        playback = (probes/'testing/LivePlaybackServerProbe.java').read_text(encoding='utf-8')
+        upload = (probes/'client/LiveUploadClientProbe.java').read_text(encoding='utf-8')
+        download = (probes/'client/LiveDownloadClientProbe.java').read_text(encoding='utf-8')
+        upload_server = (probes/'testing/LiveUploadServerProbe.java').read_text(encoding='utf-8')
+        self.assertIn('WaveFixture.liveTransferTone()', playback)
+        self.assertIn('WaveFixture.liveTransferTone()', upload)
+        for source in (upload, download, upload_server):
+            self.assertIn('WaveFixture.LIVE_TRANSFER_BYTES', source)
+            self.assertNotIn('60L * 1024 * 1024', source)
+        self.assertIn('TimeUnit.SECONDS.toNanos(30)', download)
+        self.assertIn('snapshot.playing()', download)
+        self.assertIn('snapshot.decodedBytes() <= 0', download)
+        self.assertIn('snapshot.sources() != 1', download)
+        self.assertLess(download.index('snapshot.sources() != 1'), download.index('sendCommand("simplyspeakers_verify_download '))
+        self.assertIn('TimeUnit.SECONDS.toNanos(30)', playback)
+        self.assertIn('sender == player || sender == observer', playback)
+        self.assertIn('getPlayer(sender.getUUID()) == sender', playback)
+        self.assertIn('audio.getUuid().equals(audioId)', playback)
+        self.assertIn('initialDownloads.add(sender.getUUID())', playback)
+        self.assertIn('initialStartedPending && initialDownloadsReady()', playback)
+
+
 if __name__ == "__main__": unittest.main()

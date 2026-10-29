@@ -17,7 +17,7 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 * **Timed entry/exit fades (ms)**: New local listener settings control how long volume takes to ramp up when entering audible range and down when leaving. They work independently of Distance fade (%). See [listener audio preferences](docs/listener_audio.md).
 * **Optional Stereo Playback**: A local listener setting preserves left/right channels while retaining network range and gain. Positional mono remains the default. See [listener audio preferences](docs/listener_audio.md).
 * **Repeat Playback**: Use the player bar to repeat the current track or the active playlist. Queued requests play once and take priority.
-* **Moving Speakers (1.21.1)**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
+* **Moving Speakers**: With Sable installed, speakers on physics bodies emit audio from their moving and rotating world positions.
 * **Cross-Platform**: Supports Fabric, Forge, and NeoForge across multiple Minecraft versions.
 * **Playlists & Queues**: Named saved playlists with create, rename, duplicate and delete controls, shuffle, repeat, and a one-shot play-next queue.
 * **Transport Controls**: Pause/resume (position-preserving), seek, restart, next/previous from GUI, redstone, commands, or code.
@@ -30,13 +30,10 @@ Simply Speakers is a Minecraft mod that allows players to play custom audio file
 
 ## Supported Platforms
 
-| Platform  | Minecraft   |
-|-----------|-------------|
-| Fabric    | 1.20.1      |
-| Forge     | 1.20.1      |
-| Fabric    | 1.21.1      |
-| NeoForge  | 1.21.1      |
-| NeoForge  | 26.1.2      |
+Simply Speakers provides builds for **Fabric, Forge and NeoForge**. Choose a
+file matching your Minecraft version and loader from the [release files](https://github.com/UpperMoon0/Simply-Speakers/releases) or your mod
+distribution's file filters. Optional integrations are available only on
+compatible builds, not on every loader.
 
 ## How it works
 
@@ -124,7 +121,8 @@ Edit the mod config file to adjust:
 
 - **Architectury API** (matching your Minecraft version and loader)
 - **Fabric API** (for Fabric versions)
-- **OpenUI MC 0.0.14 or newer** (matching your Minecraft version and loader)
+- **OpenUI MC**, at the compatible version declared by the selected loader metadata; install it on clients and on Fabric servers when required by their metadata
+- **PacketWeave**, at the compatible version declared by the selected loader metadata, on **both client and server**
 - **Patchouli** (optional, matching your Minecraft version and loader; enables the in-game guide and its recipe. Included in development environments for guide verification)
 
 ## Speaker Controllers and Guide
@@ -145,8 +143,8 @@ OpenUI MC is distributed as a separate mod and is not bundled into Simply Speake
 
 ### Optional integrations
 
-- **Sable 2.0.5 / 2.0.6** (Minecraft 1.21.1): Enables correct spatial audio for speakers mounted on Sable physics bodies. Simply Speakers works normally without Sable. Later 2.x releases are allowed through the same Companion 1.6.0 API, but future releases are not yet runtime-verified; Sable 3 requires a new compatibility review.
-- **Create Aeronautics** (NeoForge 1.21.1): Required only if you want Aeronautics' blocks and physics-body gameplay. It is not required for Simply Speakers or basic Sable compatibility.
+- **Sable**: Enables spatial audio for speakers on compatible moving physics bodies. Match its release to the corresponding Simply Speakers loader build. New, incompatible API generations may require a compatibility update.
+- **Create Aeronautics**: Optional on compatible builds for physics-body gameplay. It is not required for Simply Speakers or basic Sable integration.
 
 Sable Companion is bundled with Simply Speakers, and Sable's official jar includes its physics backend. Do not install either component separately.
 
@@ -156,47 +154,36 @@ Sable Companion is bundled with Simply Speakers, and Sable's official jar includ
 2. Run `gradlew.bat build` (or `./gradlew build` on Linux/Mac).
 3. JAR files are located in each subproject's `build/libs/` directory.
 
-To target a specific module:
-```bash
-gradlew.bat :neoforge-1.21.1:build
-gradlew.bat :fabric-1.20.1:build
-```
+To target a specific module, run `./gradlew projects` to inspect
+the configured targets, then `./gradlew :<module>:build`. Standalone
+legacy or generated ports have their own wrappers and instructions.
 
-Development clients and servers automatically load CC:Tweaked on Fabric/Forge
-1.20.1 and Fabric/NeoForge 1.21.1. These runtime dependencies are development-only
-and are not bundled in release jars or published as required dependencies.
-
-For moving-speaker testing, both 1.21.1 loaders load Sable 2.0.6 (overridable with `-Psable_version=<version>`) when its matching
-jar exists under `../sable/<loader>/build/libs/`. Fabric also exposes Sable's
-nested physics backend, Veil, and Forge Config API Port to the dev runtime.
-NeoForge additionally loads Create and its dependencies, and the Simulated,
-Aeronautics, and Offroad 1.3.1 component jars when all three are built under
-`../Simulated-Project/<component>/neoforge/build/libs/`.
-Build those sibling projects before starting the dev run to enable these integrations.
-The 26.1.2 module has no CC:Tweaked or Sable integration.
+Some development runtimes load optional CC:Tweaked and moving-physics
+dependencies from sibling checkouts. These are **development-only** and are
+not bundled in release jars. Build the matching sibling projects and supply
+their jars through the dependency paths defined by the selected loader
+build. The exact integration matrix is defined by the build configuration.
 
 To run all version-independent tests:
+
 ```bash
-gradlew.bat testAllVersions
+./gradlew testAllVersions
 ```
 
 ## Mod Structure
 
-The project is a multi-loader, multi-version project:
+The project has shared logic, loader-specific entry points, and standalone
+generation targets.
 
-| Module              | Description                                          |
-|---------------------|------------------------------------------------------|
-| `common/`           | Pure Java logic — config, audio ownership, state     |
-| `common-1.20.1/`   | Shared Minecraft code for 1.20.1 (Fabric + Forge)    |
-| `common-1.21.1/`   | Shared Minecraft code for 1.21.1 (Fabric + NeoForge) |
-| `shared/minecraft-1.21plus/` | Shared code between 1.21.1 and 26.1.2 NeoForge |
-| `shared/loader-neoforge/`    | Shared NeoForge platform code                  |
-| `fabric-1.20.1/`   | Fabric 1.20.1 loader entry point                     |
-| `fabric-1.21.1/`   | Fabric 1.21.1 loader entry point                     |
-| `forge-1.20.1/`    | Forge 1.20.1 loader entry point                      |
-| `neoforge-1.21.1/` | NeoForge 1.21.1 loader entry point                   |
-| `neoforge-26.1.2/` | NeoForge 26.1.2 loader entry point (standalone)      |
-| `tools/`            | Automated test scripts                               |
+| Directory pattern | Purpose |
+|---|---|
+| `common/` | Shared pure Java audio and state logic |
+| `common-*/` | Minecraft-specific shared code |
+| `shared/` | Cross-loader APIs and verification |
+| `fabric-*/`, `forge-*/`, `neoforge-*/` | Loader entry points and standalone ports |
+| `tools/` | Build, generation and regression tooling |
+
+Use the actual directory names or Gradle project listing from your checkout.
 
 ## Changelog
 
@@ -242,13 +229,17 @@ and the guide book each consume a circuit, giving their recipes a mod-specific
 ingredient. The circuit is also in the Simply Speakers creative tab.
 The guide's first chapter shows its crafting recipe.
 
-## Dependencies
+### Coordinated client/server upgrades
 
-Simply Speakers 0.9.1 requires **PacketWeave 0.1.2 or later** on both the client and server. Install its jar for your Minecraft version and loader, and update clients and server together. Large audio uploads now use bounded background writes and server receipts to avoid a disk/task backlog.
+Install matching PacketWeave jars on clients and servers. When Speakers or
+PacketWeave changes media packet or receipt formats, upgrade the server and
+clients together; different protocol generations may not interoperate.
+Saved libraries and completed caches remain usable unless the release notes
+explicitly state otherwise. Check the selected jar's loader metadata and the
+versioned [changelog](changelog/) for exact dependency floors and release
+order, rather than relying on pinned numbers in this overview.
 
-### OpenUI on clients and dedicated servers
-
-OpenUI MC is required on clients only. Dedicated servers can run without it.
-On Fabric, the client requirement is checked before client initialization; missing or
-incompatible OpenUI versions produce an installation error before the UI loads.
-Forge and NeoForge declare the dependency with `side="CLIENT"`.
+OpenUI MC is a separate client mod. Fabric server metadata may also require
+OpenUI where a client-only dependency cannot be expressed. Forge and
+NeoForge normally declare it client-only; the selected loader metadata is
+authoritative.

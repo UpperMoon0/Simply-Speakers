@@ -42,6 +42,10 @@ public final class LivePlaybackServerProbe {
     private static AudioFileMetadata audio;
     private static int phase, ticks, joinedTicks;
     private static boolean done;
+    private static final java.util.Set<UUID> initialDownloads = new java.util.HashSet<>();
+    private static boolean initialStartedPending;
+    private static long initialDownloadDeadline;
+
     private LivePlaybackServerProbe() {}
     public static boolean enabled() { return Boolean.getBoolean("simplyspeakers.livePlaybackTest"); }
 
@@ -52,7 +56,13 @@ public final class LivePlaybackServerProbe {
             com.nstut.simplyspeakers.Config.maxUploadSize = com.nstut.simplyspeakers.Config.MAX_FILE_SIZE;
             currentServer = server; player = null; observer = null; first = null; portable = null;
             phase = 0; reloadCase = 0; observerPhase = 0; portableStage = 0; ticks = 0; joinedTicks = 0; done = false;
-            acknowledgements.clear();
+            acknowledgements.clear(); initialDownloads.clear(); initialStartedPending = false; initialDownloadDeadline = 0;
+            server.getCommands().getDispatcher().register(Commands.literal("simplyspeakers_verify_download")
+                    .then(Commands.argument("audio", StringArgumentType.word()).executes(ctx -> {
+                        acknowledgeInitialDownload(ctx.getSource().getPlayer(), StringArgumentType.getString(ctx, "audio"));
+                        return 1;
+                    })));
+
             server.getCommands().getDispatcher().register(Commands.literal("simplyspeakers_verify")
                     .then(Commands.argument("phase", StringArgumentType.word()).executes(ctx -> {
                         var sender = ctx.getSource().getPlayer();
@@ -74,6 +84,12 @@ public final class LivePlaybackServerProbe {
             if (++ticks > 2400) fail("runtime fixture timed out at carrier phase " + phase + ", observer phase " + observerPhase + ", portable stage " + portableStage);
             require(server.getPlayerList().getPlayers().contains(player) && server.getPlayerList().getPlayers().contains(observer),
                     "carrier or observer disconnected before verification completed");
+            if (phase == 0 && !initialDownloadsReady())
+                require(System.nanoTime() < initialDownloadDeadline, "both clients must decode their initial download within 30 seconds");
+            if (initialStartedPending && initialDownloadsReady()) {
+                initialStartedPending = false;
+                acknowledge("started");
+            }
             advancePortable();
             return;
         }
@@ -93,13 +109,14 @@ public final class LivePlaybackServerProbe {
             level.setBlockAndUpdate(origin.offset(0,0,3),BlockRegistries.REDSTONE_CONTROLLER.get().defaultBlockState());
             require(first != null && second != null, "speaker block entities were not created");
             first.setSpeakerId(ID); second.setSpeakerId(ID); key = first.getFullStateKey();
-            audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.toneBytes(60 * 1024 * 1024)),
+            audio = SimplySpeakers.getAudioFileManager().saveFile(new ByteArrayInputStream(WaveFixture.liveTransferTone()),
                     "verification.wav", player.getUUID().toString());
             SpeakerState state = state();
             state.setOwnerUuid(player.getUUID()); state.setRedstoneMode(RedstoneMode.PULSE);
             state.setAudioId(audio.getUuid()); state.setAudioFilename(audio.getOriginalFilename());
             state.setMaxRange(64); state.setMaxVolume(0); state.setLooping(true);
             ServerSpeakerRegistry.updateSpeakerStateByFullKey(key, state);
+            initialDownloadDeadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30);
             require(ServerSpeakerControlService.play(server, level, key), "initial play rejected");
             first.updateEmitterSnapshot(); second.updateEmitterSnapshot();
         } catch (Exception error) { throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL setup", error); }
@@ -124,8 +141,20 @@ public final class LivePlaybackServerProbe {
         acknowledgements.add("reload_" + observed); reloadCase++;
         System.out.println("SIMPLYSPEAKERS_SERVER_AUDIO_RELOAD_PASS " + observed + " emitters=" + emitters);
     }
+    private static boolean initialDownloadsReady() { return initialDownloads.size() == 2; }
+    private static void acknowledgeInitialDownload(ServerPlayer sender, String audioId) {
+        require(sender != null && (sender == player || sender == observer), "unexpected initial download sender");
+        require(currentServer.getPlayerList().getPlayer(sender.getUUID()) == sender,
+                "initial download acknowledgement came from a stale connection");
+        require(audio != null && audio.getUuid().equals(audioId), "stale initial download acknowledgement");
+        // Only the two actual synthetic participant connections can add their own UUID.
+        initialDownloads.add(sender.getUUID());
+    }
     private static void acknowledge(String observed) {
         require(!done && phase < PHASES.size() && PHASES.get(phase).equals(observed), "unexpected phase " + observed);
+        // A fast carrier must not pause/seek/restart the slower observer before its
+        // independent initial download has actually decoded to a playing OpenAL source.
+        if ("started".equals(observed) && !initialDownloadsReady()) { initialStartedPending = true; return; }
         String expectedReload = switch (observed) {
             case "started" -> "normal_playing"; case "paused" -> "normal_paused";
             case "portable_started" -> "portable_playing"; case "portable_paused" -> "portable_paused";

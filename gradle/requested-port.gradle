@@ -4,7 +4,7 @@ file('../gradle.properties').withInputStream { shared.load(it) }
 group = shared.getProperty('maven_group')
 version = shared.getProperty('mod_version')
 ext.openuiPortVersion = '0.0.15'
-ext.packetweavePortVersion = '0.1.4'
+ext.packetweavePortVersion = '0.1.5'
 base { archivesName = "simplyspeakers-${project.name}" }
 repositories {
     mavenCentral()

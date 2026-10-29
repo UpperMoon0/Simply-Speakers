@@ -195,5 +195,5 @@ class RequestedGenerationTest(unittest.TestCase):
         for target,mc,java in [('fabric-1.16.5','1.16.5','>=8'),('fabric-26.2','26.2','>=25')]:
             meta=json.loads((ROOT/target/'src/main/resources/fabric.mod.json').read_text())
             self.assertEqual(meta['depends']['minecraft'],mc);self.assertEqual(meta['depends']['java'],java)
-            self.assertEqual(meta['depends']['packetweave'],'>=0.1.4')
+            self.assertEqual(meta['depends']['packetweave'],'>=0.1.5')
 if __name__=='__main__':unittest.main()

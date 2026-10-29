@@ -192,7 +192,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: UpperMoon0/PacketWeave
-          ref: b9af8be1c8dae497a852342a0d323f811b80b54a
+          ref: 25be4e44b3718812e369519989762e5d1bccda25
           path: .port-deps/PacketWeave
       - uses: actions/setup-java@v4
         with:
@@ -432,7 +432,8 @@ jobs:
 
             All ten native target JARs and SHA256SUMS are attached. Optional
             integrations and native runtime qualification limits are documented
-            in docs/requested-generations.md at this release commit.
+            in the versioned acceptance record under changelog/ and the
+            evergreen methodology under docs/requested-generations.md.
 
           draft: false
           prerelease: false

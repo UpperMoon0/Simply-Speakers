@@ -16,7 +16,7 @@ final class LiveDownloadClientProbe {
     }
     static void downloaded(String id, long bytes) {
         if (!id.equals(audioId)) return;
-        if (bytes != 60L * 1024 * 1024)
+        if (bytes != com.nstut.simplyspeakers.testing.WaveFixture.LIVE_TRANSFER_BYTES)
             throw new IllegalStateException("SIMPLYSPEAKERS_VERIFY_FAIL download fixture size " + bytes);
         downloaded = System.nanoTime();
     }
@@ -30,9 +30,13 @@ final class LiveDownloadClientProbe {
         var snapshot = ClientAudioPlayer.verificationSnapshot(networkKey);
         if (!snapshot.playing() || snapshot.decodedBytes() <= 0 || snapshot.sources() != 1) return;
         passed = true;
-        System.out.println("SIMPLYSPEAKERS_DOWNLOAD_PLAY_PASS bytes=62914560 role="
+        System.out.println("SIMPLYSPEAKERS_DOWNLOAD_PLAY_PASS bytes="
+                + com.nstut.simplyspeakers.testing.WaveFixture.LIVE_TRANSFER_BYTES + " role="
                 + System.getProperty("simplyspeakers.livePlaybackRole", "carrier")
                 + " download-ms=" + TimeUnit.NANOSECONDS.toMillis(downloaded - requested)
                 + " request-to-decoded-play-ms=" + TimeUnit.NANOSECONDS.toMillis(now - requested));
+        var client = net.minecraft.client.Minecraft.getInstance();
+        if (client.getConnection() != null)
+            client.getConnection().sendCommand("simplyspeakers_verify_download " + audioId);
     }
 }

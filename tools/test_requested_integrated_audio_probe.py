@@ -46,7 +46,8 @@ class IntegratedAudioProbeContractTest(unittest.TestCase):
         self.assertIn('"SIMPLYSPEAKERS_INTEGRATED_RUNTIME_PASS javaMajor=8"', CLIENT)
 
     def test_small_fixture_never_replaces_terrain_or_creates_playback(self):
-        self.assertIn("WaveFixture.tone(30)", SERVER)
+        self.assertIn("WaveFixture.liveTransferTone()", SERVER)
+        self.assertIn("WaveFixture.LIVE_TRANSFER_BYTES", SERVER)
         self.assertIn("level.hasChunkAt(candidate) && level.isEmptyBlock(candidate)", SERVER)
         self.assertIn("radius <= 4", SERVER)
         self.assertIn("y <= 4", SERVER)

@@ -12,7 +12,6 @@ import com.nstut.simplyspeakers.audio.LoopingSeekRecovery;
 import com.nstut.simplyspeakers.audio.SpatialAudioCalculator;
 import com.nstut.simplyspeakers.audio.UploadProgressLogger;
 import com.nstut.packetweave.api.ChunkedTransfer;
-import com.nstut.packetweave.api.ReceiptGate;
 import com.nstut.simplyspeakers.client.screens.SpeakerScreen;
 import com.nstut.simplyspeakers.network.PacketRegistries;
 import com.nstut.simplyspeakers.network.RequestAudioFilePacketC2S;
@@ -112,8 +111,82 @@ public class ClientAudioPlayer {
     private static final File CACHE_DIR = new File(Minecraft.getInstance().gameDirectory, "simply_speakers_cache");
     private static final Map<String, StreamingAudioResource> networkResources = new ConcurrentHashMap<>();
     private static final Map<UUID, UploadProcess> activeUploads = new ConcurrentHashMap<>();
-    private static final Map<UUID, Thread> activeUploadWorkers = new ConcurrentHashMap<>();
+    private static final java.util.concurrent.ExecutorService DOWNLOAD_IO = new java.util.concurrent.ThreadPoolExecutor(
+            2, 2, 0L, java.util.concurrent.TimeUnit.MILLISECONDS, new java.util.concurrent.ArrayBlockingQueue<>(32),
+            task -> { Thread thread = new Thread(task, "Simply Speakers Download IO"); thread.setDaemon(true); return thread; });
     private static final Map<String, DownloadProcess> activeDownloads = new ConcurrentHashMap<>();
+    // Disconnect must free request slots immediately. Old partial files are
+    // retired for asynchronous cleanup instead of blocking the game thread.
+    private static final java.util.Set<DownloadProcess> retiredDownloads =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+    // PacketWeave permits two outbound transfers per authenticated peer across integrations.
+    private static final int MAX_ACTIVE_DOWNLOADS = 2;
+    private static final Map<String, Integer> busyRetryCounts = new ConcurrentHashMap<>();
+    // FIFO backlog independent from active transfer slots.
+    private static final BoundedAudioDownloadQueue deferredDownloads = new BoundedAudioDownloadQueue(64);
+    private static final java.util.concurrent.ScheduledExecutorService DOWNLOAD_REAPER =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(task -> {
+                Thread thread = new Thread(task, "Simply Speakers Download Cleanup"); thread.setDaemon(true); return thread;
+            });
+    static {
+        DOWNLOAD_REAPER.scheduleWithFixedDelay(() -> {
+            for (var entry : activeUploads.entrySet()) {
+                UploadProcess process = entry.getValue();
+                if (System.nanoTime() - process.activity < 60_000_000_000L) continue;
+                if (activeUploads.remove(entry.getKey(), process))
+                    com.nstut.packetweave.api.OutboundTransfers.shared().cancel(process.peer, entry.getKey());
+            }
+            for (DownloadProcess process : activeDownloads.values()) {
+                if (!process.cancelled && System.nanoTime() - process.activity < 60_000_000_000L) continue;
+                process.cancelled = true;
+                if (!process.cleanup()) continue; // Keep failed deletions bounded and retry them.
+                if (activeDownloads.remove(process.audioId, process)) process.releasePublished();
+                process.client.execute(() -> {
+                    if (process.client.getConnection() != process.peer) return;
+                    if (activeDownloads.containsKey(process.audioId)) return;
+                    List<PlayRequest> waiting = ClientAudioPlayer.pendingPlays.get(process.audioId);
+                    if (process.busyRejected && waiting != null && !waiting.isEmpty()) {
+                        int failures = busyRetryCounts.merge(process.audioId, 1, Integer::sum);
+                        long delay = BoundedAudioDownloadQueue.retryDelayMillis(failures);
+                        if (delay >= 0) {
+                            DOWNLOAD_REAPER.schedule(() -> process.client.execute(() -> {
+                                if (process.client.getConnection() != process.peer || activeDownloads.containsKey(process.audioId)) return;
+                                List<PlayRequest> pending = ClientAudioPlayer.pendingPlays.get(process.audioId);
+                                if (pending == null || pending.isEmpty()) {
+                                    busyRetryCounts.remove(process.audioId);
+                                    return;
+                                }
+                                if (!deferredDownloads.offer(process.audioId, process.filename)) {
+                                    ClientAudioPlayer.pendingPlays.remove(process.audioId);
+                                    busyRetryCounts.remove(process.audioId);
+                                    SimplySpeakers.LOGGER.warn("Audio retry queue full for {}", process.audioId);
+                                }
+                                drainDownloads();
+                            }), delay, java.util.concurrent.TimeUnit.MILLISECONDS);
+                        } else {
+                            ClientAudioPlayer.pendingPlays.remove(process.audioId);
+                            busyRetryCounts.remove(process.audioId);
+                            SimplySpeakers.LOGGER.warn("Audio download repeatedly rejected for {}; replay to retry", process.audioId);
+                        }
+                    } else {
+                        ClientAudioPlayer.pendingPlays.remove(process.audioId);
+                        busyRetryCounts.remove(process.audioId);
+                    }
+                    drainDownloads();
+                    PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(-1, process.transferId));
+                });
+            }
+            for (DownloadProcess process : retiredDownloads) {
+                if (process.cleanup()) {
+                    retiredDownloads.remove(process);
+                } else if (System.nanoTime() - process.retiredAt > 120_000_000_000L) {
+                    retiredDownloads.remove(process);
+                    SimplySpeakers.LOGGER.warn("Could not delete retired audio partial file for {}", process.audioId);
+                }
+            }
+        }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
+    }
+
     private static final Map<String, List<PlayRequest>> pendingPlays = new ConcurrentHashMap<>();
     private static final Map<String, AudioFileMetadata> audioList = new ConcurrentHashMap<>();
     private static final int NUM_BUFFERS = 3;
@@ -418,8 +491,9 @@ public class ClientAudioPlayer {
             return;
         }
         if (!CACHE_DIR.exists()) CACHE_DIR.mkdirs();
-        String extension = com.google.common.io.Files.getFileExtension(metadata.getOriginalFilename());
-        File cachedFile = new File(CACHE_DIR, metadata.getUuid() + (extension.isEmpty() ? "" : "." + extension));
+        File cachedFile;
+        try { cachedFile = cacheFile(metadata.getUuid(), metadata.getOriginalFilename()); }
+        catch (IOException invalid) { playbackIntents.remove(networkKey, intent); return; }
         if (cachedFile.exists()) {
             ClientCacheManager.recordAccess(cachedFile);
             playFromFile(networkKey, pos, cachedFile.getAbsolutePath(), intent);
@@ -456,7 +530,11 @@ public class ClientAudioPlayer {
     }
 
     private static void queueSource(String networkKey, BlockPos pos, PlaybackIntent intent, boolean remote, String input) {
+        File playbackFile = remote ? null : new File(input);
+        if (playbackFile != null) ClientCacheManager.retain(playbackFile);
+        java.util.concurrent.atomic.AtomicBoolean workerOwnsLease = new java.util.concurrent.atomic.AtomicBoolean();
         long epoch = audioContext.epoch();
+        try {
         Minecraft.getInstance().tell(() -> {
             try {
                 audioContext.run(epoch, () -> {
@@ -483,21 +561,32 @@ public class ClientAudioPlayer {
                             intent.looping, remote ? intent.fullStateKey : null, intent.generation);
                     resource.startOffsetSeconds = intent.offsetSeconds();
                     Thread worker = new Thread(() -> {
-                        if (remote) streamUrlAudioData(resource, input, resource.startOffsetSeconds);
-                        else streamAudioData(resource, input, resource.startOffsetSeconds);
+                        try {
+                            if (remote) streamUrlAudioData(resource, input, resource.startOffsetSeconds);
+                            else streamAudioData(resource, input, resource.startOffsetSeconds);
+                        } finally {
+                            if (playbackFile != null) ClientCacheManager.release(playbackFile);
+                        }
                     }, SimplySpeakers.MOD_ID + (remote ? "-url-stream-" : "-stream-") + networkKey);
                     worker.setDaemon(true);
                     resource.streamingThread = worker;
                     networkResources.put(networkKey, resource);
                     worker.start();
+                    workerOwnsLease.set(true);
                 });
                 updateSpeakerVolumes();
             } catch (AudioContextGate.StaleContextException ignored) {
                 // A queued start from an old epoch cannot resurrect or touch new IDs.
             } catch (Exception e) {
                 SimplySpeakers.LOGGER.error("CLIENT: Failed to start audio playback for network {}", networkKey, e);
+            } finally {
+                if (!workerOwnsLease.get() && playbackFile != null) ClientCacheManager.release(playbackFile);
             }
         });
+        } catch (RuntimeException launchFailed) {
+            if (playbackFile != null) ClientCacheManager.release(playbackFile);
+            throw launchFailed;
+        }
     }
 
     private static long skipFully(InputStream in, long n) throws IOException {
@@ -1011,17 +1100,19 @@ public class ClientAudioPlayer {
         ClientPortableSpeakers.clear();
         directionalExtras.clear();
         pendingPlays.clear();
-        for (DownloadProcess download : activeDownloads.values()) {
-            download.cleanup();
+        // Cleanup can wait for disk on its dedicated worker, never on this game thread.
+        for (var entry : activeDownloads.entrySet()) {
+            DownloadProcess download = entry.getValue();
+            download.cancelled = true;
+            if (activeDownloads.remove(entry.getKey(), download)) {
+                download.releasePublished();
+                download.retiredAt = System.nanoTime();
+                retiredDownloads.add(download);
+            }
         }
-        activeDownloads.clear();
-        for (Thread worker : activeUploadWorkers.values()) {
-            try {
-                worker.interrupt();
-            } catch (Exception ignored) {}
-        }
-        activeUploadWorkers.clear();
-        for (UploadProcess process : activeUploads.values()) process.receipts.cancel();
+        deferredDownloads.clear();
+        busyRetryCounts.clear();
+        for (var upload : activeUploads.entrySet()) com.nstut.packetweave.api.OutboundTransfers.shared().cancel(upload.getValue().peer, upload.getKey());
         activeUploads.clear();
 
         List<StreamingAudioResource> resourcesToStop = new ArrayList<>(networkResources.values());
@@ -1180,7 +1271,10 @@ public class ClientAudioPlayer {
 
     public static void handleUploadResponse(UUID transactionId, boolean allowed, int maxChunkSize, Component message) {
         UploadProcess process = activeUploads.get(transactionId);
-        if (process == null) {
+        if (process == null) return;
+        if (process.peer != Minecraft.getInstance().getConnection()) {
+            activeUploads.remove(transactionId, process);
+            com.nstut.packetweave.api.OutboundTransfers.shared().cancel(process.peer, transactionId);
             return;
         }
 
@@ -1188,7 +1282,7 @@ public class ClientAudioPlayer {
             process.start(transactionId, maxChunkSize);
         } else {
             LiveUploadClientProbe.acknowledged(transactionId, false);
-            process.receipts.cancel();
+            com.nstut.packetweave.api.OutboundTransfers.shared().cancel(process.peer, transactionId);
             activeUploads.remove(transactionId);
             Screen currentScreen = Minecraft.getInstance().screen;
             if (currentScreen instanceof SpeakerScreen) {
@@ -1199,13 +1293,22 @@ public class ClientAudioPlayer {
 
     public static void handleUploadReceipt(UUID transactionId, long committedBytes) {
         UploadProcess process = activeUploads.get(transactionId);
-        if (process != null) process.receipts.acknowledge(committedBytes);
+        if (process != null && process.peer == Minecraft.getInstance().getConnection()) {
+            process.activity = System.nanoTime();
+            com.nstut.packetweave.api.OutboundTransfers.shared().acknowledge(process.peer, transactionId, committedBytes);
+        }
     }
 
     public static void handleUploadAcknowledgement(UUID transactionId, boolean success, Component message, BlockPos blockPos) {
-        LiveUploadClientProbe.acknowledged(transactionId, success);
         UploadProcess process = activeUploads.get(transactionId);
-        if (process != null && !success) process.receipts.cancel();
+        if (process == null) return;
+        if (process.peer != Minecraft.getInstance().getConnection()) {
+            activeUploads.remove(transactionId, process);
+            com.nstut.packetweave.api.OutboundTransfers.shared().cancel(process.peer, transactionId);
+            return;
+        }
+        LiveUploadClientProbe.acknowledged(transactionId, success);
+        if (!success) com.nstut.packetweave.api.OutboundTransfers.shared().cancel(process.peer, transactionId);
         if (success) {
             PacketRegistries.CHANNEL.sendToServer(new RequestAudioListPacketC2S(blockPos));
         }
@@ -1217,21 +1320,40 @@ public class ClientAudioPlayer {
     }
 
     private static void requestFileFromServer(String audioId, String filename) {
-        if (activeDownloads.containsKey(audioId)) {
+        if (activeDownloads.containsKey(audioId) || deferredDownloads.contains(audioId) || busyRetryCounts.containsKey(audioId)) return;
+        if (!deferredDownloads.offer(audioId, filename)) {
+            pendingPlays.remove(audioId);
+            SimplySpeakers.LOGGER.warn("Audio download queue full; cannot schedule {}", audioId);
             return;
         }
-        try {
-            activeDownloads.put(audioId, new DownloadProcess(audioId, filename));
-            LiveDownloadClientProbe.requested(audioId, filename);
-            PacketRegistries.CHANNEL.sendToServer(new RequestAudioFilePacketC2S(audioId));
-        } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed to initialize download process for {}", audioId, e);
+        drainDownloads();
+    }
+
+    private static void drainDownloads() {
+        while (activeDownloads.size() < MAX_ACTIVE_DOWNLOADS) {
+            BoundedAudioDownloadQueue.Request next = deferredDownloads.poll();
+            if (next == null) return;
+            List<PlayRequest> waiting = pendingPlays.get(next.audioId());
+            if (waiting == null || waiting.isEmpty()) continue; // Stopped while queued.
+            if (activeDownloads.containsKey(next.audioId())) continue;
+            try {
+                DownloadProcess process = new DownloadProcess(next.audioId(), next.filename());
+                if (activeDownloads.putIfAbsent(next.audioId(), process) != null) continue;
+                LiveDownloadClientProbe.requested(next.audioId(), next.filename());
+                PacketRegistries.CHANNEL.sendToServer(new RequestAudioFilePacketC2S(next.audioId(), process.transferId));
+            } catch (IOException | RuntimeException failure) {
+                activeDownloads.remove(next.audioId());
+                pendingPlays.remove(next.audioId());
+                SimplySpeakers.LOGGER.warn("Unable to request queued audio {}", next.audioId(), failure);
+            }
         }
     }
 
     public static void clearAudioList() {
         audioList.clear();
         pendingPlays.clear();
+        deferredDownloads.clear();
+        busyRetryCounts.clear();
     }
 
     public static void setAudioList(List<AudioFileMetadata> newAudioList) {
@@ -1241,110 +1363,161 @@ public class ClientAudioPlayer {
         }
     }
 
-    public static void handleAudioFileChunk(String audioId, byte[] data, boolean isLast) {
+    public static void handleAudioFileChunk(String audioId, UUID transferId, int index, byte[] data, boolean isLast) {
         DownloadProcess process = activeDownloads.get(audioId);
-        if (process == null) {
+        if (process == null || !process.transferId.equals(transferId) || process.peer != Minecraft.getInstance().getConnection()) return;
+        if (index == -1 && data.length == 0) {
+            process.busyRejected = true;
+            process.cancelled = true;
+            SimplySpeakers.LOGGER.warn("Audio download rejected or timed out; retrying with bounded backoff: {}", audioId);
             return;
         }
-
+        if (process.cancelled || !process.inFlight.compareAndSet(false, true)) {
+            process.cancelled = true;
+            PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(-1, transferId));
+            return;
+        }
         try {
-            process.addData(data);
-            if (isLast) {
-                process.complete();
-                activeDownloads.remove(audioId);
-            }
-        } catch (IOException e) {
-            SimplySpeakers.LOGGER.error("Failed writing download chunk for {}", audioId, e);
-            process.cleanup();
-            activeDownloads.remove(audioId);
+            DOWNLOAD_IO.execute(() -> {
+                long receipt = -1;
+                try {
+                    if (process.cancelled || activeDownloads.get(audioId) != process)
+                        throw new IOException("Audio download invalidated");
+                    process.addData(index, data);
+                    if (isLast) process.complete();
+                    receipt = process.received;
+                } catch (IOException | RuntimeException error) {
+                    process.cancelled = true; process.cleanup();
+                    SimplySpeakers.LOGGER.warn("Audio download failed: {}", error.getMessage());
+                } finally { process.inFlight.set(false); }
+                long committed = receipt;
+                process.client.execute(() -> {
+                    if (process.client.getConnection() == process.peer) {
+                        PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(process.cancelled ? -1 : committed, transferId));
+                    }
+                });
+            });
+        } catch (java.util.concurrent.RejectedExecutionException busy) {
+            process.cancelled = true; process.inFlight.set(false);
+            PacketRegistries.CHANNEL.sendToServer(new com.nstut.simplyspeakers.network.AudioDownloadReceiptPacketC2S(-1, transferId));
         }
     }
 
     private static class UploadProcess {
         private final File file;
-        private final ReceiptGate receipts = new ReceiptGate();
+        private final Object peer = Minecraft.getInstance().getConnection();
         private boolean started;
+        private volatile long activity = System.nanoTime();
         UploadProcess(File file) { this.file = file; }
         public synchronized void start(UUID transactionId, int chunkSize) {
-            if (started || chunkSize <= 0 || chunkSize > 32000) return;
+            if (started) return;
+            if (peer == null || chunkSize < com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES) {
+                activeUploads.remove(transactionId, this);
+                if (Minecraft.getInstance().screen instanceof SpeakerScreen screen)
+                    screen.setStatusMessage(Component.literal("Server offered an unsupported audio chunk size. Please retry."));
+                return;
+            }
             started = true;
-            Thread uploadThread = new Thread(() -> {
-                try {
-                    long totalLength = file.length();
-                    UploadProgressLogger.logStart(SimplySpeakers.LOGGER, transactionId, totalLength);
-                    long[] offset = {0};
-                    ChunkedTransfer.Consumer dispatch = ChunkedTransfer.onExecutor(Minecraft.getInstance()::execute, java.time.Duration.ofSeconds(30),
-                                    (index, total, chunk) -> {
-                                        receipts.expect(offset[0] + chunk.length);
-                                        PacketRegistries.CHANNEL.sendToServer(new UploadAudioDataPacketC2S(transactionId, index, chunk));
-                                    });
-                    ChunkedTransfer.streamFile(file.toPath(), chunkSize, Config.MAX_FILE_SIZE, (index, total, chunk) -> {
-                        dispatch.accept(index, total, chunk);
-                        receipts.await(java.time.Duration.ofSeconds(60));
-                        UploadProgressLogger.logChunk(SimplySpeakers.LOGGER, transactionId, offset[0], chunk.length, totalLength);
-                        offset[0] += chunk.length;
+            activity = System.nanoTime();
+            boolean admitted = com.nstut.packetweave.api.OutboundTransfers.shared().start(peer, transactionId,
+                    file.toPath(), Config.MAX_FILE_SIZE, Minecraft.getInstance()::execute, (index, total, chunk) -> {
+                        if (Minecraft.getInstance().getConnection() != peer || activeUploads.get(transactionId) != this)
+                            throw new IOException("Upload connection changed");
+                        PacketRegistries.CHANNEL.sendToServer(new UploadAudioDataPacketC2S(transactionId, index, chunk));
+                    }, error -> {
+                        if (error != null) Minecraft.getInstance().execute(() -> {
+                            if (activeUploads.remove(transactionId, this) && Minecraft.getInstance().getConnection() == peer && Minecraft.getInstance().screen instanceof SpeakerScreen screen)
+                                screen.setStatusMessage(Component.literal("Upload failed or timed out. Please retry."));
+                        });
                     });
-                } catch (IOException error) {
-                    SimplySpeakers.LOGGER.warn("Upload {} failed: {}", transactionId, error.getMessage());
-                    activeUploads.remove(transactionId);
-                    Minecraft.getInstance().execute(() -> {
-                        if (Minecraft.getInstance().screen instanceof SpeakerScreen screen)
-                            screen.setStatusMessage(Component.literal("Upload failed or timed out. Please retry."));
-                    });
-                } finally { activeUploadWorkers.remove(transactionId); }
-            }, SimplySpeakers.MOD_ID + "-upload-" + transactionId);
-            uploadThread.setDaemon(true);
-            activeUploadWorkers.put(transactionId, uploadThread);
-            uploadThread.start();
+            if (!admitted) {
+                activeUploads.remove(transactionId, this);
+                if (Minecraft.getInstance().screen instanceof SpeakerScreen screen)
+                    screen.setStatusMessage(Component.literal("Other media transfers are busy. Please retry."));
+            }
         }
+    }
+
+    // Both cache reads and writes cross the server metadata trust boundary.
+    private static File cacheFile(String audioId, String filename) throws IOException {
+        if (audioId == null || !audioId.matches("[A-Za-z0-9_-]{1,128}")
+                || audioId.matches("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])") || filename == null)
+            throw new IOException("Invalid cached audio identity");
+        String extension = com.google.common.io.Files.getFileExtension(filename);
+        if (!extension.equalsIgnoreCase("wav") && !extension.equalsIgnoreCase("mp3"))
+            throw new IOException("Invalid cached audio format");
+        return new File(CACHE_DIR, audioId + "." + extension);
     }
 
     private static class DownloadProcess {
         private final String audioId;
         private final String filename;
         private final File partFile;
-        private final OutputStream dataStream;
+        private OutputStream dataStream;
+        private final UUID transferId = UUID.randomUUID();
+        private final Minecraft client = Minecraft.getInstance();
+        private final Object peer = client.getConnection();
+        private final java.util.concurrent.atomic.AtomicBoolean inFlight = new java.util.concurrent.atomic.AtomicBoolean();
+        private volatile boolean cancelled;
+        private volatile boolean busyRejected;
+        private volatile long activity = System.nanoTime();
+        private volatile long retiredAt;
+        private int nextIndex;
+        private long received;
+        private volatile File publishedFile;
+        private final java.util.concurrent.atomic.AtomicBoolean publishedReleased = new java.util.concurrent.atomic.AtomicBoolean();
+
+        void releasePublished() {
+            File file = publishedFile;
+            if (file != null && publishedReleased.compareAndSet(false, true))
+                ClientCacheManager.release(file);
+        }
 
         public DownloadProcess(String audioId, String filename) throws IOException {
+            cacheFile(audioId, filename); // Validate before constructing even a temporary path.
             this.audioId = audioId;
             this.filename = filename;
-            if (!CACHE_DIR.exists()) {
-                CACHE_DIR.mkdirs();
-            }
-            this.partFile = new File(CACHE_DIR, audioId + ".part");
-            this.dataStream = new FileOutputStream(partFile);
+            this.partFile = new File(CACHE_DIR, audioId + "." + transferId + ".part");
         }
 
-        public synchronized void addData(byte[] data) throws IOException {
+        public synchronized void addData(int index, byte[] data) throws IOException {
+            if (cancelled || index != nextIndex || data.length == 0 || data.length > com.nstut.packetweave.api.OutboundTransfers.CHUNK_BYTES
+                    || received + data.length > Config.MAX_FILE_SIZE) throw new IOException("Invalid audio chunk");
+            if (dataStream == null) { Files.createDirectories(CACHE_DIR.toPath()); dataStream = new FileOutputStream(partFile); }
             dataStream.write(data);
+            nextIndex++; received += data.length; activity = System.nanoTime();
         }
 
-        public synchronized void cleanup() {
+        public synchronized boolean cleanup() {
             try {
-                dataStream.close();
-            } catch (IOException ignored) {}
-            try {
+                if (dataStream != null) { dataStream.close(); dataStream = null; }
                 Files.deleteIfExists(partFile.toPath());
-            } catch (IOException ignored) {}
+                return true;
+            } catch (IOException ignored) { return false; }
         }
 
-        public synchronized void complete() {
-            try {
+        public synchronized void complete() throws IOException {
+                if (cancelled || activeDownloads.get(audioId) != this)
+                    throw new IOException("Audio download cancelled before publication");
                 dataStream.flush();
-                dataStream.close();
+                if (dataStream != null) dataStream.close();
 
-                String extension = com.google.common.io.Files.getFileExtension(filename);
-                File cachedFile = new File(CACHE_DIR, audioId + (extension.isEmpty() ? "" : "." + extension));
+                File cachedFile = cacheFile(audioId, filename);
+                if (cancelled) throw new IOException("Audio download cancelled during final write");
 
-                try {
-                    Files.move(partFile.toPath(), cachedFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                } catch (AtomicMoveNotSupportedException e) {
-                    Files.move(partFile.toPath(), cachedFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                ClientCacheManager.publishCompleted(partFile, cachedFile);
+                publishedFile = cachedFile;
+                if (cancelled) {
+                    releasePublished();
+                    throw new IOException("Download invalidated after publication");
                 }
                 LiveDownloadClientProbe.downloaded(audioId, cachedFile.length());
-                ClientCacheManager.recordAccess(cachedFile);
-                ClientCacheManager.enforceBudget(CACHE_DIR, cachedFile);
+                ClientCacheManager.enforceBudget(CACHE_DIR);
 
+                client.execute(() -> {
+                try {
+                if (cancelled || Minecraft.getInstance().getConnection() != peer || !activeDownloads.remove(audioId, this)) return;
+                busyRetryCounts.remove(audioId);
                 List<PlayRequest> requests = pendingPlays.remove(audioId);
                 if (requests != null && !requests.isEmpty()) {
                     Map<String, PlayRequest> requestsByNetwork = new LinkedHashMap<>();
@@ -1364,10 +1537,11 @@ public class ClientAudioPlayer {
                         playFromFile(netKey, req.pos, cachedFile.getAbsolutePath(), req.intent);
                     }
                 }
-            } catch (IOException e) {
-                SimplySpeakers.LOGGER.error("Failed completing download for audio {}", audioId, e);
-                cleanup();
-            }
+                } finally {
+                    releasePublished();
+                    if (client.getConnection() == peer) drainDownloads();
+                }
+                });
         }
     }
 

@@ -6,8 +6,14 @@
   },
   "packetweave": {
     "repository": "UpperMoon0/PacketWeave",
-    "commit": "b9af8be1c8dae497a852342a0d323f811b80b54a",
-    "version": "0.1.4"
+    "commit": "25be4e44b3718812e369519989762e5d1bccda25",
+    "version": "0.1.5"
   },
-  "targets": ["forge-1.12.2", "fabric-1.16.5", "forge-1.16.5", "fabric-26.2", "neoforge-26.2"]
+  "targets": [
+    "forge-1.12.2",
+    "fabric-1.16.5",
+    "forge-1.16.5",
+    "fabric-26.2",
+    "neoforge-26.2"
+  ]
 }

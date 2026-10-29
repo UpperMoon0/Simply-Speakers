@@ -115,6 +115,9 @@ def convert(text,name):
     text=text.replace('.displayClientMessage(','.sendStatusMessage(')
     text=text.replace('mc.getSoundHandler().reload()', 'mc.refreshResources()')
     text=text.replace('client.getSoundHandler().reload()', 'client.refreshResources()')
+    # Runtime verification reports use the native 1.12 chat packet, not the modern command API.
+    text=re.sub(r'client\.getConnection\(\)\.sendCommand\(([^;]*)\);',
+                r'client.getConnection().sendPacket(new net.minecraft.network.play.client.CPacketChatMessage("/" + (\1)));',text)
     text=text.replace('client.font','com.nstut.openui.compat.LegacyFont.current()').replace('mc.font','com.nstut.openui.compat.LegacyFont.current()')
     text=text.replace('Minecraft.getMinecraft().font','com.nstut.openui.compat.LegacyFont.current()')
     text=text.replace('client.getWindow().getGuiScaledWidth()', 'new net.minecraft.client.gui.ScaledResolution(client).getScaledWidth()')

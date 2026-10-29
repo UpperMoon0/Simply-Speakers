@@ -7,8 +7,16 @@ import java.nio.charset.StandardCharsets;
 /** Deterministic PCM fixture shared by decoder checks and opt-in runtime verification. */
 public final class WaveFixture {
     private WaveFixture() {}
-    public static byte[] tone(int seconds) {
-        int rate = 22050, samples = Math.multiplyExact(rate, seconds), size = Math.multiplyExact(samples, 2);
+    // 118 receipt windows: about 12s at a conservative 100ms round trip, leaving
+    // headroom inside the 30s request-to-decoded-play acceptance deadline. The low
+    // PCM rate preserves two minutes of real audio for seeking and context reloads.
+    public static final int LIVE_TRANSFER_SECONDS = 120;
+    public static final int LIVE_TRANSFER_RATE = 2000;
+    public static final int LIVE_TRANSFER_BYTES = 44 + LIVE_TRANSFER_SECONDS * LIVE_TRANSFER_RATE * 2;
+    public static byte[] liveTransferTone() { return tone(LIVE_TRANSFER_SECONDS, LIVE_TRANSFER_RATE); }
+    public static byte[] tone(int seconds) { return tone(seconds, 22050); }
+    private static byte[] tone(int seconds, int rate) {
+        int samples = Math.multiplyExact(rate, seconds), size = Math.multiplyExact(samples, 2);
         ByteBuffer buffer = ByteBuffer.allocate(44 + size).order(ByteOrder.LITTLE_ENDIAN);
         buffer.put("RIFF".getBytes(StandardCharsets.US_ASCII)).putInt(36 + size);
         buffer.put("WAVEfmt ".getBytes(StandardCharsets.US_ASCII)).putInt(16).putShort((short) 1);

@@ -16,6 +16,37 @@ def refusal(target='fabric-1.16.5', commit='fixture-commit'):
 
 
 class IntegratedAcceptanceTest(unittest.TestCase):
+    def test_coverage_requires_real_native_or_matching_integrated_pass(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory); target='fabric-1.16.5'; commit='fixture-commit'
+            native=root/target/'build/runtime-evidence/dedicated-qualification.json'
+            native.parent.mkdir(parents=True)
+            native.write_text(json.dumps({'target':target,'source_commit':commit,
+                'mode':'dedicated-two-client','result':'passed','runtime_qualified':True}))
+            self.assertEqual('dedicated-two-client',probe.ci_coverage(root,target,commit))
+            native.write_text(json.dumps(refusal()))
+            self.assertIsNone(probe.ci_coverage(root,target,commit))
+            result=root/target/'run/integrated-acceptance/run-1/receipt.json'
+            result.parent.mkdir(parents=True)
+            valid={'target':target,'source_commit':commit,
+                'mode':'integrated-singleplayer-development','result':'passed',
+                'dedicated_qualified':False,'two_client_qualified':False,
+                'physical_audibility_tested':False}
+            for key,bad in [('result','not-completed'),('source_commit','old'),
+                            ('mode','dedicated-two-client'),('dedicated_qualified',True),
+                            ('two_client_qualified',True),('physical_audibility_tested',True)]:
+                wrong=valid.copy();wrong[key]=bad;result.write_text(json.dumps(wrong))
+                self.assertIsNone(probe.ci_coverage(root,target,commit))
+            result.write_text('invalid-json')
+            self.assertIsNone(probe.ci_coverage(root,target,commit))
+            result.write_text(json.dumps(valid))
+            self.assertEqual('integrated-only-native-blocked',probe.ci_coverage(root,target,commit))
+            native.write_text(json.dumps({**refusal(),'result':'failed'}))
+            self.assertIsNone(probe.ci_coverage(root,target,commit))
+            native.write_text(json.dumps({**refusal(),'source_commit':'old'}))
+            self.assertIsNone(probe.ci_coverage(root,target,commit))
+
+
     def test_only_exact_current_native_refusal_allows_alternative(self):
         self.assertTrue(probe.allowed_boundary(refusal(),'fabric-1.16.5','fixture-commit'))
         for key, replacement in [('target','forge-1.16.5'),('source_commit','older'),('mode','integrated'),

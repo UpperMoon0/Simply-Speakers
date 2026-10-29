@@ -37,6 +37,8 @@ ext.mod_group_id = sharedProperty('maven_group')
 ext.archives_name = sharedProperty('archives_name')
 ext.mod_authors = sharedProperty('mod_authors')
 ext.mod_description = sharedProperty('mod_description')
+ext.openui_version = sharedProperty('openui_version')
+ext.packetweave_version = sharedProperty('packetweave_version')
 
 if (tasks.findByName('wrapper')) {
     tasks.named('wrapper', Wrapper).configure {
@@ -77,6 +79,7 @@ sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
 sourceSets.test.runtimeClasspath += sourceSets.main.runtimeClasspath
 
 repositories {
+    mavenLocal()
     maven { url = 'https://maven.architectury.dev/' }
     maven { url = 'https://maven.blamejared.com/' }
 }
@@ -315,4 +318,4 @@ dependencies {
 }
 
 // Prepared by tools/prepare_packetweave.py; standalone mod, never shaded.
-dependencies { localRuntime files('../vendor/packetweave/targets/neoforge-26.1.2/build/libs/packetweave-neoforge-26.1.2-0.1.2.jar') }
+dependencies { localRuntime files("../vendor/packetweave/targets/neoforge-26.1.2/build/libs/packetweave-neoforge-26.1.2-${rootProject.packetweave_version}.jar") }

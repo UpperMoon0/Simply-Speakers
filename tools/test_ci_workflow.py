@@ -65,6 +65,20 @@ class CiWorkflowTest(unittest.TestCase):
         for name in ("test-core", "test-shared", "live-join", "verification-gate"):
             self.assertIn("ref: ${{ github.event.pull_request.head.sha || github.sha }}", job(name))
 
+    def test_shared_jdk_resolves_published_build_before_exact_version_handoff(self):
+        producer = job("prepare-openui")
+        setup = producer.split("id: openui-java", 1)[1].split("- name:", 1)[0]
+        self.assertIn("java-version: 21", setup)
+        self.assertIn("check-latest: true", setup)
+        self.assertIn("distribution: temurin", setup)
+        self.assertIn("java-version: ${{ steps.openui-java.outputs.version }}", producer)
+        for name in ("test-shared", "live-join"):
+            consumer = job(name)
+            self.assertIn("java-version: ${{ needs.prepare-openui.outputs.java-version }}", consumer)
+            self.assertIn("uses: ./.github/actions/restore-openui", consumer)
+        action = (ROOT / ".github/actions/restore-openui/action.yml").read_text()
+        self.assertIn("run: python3 tools/openui_cache.py validate", action)
+
     def test_cache_and_artifact_consumers_always_validate(self):
         action = (ROOT / ".github/actions/restore-openui/action.yml").read_text()
         self.assertIn("uses: actions/cache/restore@v4", action)
