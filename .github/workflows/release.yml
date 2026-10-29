@@ -432,7 +432,8 @@ jobs:
 
             All ten native target JARs and SHA256SUMS are attached. Optional
             integrations and native runtime qualification limits are documented
-            in docs/requested-generations.md at this release commit.
+            in the versioned acceptance record under changelog/ and the
+            evergreen methodology under docs/requested-generations.md.
 
           draft: false
           prerelease: false

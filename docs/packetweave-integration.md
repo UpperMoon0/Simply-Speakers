@@ -1,15 +1,18 @@
 # PacketWeave integration
 
-Simply Speakers 0.10.3 requires PacketWeave 0.1.5 or later on both sides.
-Install the native PacketWeave jar matching the Minecraft version and loader.
-The upload protocol changed; update clients and server together.
+Simply Speakers uses PacketWeave for receipt-paced audio transfers.
+Install the compatible PacketWeave jar declared by your selected loader
+build on **both client and server**. When a release changes transfer or
+receipt formats, update Speakers and PacketWeave together on all endpoints.
+Exact version requirements and release ordering belong in loader metadata
+and the versioned changelog.
 
 ## Development
 Initialize the pinned dependency with `git submodule update --init --recursive`.
-Run `python3 tools/prepare_packetweave.py --target forge-1.20.1` (or the desired
-loader) before direct Gradle game launches. Run without a target to prepare all
-five dependencies before `testAllVersions`. Use Java 21 to supervise the builds;
-Gradle toolchains supply the target Java versions. The verification harness
+Run `python3 tools/prepare_packetweave.py --target <loader-target>`
+before direct Gradle game launches. Omit the target to prepare all
+configured dependencies before `testAllVersions`. Use the JDK/toolchain
+required by the selected build. The verification harness
 prepares these dependencies automatically. The API project is compile-only:
 do not add it to production shadow configurations.
 
@@ -73,11 +76,11 @@ request/data/receipt packets while the second player exercises spatial playback.
 It requires `SIMPLYSPEAKERS_CLIENT_UPLOAD_PASS` and
 `SIMPLYSPEAKERS_SERVER_UPLOAD_PASS`, reporting sampled completed server tick
 p50/p95/max before, during and after the upload. Run
-`python3 tools/verify.py live --target forge-1.20.1` (or another native target).
+`python3 tools/verify.py live --target <loader-target>`.
 
 For constrained disk/network profiling, record the Minecraft version, loader, mod versions,
 player count, disk/network limits and a server profiler trace. Upload a 60 MiB
 valid WAV with another player moving/interacting. Record tick-time p50/p95/max
 for idle baseline, transfer, validation and recovery, and repeat with multiple
-uploaders and constrained disk/network. Compare against 0.9.0 in a separate
-test world; do not infer live TPS from the regression suite.
+uploaders and constrained disk/network. Compare against a previous release in a separate
+test world under the same conditions; do not infer live TPS from the regression suite.
