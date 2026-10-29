@@ -4,17 +4,26 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class BoundedAudioDownloadQueueTest {
-    @Test void ninthDistinctUncachedAudioStartsWhenFirstOfEightCompletes() {
+    @Test void thirdDistinctUncachedAudioStartsWhenFirstOfTwoCompletes() {
         BoundedAudioDownloadQueue waiting = new BoundedAudioDownloadQueue(64);
         java.util.Set<String> active = new java.util.HashSet<>();
-        for (int i=0;i<9;i++) {
+        for (int i=0;i<3;i++) {
             assertTrue(waiting.offer("track-"+i,i+".wav"));
-            while (active.size()<8 && waiting.size()>0) active.add(waiting.poll().audioId());
+            while (active.size()<2 && waiting.size()>0) active.add(waiting.poll().audioId());
         }
-        assertEquals(8,active.size());
+        assertEquals(2,active.size(), "Match PacketWeave's shared per-peer send budget");
         assertEquals(1,waiting.size());
         assertTrue(active.remove("track-0"));
-        assertEquals("track-8",waiting.poll().audioId());
+        assertEquals("track-2",waiting.poll().audioId());
+    }
+
+    @Test void busyRetryBackoffIsBoundedAndEventuallyStops() {
+        assertEquals(-1, BoundedAudioDownloadQueue.retryDelayMillis(0));
+        assertEquals(1_000, BoundedAudioDownloadQueue.retryDelayMillis(1));
+        assertEquals(2_000, BoundedAudioDownloadQueue.retryDelayMillis(2));
+        assertEquals(16_000, BoundedAudioDownloadQueue.retryDelayMillis(5));
+        assertEquals(30_000, BoundedAudioDownloadQueue.retryDelayMillis(6));
+        assertEquals(-1, BoundedAudioDownloadQueue.retryDelayMillis(7));
     }
 
     @Test void packetweaveBusyRejectionOrTimeoutFreesSlotsAndPreservesFairOrder() {
