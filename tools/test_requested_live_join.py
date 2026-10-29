@@ -37,6 +37,45 @@ class RequestedLiveJoinTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             port.reject_failure('fabric-26.2/carrier', 'SIMPLYSPEAKERS_VERIFY_FAIL native fault')
 
+    def test_legacy_fabric_asset_preflight_retries_only_real_loom_download_failure(self):
+        from unittest.mock import Mock, patch
+        root=Path('/fixture')
+        failure=Mock(returncode=1,stdout='> Task :downloadAssets FAILED\\nnet.fabricmc.loom.util.download.DownloadException: Failed to download',stderr='')
+        success=Mock(returncode=0,stdout='BUILD SUCCESSFUL',stderr='')
+        with patch.object(port.subprocess,'run',side_effect=[failure,success]) as run, \\
+             patch.object(port.time,'sleep') as sleep, \\
+             patch.object(port,'ORIGINAL_PREPARE_CLIENT_RUNTIMES') as original:
+            port.prepare_client_runtimes(root,'fabric-1.16.5',90)
+        self.assertEqual(2,run.call_count)
+        self.assertIn('downloadAssets',run.call_args_list[0].args[0])
+        self.assertIn('--stacktrace',run.call_args_list[0].args[0])
+        self.assertEqual([unittest.mock.call(5)],sleep.call_args_list)
+        original.assert_called_once_with(root,'fabric-1.16.5',90)
+
+    def test_asset_preflight_fails_closed_on_non_network_failure_or_exhaustion(self):
+        from unittest.mock import Mock, patch
+        root=Path('/fixture')
+        invalid=Mock(returncode=1,stdout='> Task :compileJava FAILED',stderr='bad java')
+        network=Mock(returncode=1,stdout='> Task :downloadAssets FAILED\\nnet.fabricmc.loom.util.download.DownloadException: Failed to download',stderr='')
+        for outcomes, count in [([invalid],1),([network]*3,3)]:
+            with patch.object(port.subprocess,'run',side_effect=outcomes) as run, \\
+                 patch.object(port.time,'sleep') as sleep, \\
+                 patch.object(port,'ORIGINAL_PREPARE_CLIENT_RUNTIMES') as original:
+                with self.assertRaises(port.subprocess.CalledProcessError):
+                    port.prepare_client_runtimes(root,'fabric-1.16.5',90)
+                self.assertEqual(count,run.call_count)
+                self.assertEqual(count-1,sleep.call_count)
+                original.assert_not_called()
+
+    def test_asset_preflight_does_not_change_other_targets(self):
+        from unittest.mock import patch
+        with patch.object(port.subprocess,'run') as run, \\
+             patch.object(port,'ORIGINAL_PREPARE_CLIENT_RUNTIMES') as original:
+            port.prepare_client_runtimes(Path('/fixture'),'forge-1.16.5',90)
+            port.prepare_client_runtimes(Path('/fixture'),'fabric-26.2',90)
+        run.assert_not_called()
+        self.assertEqual(2,original.call_count)
+
     def test_ci_refusal_remains_unqualified_and_strict_manual_mode_is_default(self):
         import inspect
         source=inspect.getsource(port.main)

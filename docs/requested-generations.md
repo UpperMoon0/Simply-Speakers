@@ -127,6 +127,18 @@ creation or join. This supersedes only the earlier **local** unrun status, not
 the outstanding client/audio/UI acceptance requirements. The exact job and
 same-display diagnostic boundary are recorded in `RUNTIME_ACCEPTANCE.md`.
 
+## Native asset preflight on CI
+
+The Fabric 1.16.5 native acceptance first executes Loom's own `downloadAssets`
+task, preserving the exact game assets and loader requirements. When that task
+reports a Loom `DownloadException` from its external asset download, a bounded
+three-attempt preflight retries using Gradle's partial download/cache and logs
+the detailed stack trace (including the nested network cause). Compilation,
+configuration errors, exhausted CDN retries, and any missing real Minecraft
+runtime markers **still fail**. A successful asset download does not certify
+gameplay: the full native or explicitly separate integrated verification must
+run afterward.
+
 ## Separate Java 8 integrated-world acceptance
 
 The separately named integrated lane runs only after a current, exact-target and
