@@ -144,32 +144,32 @@ public class ClientAudioPlayer {
                 process.client.execute(() -> {
                     if (process.client.getConnection() != process.peer) return;
                     if (activeDownloads.containsKey(process.audioId)) return;
-                    List<PlayRequest> waiting = pendingPlays.get(process.audioId);
+                    List<PlayRequest> waiting = ClientAudioPlayer.pendingPlays.get(process.audioId);
                     if (process.busyRejected && waiting != null && !waiting.isEmpty()) {
                         int failures = busyRetryCounts.merge(process.audioId, 1, Integer::sum);
                         long delay = BoundedAudioDownloadQueue.retryDelayMillis(failures);
                         if (delay >= 0) {
                             DOWNLOAD_REAPER.schedule(() -> process.client.execute(() -> {
                                 if (process.client.getConnection() != process.peer || activeDownloads.containsKey(process.audioId)) return;
-                                List<PlayRequest> pending = pendingPlays.get(process.audioId);
+                                List<PlayRequest> pending = ClientAudioPlayer.pendingPlays.get(process.audioId);
                                 if (pending == null || pending.isEmpty()) {
                                     busyRetryCounts.remove(process.audioId);
                                     return;
                                 }
                                 if (!deferredDownloads.offer(process.audioId, process.filename)) {
-                                    pendingPlays.remove(process.audioId);
+                                    ClientAudioPlayer.pendingPlays.remove(process.audioId);
                                     busyRetryCounts.remove(process.audioId);
                                     SimplySpeakers.LOGGER.warn("Audio retry queue full for {}", process.audioId);
                                 }
                                 drainDownloads();
                             }), delay, java.util.concurrent.TimeUnit.MILLISECONDS);
                         } else {
-                            pendingPlays.remove(process.audioId);
+                            ClientAudioPlayer.pendingPlays.remove(process.audioId);
                             busyRetryCounts.remove(process.audioId);
                             SimplySpeakers.LOGGER.warn("Audio download repeatedly rejected for {}; replay to retry", process.audioId);
                         }
                     } else {
-                        pendingPlays.remove(process.audioId);
+                        ClientAudioPlayer.pendingPlays.remove(process.audioId);
                         busyRetryCounts.remove(process.audioId);
                     }
                     drainDownloads();
