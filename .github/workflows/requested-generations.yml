@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: UpperMoon0/PacketWeave
-          ref: 73a7ade839191fde0fcccc66e1d88ad1b86cb447
+          ref: fd4717334b79c7a999f1d09d3126aa5364d93dd2
           path: .port-deps/PacketWeave
       - uses: actions/setup-java@v4
         with:
