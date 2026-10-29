@@ -101,7 +101,7 @@ class ReleaseArtifactsTest(unittest.TestCase):
             with self.subTest(workflow=workflow_name):
                 for key in ('openui', 'packetweave'):
                     repo = pins[key]['repository']
-                    pattern = r'repository:\\s*' + re.escape(repo) + r'\\s+ref:\\s*([0-9a-f]{40})'
+                    pattern = r'repository:\s*' + re.escape(repo) + r'\s+ref:\s*([0-9a-f]{40})'
                     matches = re.findall(pattern, workflow)
                     self.assertEqual([pins[key]['commit']], matches,
                         f'{workflow_name}: {key} checkout must match release source lockfile')
