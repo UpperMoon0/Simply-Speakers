@@ -243,3 +243,8 @@ OpenUI MC is a separate client mod. Fabric server metadata may also require
 OpenUI where a client-only dependency cannot be expressed. Forge and
 NeoForge normally declare it client-only; the selected loader metadata is
 authoritative.
+
+
+### Sable compatibility policy
+
+Sable is an **optional** integration. Loader metadata declares a minimum required Sable version, not a major-version ceiling. The adapter uses the pinned Sable Companion API; loader acceptance alone does not certify future Sable API or gameplay behavior. Test plot/sublevel transforms against newer Sable releases before claiming runtime support.

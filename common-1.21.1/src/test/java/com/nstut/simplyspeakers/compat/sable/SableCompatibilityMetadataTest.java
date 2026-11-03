@@ -17,11 +17,11 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Tests the shipped dependency declarations with the loaders' real range parsers. */
 class SableCompatibilityMetadataTest {
     private static final Path ROOT = Path.of(System.getProperty("sable.compat.root"));
-    private static final String[] ACCEPTED = {"2.0.5", "2.0.6", "2.0.7", "2.1.0", "2.99.0"};
-    private static final String[] REJECTED = {"1.6.0", "2.0.4", "3.0.0", "3.1.0"};
+    private static final String[] ACCEPTED = {"2.0.5", "2.0.6", "2.0.7", "2.1.0", "2.99.0", "3.0.0", "3.1.0"};
+    private static final String[] REJECTED = {"1.6.0", "2.0.4"};
 
     @Test
-    void fabricKeepsSableOptionalAndAcceptsStableAndLater2x() throws Exception {
+    void fabricKeepsSableOptionalAndAcceptsMinimumAndFutureVersions() throws Exception {
         JsonObject metadata = JsonParser.parseString(Files.readString(ROOT.resolve(
                 "fabric-1.21.1/src/main/resources/fabric.mod.json"))).getAsJsonObject();
         assertFalse(metadata.getAsJsonObject("depends").has("sable"));
@@ -32,7 +32,7 @@ class SableCompatibilityMetadataTest {
     }
 
     @Test
-    void neoForgeKeepsSableOptionalOnBothSidesAndAcceptsStableAndLater2x() throws Exception {
+    void neoForgeKeepsSableOptionalOnBothSidesAndAcceptsMinimumAndFutureVersions() throws Exception {
         String metadata = Files.readString(ROOT.resolve(
                 "neoforge-1.21.1/src/main/resources/META-INF/neoforge.mods.toml"));
         String sable = null;
