@@ -247,4 +247,4 @@ authoritative.
 
 ### Sable compatibility policy
 
-Sable is an **optional** integration on Minecraft 1.21.1. Dependency metadata accepts Sable **2.0.5 or newer** without an arbitrary major-version ceiling on Fabric and NeoForge. The adapter uses the pinned Sable Companion API; loader acceptance alone does not certify future Sable API or gameplay behavior. Test plot/sublevel transforms against newer Sable releases before claiming runtime support.
+Sable is an **optional** integration. Loader metadata declares a minimum required Sable version, not a major-version ceiling. The adapter uses the pinned Sable Companion API; loader acceptance alone does not certify future Sable API or gameplay behavior. Test plot/sublevel transforms against newer Sable releases before claiming runtime support.
