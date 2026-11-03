@@ -38,7 +38,7 @@
   "suggests": {
     "computercraft": "*",
     "patchouli": "*",
-    "sable": ">=2.0.5 <3.0.0",
+    "sable": ">=2.0.5",
     "openui_mc": ">=${openui_version}"
   }
 }
